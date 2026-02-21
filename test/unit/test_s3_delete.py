@@ -217,3 +217,67 @@ def test_s3_delete_recursive_with_s3root():
                 s3_res.Bucket("test-bucket").objects.filter(Prefix="logs/")
             )
             assert len(remaining) == 0, "All objects under logs/ should be deleted"
+
+@mock_aws
+def test_s3_delete_recursive_with_s3root_subpath():
+    """
+    Test delete_recursive correctly handles s3root with a sub-path (prefix).
+    
+    This tests for the path duplication bug where s3root="s3://bucket/data"
+    combined with full_key="data/logs/file.txt" would create duplicated
+    segments like "s3://bucket/data/data/logs/file.txt".
+    """
+    # Setup: Create bucket with objects in various paths
+    s3_res = boto3.resource("s3", region_name="us-east-1")
+    s3_res.create_bucket(Bucket="test-bucket")
+    
+    # Create objects under data/logs/
+    s3_res.Object("test-bucket", "data/logs/2025-01/app.log").put(Body=b"log1")
+    s3_res.Object("test-bucket", "data/logs/2025-02/app.log").put(Body=b"log2")
+    s3_res.Object("test-bucket", "data/other/file.txt").put(Body=b"other")
+    s3_res.Object("test-bucket", "other/file.txt").put(Body=b"root")
+    
+    # Initialize S3 client with s3root pointing to "data" sub-path
+    with S3(s3root="s3://test-bucket/data") as s3_client:
+        # Mock list_recursive to return objects with full S3 URLs
+        # (simulating what list_recursive would return in real usage)
+        mock_objects = [
+            S3Object(
+                prefix="s3://test-bucket/data/logs/",
+                url="s3://test-bucket/data/logs/2025-01/app.log",
+                path="",
+                size=4,
+            ),
+            S3Object(
+                prefix="s3://test-bucket/data/logs/",
+                url="s3://test-bucket/data/logs/2025-02/app.log",
+                path="",
+                size=4,
+            ),
+        ]
+        
+        with patch.object(s3_client, "list_recursive", return_value=mock_objects):
+            # Call delete_recursive with relative key "logs/"
+            # The fix should:
+            # 1. Extract full key "data/logs/2025-01/app.log" from obj.url
+            # 2. Remove s3root path "data" to get relative key "logs/2025-01/app.log"
+            # 3. Pass relative key to delete_many
+            # 4. _url() combines s3root with relative key correctly
+            s3_client.delete_recursive(["logs/"])
+            
+            # Verify only objects under data/logs/ are deleted
+            remaining_logs = list(
+                s3_res.Bucket("test-bucket").objects.filter(Prefix="data/logs/")
+            )
+            assert len(remaining_logs) == 0, "Objects under data/logs/ should be deleted"
+            
+            # Verify objects outside data/logs/ still exist
+            remaining_other = list(
+                s3_res.Bucket("test-bucket").objects.filter(Prefix="data/other/")
+            )
+            assert len(remaining_other) == 1, "Objects under data/other/ should remain"
+            
+            remaining_root = list(
+                s3_res.Bucket("test-bucket").objects.filter(Prefix="other/")
+            )
+            assert len(remaining_root) == 1, "Objects under other/ should remain"

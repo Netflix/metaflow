@@ -964,22 +964,37 @@ class S3(object):
             Prefixes to delete. If None, deletes under the S3 root for this
             client (if configured). Each key may be an S3 url or a path suffix.
         """
-        from urllib.parse import urlparse
-
         # list_recursive returns S3Object instances with .url (full S3 path) set
         objs = self.list_recursive(keys)
         if not objs:
             return
-        # Extract S3 keys (paths) from full S3 URLs to pass to delete_many.
-        # obj.url is the full s3://bucket/path, but when _url() processes it in
-        # delete_many, it will reject keys starting with s3:// if s3root is set.
-        # Solution: Extract just the path portion (after bucket) from obj.url,
-        # then _url() will correctly combine it with s3root.
+        # Extract S3 keys relative to s3root to pass to delete_many.
+        # obj.url is the full s3://bucket/path/to/object
+        # When s3root is set (e.g., s3://bucket/data), we must extract only the
+        # key relative to s3root (e.g., logs/file.txt), not the full path after
+        # the bucket (e.g., data/logs/file.txt).
+        # Otherwise delete_many will pass "data/logs/file.txt" to _url(), which
+        # combines it with s3root ("s3://bucket/data"), resulting in a duplicated
+        # path segment: "s3://bucket/data/data/logs/file.txt".
         keys_to_delete = []
         for obj in objs:
             parsed = urlparse(obj.url, allow_fragments=False)
-            # Extract S3 key: path without leading slash
-            s3_key = parsed.path.lstrip("/")
+            # Full S3 key from URL: strip leading slash and bucket name
+            full_key = parsed.path.lstrip("/")
+            
+            # If s3root is set, strip it from the full key to get the relative key
+            if self._s3root:
+                s3root_parsed = urlparse(self._s3root, allow_fragments=False)
+                s3root_key = s3root_parsed.path.lstrip("/")
+                # Remove s3root prefix from full key to get relative key
+                if s3root_key and full_key.startswith(s3root_key):
+                    s3_key = full_key[len(s3root_key):].lstrip("/")
+                else:
+                    s3_key = full_key
+            else:
+                # No s3root, use full key as-is
+                s3_key = full_key
+            
             keys_to_delete.append(s3_key)
         if keys_to_delete:
             self.delete_many(keys_to_delete)
