@@ -132,9 +132,12 @@ if __name__ == "__main__":
                 """
             run_cmd(cmd)
         finally:
-            # Remove .netrc after sync to avoid credentials persisting in the task env
-            if netrc_installed and os.path.exists(netrc_dest):
-                os.remove(netrc_dest)
+            # Clean up .netrc after sync — restore original if there was one
+            if netrc_installed:
+                if netrc_had_original and os.path.exists(netrc_backup):
+                    shutil.move(netrc_backup, netrc_dest)
+                elif os.path.exists(netrc_dest):
+                    os.remove(netrc_dest)
 
     if len(sys.argv) != 2:
         print("Usage: bootstrap.py <datastore_type>")
