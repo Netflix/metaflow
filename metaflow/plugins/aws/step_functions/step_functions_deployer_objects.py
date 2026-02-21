@@ -139,7 +139,7 @@ class StepFunctionsDeployedFlow(DeployedFlow):
                 fp.write(fake_flow_file_contents)
 
             d = Deployer(
-                tmp_path, env={"METAFLOW_USER": username}
+                tmp_path, env={"METAFLOW_USER": username or ""}
             ).step_functions(name=identifier)
 
             d.name = identifier
