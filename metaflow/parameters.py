@@ -333,6 +333,13 @@ class Parameter(object):
         If `default` is not specified, define the parameter type. Specify
         one of `str`, `float`, `int`, `bool`, or `JSONType`. If None, defaults
         to the type of `default` or `str` if none specified.
+        Use `type='enum'` together with the `values` parameter to restrict
+        the parameter to a fixed set of allowed string values.
+    values : List[str], optional, default None
+        A list of allowed string values for the parameter. Required when
+        `type='enum'` is set. The parameter value will be validated against
+        this list at the CLI level, and `--help` will display the choices.
+        Example: `Parameter('action', type='enum', values=['a', 'b'])`
     help : str, optional, default None
         Help text to show in `run --help`.
     required : bool, optional, default None
@@ -434,6 +441,8 @@ class Parameter(object):
                     "Parameter *%s*: 'values' must not be empty "
                     "when type is set to 'enum'." % self.name
                 )
+            # Cast all values to strings since Click's Choice requires strings.
+            values = [str(v) for v in values]
             param_type = EnumTypeClass(values)
 
         self.kwargs["type"] = param_type

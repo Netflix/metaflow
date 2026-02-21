@@ -151,3 +151,25 @@ class TestEnumParameter:
             help="The action to perform.",
         )
         assert p.kwargs["help"] == "The action to perform."
+
+    def test_enum_with_integer_values_casts_to_strings(self):
+        """Integer values should be silently cast to strings."""
+        p = _init_parameter(
+            "level",
+            type="enum",
+            values=[1, 2, 3],
+            default="1",
+        )
+        assert isinstance(p.kwargs["type"], EnumTypeClass)
+        assert p.kwargs["type"].values == ["1", "2", "3"]
+        assert p.kwargs["type"].convert("2", None, None) == "2"
+
+    def test_values_kwarg_popped_without_enum_type(self):
+        """Passing values without type='enum' should not leak to Click."""
+        p = _init_parameter(
+            "action",
+            default="traffic",
+            values=["traffic", "labeling"],
+        )
+        assert "values" not in p.kwargs
+
