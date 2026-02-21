@@ -88,21 +88,38 @@ def validate_kube_labels(
             )
         return True
 
-    return all([validate_label(v) for v in labels.values()]) if labels else True
+    if not labels:
+        return True
+
+    for v in labels.values():
+        validate_label(v)
+
+    return True
 
 
-def parse_kube_keyvalue_list(items: List[str], requires_both: bool = True):
-    try:
-        ret = {}
-        for item_str in items:
-            item = item_str.split("=", 1)
-            if requires_both:
-                item[1]  # raise IndexError
-            if str(item[0]) in ret:
-                raise KubernetesException("Duplicate key found: %s" % str(item[0]))
-            ret[str(item[0])] = str(item[1]) if len(item) > 1 else None
-        return ret
-    except KubernetesException as e:
-        raise e
-    except (AttributeError, IndexError):
-        raise KubernetesException("Unable to parse kubernetes list: %s" % items)
+def parse_kube_keyvalue_list(items, requires_both=True):
+    ret = {}
+
+    for item_str in items:
+        if not isinstance(item_str, str):
+            raise KubernetesException(
+                "Unable to parse kubernetes list: %s" % items
+            )
+
+        parts = item_str.split("=", 1)
+
+        if requires_both and len(parts) != 2:
+            raise KubernetesException(
+                "Unable to parse kubernetes list: %s" % items
+            )
+
+        key = parts[0]
+
+        if key in ret:
+            raise KubernetesException(
+                "Duplicate key found: %s" % key
+            )
+
+        ret[key] = parts[1] if len(parts) > 1 else None
+
+    return ret
