@@ -1,5 +1,6 @@
 import json
 import os
+import tempfile
 
 from metaflow.metaflow_config import (
     DATASTORE_LOCAL_DIR,
@@ -109,6 +110,24 @@ class LocalStorage(DataStoreStorage):
                 pass
         return results
 
+    @staticmethod
+    def _atomic_write(full_path, data, mode="wb"):
+        """Write data to full_path atomically using a temp file + rename."""
+        dir_name = os.path.dirname(full_path)
+        fd, tmp_path = tempfile.mkstemp(dir=dir_name)
+        success = False
+        try:
+            with os.fdopen(fd, mode) as f:
+                f.write(data)
+            os.rename(tmp_path, full_path)
+            success = True
+        finally:
+            if not success:
+                try:
+                    os.unlink(tmp_path)
+                except OSError:
+                    pass
+
     def save_bytes(self, path_and_bytes_iter, overwrite=False, len_hint=0):
         for path, obj in path_and_bytes_iter:
             if isinstance(obj, tuple):
@@ -119,11 +138,13 @@ class LocalStorage(DataStoreStorage):
             if not overwrite and os.path.exists(full_path):
                 continue
             LocalStorage._makedirs(os.path.dirname(full_path))
-            with open(full_path, mode="wb") as f:
-                f.write(byte_obj.read())
+            self._atomic_write(full_path, byte_obj.read(), mode="wb")
             if metadata:
-                with open("%s_meta" % full_path, mode="w") as f:
-                    json.dump(metadata, f)
+                self._atomic_write(
+                    "%s_meta" % full_path,
+                    json.dumps(metadata).encode("utf-8"),
+                    mode="wb",
+                )
 
     def load_bytes(self, paths):
         def iter_results():
