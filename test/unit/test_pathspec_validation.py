@@ -23,16 +23,11 @@ class TestFlowPathspec:
             Flow("MyFlow/123")
 
     def test_rejects_trailing_slash_extra_component(self):
-        """Flow('MyFlow/') used to silently pass as 2 components."""
+        """Flow('MyFlow/123/') should still fail after trailing slash is stripped."""
         from metaflow import Flow
 
-        # After stripping the trailing slash, this should be valid
-        # (1 component), but it will fail at _get_object since
-        # 'MyFlow' doesn't exist. The key is it does NOT raise
-        # MetaflowInvalidPathspec - the component count is correct.
-        # We can't test that without a running metadata service,
-        # so we just verify the pathspec with too many components
-        # still fails:
+        # After stripping the trailing slash, 'MyFlow/123/' becomes
+        # 'MyFlow/123' which has 2 components — still too many for Flow.
         with pytest.raises(MetaflowInvalidPathspec):
             Flow("MyFlow/123/")
 
@@ -112,6 +107,12 @@ class TestDataArtifactPathspec:
         with pytest.raises(MetaflowInvalidPathspec):
             DataArtifact("MyFlow/123/start/456/artifact/extra")
 
+    def test_rejects_trailing_slash_extra_component(self):
+        from metaflow import DataArtifact
+
+        with pytest.raises(MetaflowInvalidPathspec):
+            DataArtifact("MyFlow/123/start/456/artifact/extra/")
+
 
 class TestEmptyComponents:
     def test_rejects_empty_segment_in_run(self):
@@ -131,5 +132,5 @@ class TestEmptyComponents:
         """Leading slash creates an empty first component."""
         from metaflow import Flow
 
-        with pytest.raises(MetaflowInvalidPathspec):
+        with pytest.raises(MetaflowInvalidPathspec, match="empty components"):
             Flow("/MyFlow")
