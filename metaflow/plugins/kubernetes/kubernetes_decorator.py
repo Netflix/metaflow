@@ -374,13 +374,24 @@ class KubernetesDecorator(StepDecorator):
                         if self.defaults[k] is None:
                             # skip if expected value isn't an int/float
                             continue
-                        # We use the larger of @resources and @batch attributes
-                        # TODO: Fix https://github.com/Netflix/metaflow/issues/467
                         my_val = self.attributes.get(k)
                         if not (my_val is None and v is None):
-                            self.attributes[k] = str(
-                                max(float(my_val or 0), float(v or 0))
+                            # If the @kubernetes attribute is still at its
+                            # built-in default (i.e. the user never explicitly
+                            # set it via @kubernetes(...)) and @resources
+                            # provides a value, honour that value directly
+                            # instead of silently capping it at the default.
+                            # Fixes https://github.com/Netflix/metaflow/issues/2464
+                            kube_is_default = (
+                                my_val is not None
+                                and str(my_val) == str(self.defaults[k])
                             )
+                            if kube_is_default and v is not None:
+                                self.attributes[k] = str(float(v))
+                            else:
+                                self.attributes[k] = str(
+                                    max(float(my_val or 0), float(v or 0))
+                                )
 
         # Check GPU vendor.
         if self.attributes["gpu_vendor"].lower() not in ("amd", "nvidia"):
