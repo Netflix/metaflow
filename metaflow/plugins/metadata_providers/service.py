@@ -79,11 +79,10 @@ class ServiceMetadataProvider(MetadataProvider):
 
     @classmethod
     def _get_provider(cls) -> "MetaflowServiceRequestProvider":
-        if cls._provider is None:
-            with cls._provider_lock:
-                if cls._provider is None:
-                    cls._provider = _load_request_provider(SERVICE_REQUEST_PROVIDER)
-                    atexit.register(cls._provider.close)
+        with cls._provider_lock:
+            if cls._provider is None:
+                cls._provider = _load_request_provider(SERVICE_REQUEST_PROVIDER)
+                atexit.register(cls._provider.close)
         return cls._provider
 
     _supports_attempt_gets = None
@@ -105,6 +104,10 @@ class ServiceMetadataProvider(MetadataProvider):
     @classmethod
     def compute_info(cls, val):
         v = val.rstrip("/")
+        # Outer loop retries only on HTTP 500/503 (transient server errors).
+        # Transport-level failures are handled entirely inside _request() which
+        # retries up to SERVICE_RETRY_COUNT times before raising; any transport
+        # exception that reaches here is re-raised immediately (no outer retry).
         for i in range(SERVICE_RETRY_COUNT):
             try:
                 resp, _ = cls._request(
@@ -115,7 +118,7 @@ class ServiceMetadataProvider(MetadataProvider):
                     return_raw_resp=True,
                 )
             except Exception:
-                raise  # transport failure: _request() already retried N times internally
+                raise  # transport failure: exhausted internal retries in _request()
             if resp.status_code < 300:
                 return v
             # Only retry on transient server errors; fail fast on all others
