@@ -483,7 +483,7 @@ def start_workers(mode, urls, num_workers, inject_failure, s3config):
                         # 6. it will never be empty because all subprocesses (workers) have died.
                         queue.cancel_join_thread()
 
-                        exit(msg, proc.exitcode, s3config)
+                        exit(proc.exitcode, msg, s3config)
                     # Read the output file if all went well
                     with open(out_path, "r") as out_file:
                         for line in out_file:
