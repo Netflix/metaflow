@@ -65,6 +65,7 @@ from metaflow import Run
 run = Run("MyFlow/42")
 run["start"].task.metadata_dict["aws-batch-awslogs-stream"]
 run["start"].task.metadata_dict["aws-batch-awslogs-group"]
+```
 
 This approach works with the default Metaflow Batch configuration and
 does not require modifying the job definition. It provides a simple
