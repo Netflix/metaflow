@@ -1,6 +1,8 @@
 import os
+import shlex
 
 from metaflow.exception import MetaflowException
+from metaflow.metaflow_config import UV_FORWARD_ENV_VARS, UV_FORWARD_NETRC
 from metaflow.metaflow_environment import MetaflowEnvironment
 from metaflow.packaging_sys import ContentType
 
@@ -19,6 +21,12 @@ class UVEnvironment(MetaflowEnvironment):
     def validate_environment(self, logger, datastore_type):
         self.datastore_type = datastore_type
         self.logger = logger
+        if UV_FORWARD_NETRC and not os.path.isfile(os.path.expanduser("~/.netrc")):
+            logger(
+                "Warning: METAFLOW_UV_FORWARD_NETRC is set but ~/.netrc was not found. "
+                "Private index authentication via netrc will not be available on the remote worker.",
+                bad=True,
+            )
 
     def init_environment(self, echo, only_steps=None):
         self.logger("Bootstrapping uv...")
@@ -48,6 +56,12 @@ class UVEnvironment(MetaflowEnvironment):
             (uv_lock_path, "uv.lock", ContentType.OTHER_CONTENT),
             (pyproject_path, "pyproject.toml", ContentType.OTHER_CONTENT),
         ]
+
+        if UV_FORWARD_NETRC:
+            netrc_path = os.path.expanduser("~/.netrc")
+            if os.path.isfile(netrc_path):
+                files.append((netrc_path, "netrc", ContentType.OTHER_CONTENT))
+
         return files
 
     def pylint_config(self):
@@ -56,8 +70,38 @@ class UVEnvironment(MetaflowEnvironment):
         config.append("--disable=F0401")
         return config
 
+    def _get_credential_export_cmds(self):
+        """
+        Returns a list of shell ``export KEY=VALUE`` commands baked into the
+        bootstrap script so that ``uv sync`` on the remote worker has the same
+        index authentication context as the local machine.
+
+        Auto-forwarded: all ``UV_INDEX_*`` environment variables (named-index
+        authentication tokens and URLs as defined by uv).
+
+        Opt-in: any variable names listed in ``METAFLOW_UV_FORWARD_ENV_VARS``
+        (comma-separated).
+        """
+        cmds = []
+
+        # Auto-forward all UV_INDEX_* vars (named-index auth tokens, URLs, etc.)
+        for key, value in os.environ.items():
+            if key.startswith("UV_INDEX_"):
+                cmds.append("export %s=%s" % (key, shlex.quote(value)))
+
+        # Forward any explicitly requested extra variables
+        if UV_FORWARD_ENV_VARS:
+            for var_name in (v.strip() for v in UV_FORWARD_ENV_VARS.split(",")):
+                if var_name and var_name in os.environ:
+                    cmds.append(
+                        "export %s=%s" % (var_name, shlex.quote(os.environ[var_name]))
+                    )
+
+        return cmds
+
     def bootstrap_commands(self, step_name, datastore_type):
-        return [
+        export_cmds = self._get_credential_export_cmds()
+        return export_cmds + [
             "echo 'Bootstrapping uv project...'",
             "flush_mflogs",
             # We have to prevent the tracing module from loading, as the bootstrapping process

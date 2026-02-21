@@ -104,16 +104,33 @@ if __name__ == "__main__":
                 raise RuntimeError(f"Could not find {filename} in the package.")
             shutil.move(path_to_file, os.path.join(os.getcwd(), filename))
 
-        print("Syncing uv project...")
-        dependencies = " ".join(get_dependencies(datastore_type))
-        skip_pkgs = " ".join(
-            [f"--no-install-package {dep}" for dep in skip_metaflow_dependencies()]
+        # Restore forwarded .netrc if it was shipped in the package
+        netrc_in_package = MetaflowCodeContent.get_filename(
+            "netrc", ContentType.OTHER_CONTENT
         )
-        cmd = f"""set -e;
-            uv sync --frozen --no-dev {skip_pkgs};
-            uv pip install {dependencies} --strict
-            """
-        run_cmd(cmd)
+        netrc_dest = os.path.expanduser("~/.netrc")
+        netrc_installed = False
+        if netrc_in_package is not None:
+            shutil.copy2(netrc_in_package, netrc_dest)
+            os.chmod(netrc_dest, 0o600)
+            netrc_installed = True
+            print("Forwarded .netrc installed for uv sync.")
+
+        try:
+            print("Syncing uv project...")
+            dependencies = " ".join(get_dependencies(datastore_type))
+            skip_pkgs = " ".join(
+                [f"--no-install-package {dep}" for dep in skip_metaflow_dependencies()]
+            )
+            cmd = f"""set -e;
+                uv sync --frozen --no-dev {skip_pkgs};
+                uv pip install {dependencies} --strict
+                """
+            run_cmd(cmd)
+        finally:
+            # Remove .netrc after sync to avoid credentials persisting in the task env
+            if netrc_installed and os.path.exists(netrc_dest):
+                os.remove(netrc_dest)
 
     if len(sys.argv) != 2:
         print("Usage: bootstrap.py <datastore_type>")

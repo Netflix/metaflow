@@ -621,6 +621,19 @@ def get_pinned_conda_libs(python_version, datastore_type):
     return pins
 
 
+###
+# UV environment
+###
+
+# Set to True to ship ~/.netrc to the remote worker so uv sync can
+# authenticate against netrc-secured private package indices.
+UV_FORWARD_NETRC = from_conf("UV_FORWARD_NETRC", False)
+
+# Comma-separated list of additional environment variable names to forward
+# to the remote worker before uv sync runs.
+# Example: METAFLOW_UV_FORWARD_ENV_VARS=MY_PYPI_TOKEN,ANOTHER_SECRET
+UV_FORWARD_ENV_VARS = from_conf("UV_FORWARD_ENV_VARS")
+
 # Check if there are extensions to Metaflow to load and override everything
 try:
     from metaflow.extension_support import get_modules
