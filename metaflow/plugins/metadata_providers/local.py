@@ -487,17 +487,8 @@ class LocalMetadataProvider(MetadataProvider):
 
         current = cls._read_json_file(selfname)
 
-        # Preserve original timestamp (ts_epoch is used in local metadata)
-        original_ts_epoch = current.get("ts_epoch")
-
-        # Convert frozenset -> list for JSON
-        current["tags"] = list(tags) if tags is not None else []
-        current["system_tags"] = (
-            list(system_tags) if system_tags is not None else []
-        )
-
-        if original_ts_epoch is not None:
-            current["ts_epoch"] = original_ts_epoch
+        current["tags"] = list(tags)
+        current["system_tags"] = list(system_tags)
 
         cls._dump_json_to_file(selfname, current, allow_overwrite=True)
 
@@ -636,4 +627,3 @@ class LocalMetadataProvider(MetadataProvider):
             cls._dump_json_to_file(
                 filename, datum, allow_overwrite=allow_overwrite
             )
-            
