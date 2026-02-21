@@ -85,14 +85,17 @@ class UVEnvironment(MetaflowEnvironment):
         cmds = []
 
         # Auto-forward all UV_INDEX_* vars (named-index auth tokens, URLs, etc.)
+        # Auto-forward all UV_INDEX_* vars (named-index auth tokens, URLs, etc.)
+        seen = set()
         for key, value in os.environ.items():
             if key.startswith("UV_INDEX_"):
                 cmds.append("export %s=%s" % (key, shlex.quote(value)))
+                seen.add(key)
 
         # Forward any explicitly requested extra variables
         if UV_FORWARD_ENV_VARS:
             for var_name in (v.strip() for v in UV_FORWARD_ENV_VARS.split(",")):
-                if var_name and var_name in os.environ:
+                if var_name and var_name not in seen and var_name in os.environ:
                     cmds.append(
                         "export %s=%s" % (var_name, shlex.quote(os.environ[var_name]))
                     )
