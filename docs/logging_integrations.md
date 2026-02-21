@@ -49,8 +49,10 @@ using the default `awslogs` driver. A common integration pattern is to
 forward CloudWatch logs to Datadog using the Datadog Forwarder Lambda.
 
 Metaflow Batch logs are typically written to the `/aws/batch/job`
-log group with streams prefixed by `metaflow_`. These logs can be
-forwarded to Datadog using the official Datadog Forwarder:
+log group. The associated log streams can be identified by the job
+definition name prefix `metaflow_`, which appears within the stream
+name when using the default AWS Batch logging configuration. These
+logs can be forwarded to Datadog using the official Datadog Forwarder:
 
 https://docs.datadoghq.com/serverless/libraries_integrations/forwarder/
 
