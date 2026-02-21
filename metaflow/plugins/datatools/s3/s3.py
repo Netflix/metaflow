@@ -164,7 +164,6 @@ class S3Object(object):
         last_modified: Optional[int] = None,
         encryption: Optional[str] = None,
     ):
-        # all fields of S3Object should return a unicode object
         prefix, url, path = map(ensure_unicode, (prefix, url, path))
 
         self._size = size
@@ -531,7 +530,6 @@ class S3(object):
         **kwargs
     ):
         if run:
-            # 1. use a (current) run ID with optional customizations
             if DATATOOLS_S3ROOT is None:
                 raise MetaflowS3URLException(
                     "DATATOOLS_S3ROOT is not configured when trying to use S3 storage"
@@ -554,7 +552,6 @@ class S3(object):
 
             self._s3root = "s3://%s" % os.path.join(bucket, prefix.strip("/"))
         elif s3root:
-            # 2. use an explicit S3 prefix
             parsed = urlparse(to_unicode(s3root))
             if parsed.scheme != "s3":
                 raise MetaflowS3URLException(
@@ -562,7 +559,6 @@ class S3(object):
                 )
             self._s3root = s3root.rstrip("/")
         else:
-            # 3. use the client only with full URLs
             self._s3root = None
 
         # Note that providing a role, session vars or client params and a client
@@ -609,10 +605,6 @@ class S3(object):
             pass
 
     def _url(self, key_value):
-        # NOTE: All URLs are handled as Unicode objects (unicode in py2,
-        # string in py3) internally. We expect that all URLs passed to this
-        # class as either Unicode or UTF-8 encoded byte strings. All URLs
-        # returned are Unicode.
         key = getattr(key_value, "key", key_value)
         if self._s3root is None:
             # NOTE: S3 allows fragments as part of object names, e.g. /dataset #1/data.txt
@@ -638,8 +630,6 @@ class S3(object):
                     "Don't use absolute S3 URLs when the S3 client is "
                     "initialized with a prefix. URL: %s" % key
                 )
-            # Strip leading slashes to ensure os.path.join works correctly
-            # os.path.join discards the first argument if the second starts with '/'
             return os.path.join(self._s3root, key.lstrip("/"))
         else:
             return self._s3root
@@ -655,13 +645,10 @@ class S3(object):
             if start is None:
                 start = 0
             if length is None:
-                # Fetch from offset till the end of the file
                 range_str = "bytes=%d-" % start
             elif length < 0:
-                # Fetch from end; ignore start value here
                 range_str = "bytes=-%d" % (-length)
             else:
-                # Typical range fetch
                 range_str = "bytes=%d-%d" % (start, start + length - 1)
         return url, range_str
 
@@ -1390,7 +1377,10 @@ class S3(object):
         def _delete(s3, _):
             s3.delete_object(Bucket=src.netloc, Key=src.path.lstrip("/"))
 
-        self._one_boto_op(_delete, url, create_tmp_file=False)
+        try:
+            self._one_boto_op(_delete, url, create_tmp_file=False)
+        except MetaflowS3NotFound:
+            pass
         return url
 
     def delete_many(self, keys: Iterable[str]) -> List[str]:

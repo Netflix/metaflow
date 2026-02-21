@@ -96,8 +96,6 @@ class S3Url(object):
         return self.url
 
 
-# We use error codes instead of Exceptions, which are trickier to
-# handle reliably in a multiprocess world
 ERROR_INVALID_URL = 4
 ERROR_NOT_FULL_PATH = 5
 ERROR_URL_NOT_FOUND = 6
@@ -122,9 +120,6 @@ def format_result_line(idx, prefix, url="", local=""):
     )
 
 
-# I can't understand what's the right way to deal
-# with boto errors. This function can be replaced
-# with better error handling code.
 def normalize_client_error(err):
     error_code = err.response["Error"]["Code"]
     try:
@@ -164,15 +159,8 @@ def normalize_client_error(err):
     return error_code
 
 
-# S3 worker pool
-
-
 @tracing.cli("s3op/worker")
 def worker(result_file_name, queue, mode, s3config):
-    # Interpret mode, it can either be a single op or something like
-    # info_download or info_upload which implies:
-    #  - for download: we need to return the information as well
-    #  - for upload: we need to not overwrite the file if it exists
     modes = mode.split("_")
     pre_op_info = False
     if len(modes) > 1:
@@ -304,7 +292,6 @@ def worker(result_file_name, queue, mode, s3config):
                         )
                         result_file.flush()
                         continue
-                    # If we need the metadata, get it and write it out
                     if pre_op_info:
                         with open("%s_meta" % url.local, mode="w") as f:
                             # Get range information
@@ -324,9 +311,6 @@ def worker(result_file_name, queue, mode, s3config):
                                     resp["LastModified"]
                                 )
                             json.dump(args, f)
-                    # Finally, we push out the size to the result_pipe since
-                    # the size is used for verification and other purposes, and
-                    # we want to avoid file operations for this simple process
                     result_file.write("%d %d\n" % (idx, resp["ContentLength"]))
                 elif mode == "upload":
                     do_upload = False
@@ -439,8 +423,6 @@ def start_workers(mode, urls, num_workers, inject_failure, s3config):
     sz_results = []
     transient_error_type = None
     # 1. push sources and destinations to the queue
-    # We only push if we don't inject a failure; otherwise, we already set the sz_results
-    # appropriately with the result of the injected failure.
     for idx, elt in enumerate(urls):
         if random.randint(0, 99) < inject_failure:
             sz_results.append(-ERROR_TRANSIENT)
@@ -535,9 +517,6 @@ def process_urls(mode, urls, verbose, inject_failure, num_workers, s3config):
     return sz_results, transient_error_type
 
 
-# Utility functions
-
-
 def with_unit(x):
     if x > 1024**3:
         return "%.1fGB" % (x / 1024.0**3)
@@ -549,9 +528,6 @@ def with_unit(x):
         return "%d bytes" % x
 
 
-# S3Ops class is just a wrapper for get_size and list_prefix
-# required by @aws_retry decorator, which needs the reset_client
-# method. Otherwise they would be just stand-alone functions.
 class S3Ops(object):
     def __init__(self, s3config):
         self.s3 = None
@@ -651,10 +627,6 @@ class S3Ops(object):
             # Transient errors are going to be retried by the aws_retry decorator
             else:
                 raise
-
-
-# We want to reuse an S3 client instance over multiple operations.
-# This is accomplished by op_ functions below.
 
 
 def op_get_info(s3config, urls):
@@ -774,9 +746,6 @@ def parallel_op(op, lst, num_workers):
         it = parallel_map(op, batches, max_parallel=num)
         for x in chain.from_iterable(it):
             yield x
-
-
-# CLI
 
 
 def common_options(func):
@@ -1180,7 +1149,6 @@ def get(
         if not recursive and not src.path:
             exit(ERROR_NOT_FULL_PATH, url)
         urllist.append(url)
-    # Construct a URL->size mapping and get content-type and metadata if needed
     op = None
     dl_op = "download"
     if recursive:
@@ -1210,7 +1178,6 @@ def get(
         # works correctly (None denotes a missing file)
         urls = [(prefix_url, 0) for prefix_url in urllist]
 
-    # exclude the non-existent files from loading
     to_load = [url for url, size in urls if size is not None]
     sz_results, transient_error_type = process_urls(
         dl_op, to_load, verbose, inject_failure, num_workers, s3config
@@ -1422,7 +1389,7 @@ def delete(
         for success, prefix_url, ret in parallel_op(op, urllist, num_workers):
             if success:
                 urls.extend(ret)
-            else:
+            elif ret != ERROR_URL_NOT_FOUND:
                 exit(ret, prefix_url)
         for idx, (url, _) in enumerate(urls):
             url.idx = idx
@@ -1448,6 +1415,11 @@ def delete(
             out_lines.append(format_result_line(url.idx, url.url) + "\n")
         elif listing and sz >= 0:
             out_lines.append(format_result_line(url.idx, url.prefix, url.url) + "\n")
+        elif sz == -ERROR_URL_NOT_FOUND:
+            if listing:
+                out_lines.append(
+                    format_result_line(url.idx, url.prefix, url.url) + "\n"
+                )
         elif sz == -ERROR_URL_ACCESS_DENIED:
             denied_url = url
             break
