@@ -14,22 +14,19 @@ def test_s3_delete_single_object():
     """Test S3.delete() deletes a single object."""
     # Setup: Create a bucket and put an object
     s3_res = boto3.resource("s3", region_name="us-east-1")
-    bucket = s3_res.create_bucket(Bucket="test-bucket")
+    s3_res.create_bucket(Bucket="test-bucket")
     s3_res.Object("test-bucket", "test-key").put(Body=b"test data")
 
     # Initialize S3 client with explicit bucket
-    s3_client = S3(s3root="s3://test-bucket")
+    with S3(s3root="s3://test-bucket") as s3_client:
+        # Verify object exists before delete
+        assert s3_client.info("test-key").exists
 
-    # Verify object exists before delete
-    assert s3_client.info("test-key").exists
+        # Delete the object
+        s3_client.delete("test-key")
 
-    # Delete the object
-    s3_client.delete("test-key")
-
-    # Verify object is gone
-    assert not s3_client.info("test-key", return_missing=True).exists
-
-    s3_client.close()
+        # Verify object is gone
+        assert not s3_client.info("test-key", return_missing=True).exists
 
 
 @mock_aws
@@ -45,20 +42,17 @@ def test_s3_delete_many_objects():
         s3_res.Object("test-bucket", key).put(Body=b"data")
 
     # Initialize S3 client
-    s3_client = S3(s3root="s3://test-bucket")
+    with S3(s3root="s3://test-bucket") as s3_client:
+        # Verify all objects exist
+        for key in keys:
+            assert s3_client.info(key).exists
 
-    # Verify all objects exist
-    for key in keys:
-        assert s3_client.info(key).exists
+        # Delete all objects at once
+        s3_client.delete_many(keys)
 
-    # Delete all objects at once
-    s3_client.delete_many(keys)
-
-    # Verify all objects are deleted
-    for key in keys:
-        assert not s3_client.info(key, return_missing=True).exists
-
-    s3_client.close()
+        # Verify all objects are deleted
+        for key in keys:
+            assert not s3_client.info(key, return_missing=True).exists
 
 
 @mock_aws
@@ -75,20 +69,17 @@ def test_s3_delete_many_large_batch():
         s3_res.Object("test-bucket", key).put(Body=b"data")
 
     # Initialize S3 client
-    s3_client = S3(s3root="s3://test-bucket")
+    with S3(s3root="s3://test-bucket") as s3_client:
+        # Verify objects exist
+        for key in keys[:10]:  # sample check
+            assert s3_client.info(key).exists
 
-    # Verify objects exist
-    for key in keys[:10]:  # sample check
-        assert s3_client.info(key).exists
+        # Delete all objects at once (should batch into 2 calls: 1000 + 500)
+        s3_client.delete_many(keys)
 
-    # Delete all objects at once (should batch into 2 calls: 1000 + 500)
-    s3_client.delete_many(keys)
-
-    # Verify sampled objects are deleted
-    for key in keys[:10]:
-        assert not s3_client.info(key, return_missing=True).exists
-
-    s3_client.close()
+        # Verify sampled objects are deleted
+        for key in keys[:10]:
+            assert not s3_client.info(key, return_missing=True).exists
 
 
 @mock_aws
@@ -99,12 +90,9 @@ def test_s3_delete_nonexistent_key():
     s3_res.create_bucket(Bucket="test-bucket")
 
     # Initialize S3 client
-    s3_client = S3(s3root="s3://test-bucket")
-
-    # Delete a key that doesn't exist (should not raise)
-    s3_client.delete("nonexistent-key")
-
-    s3_client.close()
+    with S3(s3root="s3://test-bucket") as s3_client:
+        # Delete a key that doesn't exist (should not raise)
+        s3_client.delete("nonexistent-key")
 
 
 @mock_aws
@@ -116,15 +104,14 @@ def test_s3_delete_with_full_url():
     s3_res.Object("test-bucket", "test-key").put(Body=b"test data")
 
     # Initialize S3 client without s3root (require full URLs)
-    s3_client = S3()
+    with S3() as s3_client:
+        # Delete using full URL
+        s3_client.delete("s3://test-bucket/test-key")
 
-    # Delete using full URL
-    s3_client.delete("s3://test-bucket/test-key")
-
-    # Verify object is deleted
-    assert not s3_client.info("s3://test-bucket/test-key", return_missing=True).exists
-
-    s3_client.close()
+        # Verify object is deleted
+        assert not s3_client.info(
+            "s3://test-bucket/test-key", return_missing=True
+        ).exists
 
 
 @mock_aws
@@ -140,13 +127,10 @@ def test_s3_delete_many_cross_bucket():
     s3_res.Object("bucket2", "key2").put(Body=b"data")
 
     # Initialize S3 client (without s3root to use full URLs)
-    s3_client = S3()
+    with S3() as s3_client:
+        # Delete objects from both buckets
+        s3_client.delete_many(["s3://bucket1/key1", "s3://bucket2/key2"])
 
-    # Delete objects from both buckets
-    s3_client.delete_many(["s3://bucket1/key1", "s3://bucket2/key2"])
-
-    # Verify both are deleted
-    assert not s3_client.info("s3://bucket1/key1", return_missing=True).exists
-    assert not s3_client.info("s3://bucket2/key2", return_missing=True).exists
-
-    s3_client.close()
+        # Verify both are deleted
+        assert not s3_client.info("s3://bucket1/key1", return_missing=True).exists
+        assert not s3_client.info("s3://bucket2/key2", return_missing=True).exists
