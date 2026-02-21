@@ -483,7 +483,7 @@ def start_workers(mode, urls, num_workers, inject_failure, s3config):
                         # 6. it will never be empty because all subprocesses (workers) have died.
                         queue.cancel_join_thread()
 
-                        exit(msg, proc.exitcode)
+                        exit(msg, proc.exitcode, s3config)
                     # Read the output file if all went well
                     with open(out_path, "r") as out_file:
                         for line in out_file:
@@ -667,7 +667,7 @@ def op_list_prefix_nonrecursive(s3config, prefix_urls):
     return [s3.list_prefix(prefix, delimiter="/") for prefix in prefix_urls]
 
 
-def exit(exit_code, url):
+def exit(exit_code, url, s3config=None):
     if exit_code == ERROR_INVALID_URL:
         msg = "Invalid url: %s" % url.url
     elif exit_code == ERROR_NOT_FULL_PATH:
@@ -684,14 +684,9 @@ def exit(exit_code, url):
             try:
                 from metaflow.plugins.aws.aws_utils import get_credential_debug_info
 
-                msg = "%s\n\n%s" % (msg, get_credential_debug_info())
+                msg = "%s\n\n%s" % (msg, get_credential_debug_info(s3config))
             except Exception as e:
                 msg = "%s\n\n(credential info unavailable: %s)" % (msg, str(e))
-        else:
-            msg = (
-                "%s\n\nTip: Set METAFLOW_DEBUG_S3CLIENT=1 to see which AWS "
-                "credentials are being used." % msg
-            )
     elif exit_code == ERROR_WORKER_EXCEPTION:
         msg = "Download failed"
     elif exit_code == ERROR_VERIFY_FAILED:
@@ -705,10 +700,16 @@ def exit(exit_code, url):
     else:
         msg = "Unknown error"
     print("s3op failed:\n%s" % msg, file=sys.stderr)
+
+    # Show debug tip separately for access denied (not part of exception message)
+    # Only shown in interactive contexts where it's actionable
+    if exit_code == ERROR_URL_ACCESS_DENIED and not debug.s3client:
+        if sys.stderr.isatty():  # Only in interactive terminal
+            print("\nTip: Set METAFLOW_DEBUG_S3CLIENT=1 to see which AWS credentials are being used.", file=sys.stderr)
+    
     sys.exit(exit_code)
-
-
-def verify_results(urls, verbose=False):
+    
+def verify_results(urls, s3config=None, verbose=False):
     for url, expected in urls:
         if verbose:
             print("verifying %s, expected %s" % (url, expected), file=sys.stderr)
@@ -717,13 +718,13 @@ def verify_results(urls, verbose=False):
         except OSError:
             raise
         if expected != got:
-            exit(ERROR_VERIFY_FAILED, url)
+            exit(ERROR_VERIFY_FAILED, url, s3config)
         if url.content_type or url.metadata or url.encryption:
             # Verify that we also have a metadata file present
             try:
                 os.stat("%s_meta" % url.local)
             except OSError:
-                exit(ERROR_VERIFY_FAILED, url)
+                exit(ERROR_VERIFY_FAILED, url, s3config)
 
 
 def generate_local_path(url, range="whole", suffix=None):
@@ -907,7 +908,7 @@ def lst(
             prefix=prefix,
         )
         if src.scheme != "s3":
-            exit(ERROR_INVALID_URL, url)
+            exit(ERROR_INVALID_URL, url, s3config)
         urllist.append(url)
 
     op = (
@@ -920,7 +921,7 @@ def lst(
         if success:
             urls.extend(ret)
         else:
-            exit(ret, prefix_url)
+            exit(ret, prefix_url, s3config)
 
     for idx, (url, size) in enumerate(urls):
         if size is None:
@@ -1017,9 +1018,9 @@ def put(
             encryption=encryption,
         )
         if src.scheme != "s3":
-            exit(ERROR_INVALID_URL, url)
+            exit(ERROR_INVALID_URL, url, s3config)
         if not src.path:
-            exit(ERROR_NOT_FULL_PATH, url)
+            exit(ERROR_NOT_FULL_PATH, url, s3config)
         return url
 
     s3config = S3Config(
@@ -1069,7 +1070,7 @@ def put(
             # the files uploaded after retries.
             denied_url = url
     if denied_url is not None:
-        exit(ERROR_URL_ACCESS_DENIED, denied_url)
+        exit(ERROR_URL_ACCESS_DENIED, denied_url, s3config)
 
     if out_lines:
         sys.stdout.writelines(out_lines)
@@ -1187,9 +1188,9 @@ def get(
             idx=idx,
         )
         if src.scheme != "s3":
-            exit(ERROR_INVALID_URL, url)
+            exit(ERROR_INVALID_URL, url, s3config)
         if not recursive and not src.path:
-            exit(ERROR_NOT_FULL_PATH, url)
+            exit(ERROR_NOT_FULL_PATH, url, s3config)
         urllist.append(url)
     # Construct a URL->size mapping and get content-type and metadata if needed
     op = None
@@ -1210,7 +1211,7 @@ def get(
             elif ret == ERROR_URL_NOT_FOUND and allow_missing:
                 urls.append((prefix_url, None))
             else:
-                exit(ret, prefix_url)
+                exit(ret, prefix_url, s3config)
         # We re-index here since we may have pulled in a bunch more stuff. On a transient
         # retry, we never have recursive so we would not re-index
         for idx, (url, _) in enumerate(urls):
@@ -1248,7 +1249,7 @@ def get(
             if verify:
                 verify_info.append((url, sz))
         elif sz == -ERROR_OUT_OF_DISK_SPACE:
-            exit(ERROR_OUT_OF_DISK_SPACE, url)
+            exit(ERROR_OUT_OF_DISK_SPACE, url, s3config)
         elif sz == -ERROR_URL_ACCESS_DENIED:
             denied_url = url
             break
@@ -1277,14 +1278,14 @@ def get(
                 out_lines.append("%d %s\n" % (url.idx, TRANSIENT_RETRY_LINE_CONTENT))
 
     if denied_url is not None:
-        exit(ERROR_URL_ACCESS_DENIED, denied_url)
+        exit(ERROR_URL_ACCESS_DENIED, denied_url, s3config)
 
     if not allow_missing and missing_url is not None:
-        exit(ERROR_URL_NOT_FOUND, missing_url)
+        exit(ERROR_URL_NOT_FOUND, missing_url, s3config)
 
     # Postprocess
     if verify:
-        verify_results(verify_info, verbose=verbose)
+        verify_results(verify_info, s3config, verbose=verbose)
 
     if out_lines:
         sys.stdout.writelines(out_lines)
@@ -1334,7 +1335,7 @@ def info(
             idx=idx,
         )
         if src.scheme != "s3":
-            exit(ERROR_INVALID_URL, url)
+            exit(ERROR_INVALID_URL, url, s3config)
         urllist.append(url)
 
     sz_results, transient_error_type = process_urls(
@@ -1374,3 +1375,4 @@ def info(
 
 if __name__ == "__main__":
     cli(auto_envvar_prefix="S3OP")
+    
