@@ -432,8 +432,8 @@ class Kubernetes(object):
         jobset.worker.replicas(num_parallel - 1)
 
         # We set the appropriate command for the control/worker job
-        # and also set the task-id/spit-index for the control/worker job
-        # appropirately.
+        # and also set the task-id/split-index for the control/worker job
+        # appropriately.
         jobset.control.command(_get_command("0", str(task_id)))
         jobset.worker.command(
             _get_command(

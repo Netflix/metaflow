@@ -621,7 +621,6 @@ class RunningJob(object):
                         msg += ", Container is %s" % status["status"].lower()
                         reason = ""
                         if status.get("reason"):
-                            pass
                             reason = status["reason"]
                         if status.get("message"):
                             reason += " - %s" % status["message"]

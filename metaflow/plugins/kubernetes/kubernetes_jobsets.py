@@ -117,7 +117,7 @@ def _derive_pod_status_and_status_code(control_pod):
                             [v.get("reason"), v.get("message")],
                         )
                     )
-        if container_status is None:
+        if container_status:
             overall_status = "pod status: %s | container status: %s" % (
                 pod_status,
                 container_status,
@@ -130,7 +130,7 @@ def _derive_pod_status_and_status_code(control_pod):
 
 
 def _retrieve_replicated_job_statuses(jobset):
-    # We needed this abstraction because Jobsets changed thier schema
+    # We needed this abstraction because Jobsets changed their schema
     # in version v0.3.0 where `ReplicatedJobsStatus` became `replicatedJobsStatus`
     # So to handle users having an older version of jobsets, we need to account
     # for both the schemas.
