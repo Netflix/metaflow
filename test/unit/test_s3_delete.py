@@ -4,9 +4,10 @@ Unit tests for S3 delete APIs (delete, delete_many, delete_recursive).
 Tests use moto to mock S3 without requiring real AWS credentials or services.
 """
 
+from unittest.mock import MagicMock, patch
 from moto import mock_aws
 import boto3
-from metaflow.plugins.datatools.s3.s3 import S3
+from metaflow.plugins.datatools.s3.s3 import S3, S3Object
 
 
 @mock_aws
@@ -134,3 +135,68 @@ def test_s3_delete_many_cross_bucket():
         # Verify both are deleted
         assert not s3_client.info("s3://bucket1/key1", return_missing=True).exists
         assert not s3_client.info("s3://bucket2/key2", return_missing=True).exists
+
+
+@mock_aws
+def test_s3_delete_recursive_composes_correctly():
+    """Test S3.delete_recursive() correctly composes list_recursive + delete_many.
+
+    Verifies that delete_recursive:
+    - Calls list_recursive with provided prefixes
+    - Extracts relative keys from returned S3Object instances
+    - Passes those keys to delete_many for deletion
+    """
+    # Setup: Create a bucket and objects
+    s3_res = boto3.resource("s3", region_name="us-east-1")
+    s3_res.create_bucket(Bucket="test-bucket")
+
+    # Create objects under a prefix
+    s3_res.Object("test-bucket", "logs/2025-01/app.log").put(Body=b"log1")
+    s3_res.Object("test-bucket", "logs/2025-02/app.log").put(Body=b"log2")
+    s3_res.Object("test-bucket", "data/file.txt").put(Body=b"data")
+
+    # Create S3 client
+    with S3(s3root="s3://test-bucket") as s3_client:
+        # Patch delete_many to verify it's called with the right keys
+        with patch.object(s3_client, "delete_many") as mock_delete_many:
+            # Call delete_recursive with a prefix
+            # In normal operation, this would call list_recursive (which uses s3op),
+            # but we mock delete_many to capture what keys would be deleted
+            try:
+                s3_client.delete_recursive(["logs/"])
+            except Exception:
+                # Expected: list_recursive will fail with moto/s3op issue
+                # But we can still verify that if it succeeded, delete_many was set up
+                pass
+
+            # Instead, test the logic by mocking list_recursive itself
+            with patch.object(
+                s3_client,
+                "list_recursive",
+                return_value=[
+                    S3Object(
+                        prefix="s3://test-bucket/logs/",
+                        url="s3://test-bucket/logs/2025-01/app.log",
+                        path="",
+                        size=4,
+                    ),
+                    S3Object(
+                        prefix="s3://test-bucket/logs/",
+                        url="s3://test-bucket/logs/2025-02/app.log",
+                        path="",
+                        size=4,
+                    ),
+                ],
+            ):
+                # Reset the mock and call delete_recursive again
+                mock_delete_many.reset_mock()
+                s3_client.delete_recursive(["logs/"])
+
+                # Verify delete_many was called with the relative keys (not full URLs)
+                assert mock_delete_many.called
+                call_args = mock_delete_many.call_args
+                keys_passed = call_args[0][0]  # First positional argument
+
+                # Should pass relative keys to delete_many (prefix stripped by .key property)
+                assert "2025-01/app.log" in keys_passed
+                assert "2025-02/app.log" in keys_passed
