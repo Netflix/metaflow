@@ -704,8 +704,7 @@ def exit(exit_code, url, s3config=None):
     # Show debug tip separately for access denied (not part of exception message)
     # Only shown in interactive contexts where it's actionable
     if exit_code == ERROR_URL_ACCESS_DENIED and not debug.s3client:
-        if sys.stderr.isatty():  # Only in interactive terminal
-            print("\nTip: Set METAFLOW_DEBUG_S3CLIENT=1 to see which AWS credentials are being used.", file=sys.stderr)
+        print("\nTip: Set METAFLOW_DEBUG_S3CLIENT=1 to see which AWS credentials are being used.", file=sys.stderr)
     
     sys.exit(exit_code)
     
