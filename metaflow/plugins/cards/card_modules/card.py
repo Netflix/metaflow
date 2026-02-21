@@ -67,7 +67,7 @@ class MetaflowCard(object):
     # FIXME document runtime_data
     runtime_data = None
 
-    def __init__(self, options={}, components=[], graph=None, flow=None):
+    def __init__(self, options=None, components=None, graph=None, flow=None):
         pass
 
     def _get_mustache(self):

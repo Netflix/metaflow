@@ -105,16 +105,18 @@ class SubTitleComponent(MetaflowCardComponent):
 class SectionComponent(DefaultComponent):
     type = "section"
 
-    def __init__(self, title=None, subtitle=None, columns=None, contents=[]):
+    def __init__(self, title=None, subtitle=None, columns=None, contents=None):
         super().__init__(title=title, subtitle=subtitle)
         # Contents are expected to be list of dictionaries.
-        self._contents = contents
+        self._contents = contents if contents is not None else []
         self._columns = columns
 
     @classmethod
     def render_subcomponents(
-        cls, component_array, additional_allowed_types=[str, dict], allow_unknowns=False
+        cls, component_array, additional_allowed_types=None, allow_unknowns=False
     ):
+        if additional_allowed_types is None:
+            additional_allowed_types = [str, dict]
         contents = []
         for content in component_array:
             # Render objects of `MetaflowCardComponent` type
@@ -170,16 +172,16 @@ class TableComponent(DefaultComponent):
     type = "table"
 
     def __init__(
-        self, title=None, subtitle=None, headers=[], data=[[]], vertical=False
+        self, title=None, subtitle=None, headers=None, data=None, vertical=False
     ):
         super().__init__(title=title, subtitle=subtitle)
         self._headers = []
         self._data = [[]]
         self._vertical = vertical
 
-        if self._validate_header_type(headers):
+        if headers is not None and self._validate_header_type(headers):
             self._headers = headers
-        if self._validate_row_type(data):
+        if data is not None and self._validate_row_type(data):
             self._data = data
 
     @classmethod
@@ -219,9 +221,9 @@ class TableComponent(DefaultComponent):
 class DagComponent(DefaultComponent):
     type = "dag"
 
-    def __init__(self, title=None, subtitle=None, data={}):
+    def __init__(self, title=None, subtitle=None, data=None):
         super().__init__(title=title, subtitle=subtitle)
-        self._data = data
+        self._data = data if data is not None else {}
 
     def render(self):
         datadict = super().render()
@@ -290,9 +292,9 @@ class HTMLComponent(DefaultComponent):
 class PageComponent(DefaultComponent):
     type = "page"
 
-    def __init__(self, title=None, subtitle=None, contents=[]):
+    def __init__(self, title=None, subtitle=None, contents=None):
         super().__init__(title=title, subtitle=subtitle)
-        self._contents = contents
+        self._contents = contents if contents is not None else []
 
     def render(self):
         datadict = super().render()
@@ -326,9 +328,9 @@ class SerializationErrorComponent(ErrorComponent):
 class ArtifactsComponent(DefaultComponent):
     type = "artifacts"
 
-    def __init__(self, title=None, subtitle=None, data={}):
+    def __init__(self, title=None, subtitle=None, data=None):
         super().__init__(title=title, subtitle=subtitle)
-        self._data = data
+        self._data = data if data is not None else {}
 
     def render(self):
         datadict = super().render()
@@ -373,7 +375,7 @@ class TaskInfoComponent(MetaflowCardComponent):
         page_title="Task Info",
         only_repr=True,
         graph=None,
-        components=[],
+        components=None,
         runtime=False,
         flow=None,
         max_artifact_size=None,
@@ -385,7 +387,7 @@ class TaskInfoComponent(MetaflowCardComponent):
             max_artifact_size if max_artifact_size is not None else MAX_ARTIFACT_SIZE
         )
         self._graph = graph
-        self._components = components
+        self._components = components if components is not None else []
         self._page_title = page_title
         self.final_component = None
         self.page_component = None
@@ -603,10 +605,10 @@ class ErrorCard(MetaflowCard):
 
     RELOAD_POLICY = MetaflowCard.RELOAD_POLICY_ONCHANGE
 
-    def __init__(self, options={}, components=[], graph=None, **kwargs):
+    def __init__(self, options=None, components=None, graph=None, **kwargs):
         self._only_repr = True
         self._graph = None if graph is None else transform_flow_graph(graph)
-        self._components = components
+        self._components = components if components is not None else []
 
     def reload_content_token(self, task, data):
         """
@@ -661,18 +663,20 @@ class DefaultCardJSON(MetaflowCard):
 
     def __init__(
         self,
-        options=dict(only_repr=True),
-        components=[],
+        options=None,
+        components=None,
         graph=None,
         flow=None,
         **kwargs
     ):
+        if options is None:
+            options = {"only_repr": True}
         self._only_repr = True
         self._graph = None if graph is None else transform_flow_graph(graph)
         self._flow = flow
         if "only_repr" in options:
             self._only_repr = options["only_repr"]
-        self._components = components
+        self._components = components if components is not None else []
 
     def render(self, task):
         final_component_dict = TaskInfoComponent(
@@ -697,12 +701,14 @@ class DefaultCard(MetaflowCard):
 
     def __init__(
         self,
-        options=dict(only_repr=True),
-        components=[],
+        options=None,
+        components=None,
         graph=None,
         flow=None,
         **kwargs
     ):
+        if options is None:
+            options = {"only_repr": True}
         self._only_repr = True
         # Default max artifact size uses the global MAX_ARTIFACT_SIZE constant (200MB)
         self._max_artifact_size = MAX_ARTIFACT_SIZE
@@ -712,7 +718,7 @@ class DefaultCard(MetaflowCard):
             self._only_repr = options["only_repr"]
         if "max_artifact_size" in options:
             self._max_artifact_size = options["max_artifact_size"]
-        self._components = components
+        self._components = components if components is not None else []
 
     def render(self, task, runtime=False):
         RENDER_TEMPLATE = read_file(RENDER_TEMPLATE_PATH)
@@ -768,14 +774,16 @@ class BlankCard(MetaflowCard):
 
     type = "blank"
 
-    def __init__(self, options=dict(title=""), components=[], graph=None, **kwargs):
+    def __init__(self, options=None, components=None, graph=None, **kwargs):
+        if options is None:
+            options = {"title": ""}
         self._graph = None if graph is None else transform_flow_graph(graph)
         self._title = ""
         if "title" in options:
             self._title = options["title"]
-        self._components = components
+        self._components = components if components is not None else []
 
-    def render(self, task, components=[], runtime=False):
+    def render(self, task, components=None, runtime=False):
         RENDER_TEMPLATE = read_file(RENDER_TEMPLATE_PATH)
         JS_DATA = read_file(JS_PATH)
         CSS_DATA = read_file(CSS_PATH)
