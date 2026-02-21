@@ -184,7 +184,7 @@ class BatchDecorator(StepDecorator):
         if self.attributes["trainium"] is not None:
             self.attributes["inferentia"] = self.attributes["trainium"]
 
-        if not isinstance(BATCH_DEFAULT_TAGS, dict) and not all(
+        if not isinstance(BATCH_DEFAULT_TAGS, dict) or not all(
             isinstance(k, str) and isinstance(v, str)
             for k, v in BATCH_DEFAULT_TAGS.items()
         ):
@@ -193,7 +193,7 @@ class BatchDecorator(StepDecorator):
             )
 
         if self.attributes["aws_batch_tags"] is not None:
-            if not isinstance(self.attributes["aws_batch_tags"], dict) and not all(
+            if not isinstance(self.attributes["aws_batch_tags"], dict) or not all(
                 isinstance(k, str) and isinstance(v, str)
                 for k, v in self.attributes["aws_batch_tags"].items()
             ):
