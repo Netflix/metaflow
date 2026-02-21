@@ -3,7 +3,7 @@ import re
 from metaflow.exception import MetaflowException
 
 
-def get_credential_debug_info():
+def get_credential_debug_info(s3config=None):
     """
     Return a human-readable string describing the active AWS credentials.
 
@@ -13,8 +13,21 @@ def get_credential_debug_info():
     lines = []
     try:
         import boto3
-
+        import botocore.config
+        
         session = boto3.session.Session()
+        
+        # Check if a role will be assumed
+        role_arn = s3config.role if s3config and hasattr(s3config, 'role') else None
+        
+        if role_arn:
+            lines.append(
+                "  Note: S3 operations use assumed role: %s" % role_arn
+            )
+            lines.append(
+                "        Showing base credentials below (not the assumed role identity):"
+            )
+        
         credentials = session.get_credentials()
 
         if credentials is None:
@@ -50,7 +63,11 @@ def get_credential_debug_info():
             lines.append("  AWS region        : %s" % region)
 
             try:
-                sts = session.client("sts")
+                config = botocore.config.Config(
+                    connect_timeout=5,
+                    read_timeout=5
+                )
+                sts = session.client("sts",config=config)
                 identity = sts.get_caller_identity()
                 lines.append(
                     "  Caller ARN        : %s" % identity.get("Arn", "(unknown)")
@@ -297,3 +314,4 @@ def validate_aws_tag(key: str, value: str):
             "Value *%s* is not permitted. Tags must match pattern: %s"
             % (value, PERMITTED)
         )
+        
