@@ -916,6 +916,11 @@ class S3(object):
         # Group keys by bucket to make delete_objects calls
         buckets = {}
         for k in keys:
+            # Guard against empty key which would delete the root prefix object
+            if not k:
+                raise MetaflowS3URLException(
+                    "A non-empty key is required for delete."
+                )
             url = self._url(k)
             parsed = urlparse(url, allow_fragments=False)
             bucket = parsed.netloc

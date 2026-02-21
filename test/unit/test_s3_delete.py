@@ -84,6 +84,26 @@ def test_s3_delete_empty_key_guard():
 
 
 @mock_aws
+def test_s3_delete_many_empty_key_guard():
+    """Test S3.delete_many() guards against empty keys (destructive operation)."""
+    from metaflow.plugins.datatools.s3.s3 import MetaflowS3URLException
+
+    s3_res = boto3.resource("s3", region_name="us-east-1")
+    s3_res.create_bucket(Bucket="test-bucket")
+    s3_res.Object("test-bucket", "file.txt").put(Body=b"data")
+
+    with S3(s3root="s3://test-bucket") as s3_client:
+        with pytest.raises(MetaflowS3URLException):
+            s3_client.delete_many([""])
+
+        with pytest.raises(MetaflowS3URLException):
+            s3_client.delete_many([None])
+
+        # Verify existing object is untouched after invalid requests
+        assert s3_client.info("file.txt", return_missing=True).exists
+
+
+@mock_aws
 def test_s3_delete_many_large_batch():
     """Test S3.delete_many() handles >1000 keys (batching)."""
     # Setup
