@@ -697,7 +697,6 @@ def exit(exit_code, url, s3config=None, worker_exit_code=None):
     elif exit_code == ERROR_WORKER_EXCEPTION:
         code_detail = " (worker exit code: %d)" % worker_exit_code if worker_exit_code is not None else ""
         msg = "Operation failed: worker process terminated%s" % code_detail
-        msg = "Operation failed: worker process terminated%s" % code_detail
     elif exit_code == ERROR_VERIFY_FAILED:
         local_str = getattr(url, "local", None)
         msg = "Verification failed for URL %s, local file %s" % (url_str, local_str)
@@ -1014,7 +1013,7 @@ def put(
                 metadata = r.get("metadata", None)
                 encryption = r.get("encryption", None)
                 if not os.path.exists(local):
-                    exit(ERROR_LOCAL_FILE_NOT_FOUND, local)
+                    exit(ERROR_LOCAL_FILE_NOT_FOUND, local, s3config)
                 yield input_line_idx, local, url, content_type, metadata, encryption
 
     def _make_url(idx, local, user_url, content_type, metadata, encryption):
