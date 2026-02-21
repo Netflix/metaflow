@@ -930,7 +930,22 @@ class S3(object):
                 def _delete_batch(
                     s3, tmpname=None, bucket=bucket, delete_list=delete_list
                 ):
-                    s3.delete_objects(Bucket=bucket, Delete={"Objects": delete_list})
+                    resp = s3.delete_objects(
+                        Bucket=bucket, Delete={"Objects": delete_list}
+                    )
+                    # Check for per-key errors in the response
+                    errors = resp.get("Errors", [])
+                    if errors:
+                        error_msg = "; ".join(
+                            [
+                                "{} ({})".format(e.get("Key"), e.get("Code"))
+                                for e in errors
+                            ]
+                        )
+                        raise MetaflowS3Exception(
+                            "Failed to delete %d object(s): %s"
+                            % (len(errors), error_msg)
+                        )
 
                 self._one_boto_op(_delete_batch, first_url, create_tmp_file=False)
 
