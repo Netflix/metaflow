@@ -590,6 +590,12 @@ class ArgoWorkflows(object):
                 extra_attrs["encoding"] = getattr(
                     param.kwargs.get("type"), "_encoding", "utf-8"
                 )
+            elif hasattr(param.kwargs.get("type"), "name") and not hasattr(
+                param.kwargs.get("type"), "__name__"
+            ):
+                # Handles EnumTypeClass and other Click ParamType subclasses
+                # that have .name but not __name__
+                param_type = str(param.kwargs.get("type").name)
             else:
                 param_type = str(param.kwargs.get("type").__name__)
 

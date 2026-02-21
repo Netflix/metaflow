@@ -105,6 +105,26 @@ class JSONTypeClass(click.ParamType):
         return "JSON"
 
 
+class EnumTypeClass(click.ParamType):
+    name = "enum"
+
+    def __init__(self, values):
+        self.values = list(values)
+        self._choice = click.Choice(self.values)
+
+    def get_metavar(self, param):
+        return self._choice.get_metavar(param)
+
+    def convert(self, value, param, ctx):
+        return self._choice.convert(value, param, ctx)
+
+    def __str__(self):
+        return repr(self)
+
+    def __repr__(self):
+        return "Enum(%s)" % self.values
+
+
 class DeployTimeField(object):
     """
     This a wrapper object for a user-defined function that is called
@@ -391,7 +411,32 @@ class Parameter(object):
         # Continue processing kwargs free of any configuration values :)
 
         # TODO: check that the type is one of the supported types
-        param_type = self.kwargs["type"] = self._get_type(self.kwargs)
+        param_type = self._get_type(self.kwargs)
+
+        # Always pop 'values' from kwargs so it never leaks to Click.
+        values = self.kwargs.pop("values", None)
+
+        # Handle enum type: convert type="enum" + values=[...] into an
+        # EnumTypeClass instance that wraps Click's Choice for validation.
+        if param_type == "enum":
+            if values is None:
+                raise MetaflowException(
+                    "Parameter *%s*: 'values' is required when "
+                    "type is set to 'enum'." % self.name
+                )
+            if not isinstance(values, (list, tuple)):
+                raise MetaflowException(
+                    "Parameter *%s*: 'values' must be a list or "
+                    "tuple of allowed values." % self.name
+                )
+            if len(values) == 0:
+                raise MetaflowException(
+                    "Parameter *%s*: 'values' must not be empty "
+                    "when type is set to 'enum'." % self.name
+                )
+            param_type = EnumTypeClass(values)
+
+        self.kwargs["type"] = param_type
 
         reserved_params = [
             "params",
