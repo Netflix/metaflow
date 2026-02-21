@@ -110,7 +110,11 @@ if __name__ == "__main__":
         )
         netrc_dest = os.path.expanduser("~/.netrc")
         netrc_installed = False
+        netrc_had_original = os.path.exists(netrc_dest)
+        netrc_backup = netrc_dest + ".metaflow_bak"
         if netrc_in_package is not None:
+            if netrc_had_original:
+                shutil.copy2(netrc_dest, netrc_backup)
             shutil.copy2(netrc_in_package, netrc_dest)
             os.chmod(netrc_dest, 0o600)
             netrc_installed = True
