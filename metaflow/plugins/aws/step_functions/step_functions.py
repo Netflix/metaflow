@@ -258,14 +258,15 @@ class StepFunctions(object):
         return None
 
     @classmethod
-    def get_deployment_metadata(cls, name):
+    def get_deployment_metadata(cls, name, _client=None):
         """
         Get deployment metadata for a state machine.
 
         Returns a tuple of (flow_name, owner, production_token) or None
         if the state machine doesn't exist or is not a Metaflow deployment.
         """
-        workflow = StepFunctionsClient().get(name)
+        client = _client or StepFunctionsClient()
+        workflow = client.get(name)
         if workflow is not None:
             try:
                 start = json.loads(workflow["definition"])["States"]["start"]
@@ -287,7 +288,7 @@ class StepFunctions(object):
         """
         client = StepFunctionsClient()
         for name in client.list_state_machines():
-            metadata = cls.get_deployment_metadata(name)
+            metadata = cls.get_deployment_metadata(name, _client=client)
             if metadata is None:
                 continue
             sm_flow_name, _, _ = metadata

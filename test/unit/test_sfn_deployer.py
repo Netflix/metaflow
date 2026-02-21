@@ -234,6 +234,26 @@ class TestListTemplates:
         names = list(StepFunctions.list_templates(flow_name="FlowA"))
         assert names == ["flow-a"]
 
+    @patch(
+        "metaflow.plugins.aws.step_functions.step_functions.StepFunctionsClient"
+    )
+    def test_list_templates_reuses_single_client(self, MockClient):
+        """StepFunctionsClient must be instantiated exactly once per list_templates call."""
+        from metaflow.plugins.aws.step_functions.step_functions import StepFunctions
+
+        mock_instance = MockClient.return_value
+        mock_instance.list_state_machines.return_value = iter(
+            ["flow-a", "flow-b", "flow-c"]
+        )
+
+        def fake_get(name):
+            return _make_describe_response(name, name.replace("-", ""), "user", "tok")
+
+        mock_instance.get.side_effect = fake_get
+
+        list(StepFunctions.list_templates())
+        MockClient.assert_called_once()
+
 
 # ==============================================================================
 # Tests for StepFunctionsDeployedFlow.from_deployment
