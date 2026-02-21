@@ -127,10 +127,11 @@ class _FlowState(MutableMapping):
         self._self_data[key] = value
 
     def __delitem__(self, key):
-        if key in self._non_inherited_items:
-            del self._self_data[key]
+        # Always remove from _self_data (the authoritative store for all keys).
+        del self._self_data[key]
 
-        del self._merged_data[key]
+        # Evict the cached merged value if one was computed for this key.
+        self._merged_data.pop(key, None)
 
     def __iter__(self):
         # All keys are in self._self_data
