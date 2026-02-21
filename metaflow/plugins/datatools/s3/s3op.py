@@ -481,7 +481,7 @@ def start_workers(mode, urls, num_workers, inject_failure, s3config):
                         # 6. it will never be empty because all subprocesses (workers) have died.
                         queue.cancel_join_thread()
 
-                        exit(ERROR_WORKER_EXCEPTION, None, s3config)
+                        exit(ERROR_WORKER_EXCEPTION, None, s3config, worker_exit_code=proc.exitcode)
                     # Read the output file if all went well
                     with open(out_path, "r") as out_file:
                         for line in out_file:
@@ -665,7 +665,7 @@ def op_list_prefix_nonrecursive(s3config, prefix_urls):
     return [s3.list_prefix(prefix, delimiter="/") for prefix in prefix_urls]
 
 
-def exit(exit_code, url, s3config=None):
+def exit(exit_code, url, s3config=None, worker_exit_code=None):
     if hasattr(url, "url"):
         url_str = url.url
     elif url is not None:
@@ -693,16 +693,17 @@ def exit(exit_code, url, s3config=None):
             except Exception as e:
                 msg = f"{msg}\n\n(credential info unavailable: {e})"
     elif exit_code == ERROR_WORKER_EXCEPTION:
-        msg = "Download failed"
+        code_detail = " (worker exit code: %d)" % worker_exit_code if worker_exit_code is not None else ""
+        msg = "Operation failed: worker process exited unexpectedly%s" % code_detail
     elif exit_code == ERROR_VERIFY_FAILED:
         local_str = getattr(url, "local", None)
         msg = "Verification failed for URL %s, local file %s" % (url_str, local_str)
     elif exit_code == ERROR_LOCAL_FILE_NOT_FOUND:
-        msg = "Local file not found: %s" % url
+        msg = "Local file not found: %s" % url_str
     elif exit_code == ERROR_TRANSIENT:
-        msg = "Transient error for url: %s" % url
+        msg = "Transient error for url: %s" % url_str
     elif exit_code == ERROR_OUT_OF_DISK_SPACE:
-        msg = "Out of disk space when downloading URL: %s" % url
+        msg = "Out of disk space when downloading URL: %s" % url_str
     else:
         msg = "Unknown error"
     print("s3op failed:\n%s" % msg, file=sys.stderr)
@@ -987,7 +988,7 @@ def put(
         for local, url in files:
             local_file = url_unquote(local)
             if not os.path.exists(local_file):
-                exit(ERROR_LOCAL_FILE_NOT_FOUND, local_file)
+                exit(ERROR_LOCAL_FILE_NOT_FOUND, local_file, s3config)
             yield line_idx, local_file, url_unquote(url), None, None
             line_idx += 1
         if filelist:

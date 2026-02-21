@@ -18,13 +18,7 @@ def get_credential_debug_info(s3config=None):
         import boto3
         import botocore.config
 
-        # Build session (respect session vars if provided)
-        if s3config and getattr(s3config, "session_vars", None):
-            import botocore.session as bc_session
-            bc_sess = bc_session.Session(session_vars=s3config.session_vars)
-            session = boto3.session.Session(botocore_session=bc_sess)
-        else:
-            session = boto3.session.Session()
+        session = boto3.session.Session()
 
         credentials = session.get_credentials()
 
@@ -98,7 +92,7 @@ def parse_s3_full_path(s3_uri):
     #  <scheme>://<netloc>/<path>;<params>?<query>#<fragment>
     scheme, netloc, path, _, _, _ = urlparse(s3_uri)
     assert scheme == "s3"
-    assert netloc is not None
+    assert netloc != ""
 
     bucket = netloc
     path = path.lstrip("/").rstrip("/")
