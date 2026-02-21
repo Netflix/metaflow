@@ -689,9 +689,9 @@ def exit(exit_code, url, s3config=None):
             try:
                 from metaflow.plugins.aws.aws_utils import get_credential_debug_info
 
-                msg = "%s\n\n%s" % (msg, get_credential_debug_info(s3config))
+                msg = f"{msg}\n\n{get_credential_debug_info(s3config)}"
             except Exception as e:
-                msg = "%s\n\n(credential info unavailable: %s)" % (msg, str(e))
+                msg = f"{msg}\n\n(credential info unavailable: {e})"
     elif exit_code == ERROR_WORKER_EXCEPTION:
         msg = "Download failed"
     elif exit_code == ERROR_VERIFY_FAILED:
@@ -709,11 +709,8 @@ def exit(exit_code, url, s3config=None):
 
     # Show debug tip separately for access denied (not part of exception message)
     # Only shown in interactive contexts where it's actionable
-    if (
-        exit_code == ERROR_URL_ACCESS_DENIED
-        and not debug.s3client
-        and sys.stderr.isatty()
-    ):
+    # Always show actionable tip when access is denied and debug flag is not enabled.
+    if exit_code == ERROR_URL_ACCESS_DENIED and not debug.s3client:
         print(
             "\nTip: Set METAFLOW_DEBUG_S3CLIENT=1 to see which AWS credentials are being used.",
             file=sys.stderr,
