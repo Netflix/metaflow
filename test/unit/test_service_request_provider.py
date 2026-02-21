@@ -57,8 +57,9 @@ class TestServiceRequestProvider(unittest.TestCase):
         "default",
     )
     def test_service_metadata_get_provider_singleton(self):
-        # Reset provider cache directly for test
+        # Reset provider cache before test, restore after to avoid cross-test pollution
         ServiceMetadataProvider._provider = None
+        self.addCleanup(setattr, ServiceMetadataProvider, "_provider", None)
 
         provider1 = ServiceMetadataProvider._get_provider()
         provider2 = ServiceMetadataProvider._get_provider()

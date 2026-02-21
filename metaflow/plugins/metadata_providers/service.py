@@ -1,7 +1,9 @@
+import atexit
+import importlib
 import os
 import random
-import time
 import threading
+import time
 
 from typing import List
 from metaflow.exception import (
@@ -18,7 +20,6 @@ from metaflow.metaflow_config import (
     SERVICE_REQUEST_PROVIDER,
 )
 from metaflow.sidecar import Message, MessageTypes, Sidecar
-import importlib
 from .request_provider import MetaflowServiceRequestProvider, DefaultRequestProvider
 from urllib.parse import urlencode
 from metaflow.util import version_parse
@@ -82,8 +83,6 @@ class ServiceMetadataProvider(MetadataProvider):
             with cls._provider_lock:
                 if cls._provider is None:
                     cls._provider = _load_request_provider(SERVICE_REQUEST_PROVIDER)
-                    import atexit
-
                     atexit.register(cls._provider.close)
         return cls._provider
 
@@ -115,11 +114,18 @@ class ServiceMetadataProvider(MetadataProvider):
                     is_absolute_url=True,
                     return_raw_resp=True,
                 )
-                resp.raise_for_status()
-            except:  # noqa E722
-                time.sleep(2 ** (i - 1))
-            else:
+            except Exception:
+                raise  # transport failure: _request() already retried N times internally
+            if resp.status_code < 300:
                 return v
+            # Only retry on transient server errors; fail fast on all others
+            if resp.status_code not in (500, 503):
+                raise ValueError(
+                    "Metaflow service [%s] returned unexpected status %s: %s"
+                    % (v, resp.status_code, resp.text)
+                )
+            if i < SERVICE_RETRY_COUNT - 1:
+                time.sleep(2 ** (i - 1))
 
         raise ValueError("Metaflow service [%s] unreachable." % v)
 
@@ -408,7 +414,7 @@ class ServiceMetadataProvider(MetadataProvider):
 
         try:
             resp, _ = cls._request(None, url, "GET")
-        except Exception as e:
+        except ServiceException as e:
             if e.http_code == 404:
                 # filter_tasks_by_metadata endpoint does not exist in the version of metadata service
                 # deployed currently. Raise a more informative error message.
@@ -416,8 +422,8 @@ class ServiceMetadataProvider(MetadataProvider):
                     "The version of metadata service deployed currently does not support filtering tasks by metadata. "
                     "Upgrade Metadata service to version 2.5.0 or greater to use this feature."
                 ) from e
-            # Other unknown exception
-            raise e
+            # Other service-level exception
+            raise
         return resp
 
     @staticmethod
@@ -593,28 +599,26 @@ class ServiceMetadataProvider(MetadataProvider):
                 "Missing Metaflow Service URL. "
                 "Specify with METAFLOW_SERVICE_URL environment variable"
             )
-        resp = None
         for i in range(SERVICE_RETRY_COUNT):
             try:
                 resp, _ = cls._request(monitor, "ping", "GET", return_raw_resp=True)
-                resp.raise_for_status()
-            except MetaflowInternalError:
-                raise
             except Exception:
-                if monitor:
-                    with monitor.count("metaflow.service_metadata.failed_request"):
-                        pass
-                if i == SERVICE_RETRY_COUNT - 1:
-                    if resp is not None:
-                        raise ServiceException(
-                            "Metadata request (ping) failed (code %s): %s"
-                            % (resp.status_code, resp.text),
-                            resp.status_code,
-                            resp.text,
-                        )
-                    else:
-                        raise ServiceException("Metadata request (ping) failed")
-            else:
+                raise  # transport failure: _request() already retried N times internally
+            if resp.status_code < 300:
                 return resp.headers.get("METADATA_SERVICE_VERSION", None)
+            # Only retry on transient server errors, matching original semantics
+            if resp.status_code not in (500, 503):
+                raise ServiceException(
+                    "Metadata request (ping) failed (code %s): %s"
+                    % (resp.status_code, resp.text),
+                    resp.status_code,
+                    resp.text,
+                )
+            if i == SERVICE_RETRY_COUNT - 1:
+                raise ServiceException(
+                    "Metadata request (ping) failed (code %s): %s"
+                    % (resp.status_code, resp.text),
+                    resp.status_code,
+                    resp.text,
+                )
             time.sleep(2**i)
-        return None
