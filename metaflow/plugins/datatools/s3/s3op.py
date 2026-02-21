@@ -691,7 +691,7 @@ def exit(exit_code, url, s3config=None, worker_exit_code=None):
             try:
                 from metaflow.plugins.aws.aws_utils import get_credential_debug_info
 
-                msg = f"{msg}\n\n{get_credential_debug_info(s3config = None)}"
+                msg = f"{msg}\n\n{get_credential_debug_info(s3config)}"
             except Exception as e:
                 msg = f"{msg}\n\n(credential info unavailable: {e})"
     elif exit_code == ERROR_WORKER_EXCEPTION:
