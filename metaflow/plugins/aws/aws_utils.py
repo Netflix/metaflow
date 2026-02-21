@@ -88,6 +88,7 @@ def get_credential_debug_info(s3config=None):
         "Tip: Verify this identity has required S3 permissions "
         "(s3:GetObject, s3:PutObject, s3:ListBucket) on the target bucket."
     )
+    return "\n".join([header] + lines + ["", tip])
 
     return "\n".join([header] + lines + ["", tip])
 
