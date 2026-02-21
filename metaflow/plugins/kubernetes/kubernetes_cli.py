@@ -158,6 +158,20 @@ def kubernetes():
     type=JSONTypeClass(),
     multiple=False,
 )
+@click.option(
+    "--worker-resources",
+    default=None,
+    type=JSONTypeClass(),
+    multiple=False,
+    help="Per-worker node resource overrides as JSON dict.",
+)
+@click.option(
+    "--control-resources",
+    default=None,
+    type=JSONTypeClass(),
+    multiple=False,
+    help="Per-control node resource overrides as JSON dict.",
+)
 @click.pass_context
 def step(
     ctx,
@@ -192,6 +206,8 @@ def step(
     labels=None,
     annotations=None,
     security_context=None,
+    worker_resources=None,
+    control_resources=None,
     **kwargs
 ):
     def echo(msg, stream="stderr", job_id=None, **kwargs):
@@ -338,6 +354,8 @@ def step(
                 labels=labels,
                 annotations=annotations,
                 security_context=security_context,
+                worker_resources=worker_resources,
+                control_resources=control_resources,
             )
     except Exception:
         traceback.print_exc(chain=False)

@@ -257,6 +257,8 @@ class Batch(object):
         log_options=None,
         offload_command_to_s3=False,
         privileged=False,
+        worker_resources=None,
+        control_resources=None,
     ):
         job_name = self._job_name(
             attrs.get("metaflow.user"),
@@ -315,6 +317,8 @@ class Batch(object):
                 log_driver=log_driver,
                 log_options=log_options,
                 privileged=privileged,
+                worker_resources=worker_resources,
+                control_resources=control_resources,
             )
             .task_id(attrs.get("metaflow.task_id"))
             .environment_variable("AWS_DEFAULT_REGION", self._client.region())
@@ -402,6 +406,11 @@ class Batch(object):
                 for key, value in aws_batch_tags.items():
                     job.tag(key, value)
 
+        if worker_resources:
+            job.set_worker_resource_overrides(worker_resources)
+        if control_resources:
+            job.set_control_resource_overrides(control_resources)
+
         return job
 
     def launch_job(
@@ -440,6 +449,8 @@ class Batch(object):
         log_driver=None,
         log_options=None,
         privileged=None,
+        worker_resources=None,
+        control_resources=None,
     ):
         if queue is None:
             queue = next(self._client.active_job_queues(), None)
@@ -483,6 +494,8 @@ class Batch(object):
             log_driver=log_driver,
             log_options=log_options,
             privileged=privileged,
+            worker_resources=worker_resources,
+            control_resources=control_resources,
         )
         self.num_parallel = num_parallel
         self.job = job.execute()

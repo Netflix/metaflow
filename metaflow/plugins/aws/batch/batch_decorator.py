@@ -227,6 +227,15 @@ class BatchDecorator(StepDecorator):
             compute_resource_attributes(decos, self, self.resource_defaults)
         )
 
+        # Extract per-role resource overrides from @parallel decorator.
+        self._worker_resources = None
+        self._control_resources = None
+        for deco in decos:
+            if deco.name == "parallel":
+                self._worker_resources = deco.attributes.get("worker_resources")
+                self._control_resources = deco.attributes.get("control_resources")
+                break
+
         # Set run time limit for the AWS Batch job.
         self.run_time_limit = get_run_time_limit_for_task(decos)
         if self.run_time_limit < 60:
@@ -274,6 +283,18 @@ class BatchDecorator(StepDecorator):
                 {k: v for k, v in self.attributes.items() if k not in _skip_keys}
             )
             cli_args.command_options["run-time-limit"] = self.run_time_limit
+
+            # Pass per-role resource overrides as JSON if set.
+            import json as _json
+
+            if self._worker_resources:
+                cli_args.command_options["worker_resources"] = _json.dumps(
+                    self._worker_resources
+                )
+            if self._control_resources:
+                cli_args.command_options["control_resources"] = _json.dumps(
+                    self._control_resources
+                )
 
             # Pass the supplied AWS batch tags to the step CLI cmd
             cli_args.command_options["aws-batch-tag"] = [

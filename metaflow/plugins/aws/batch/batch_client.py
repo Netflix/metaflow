@@ -118,6 +118,24 @@ class BatchJob(object):
             )
 
             secondary_task_container_override["command"][-1] = secondary_commands
+
+            # Apply per-role resource overrides to container overrides
+            baseline_reqs = self.payload["containerOverrides"].get(
+                "resourceRequirements", []
+            )
+            if getattr(self, "_control_resources", None):
+                main_task_override[
+                    "resourceRequirements"
+                ] = BatchJob._build_resource_requirements(
+                    self._control_resources, baseline_reqs
+                )
+            if getattr(self, "_worker_resources", None) and num_nodes > 1:
+                secondary_task_container_override[
+                    "resourceRequirements"
+                ] = BatchJob._build_resource_requirements(
+                    self._worker_resources, baseline_reqs
+                )
+
             secondary_overrides = (
                 [
                     {
@@ -139,6 +157,37 @@ class BatchJob(object):
         response = self._client.submit_job(**self.payload)
         job = RunningJob(response["jobId"], self._client)
         return job.update()
+
+    @staticmethod
+    def _build_resource_requirements(resources_dict, baseline_reqs):
+        """
+        Build an AWS Batch resourceRequirements list by merging baseline_reqs
+        with overrides from resources_dict.
+
+        baseline_reqs: list of {"type": ..., "value": ...} dicts (existing requirements)
+        resources_dict: dict with keys cpu/memory/gpu and their new values
+        Returns: list of {"type": ..., "value": ...} dicts
+        """
+        result = {r["type"]: r["value"] for r in baseline_reqs}
+        if resources_dict.get("cpu") is not None:
+            result["VCPU"] = "%g" % float(resources_dict["cpu"])
+        if resources_dict.get("memory") is not None:
+            result["MEMORY"] = str(int(float(resources_dict["memory"])))
+        if resources_dict.get("gpu") is not None:
+            gpu_val = int(float(resources_dict["gpu"]))
+            if gpu_val > 0:
+                result["GPU"] = str(gpu_val)
+            else:
+                result.pop("GPU", None)
+        return [{"type": k, "value": v} for k, v in result.items()]
+
+    def set_worker_resource_overrides(self, resources):
+        self._worker_resources = resources
+        return self
+
+    def set_control_resource_overrides(self, resources):
+        self._control_resources = resources
+        return self
 
     def _register_job_definition(
         self,
@@ -163,6 +212,8 @@ class BatchJob(object):
         log_driver,
         log_options,
         privileged,
+        worker_resources=None,
+        control_resources=None,
     ):
         # identify platform from any compute environment associated with the
         # queue
@@ -417,19 +468,36 @@ class BatchJob(object):
                 "numNodes": self.num_parallel,
                 "mainNode": 0,
             }
+            baseline_reqs = job_definition["containerProperties"].get(
+                "resourceRequirements", []
+            )
+            control_container = copy.deepcopy(job_definition["containerProperties"])
+            if control_resources:
+                control_container[
+                    "resourceRequirements"
+                ] = BatchJob._build_resource_requirements(
+                    control_resources, baseline_reqs
+                )
             job_definition["nodeProperties"]["nodeRangeProperties"] = [
                 {
                     "targetNodes": "0:0",  # The properties are same for main node and others,
                     # but as we use nodeOverrides later for main and others
                     # differently, also the job definition must match those patterns
-                    "container": job_definition["containerProperties"],
+                    "container": control_container,
                 },
             ]
             if self.num_parallel > 1:
+                worker_container = copy.deepcopy(job_definition["containerProperties"])
+                if worker_resources:
+                    worker_container[
+                        "resourceRequirements"
+                    ] = BatchJob._build_resource_requirements(
+                        worker_resources, baseline_reqs
+                    )
                 job_definition["nodeProperties"]["nodeRangeProperties"].append(
                     {
                         "targetNodes": "1:{}".format(self.num_parallel - 1),
-                        "container": job_definition["containerProperties"],
+                        "container": worker_container,
                     }
                 )
 
@@ -485,6 +553,8 @@ class BatchJob(object):
         log_driver,
         log_options,
         privileged,
+        worker_resources=None,
+        control_resources=None,
     ):
         self.payload["jobDefinition"] = self._register_job_definition(
             image,
@@ -508,6 +578,8 @@ class BatchJob(object):
             log_driver,
             log_options,
             privileged,
+            worker_resources=worker_resources,
+            control_resources=control_resources,
         )
         return self
 

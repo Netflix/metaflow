@@ -168,6 +168,8 @@ class KubernetesDecorator(StepDecorator):
         "hostname_resolution_timeout": 10 * 60,
         "qos": KUBERNETES_QOS,
         "security_context": None,
+        "worker_resources": None,
+        "control_resources": None,
     }
     package_metadata = None
     package_url = None
@@ -437,6 +439,19 @@ class KubernetesDecorator(StepDecorator):
         validate_kube_labels(self.attributes["labels"])
         # TODO: add validation to annotations as well?
 
+        # Extract per-role resource overrides from @parallel decorator.
+        for deco in decos:
+            if deco.name == "parallel":
+                if deco.attributes.get("worker_resources") is not None:
+                    self.attributes["worker_resources"] = deco.attributes[
+                        "worker_resources"
+                    ]
+                if deco.attributes.get("control_resources") is not None:
+                    self.attributes["control_resources"] = deco.attributes[
+                        "control_resources"
+                    ]
+                break
+
     def package_init(self, flow, step_name, environment):
         try:
             # Kubernetes is a soft dependency.
@@ -500,6 +515,8 @@ class KubernetesDecorator(StepDecorator):
                     "labels",
                     "annotations",
                     "security_context",
+                    "worker_resources",
+                    "control_resources",
                 ]:
                     cli_args.command_options[k] = json.dumps(v)
                 else:

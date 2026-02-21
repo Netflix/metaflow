@@ -6,6 +6,7 @@ import traceback
 
 from metaflow import util
 from metaflow import R
+from metaflow import JSONTypeClass
 from metaflow.exception import CommandException, METAFLOW_EXIT_DISALLOW_RETRY
 from metaflow.metadata_provider.util import sync_local_metadata_from_datastore
 from metaflow.metaflow_config import DATASTORE_LOCAL_DIR
@@ -191,6 +192,20 @@ def kill(ctx, run_id, user, my_runs):
     help="Number of parallel nodes to run as a multi-node job.",
 )
 @click.option("--privileged", is_flag=True, help="Run the AWS Batch Job as privileged")
+@click.option(
+    "--worker-resources",
+    default=None,
+    type=JSONTypeClass(),
+    multiple=False,
+    help="Per-worker node resource overrides as JSON dict.",
+)
+@click.option(
+    "--control-resources",
+    default=None,
+    type=JSONTypeClass(),
+    multiple=False,
+    help="Per-control node resource overrides as JSON dict.",
+)
 @click.pass_context
 def step(
     ctx,
@@ -224,6 +239,8 @@ def step(
     log_options=None,
     num_parallel=None,
     privileged=None,
+    worker_resources=None,
+    control_resources=None,
     **kwargs
 ):
     def echo(msg, stream="stderr", batch_id=None, **kwargs):
@@ -369,6 +386,8 @@ def step(
                 log_options=log_options,
                 num_parallel=num_parallel,
                 privileged=privileged,
+                worker_resources=worker_resources,
+                control_resources=control_resources,
             )
     except Exception:
         traceback.print_exc()

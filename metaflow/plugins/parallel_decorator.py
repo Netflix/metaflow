@@ -33,7 +33,10 @@ class ParallelDecorator(StepDecorator):
     """
 
     name = "parallel"
-    defaults = {}
+    defaults = {
+        "worker_resources": None,  # dict e.g. {"cpu": 8, "gpu": 4, "memory": 32768}
+        "control_resources": None,  # dict e.g. {"cpu": 2, "memory": 4096}
+    }
     IS_PARALLEL = True
 
     def __init__(self, attributes=None, statically_defined=False, inserted_by=None):
@@ -61,6 +64,33 @@ class ParallelDecorator(StepDecorator):
                 % step_name
             )
         self.environment = environment
+        _VALID_RESOURCE_KEYS = {"cpu", "memory", "disk", "gpu", "node_selector", "tmpfs_size"}
+        _NUMERIC_RESOURCE_KEYS = {"cpu", "memory", "disk", "gpu", "tmpfs_size"}
+        for param_name in ("worker_resources", "control_resources"):
+            resources = self.attributes.get(param_name)
+            if resources is None:
+                continue
+            if not isinstance(resources, dict):
+                raise MetaflowException(
+                    "@parallel *%s* must be a dictionary, got: %s"
+                    % (param_name, type(resources).__name__)
+                )
+            invalid_keys = set(resources.keys()) - _VALID_RESOURCE_KEYS
+            if invalid_keys:
+                raise MetaflowException(
+                    "@parallel *%s* contains invalid keys: %s. Allowed: %s"
+                    % (param_name, invalid_keys, _VALID_RESOURCE_KEYS)
+                )
+            for k in _NUMERIC_RESOURCE_KEYS:
+                if k in resources and resources[k] is not None:
+                    try:
+                        if float(resources[k]) < 0:
+                            raise ValueError()
+                    except (TypeError, ValueError):
+                        raise MetaflowException(
+                            "@parallel *%s*[%s] must be a non-negative number"
+                            % (param_name, k)
+                        )
         # Previously, the `parallel` property was a hardcoded, static property within `current`.
         # Whenever `current.parallel` was called, it returned a named tuple with values coming from
         # environment variables, loaded dynamically at runtime.

@@ -511,6 +511,22 @@ class JobSetSpec(object):
         self._kwargs["memory"] = mem
         return self
 
+    def disk(self, disk):
+        self._kwargs["disk"] = disk
+        return self
+
+    def gpu(self, gpu):
+        self._kwargs["gpu"] = gpu
+        return self
+
+    def node_selector(self, node_selector):
+        self._kwargs["node_selector"] = node_selector
+        return self
+
+    def tmpfs_size(self, tmpfs_size):
+        self._kwargs["tmpfs_size"] = tmpfs_size
+        return self
+
     def environment_variable(self, name, value):
         # Never set to None
         if value is None:

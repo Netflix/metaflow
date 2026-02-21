@@ -51,6 +51,7 @@ from metaflow.mflog import (
 )
 
 from .kubernetes_client import KubernetesClient
+from .kube_utils import parse_kube_keyvalue_list
 
 # Redirect structured logs to $PWD/.logs/
 LOGS_DIR = "$PWD/.logs"
@@ -198,6 +199,8 @@ class Kubernetes(object):
         num_parallel=None,
         qos=None,
         security_context=None,
+        worker_resources=None,
+        control_resources=None,
     ):
         name = "js-%s" % str(uuid4())[:6]
         jobset = (
@@ -456,6 +459,32 @@ class Kubernetes(object):
         # will use MF_WORKER_REPLICA_INDEX
         jobset.control.environment_variable("MF_CONTROL_INDEX", "0")
         ## ----------- control/worker specific values END here -----------
+
+        ## ----------- per-role resource overrides START -----------
+        # Apply heterogeneous resource overrides for each role.
+        # worker_resources / control_resources override the shared baseline from @kubernetes/@resources.
+        def _parse_node_selector(ns):
+            return parse_kube_keyvalue_list(ns.split(",")) if isinstance(ns, str) else ns
+
+        for spec, resources in [
+            (jobset.worker, worker_resources),
+            (jobset.control, control_resources),
+        ]:
+            if not resources:
+                continue
+            if resources.get("cpu") is not None:
+                spec.cpu(resources["cpu"])
+            if resources.get("memory") is not None:
+                spec.memory(resources["memory"])
+            if resources.get("disk") is not None:
+                spec.disk(resources["disk"])
+            if resources.get("gpu") is not None:
+                spec.gpu(resources["gpu"])
+            if resources.get("node_selector") is not None:
+                spec.node_selector(_parse_node_selector(resources["node_selector"]))
+            if resources.get("tmpfs_size") is not None:
+                spec.tmpfs_size(resources["tmpfs_size"])
+        ## ----------- per-role resource overrides END -----------
 
         return jobset
 
