@@ -780,7 +780,7 @@ class S3(object):
         src = urlparse(url, allow_fragments=False)
 
         def _info(s3, tmp):
-            resp = s3.head_object(Bucket=src.netloc, Key=src.path.lstrip('/"'))
+            resp = s3.head_object(Bucket=src.netloc, Key=src.path.lstrip("/"))
             return {
                 "content_type": resp["ContentType"],
                 "metadata": resp["Metadata"],
@@ -1512,7 +1512,7 @@ class S3(object):
     # NOTE: re: _read_many_files and _put_many_files
     # All file IO is through binary files - we write bytes, we read
     # bytes. All inputs and outputs from these functions are Unicode.
-    # Conversion between bytes and unicode is done through
+    # Conversion between bytes and unicode is done through url_quote
     # and url_unquote.
     def _read_many_files(self, op, prefixes_and_ranges, **options):
         prefixes_and_ranges = list(prefixes_and_ranges)
@@ -1902,16 +1902,24 @@ class S3(object):
                     if pending_retries and last_retry_count > 0:
                         try:
                             # Parse a line from the most recent batch to get transient error type
-                            recent_retry = json.loads(
+                            line = (
                                 pending_retries[-last_retry_count]
                                 .decode("utf-8")
                                 .strip()
                             )
-                            if "transient_error_type" in recent_retry:
-                                error_info = (
-                                    " (%s)" % recent_retry["transient_error_type"]
-                                )
-                        except (json.JSONDecodeError, IndexError, KeyError):
+                            if mode == "put":
+                                recent_retry = json.loads(line)
+                                if "transient_error_type" in recent_retry:
+                                    error_info = (
+                                        " (%s)" % recent_retry["transient_error_type"]
+                                    )
+                            else:
+                                # For space-separated modes (get, delete, info), the error
+                                # type is the 5th element if present.
+                                parts = line.split(" ")
+                                if len(parts) > 4:
+                                    error_info = " (%s)" % parts[4]
+                        except Exception:
                             pass
 
                     print(
