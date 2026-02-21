@@ -960,15 +960,17 @@ class S3(object):
             client (if configured). Each key may be an S3 url or a path suffix.
         """
 
-        # list_recursive returns S3Object instances with .key and .url set
+        # list_recursive returns S3Object instances with .url (full S3 path) set
         objs = self.list_recursive(keys)
         if not objs:
             return
-        # collect relative keys (not full urls) to avoid _url() rejecting s3:// prefixes
-        # when s3root is set (the typical case)
-        keys_to_delete = [obj.key for obj in objs if obj.exists]
-        if keys_to_delete:
-            self.delete_many(keys_to_delete)
+        # Use full S3 URLs to ensure correct path targeting.
+        # Note: obj.key is relative to the listing prefix, so it loses the prefix segment.
+        # Instead, extract full URLs from S3Object.url which is the absolute S3 path.
+        # list_recursive always returns existing objects, so no need to filter
+        urls_to_delete = [obj.url for obj in objs]
+        if urls_to_delete:
+            self.delete_many(urls_to_delete)
 
     def get(
         self,
