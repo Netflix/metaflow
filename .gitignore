@@ -35,3 +35,4 @@ stubs/version.py
 
 # devtools
 .devtools
+venv/
