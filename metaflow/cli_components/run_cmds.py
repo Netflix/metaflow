@@ -284,8 +284,8 @@ def resume(
         origin_user_tags = origin_run.user_tags
         if origin_user_tags:
             obj.metadata.add_sticky_tags(tags=list(origin_user_tags))
-    except Exception:
-        pass
+    except Exception as e:
+        obj.echo("Warning: could not propagate user tags from origin run: %s" % e)
 
     if run_id:
         # Run-ids that are provided by the metadata service are always integers.
