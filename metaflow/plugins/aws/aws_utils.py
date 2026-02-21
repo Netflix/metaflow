@@ -103,7 +103,7 @@ def parse_s3_full_path(s3_uri):
     #  <scheme>://<netloc>/<path>;<params>?<query>#<fragment>
     scheme, netloc, path, _, _, _ = urlparse(s3_uri)
     assert scheme == "s3"
-    assert netloc != ""
+    assert netloc is not None
 
     bucket = netloc
     path = path.lstrip("/").rstrip("/")
