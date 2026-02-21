@@ -1,6 +1,7 @@
 import os
 import random
 import time
+import threading
 
 from typing import List
 from metaflow.exception import (
@@ -47,7 +48,13 @@ def _load_request_provider(spec: str) -> "MetaflowServiceRequestProvider":
         module_path, class_name = spec.rsplit(".", 1)
         module = importlib.import_module(module_path)
         provider_cls = getattr(module, class_name)
-        return provider_cls()
+        instance = provider_cls()
+        if not isinstance(instance, MetaflowServiceRequestProvider):
+            raise TypeError(
+                "'%s' does not implement MetaflowServiceRequestProvider "
+                "(missing request() and/or close())" % spec
+            )
+        return instance
     except Exception as e:
         raise MetaflowException(
             "Failed to load custom service request provider '%s': %s" % (spec, e)
@@ -67,14 +74,17 @@ class ServiceMetadataProvider(MetadataProvider):
     TYPE = "service"
 
     _provider = None
+    _provider_lock = threading.Lock()
 
     @classmethod
     def _get_provider(cls) -> "MetaflowServiceRequestProvider":
         if cls._provider is None:
-            cls._provider = _load_request_provider(SERVICE_REQUEST_PROVIDER)
-            import atexit
+            with cls._provider_lock:
+                if cls._provider is None:
+                    cls._provider = _load_request_provider(SERVICE_REQUEST_PROVIDER)
+                    import atexit
 
-            atexit.register(cls._provider.close)
+                    atexit.register(cls._provider.close)
         return cls._provider
 
     _supports_attempt_gets = None
@@ -583,5 +593,28 @@ class ServiceMetadataProvider(MetadataProvider):
                 "Missing Metaflow Service URL. "
                 "Specify with METAFLOW_SERVICE_URL environment variable"
             )
-        resp, _ = cls._request(monitor, "ping", "GET", return_raw_resp=True)
-        return resp.headers.get("METADATA_SERVICE_VERSION", None)
+        resp = None
+        for i in range(SERVICE_RETRY_COUNT):
+            try:
+                resp, _ = cls._request(monitor, "ping", "GET", return_raw_resp=True)
+                resp.raise_for_status()
+            except MetaflowInternalError:
+                raise
+            except Exception:
+                if monitor:
+                    with monitor.count("metaflow.service_metadata.failed_request"):
+                        pass
+                if i == SERVICE_RETRY_COUNT - 1:
+                    if resp is not None:
+                        raise ServiceException(
+                            "Metadata request (ping) failed (code %s): %s"
+                            % (resp.status_code, resp.text),
+                            resp.status_code,
+                            resp.text,
+                        )
+                    else:
+                        raise ServiceException("Metadata request (ping) failed")
+            else:
+                return resp.headers.get("METADATA_SERVICE_VERSION", None)
+            time.sleep(2**i)
+        return None
