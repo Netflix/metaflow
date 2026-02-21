@@ -3,7 +3,7 @@ import re
 from metaflow.exception import MetaflowException
 
 
-def get_credential_debug_info():
+def get_credential_debug_info(s3config=None):
     """
     Return a human-readable string describing the active AWS credentials.
 
@@ -20,6 +20,17 @@ def get_credential_debug_info():
 
         session = boto3.session.Session()
 
+        # Note: this reflects ambient credential resolution only.
+        # If s3config.role is set, the actual S3 operations assume a different
+        # IAM role — the STS identity below will show the base credentials,
+        # not the assumed role that triggered the 403.
+        if s3config and getattr(s3config, "role", None):
+            lines.append(
+                "  Note: S3 operations use assumed role: %s\n"
+                "  The credentials above reflect the base session, not the assumed role."
+                % s3config.role
+            )
+            
         credentials = session.get_credentials()
 
         if credentials is None:

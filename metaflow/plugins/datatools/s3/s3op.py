@@ -672,7 +672,9 @@ def exit(exit_code, url, s3config=None, worker_exit_code=None):
         url_str = str(url)
     else:
         url_str = None
-
+    # Note: the original `url` object is intentionally retained below —
+    # some branches (ERROR_VERIFY_FAILED) still need attribute access
+    # via getattr(url, "local", None). url_str is used for display only.
     if exit_code == ERROR_INVALID_URL:
         msg = "Invalid url: %s" % url_str
     elif exit_code == ERROR_NOT_FULL_PATH:
@@ -689,12 +691,12 @@ def exit(exit_code, url, s3config=None, worker_exit_code=None):
             try:
                 from metaflow.plugins.aws.aws_utils import get_credential_debug_info
 
-                msg = f"{msg}\n\n{get_credential_debug_info()}"
+                msg = f"{msg}\n\n{get_credential_debug_info(s3config = None)}"
             except Exception as e:
                 msg = f"{msg}\n\n(credential info unavailable: {e})"
     elif exit_code == ERROR_WORKER_EXCEPTION:
         code_detail = " (worker exit code: %d)" % worker_exit_code if worker_exit_code is not None else ""
-        msg = "Operation failed: worker process exited unexpectedly%s" % code_detail
+        msg = "Operation failed: worker process terminated%s" % code_detail
     elif exit_code == ERROR_VERIFY_FAILED:
         local_str = getattr(url, "local", None)
         msg = "Verification failed for URL %s, local file %s" % (url_str, local_str)
