@@ -5,6 +5,7 @@ from metaflow.plugins.kubernetes.kubernetes import KubernetesException
 from metaflow.plugins.kubernetes.kube_utils import (
     validate_kube_labels,
     parse_kube_keyvalue_list,
+    KubernetesException as KubeUtilsKubernetesException,
 )
 
 
@@ -96,3 +97,15 @@ def test_kubernetes_parse_keyvalue_list(items, requires_both, expected):
 def test_kubernetes_parse_keyvalue_list(items, requires_both):
     with pytest.raises(KubernetesException):
         parse_kube_keyvalue_list(items, requires_both)
+
+
+@pytest.mark.parametrize("items", [["=value"], [""]])
+def test_parse_kube_keyvalue_list_empty_key_rejected(items):
+    """Empty keys (=value and "") raise KubernetesException"""
+    with pytest.raises(KubeUtilsKubernetesException):
+        parse_kube_keyvalue_list(items, True)
+
+
+def test_parse_kube_keyvalue_list_key_with_empty_value_accepted():
+    """key= is accepted and returns {"key": ""}"""
+    assert parse_kube_keyvalue_list(["key="], True) == {"key": ""}

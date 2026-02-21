@@ -96,13 +96,18 @@ def parse_kube_keyvalue_list(items: List[str], requires_both: bool = True):
         ret = {}
         for item_str in items:
             item = item_str.split("=", 1)
+            key = str(item[0])
+            if not key:
+                raise KubernetesException(
+                    "Invalid key-value item: empty key in '%s'" % item_str
+                )
             if requires_both:
                 item[1]  # raise IndexError
-            if str(item[0]) in ret:
-                raise KubernetesException("Duplicate key found: %s" % str(item[0]))
-            ret[str(item[0])] = str(item[1]) if len(item) > 1 else None
+            if key in ret:
+                raise KubernetesException("Duplicate key found: %s" % key)
+            ret[key] = str(item[1]) if len(item) > 1 else None
         return ret
     except KubernetesException as e:
         raise e
     except (AttributeError, IndexError):
-        raise KubernetesException("Unable to parse kubernetes list: %s" % items)
+        raise KubernetesException("Invalid key-value item: '%s'" % item_str)
