@@ -82,16 +82,25 @@ class StepFunctionsDeployedFlow(DeployedFlow):
             `StepFunctionsDeployedFlow` objects representing deployed
             state machines on AWS Step Functions.
         """
-        for template_name in StepFunctions.list_templates(flow_name=flow_name):
+        for template_name, deployment_metadata in StepFunctions.list_templates(
+            flow_name=flow_name
+        ):
             try:
-                deployed_flow = cls.from_deployment(template_name)
+                deployed_flow = cls.from_deployment(
+                    template_name, _deployment_metadata=deployment_metadata
+                )
                 yield deployed_flow
             except Exception:
                 # Skip state machines that can't be converted to DeployedFlow objects
                 continue
 
     @classmethod
-    def from_deployment(cls, identifier: str, metadata: Optional[str] = None):
+    def from_deployment(
+        cls,
+        identifier: str,
+        metadata: Optional[str] = None,
+        _deployment_metadata=None,
+    ):
         """
         Retrieves a `StepFunctionsDeployedFlow` object from an identifier and optional
         metadata.
@@ -109,7 +118,9 @@ class StepFunctionsDeployedFlow(DeployedFlow):
             A `StepFunctionsDeployedFlow` object representing the
             deployed flow on AWS Step Functions.
         """
-        deployment_metadata = StepFunctions.get_deployment_metadata(identifier)
+        deployment_metadata = (
+            _deployment_metadata or StepFunctions.get_deployment_metadata(identifier)
+        )
 
         if deployment_metadata is None:
             raise MetaflowException("No deployed flow found for: %s" % identifier)

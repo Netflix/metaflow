@@ -1,6 +1,7 @@
 import json
+import tempfile
 import pytest
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch, MagicMock, call
 
 
 # -- Fixtures: mock state machine definitions ----------------------------------
@@ -171,6 +172,116 @@ class TestGetDeploymentMetadata:
         result = StepFunctions.get_deployment_metadata("other")
         assert result is None
 
+    @patch(
+        "metaflow.plugins.aws.step_functions.step_functions.StepFunctionsClient"
+    )
+    def test_returns_none_for_empty_string_flow_name(self, MockClient):
+        """flow_name="" in params dict is treated the same as missing."""
+        from metaflow.plugins.aws.step_functions.step_functions import StepFunctions
+
+        definition = json.dumps({
+            "States": {"start": {"Parameters": {"Parameters": {
+                "metaflow.flow_name": "",
+                "metaflow.owner": "user",
+                "metaflow.production_token": "tok",
+            }}}}
+        })
+        MockClient.return_value.get.return_value = {
+            "name": "sm", "stateMachineArn": "arn:sm", "definition": definition
+        }
+
+        assert StepFunctions.get_deployment_metadata("sm") is None
+
+    @patch(
+        "metaflow.plugins.aws.step_functions.step_functions.StepFunctionsClient"
+    )
+    def test_returns_none_for_explicitly_null_flow_name(self, MockClient):
+        """flow_name=null in JSON params (parsed as None) is treated the same as missing."""
+        from metaflow.plugins.aws.step_functions.step_functions import StepFunctions
+
+        definition = json.dumps({
+            "States": {"start": {"Parameters": {"Parameters": {
+                "metaflow.flow_name": None,
+                "metaflow.owner": "user",
+            }}}}
+        })
+        MockClient.return_value.get.return_value = {
+            "name": "sm", "stateMachineArn": "arn:sm", "definition": definition
+        }
+
+        assert StepFunctions.get_deployment_metadata("sm") is None
+
+    @patch(
+        "metaflow.plugins.aws.step_functions.step_functions.StepFunctionsClient"
+    )
+    def test_returns_none_for_malformed_json_definition(self, MockClient):
+        """Malformed JSON in the definition field is handled gracefully."""
+        from metaflow.plugins.aws.step_functions.step_functions import StepFunctions
+
+        MockClient.return_value.get.return_value = {
+            "name": "sm", "stateMachineArn": "arn:sm",
+            "definition": "{ this is not valid json !!",
+        }
+
+        assert StepFunctions.get_deployment_metadata("sm") is None
+
+    @patch(
+        "metaflow.plugins.aws.step_functions.step_functions.StepFunctionsClient"
+    )
+    def test_returns_none_for_missing_nested_keys(self, MockClient):
+        """JSON that lacks any part of States.start.Parameters.Parameters returns None."""
+        from metaflow.plugins.aws.step_functions.step_functions import StepFunctions
+
+        for broken_def in [
+            json.dumps({}),                                        # no States
+            json.dumps({"States": {}}),                            # no start
+            json.dumps({"States": {"start": {}}}),                 # no Parameters
+            json.dumps({"States": {"start": {"Parameters": {}}}}), # no inner Parameters
+        ]:
+            MockClient.return_value.get.return_value = {
+                "name": "sm", "stateMachineArn": "arn:sm", "definition": broken_def
+            }
+            assert StepFunctions.get_deployment_metadata("sm") is None, \
+                f"Expected None for definition: {broken_def}"
+
+    @patch(
+        "metaflow.plugins.aws.step_functions.step_functions.StepFunctionsClient"
+    )
+    def test_uses_provided_client_not_new_one(self, MockClass):
+        """When _client is provided, no new StepFunctionsClient is instantiated."""
+        from metaflow.plugins.aws.step_functions.step_functions import StepFunctions
+
+        provided_client = MagicMock()
+        provided_client.get.return_value = _make_describe_response(
+            "sm", "MyFlow", "user", "tok"
+        )
+
+        result = StepFunctions.get_deployment_metadata("sm", _client=provided_client)
+
+        assert result == ("MyFlow", "user", "tok")
+        provided_client.get.assert_called_once_with("sm")
+        MockClass.assert_not_called()  # no new client was created
+
+    @patch(
+        "metaflow.plugins.aws.step_functions.step_functions.StepFunctionsClient"
+    )
+    def test_owner_and_token_can_be_none(self, MockClient):
+        """Missing owner/production_token are allowed — only flow_name is required."""
+        from metaflow.plugins.aws.step_functions.step_functions import StepFunctions
+
+        definition = json.dumps({
+            "States": {"start": {"Parameters": {"Parameters": {
+                "metaflow.flow_name": "MyFlow",
+                # owner and production_token intentionally absent
+            }}}}
+        })
+        MockClient.return_value.get.return_value = {
+            "name": "sm", "stateMachineArn": "arn:sm", "definition": definition
+        }
+
+        result = StepFunctions.get_deployment_metadata("sm")
+        assert result == ("MyFlow", None, None)
+
 
 # ==============================================================================
 # Tests for StepFunctions.list_templates
@@ -208,8 +319,11 @@ class TestListTemplates:
 
         mock_instance.get.side_effect = fake_get
 
-        names = list(StepFunctions.list_templates())
-        assert names == ["flow-a", "flow-b"]
+        results = list(StepFunctions.list_templates())
+        assert [(name, meta[0]) for name, meta in results] == [
+            ("flow-a", "FlowA"),
+            ("flow-b", "FlowB"),
+        ]
 
     @patch(
         "metaflow.plugins.aws.step_functions.step_functions.StepFunctionsClient"
@@ -231,8 +345,8 @@ class TestListTemplates:
 
         mock_instance.get.side_effect = fake_get
 
-        names = list(StepFunctions.list_templates(flow_name="FlowA"))
-        assert names == ["flow-a"]
+        results = list(StepFunctions.list_templates(flow_name="FlowA"))
+        assert [name for name, _ in results] == ["flow-a"]
 
     @patch(
         "metaflow.plugins.aws.step_functions.step_functions.StepFunctionsClient"
@@ -253,6 +367,136 @@ class TestListTemplates:
 
         list(StepFunctions.list_templates())
         MockClient.assert_called_once()
+
+    @patch(
+        "metaflow.plugins.aws.step_functions.step_functions.StepFunctionsClient"
+    )
+    def test_list_templates_excludes_sm_with_missing_flow_name(self, MockClient):
+        """State machines with matching nested structure but no metaflow.flow_name are excluded."""
+        from metaflow.plugins.aws.step_functions.step_functions import StepFunctions
+        import json
+
+        mock_instance = MockClient.return_value
+        mock_instance.list_state_machines.return_value = iter(["edge-case-sm"])
+
+        # SM has the right nested structure but metaflow.flow_name is absent
+        missing_flow_name_def = json.dumps({
+            "States": {
+                "start": {
+                    "Parameters": {
+                        "Parameters": {
+                            "metaflow.owner": "someone",
+                            "metaflow.production_token": "tok",
+                        }
+                    }
+                }
+            }
+        })
+        mock_instance.get.return_value = {
+            "stateMachineArn": "arn:edge",
+            "name": "edge-case-sm",
+            "definition": missing_flow_name_def,
+        }
+
+        results = list(StepFunctions.list_templates())
+        assert results == []
+
+    @patch(
+        "metaflow.plugins.aws.step_functions.step_functions.StepFunctionsClient"
+    )
+    def test_yields_empty_when_no_state_machines(self, MockClient):
+        """Empty account — list_state_machines yields nothing."""
+        from metaflow.plugins.aws.step_functions.step_functions import StepFunctions
+
+        MockClient.return_value.list_state_machines.return_value = iter([])
+
+        assert list(StepFunctions.list_templates()) == []
+
+    @patch(
+        "metaflow.plugins.aws.step_functions.step_functions.StepFunctionsClient"
+    )
+    def test_yields_empty_when_flow_name_filter_has_no_matches(self, MockClient):
+        """Filter by a flow name that doesn't exist among deployed SMs."""
+        from metaflow.plugins.aws.step_functions.step_functions import StepFunctions
+
+        mock_instance = MockClient.return_value
+        mock_instance.list_state_machines.return_value = iter(["sm-a"])
+        mock_instance.get.return_value = _make_describe_response(
+            "sm-a", "FlowA", "user", "tok"
+        )
+
+        results = list(StepFunctions.list_templates(flow_name="DoesNotExist"))
+        assert results == []
+
+    @patch(
+        "metaflow.plugins.aws.step_functions.step_functions.StepFunctionsClient"
+    )
+    def test_flow_name_filter_is_exact_not_partial(self, MockClient):
+        """'MyFlow' filter must not match 'MyFlowV2' (exact equality, not substring)."""
+        from metaflow.plugins.aws.step_functions.step_functions import StepFunctions
+
+        mock_instance = MockClient.return_value
+        mock_instance.list_state_machines.return_value = iter(["sm-v2"])
+        mock_instance.get.return_value = _make_describe_response(
+            "sm-v2", "MyFlowV2", "user", "tok"
+        )
+
+        results = list(StepFunctions.list_templates(flow_name="MyFlow"))
+        assert results == []
+
+    @patch(
+        "metaflow.plugins.aws.step_functions.step_functions.StepFunctionsClient"
+    )
+    def test_yields_full_metadata_tuple_values(self, MockClient):
+        """Verify all three fields of the yielded metadata tuple are correct."""
+        from metaflow.plugins.aws.step_functions.step_functions import StepFunctions
+
+        mock_instance = MockClient.return_value
+        mock_instance.list_state_machines.return_value = iter(["my-sm"])
+        mock_instance.get.return_value = _make_describe_response(
+            "my-sm", "TargetFlow", "alice", "prod-token-xyz"
+        )
+
+        results = list(StepFunctions.list_templates())
+        assert len(results) == 1
+        name, (flow_name, owner, token) = results[0]
+        assert name == "my-sm"
+        assert flow_name == "TargetFlow"
+        assert owner == "alice"
+        assert token == "prod-token-xyz"
+
+    @patch(
+        "metaflow.plugins.aws.step_functions.step_functions.StepFunctionsClient"
+    )
+    def test_sandbox_exception_propagates_through_list_templates(self, MockClient):
+        """MetaflowException from list_state_machines in sandbox propagates up."""
+        from metaflow.exception import MetaflowException
+        from metaflow.plugins.aws.step_functions.step_functions import StepFunctions
+
+        MockClient.return_value.list_state_machines.side_effect = MetaflowException(
+            "sandbox"
+        )
+
+        with pytest.raises(MetaflowException, match="sandbox"):
+            list(StepFunctions.list_templates())
+
+    @patch(
+        "metaflow.plugins.aws.step_functions.step_functions.StepFunctionsClient"
+    )
+    def test_yields_multiple_sms_for_same_flow_name(self, MockClient):
+        """Multiple state machines with same flow_name (e.g. prod + staging) are both yielded."""
+        from metaflow.plugins.aws.step_functions.step_functions import StepFunctions
+
+        mock_instance = MockClient.return_value
+        mock_instance.list_state_machines.return_value = iter(["sm-prod", "sm-staging"])
+
+        def fake_get(name):
+            return _make_describe_response(name, "SharedFlow", "user", "tok")
+
+        mock_instance.get.side_effect = fake_get
+
+        results = list(StepFunctions.list_templates(flow_name="SharedFlow"))
+        assert [name for name, _ in results] == ["sm-prod", "sm-staging"]
 
 
 # ==============================================================================
@@ -356,6 +600,119 @@ class TestFromDeployment:
         with pytest.raises(MetaflowException, match="No deployed flow found for"):
             StepFunctionsDeployedFlow.from_deployment("nonexistent-sm")
 
+    @patch(
+        "metaflow.plugins.aws.step_functions.step_functions_deployer_objects.Deployer"
+    )
+    @patch(
+        "metaflow.plugins.aws.step_functions.step_functions_deployer_objects.get_metadata"
+    )
+    @patch(
+        "metaflow.plugins.aws.step_functions.step_functions_deployer_objects.StepFunctions"
+    )
+    def test_from_deployment_uses_provided_deployment_metadata_skips_api(
+        self, MockSF, mock_get_metadata, MockDeployer
+    ):
+        """When _deployment_metadata is passed, get_deployment_metadata is NOT called."""
+        from metaflow.plugins.aws.step_functions.step_functions_deployer_objects import (
+            StepFunctionsDeployedFlow,
+        )
+
+        mock_get_metadata.return_value = "local@latest"
+        mock_deployer_instance = MagicMock()
+        mock_sfn_deployer = MagicMock()
+        MockDeployer.return_value = mock_deployer_instance
+        mock_deployer_instance.step_functions.return_value = mock_sfn_deployer
+
+        result = StepFunctionsDeployedFlow.from_deployment(
+            "my-sm",
+            _deployment_metadata=("PreFetchedFlow", "prefetched_user", "tok"),
+        )
+
+        MockSF.get_deployment_metadata.assert_not_called()
+        assert mock_sfn_deployer.flow_name == "PreFetchedFlow"
+        call_kwargs = MockDeployer.call_args
+        assert call_kwargs[1]["env"] == {"METAFLOW_USER": "prefetched_user"}
+
+    @patch(
+        "metaflow.plugins.aws.step_functions.step_functions_deployer_objects.os.unlink"
+    )
+    @patch(
+        "metaflow.plugins.aws.step_functions.step_functions_deployer_objects.generate_fake_flow_file_contents"
+    )
+    @patch(
+        "metaflow.plugins.aws.step_functions.step_functions_deployer_objects.Deployer"
+    )
+    @patch(
+        "metaflow.plugins.aws.step_functions.step_functions_deployer_objects.StepFunctions"
+    )
+    def test_from_deployment_temp_file_cleaned_up_on_deployer_failure(
+        self, MockSF, MockDeployer, mock_gen, mock_unlink
+    ):
+        """Temp file is unlinked even when Deployer().step_functions() raises."""
+        from metaflow.plugins.aws.step_functions.step_functions_deployer_objects import (
+            StepFunctionsDeployedFlow,
+        )
+
+        MockSF.get_deployment_metadata.return_value = ("MyFlow", "user", "tok")
+        mock_gen.return_value = "class MyFlow(FlowSpec): pass\n"
+        MockDeployer.return_value.step_functions.side_effect = RuntimeError(
+            "deploy exploded"
+        )
+
+        with pytest.raises(RuntimeError, match="deploy exploded"):
+            StepFunctionsDeployedFlow.from_deployment("my-sm")
+
+        mock_unlink.assert_called_once()
+
+    @patch(
+        "metaflow.plugins.aws.step_functions.step_functions_deployer_objects.os.unlink"
+    )
+    @patch(
+        "metaflow.plugins.aws.step_functions.step_functions_deployer_objects.generate_fake_flow_file_contents"
+    )
+    @patch(
+        "metaflow.plugins.aws.step_functions.step_functions_deployer_objects.Deployer"
+    )
+    @patch(
+        "metaflow.plugins.aws.step_functions.step_functions_deployer_objects.get_metadata"
+    )
+    @patch(
+        "metaflow.plugins.aws.step_functions.step_functions_deployer_objects.StepFunctions"
+    )
+    def test_from_deployment_temp_file_cleaned_up_on_success(
+        self, MockSF, mock_get_metadata, MockDeployer, mock_gen, mock_unlink
+    ):
+        """Temp file is unlinked on the success path too."""
+        from metaflow.plugins.aws.step_functions.step_functions_deployer_objects import (
+            StepFunctionsDeployedFlow,
+        )
+
+        MockSF.get_deployment_metadata.return_value = ("MyFlow", "user", "tok")
+        mock_gen.return_value = "class MyFlow(FlowSpec): pass\n"
+        mock_get_metadata.return_value = "local@latest"
+        mock_deployer_instance = MagicMock()
+        MockDeployer.return_value = mock_deployer_instance
+        mock_deployer_instance.step_functions.return_value = MagicMock()
+
+        StepFunctionsDeployedFlow.from_deployment("my-sm")
+
+        mock_unlink.assert_called_once()
+
+    @patch(
+        "metaflow.plugins.aws.step_functions.step_functions_deployer_objects.StepFunctions"
+    )
+    def test_from_deployment_not_found_raises_with_identifier_in_message(self, MockSF):
+        """Error message includes the identifier so users know which SM failed."""
+        from metaflow.plugins.aws.step_functions.step_functions_deployer_objects import (
+            StepFunctionsDeployedFlow,
+        )
+        from metaflow.exception import MetaflowException
+
+        MockSF.get_deployment_metadata.return_value = None
+
+        with pytest.raises(MetaflowException, match="specific-sm-name"):
+            StepFunctionsDeployedFlow.from_deployment("specific-sm-name")
+
 
 # ==============================================================================
 # Tests for StepFunctionsDeployedFlow.get_triggered_run
@@ -422,16 +779,11 @@ class TestListDeployedFlows:
             StepFunctionsDeployedFlow,
         )
 
-        MockSF.list_templates.return_value = iter(["sm-a", "sm-b"])
-
-        # get_deployment_metadata is called by from_deployment
-        def fake_metadata(name):
-            return {
-                "sm-a": ("FlowA", "user1", "tok1"),
-                "sm-b": ("FlowB", "user2", "tok2"),
-            }.get(name)
-
-        MockSF.get_deployment_metadata.side_effect = fake_metadata
+        # list_templates now yields (name, metadata) tuples
+        MockSF.list_templates.return_value = iter([
+            ("sm-a", ("FlowA", "user1", "tok1")),
+            ("sm-b", ("FlowB", "user2", "tok2")),
+        ])
         mock_get_metadata.return_value = "local@latest"
 
         mock_deployer_instance = MagicMock()
@@ -443,6 +795,8 @@ class TestListDeployedFlows:
 
         assert len(flows) == 2
         MockSF.list_templates.assert_called_once_with(flow_name=None)
+        # get_deployment_metadata should NOT be called — metadata comes from list_templates
+        MockSF.get_deployment_metadata.assert_not_called()
 
     @patch(
         "metaflow.plugins.aws.step_functions.step_functions_deployer_objects.Deployer"
@@ -460,23 +814,114 @@ class TestListDeployedFlows:
             StepFunctionsDeployedFlow,
         )
 
-        MockSF.list_templates.return_value = iter(["sm-good", "sm-bad"])
-
-        def fake_metadata(name):
-            if name == "sm-good":
-                return ("FlowGood", "user1", "tok1")
-            # sm-bad returns None which will cause from_deployment to raise
-            return None
-
-        MockSF.get_deployment_metadata.side_effect = fake_metadata
+        # sm-bad has valid metadata but Deployer() will raise for it
+        MockSF.list_templates.return_value = iter([
+            ("sm-good", ("FlowGood", "user1", "tok1")),
+            ("sm-bad", ("FlowBad", "user2", "tok2")),
+        ])
         mock_get_metadata.return_value = "local@latest"
 
         mock_deployer_instance = MagicMock()
         mock_sfn_deployer = MagicMock()
         MockDeployer.return_value = mock_deployer_instance
-        mock_deployer_instance.step_functions.return_value = mock_sfn_deployer
+
+        call_count = 0
+
+        def sfn_side_effect(**kwargs):
+            nonlocal call_count
+            call_count += 1
+            if call_count == 2:
+                raise Exception("Deployer init failed")
+            return mock_sfn_deployer
+
+        mock_deployer_instance.step_functions.side_effect = sfn_side_effect
 
         flows = list(StepFunctionsDeployedFlow.list_deployed_flows())
 
         # Only the good one should come through; the bad one is skipped
         assert len(flows) == 1
+
+    @patch(
+        "metaflow.plugins.aws.step_functions.step_functions_deployer_objects.StepFunctions"
+    )
+    def test_list_deployed_flows_empty_when_no_templates(self, MockSF):
+        """No state machines → generator yields nothing without error."""
+        from metaflow.plugins.aws.step_functions.step_functions_deployer_objects import (
+            StepFunctionsDeployedFlow,
+        )
+
+        MockSF.list_templates.return_value = iter([])
+
+        flows = list(StepFunctionsDeployedFlow.list_deployed_flows())
+        assert flows == []
+
+    @patch(
+        "metaflow.plugins.aws.step_functions.step_functions_deployer_objects.Deployer"
+    )
+    @patch(
+        "metaflow.plugins.aws.step_functions.step_functions_deployer_objects.get_metadata"
+    )
+    @patch(
+        "metaflow.plugins.aws.step_functions.step_functions_deployer_objects.StepFunctions"
+    )
+    def test_list_deployed_flows_all_fail_yields_nothing(
+        self, MockSF, mock_get_metadata, MockDeployer
+    ):
+        """When every from_deployment call raises, generator yields nothing."""
+        from metaflow.plugins.aws.step_functions.step_functions_deployer_objects import (
+            StepFunctionsDeployedFlow,
+        )
+
+        MockSF.list_templates.return_value = iter([
+            ("sm-a", ("FlowA", "user", "tok")),
+            ("sm-b", ("FlowB", "user", "tok")),
+        ])
+        mock_get_metadata.return_value = "local@latest"
+        MockDeployer.return_value.step_functions.side_effect = RuntimeError("always fails")
+
+        flows = list(StepFunctionsDeployedFlow.list_deployed_flows())
+        assert flows == []
+
+    @patch(
+        "metaflow.plugins.aws.step_functions.step_functions_deployer_objects.Deployer"
+    )
+    @patch(
+        "metaflow.plugins.aws.step_functions.step_functions_deployer_objects.get_metadata"
+    )
+    @patch(
+        "metaflow.plugins.aws.step_functions.step_functions_deployer_objects.StepFunctions"
+    )
+    def test_list_deployed_flows_passes_flow_name_filter_to_list_templates(
+        self, MockSF, mock_get_metadata, MockDeployer
+    ):
+        """flow_name param is forwarded to list_templates."""
+        from metaflow.plugins.aws.step_functions.step_functions_deployer_objects import (
+            StepFunctionsDeployedFlow,
+        )
+
+        MockSF.list_templates.return_value = iter([
+            ("sm-target", ("TargetFlow", "user", "tok")),
+        ])
+        mock_get_metadata.return_value = "local@latest"
+        mock_deployer_instance = MagicMock()
+        MockDeployer.return_value = mock_deployer_instance
+        mock_deployer_instance.step_functions.return_value = MagicMock()
+
+        list(StepFunctionsDeployedFlow.list_deployed_flows(flow_name="TargetFlow"))
+
+        MockSF.list_templates.assert_called_once_with(flow_name="TargetFlow")
+
+    @patch(
+        "metaflow.plugins.aws.step_functions.step_functions_deployer_objects.StepFunctions"
+    )
+    def test_list_deployed_flows_propagates_list_templates_exception(self, MockSF):
+        """Exceptions from list_templates (e.g. sandbox error) propagate — not swallowed."""
+        from metaflow.exception import MetaflowException
+        from metaflow.plugins.aws.step_functions.step_functions_deployer_objects import (
+            StepFunctionsDeployedFlow,
+        )
+
+        MockSF.list_templates.side_effect = MetaflowException("sandbox")
+
+        with pytest.raises(MetaflowException, match="sandbox"):
+            list(StepFunctionsDeployedFlow.list_deployed_flows())

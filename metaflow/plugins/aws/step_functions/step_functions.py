@@ -271,8 +271,11 @@ class StepFunctions(object):
             try:
                 start = json.loads(workflow["definition"])["States"]["start"]
                 parameters = start["Parameters"]["Parameters"]
+                flow_name = parameters.get("metaflow.flow_name")
+                if not flow_name:
+                    return None
                 return (
-                    parameters.get("metaflow.flow_name"),
+                    flow_name,
                     parameters.get("metaflow.owner"),
                     parameters.get("metaflow.production_token"),
                 )
@@ -283,8 +286,8 @@ class StepFunctions(object):
     @classmethod
     def list_templates(cls, flow_name=None):
         """
-        Yield state machine names that are Metaflow deployments,
-        optionally filtered by flow_name.
+        Yield (name, metadata) tuples for state machines that are Metaflow
+        deployments, optionally filtered by flow_name.
         """
         client = StepFunctionsClient()
         for name in client.list_state_machines():
@@ -293,7 +296,7 @@ class StepFunctions(object):
                 continue
             sm_flow_name, _, _ = metadata
             if flow_name is None or sm_flow_name == flow_name:
-                yield name
+                yield name, metadata
 
     @classmethod
     def get_execution(cls, state_machine_name, name):
