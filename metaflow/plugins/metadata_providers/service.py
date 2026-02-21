@@ -59,7 +59,7 @@ def _load_request_provider(spec: str) -> "MetaflowServiceRequestProvider":
     except Exception as e:
         raise MetaflowException(
             "Failed to load custom service request provider '%s': %s" % (spec, e)
-        )
+        ) from e
 
 
 class ServiceException(MetaflowException):
@@ -599,11 +599,15 @@ class ServiceMetadataProvider(MetadataProvider):
                 "Missing Metaflow Service URL. "
                 "Specify with METAFLOW_SERVICE_URL environment variable"
             )
+        # Outer loop retries only on HTTP 500/503 (transient server errors).
+        # Transport-level failures are handled entirely inside _request() which
+        # retries up to SERVICE_RETRY_COUNT times before raising; any transport
+        # exception that reaches here is re-raised immediately (no outer retry).
         for i in range(SERVICE_RETRY_COUNT):
             try:
                 resp, _ = cls._request(monitor, "ping", "GET", return_raw_resp=True)
             except Exception:
-                raise  # transport failure: _request() already retried N times internally
+                raise  # transport failure: exhausted internal retries in _request()
             if resp.status_code < 300:
                 return resp.headers.get("METADATA_SERVICE_VERSION", None)
             # Only retry on transient server errors, matching original semantics

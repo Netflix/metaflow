@@ -7,8 +7,9 @@ import requests
 try:
     from typing import Protocol, runtime_checkable
 except ImportError:
-    # Fallback for Python 3.7 and below
-    from typing_extensions import Protocol, runtime_checkable
+    # Fallback for Python < 3.8 — use metaflow's vendored copy rather than
+    # the system typing_extensions which is not declared as a dependency.
+    from metaflow._vendor.typing_extensions import Protocol, runtime_checkable
 
 
 @runtime_checkable
