@@ -8,7 +8,6 @@ directory (GitHub issue #2791).
 
 import os
 import pytest
-import pytest
 
 from metaflow.packaging_sys.utils import walk
 
