@@ -72,6 +72,9 @@ class ServiceMetadataProvider(MetadataProvider):
     def _get_provider(cls) -> "MetaflowServiceRequestProvider":
         if cls._provider is None:
             cls._provider = _load_request_provider(SERVICE_REQUEST_PROVIDER)
+            import atexit
+
+            atexit.register(cls._provider.close)
         return cls._provider
 
     _supports_attempt_gets = None
@@ -102,6 +105,7 @@ class ServiceMetadataProvider(MetadataProvider):
                     is_absolute_url=True,
                     return_raw_resp=True,
                 )
+                resp.raise_for_status()
             except:  # noqa E722
                 time.sleep(2 ** (i - 1))
             else:

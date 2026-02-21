@@ -9,8 +9,10 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../.
 
 from metaflow.plugins.metadata_providers.request_provider import (
     DefaultRequestProvider,
+    TracingRequestProvider,
     MetaflowServiceRequestProvider,
 )
+import requests
 from metaflow.plugins.metadata_providers.service import (
     _load_request_provider,
     ServiceMetadataProvider,
@@ -79,6 +81,56 @@ class TestServiceRequestProvider(unittest.TestCase):
         )
         self.assertEqual(res, mock_response)
 
+    @patch("sys.stderr.write")
+    @patch("requests.Session.request")
+    def test_tracing_request_provider_success(
+        self, mock_session_request, mock_stderr_write
+    ):
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_session_request.return_value = mock_response
+
+        provider = TracingRequestProvider()
+
+        headers = {"Authorization": "Bearer test"}
+        res = provider.request("GET", "http://test.com", headers, json={"data": 1})
+
+        mock_session_request.assert_called_once_with(
+            method="GET", url="http://test.com", headers=headers, json={"data": 1}
+        )
+        self.assertEqual(res, mock_response)
+        
+        mock_stderr_write.assert_called_once()
+        log_message = mock_stderr_write.call_args[0][0]
+        self.assertRegex(
+            log_message, r"\[METAFLOW_TRACE\] GET    http://test\.com -> 200 \(\d+\.\d+ms\)\n"
+        )
+
+    @patch("sys.stderr.write")
+    @patch("requests.Session.request")
+    def test_tracing_request_provider_error(
+        self, mock_session_request, mock_stderr_write
+    ):
+        mock_session_request.side_effect = requests.exceptions.ConnectionError(
+            "Connection failed"
+        )
+
+        provider = TracingRequestProvider()
+
+        headers = {"Authorization": "Bearer test"}
+        with self.assertRaises(requests.exceptions.ConnectionError):
+            provider.request("POST", "http://test.com", headers, json={"data": 1})
+
+        mock_session_request.assert_called_once_with(
+            method="POST", url="http://test.com", headers=headers, json={"data": 1}
+        )
+        
+        mock_stderr_write.assert_called_once()
+        log_message = mock_stderr_write.call_args[0][0]
+        self.assertRegex(
+            log_message,
+            r"\[METAFLOW_TRACE\] POST   http://test\.com -> ERROR: ConnectionError \(\d+\.\d+ms\)\n",
+        )
 
 if __name__ == "__main__":
     unittest.main()

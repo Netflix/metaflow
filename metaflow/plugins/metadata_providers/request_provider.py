@@ -36,16 +36,6 @@ class MetaflowServiceRequestProvider(Protocol):
     def close(self) -> None: ...
 
 
-def _make_adapter():
-    """Shared HTTPAdapter factory with standard Metaflow pool config."""
-    return requests.adapters.HTTPAdapter(
-        pool_connections=20,
-        pool_maxsize=20,
-        max_retries=0,  # retries handled explicitly in _request()
-        pool_block=False,
-    )
-
-
 class DefaultRequestProvider:
     """
     Default transport provider. Wraps requests.Session with the same
@@ -54,7 +44,12 @@ class DefaultRequestProvider:
 
     def __init__(self) -> None:
         self._session = requests.Session()
-        adapter = _make_adapter()
+        adapter = requests.adapters.HTTPAdapter(
+            pool_connections=20,
+            pool_maxsize=20,
+            max_retries=0,
+            pool_block=False,
+        )
         self._session.mount("http://", adapter)
         self._session.mount("https://", adapter)
 
@@ -97,7 +92,12 @@ class TracingRequestProvider:
 
     def __init__(self) -> None:
         self._session = requests.Session()
-        adapter = _make_adapter()
+        adapter = requests.adapters.HTTPAdapter(
+            pool_connections=20,
+            pool_maxsize=20,
+            max_retries=0,
+            pool_block=False,
+        )
         self._session.mount("http://", adapter)
         self._session.mount("https://", adapter)
 
