@@ -537,6 +537,39 @@ def configure_aws_batch(existing_env):
             default=existing_env.get("METAFLOW_SFN_DYNAMO_DB_TABLE"),
             show_default=True,
         )
+
+    # Configure logging of AWS Batch job outputs to CloudWatch.
+    while True:
+        default_val = ",".join(existing_env.get("METAFLOW_BATCH_LOG_OPTIONS") or [])
+
+        log_options_input = click.prompt(
+            cyan("[METAFLOW_BATCH_LOG_OPTIONS]")
+            + yellow(" (optional)")
+            + " Default CloudWatch logging options for AWS Batch jobs.\n"
+            + "Example: awslogs-group:aws/batch/jobs,awslogs-stream-prefix:metaflow\n"
+            + "Enter 'none' to clear",
+            default=default_val,
+            show_default=True,
+        )
+
+        if log_options_input.lower() in ("none", ""):
+            env["METAFLOW_BATCH_LOG_OPTIONS"] = None
+            break
+
+        try:
+            log_options = [
+                opt.strip() for opt in log_options_input.split(",") if opt.strip()
+            ]
+            for opt in log_options:
+                if ":" not in opt:
+                    raise ValueError(f"Invalid log option format: {opt}")
+
+            env["METAFLOW_BATCH_LOG_OPTIONS"] = log_options
+            break
+
+        except ValueError as e:
+            echo(str(e), fg="red")
+
     return env
 
 

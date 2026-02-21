@@ -354,6 +354,9 @@ SERVICE_INTERNAL_URL = from_conf("SERVICE_INTERNAL_URL", SERVICE_URL)
 BATCH_EMIT_TAGS = from_conf("BATCH_EMIT_TAGS", False)
 # Default tags to add to AWS Batch jobs. These are in addition to the defaults set when BATCH_EMIT_TAGS is true.
 BATCH_DEFAULT_TAGS = from_conf("BATCH_DEFAULT_TAGS", {})
+# Default Cloudwatch log options for AWS Batch jobs. This should be a list of strings in the format "key:value".
+# These options will be passed as the `options` argument to the `logConfiguration` when creating AWS Batch jobs.
+BATCH_LOG_OPTIONS = from_conf("BATCH_LOG_OPTIONS", [])
 
 ###
 # AWS Step Functions configuration

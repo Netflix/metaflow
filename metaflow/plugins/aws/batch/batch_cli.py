@@ -8,7 +8,7 @@ from metaflow import util
 from metaflow import R
 from metaflow.exception import CommandException, METAFLOW_EXIT_DISALLOW_RETRY
 from metaflow.metadata_provider.util import sync_local_metadata_from_datastore
-from metaflow.metaflow_config import DATASTORE_LOCAL_DIR
+from metaflow.metaflow_config import DATASTORE_LOCAL_DIR, BATCH_LOG_OPTIONS
 from metaflow.mflog import TASK_LOG_SOURCE
 from metaflow.unbounded_foreach import UBF_CONTROL, UBF_TASK
 from .batch import Batch, BatchKilledException
@@ -179,7 +179,7 @@ def kill(ctx, run_id, user, my_runs):
 )
 @click.option(
     "--log-options",
-    default=None,
+    default=BATCH_LOG_OPTIONS,
     type=str,
     multiple=True,
     help="Log options for the chosen log driver",

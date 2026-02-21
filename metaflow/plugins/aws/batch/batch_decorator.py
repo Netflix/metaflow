@@ -16,6 +16,7 @@ from metaflow.metaflow_config import (
     ECS_FARGATE_EXECUTION_ROLE,
     ECS_S3_ACCESS_IAM_ROLE,
     FEAT_ALWAYS_UPLOAD_CODE_PACKAGE,
+    BATCH_LOG_OPTIONS,
 )
 from metaflow.plugins.timeout_decorator import get_run_time_limit_for_task
 from metaflow.sidecar import Sidecar
@@ -95,7 +96,7 @@ class BatchDecorator(StepDecorator):
         This is only relevant for Fargate compute environments
     log_driver: str, optional, default None
         The log driver to use for the Amazon ECS container.
-    log_options: List[str], optional, default None
+    log_options: List[str], optional, default METAFLOW_BATCH_LOG_OPTIONS
         List of strings containing options for the chosen log driver. The configurable values
         depend on the `log driver` chosen. Validation of these options is not supported yet.
         Example: [`awslogs-group:aws/batch/job`]
@@ -127,7 +128,7 @@ class BatchDecorator(StepDecorator):
         "tmpfs_path": "/metaflow_temp",
         "ephemeral_storage": None,
         "log_driver": None,
-        "log_options": None,
+        "log_options": BATCH_LOG_OPTIONS,
         "executable": None,
         "privileged": False,
     }
