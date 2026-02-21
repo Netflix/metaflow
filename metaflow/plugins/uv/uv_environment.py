@@ -85,7 +85,6 @@ class UVEnvironment(MetaflowEnvironment):
         cmds = []
 
         # Auto-forward all UV_INDEX_* vars (named-index auth tokens, URLs, etc.)
-        # Auto-forward all UV_INDEX_* vars (named-index auth tokens, URLs, etc.)
         seen = set()
         for key, value in os.environ.items():
             if key.startswith("UV_INDEX_"):
