@@ -401,7 +401,8 @@ class Batch(object):
         # User-defined tags (from @batch(aws_batch_tags=...) or METAFLOW_BATCH_DEFAULT_TAGS)
         # are applied unconditionally - independent of BATCH_EMIT_TAGS - so that cost
         # attribution and ownership tags are always present when configured, without
-        # requiring the broader Metaflow metadata tagging permission (Batch:TagResource).
+        # requiring BATCH_EMIT_TAGS (and its broader Metaflow internal metadata tags).
+        # Note: Batch:TagResource IAM permission is still required for any tagging.
         if aws_batch_tags:
             for key, value in aws_batch_tags.items():
                 job.tag(key, value)

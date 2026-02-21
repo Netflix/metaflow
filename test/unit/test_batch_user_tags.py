@@ -12,8 +12,6 @@ set, while Metaflow's internal metadata tags remain gated on BATCH_EMIT_TAGS.
 
 from unittest.mock import MagicMock, patch
 
-import pytest
-
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
