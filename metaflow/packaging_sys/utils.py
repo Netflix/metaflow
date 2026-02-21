@@ -18,8 +18,13 @@ def walk(
         _,
         files,
     ) in walk_without_cycles(root, exclude_tl_dirs):
-        if exclude_hidden and "/." in path:
-            continue
+        # Only check for hidden directories relative to the walk root,
+        # not in ancestor directories above it (fixes #2791)
+        inner_path = path[len(root):]
+        if exclude_hidden and inner_path:
+            normalized = inner_path.replace("\\", "/")
+            if normalized.startswith(".") or "/." in normalized:
+                continue
         # path = path[2:] # strip the ./ prefix
         # if path and (path[0] == '.' or './' in path):
         #    continue
