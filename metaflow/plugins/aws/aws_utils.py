@@ -27,7 +27,7 @@ def get_credential_debug_info(s3config=None):
         if s3config and getattr(s3config, "role", None):
             lines.append(
                 "  Note: S3 operations use assumed role: %s\n"
-                "  The credentials above reflect the base session, not the assumed role."
+                "  The credentials below reflect the base session, not the assumed role."
                 % s3config.role
             )
             
