@@ -945,14 +945,15 @@ class S3(object):
             client (if configured). Each key may be an S3 url or a path suffix.
         """
 
-        # list_recursive returns S3Object instances with .url set for each object
+        # list_recursive returns S3Object instances with .key and .url set
         objs = self.list_recursive(keys)
         if not objs:
             return
-        # collect urls
-        urls = [obj.url for obj in objs if obj.exists]
-        if urls:
-            self.delete_many(urls)
+        # collect relative keys (not full urls) to avoid _url() rejecting s3:// prefixes
+        # when s3root is set (the typical case)
+        keys_to_delete = [obj.key for obj in objs if obj.exists]
+        if keys_to_delete:
+            self.delete_many(keys_to_delete)
 
     def get(
         self,
