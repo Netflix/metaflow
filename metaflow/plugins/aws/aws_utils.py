@@ -54,7 +54,10 @@ def get_credential_debug_info(s3config=None):
             if len(access_key) >= 8:
                 masked = "%s...%s" % (access_key[:4], access_key[-4:])
             elif access_key:
-                masked = access_key[:4] + "..."
+                if len(access_key) <= 4:
+                    masked = "(too short to display safely)"
+                else:
+                    masked = access_key[:4] + "..."
             else:
                 masked = "(not available)"
             lines.append("  Access key ID     : %s" % masked)
