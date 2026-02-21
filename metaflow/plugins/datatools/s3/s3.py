@@ -1639,7 +1639,9 @@ class S3(object):
                 urls = []
                 for line in stdout_lines:
                     parts = list(map(url_unquote, line.strip(b"\n").split(b" ")))
-                    if len(parts) >= 2:
+                    if len(parts) >= 3 and parts[2]:
+                        urls.append(parts[2])
+                    elif len(parts) >= 2:
                         urls.append(parts[1])
                 return urls
 

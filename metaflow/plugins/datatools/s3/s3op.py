@@ -1117,11 +1117,6 @@ def _populate_prefixes(prefixes, inputs):
 # CLI
 
 
-@click.group()
-def cli():
-    pass
-
-
 @cli.command(help="Download files from S3")
 @tracing.cli("s3op/get")
 @click.option(
