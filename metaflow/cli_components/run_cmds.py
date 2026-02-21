@@ -272,6 +272,21 @@ def resume(
 
         steps_to_rerun = {step_to_rerun}
 
+    # Pull user tags from the original run so they carry over to the resumed one.
+    # Tags added via current.run.add_tags() live on the origin run only otherwise.
+    try:
+        from ..client.core import Run as ClientRun
+
+        origin_run = ClientRun(
+            "%s/%s" % (obj.flow.name, origin_run_id),
+            _namespace_check=False,
+        )
+        origin_user_tags = origin_run.user_tags
+        if origin_user_tags:
+            obj.metadata.add_sticky_tags(tags=list(origin_user_tags))
+    except Exception:
+        pass
+
     if run_id:
         # Run-ids that are provided by the metadata service are always integers.
         # External providers or run-ids (like external schedulers) always need to
