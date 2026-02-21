@@ -5,8 +5,10 @@ Covers:
 - ParallelDecorator validation of worker_resources / control_resources
 - JobSetSpec new setter methods (disk, gpu, node_selector, tmpfs_size)
 - BatchJob._build_resource_requirements static helper
+- BatchDecorator warning for unsupported resource keys
 """
 import pytest
+import warnings
 from unittest.mock import MagicMock
 
 
@@ -334,3 +336,127 @@ class TestBuildResourceRequirements:
         result = self._invoke({"memory": 4096.7}, baseline)
         d = self._as_dict(result)
         assert d["MEMORY"] == "4096"
+
+
+# ---------------------------------------------------------------------------
+# BatchDecorator warning for unsupported resource keys
+# ---------------------------------------------------------------------------
+
+
+def _make_batch_decorator_and_run_step_init(worker_resources=None, control_resources=None):
+    """
+    Build a minimal BatchDecorator and run step_init with a @parallel decorator
+    carrying the given resource overrides.
+    """
+    from metaflow.plugins.aws.batch.batch_decorator import BatchDecorator
+    from metaflow.plugins.parallel_decorator import ParallelDecorator
+
+    # Build @parallel decorator with resource overrides
+    parallel_attrs = {}
+    if worker_resources is not None:
+        parallel_attrs["worker_resources"] = worker_resources
+    if control_resources is not None:
+        parallel_attrs["control_resources"] = control_resources
+    parallel_deco = ParallelDecorator(attributes=parallel_attrs, statically_defined=True)
+
+    # Build @batch decorator with minimal defaults
+    batch_deco = BatchDecorator(attributes={}, statically_defined=True)
+
+    # Build minimal mocks for step_init
+    flow = MagicMock()
+    graph = MagicMock()
+    graph.__getitem__ = MagicMock(return_value=MagicMock(type="linear"))
+    environment = MagicMock()
+    flow_datastore = MagicMock()
+    flow_datastore.TYPE = "s3"  # BatchDecorator requires --datastore=s3
+    logger = MagicMock()
+
+    # decos list includes both decorators
+    decos = [parallel_deco, batch_deco]
+
+    batch_deco.step_init(
+        flow,
+        graph,
+        "my_step",
+        decos,
+        environment,
+        flow_datastore,
+        logger,
+    )
+    return batch_deco
+
+
+class TestBatchDecoratorUnsupportedResourceKeyWarning:
+    @pytest.mark.parametrize(
+        "worker_resources,expected_keys_in_warning",
+        [
+            ({"node_selector": {"k": "v"}}, ["node_selector"]),
+            ({"tmpfs_size": 512}, ["tmpfs_size"]),
+            ({"disk": 20480}, ["disk"]),
+            (
+                {"disk": 20480, "node_selector": {"k": "v"}, "cpu": 8},
+                ["disk", "node_selector"],
+            ),
+        ],
+    )
+    def test_warns_for_unsupported_batch_keys_in_worker_resources(
+        self, worker_resources, expected_keys_in_warning
+    ):
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+            _make_batch_decorator_and_run_step_init(worker_resources=worker_resources)
+
+        batch_warnings = [w for w in caught if issubclass(w.category, UserWarning)]
+        assert len(batch_warnings) == 1
+        msg = str(batch_warnings[0].message)
+        assert "worker_resources" in msg
+        for key in expected_keys_in_warning:
+            assert key in msg
+
+    def test_warns_for_unsupported_batch_keys_in_control_resources(self):
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+            _make_batch_decorator_and_run_step_init(
+                control_resources={"tmpfs_size": 512, "memory": 4096}
+            )
+
+        batch_warnings = [w for w in caught if issubclass(w.category, UserWarning)]
+        assert len(batch_warnings) == 1
+        msg = str(batch_warnings[0].message)
+        assert "control_resources" in msg
+        assert "tmpfs_size" in msg
+        # memory is a supported key — it must NOT appear in the ignored-keys list portion
+        # (it does appear in the "Supported keys" footer, which is expected)
+        assert "memory" not in msg.split("will be ignored:")[1].split(".")[0]
+
+    def test_both_overrides_warn_independently(self):
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+            _make_batch_decorator_and_run_step_init(
+                worker_resources={"disk": 20480},
+                control_resources={"node_selector": {"k": "v"}},
+            )
+
+        batch_warnings = [w for w in caught if issubclass(w.category, UserWarning)]
+        assert len(batch_warnings) == 2
+        messages = [str(w.message) for w in batch_warnings]
+        assert any("worker_resources" in m for m in messages)
+        assert any("control_resources" in m for m in messages)
+
+    def test_no_warning_for_supported_keys_only(self):
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+            _make_batch_decorator_and_run_step_init(
+                worker_resources={"cpu": 8, "memory": 32768, "gpu": 4}
+            )
+
+        batch_warnings = [w for w in caught if issubclass(w.category, UserWarning)]
+        assert len(batch_warnings) == 0
+
+    def test_no_warning_when_no_resources_set(self):
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+            _make_batch_decorator_and_run_step_init()
+
+        batch_warnings = [w for w in caught if issubclass(w.category, UserWarning)]
+        assert len(batch_warnings) == 0

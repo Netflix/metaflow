@@ -1,7 +1,9 @@
+import json
 import os
 import platform
 import sys
 import time
+import warnings
 
 from metaflow import R, current
 from metaflow.decorators import StepDecorator
@@ -236,6 +238,29 @@ class BatchDecorator(StepDecorator):
                 self._control_resources = deco.attributes.get("control_resources")
                 break
 
+        # Warn about keys that are not supported by the AWS Batch backend.
+        # node_selector and tmpfs_size are Kubernetes-only; disk does not
+        # map to an AWS Batch resource requirement (ephemeralStorage is
+        # configured separately via the @batch decorator's own parameters).
+        _BATCH_UNSUPPORTED_RESOURCE_KEYS = {"node_selector", "tmpfs_size", "disk"}
+        for param_name, resources in (
+            ("worker_resources", self._worker_resources),
+            ("control_resources", self._control_resources),
+        ):
+            if not resources:
+                continue
+            unsupported = set(resources.keys()) & _BATCH_UNSUPPORTED_RESOURCE_KEYS
+            if unsupported:
+                warnings.warn(
+                    "@parallel *{param}* contains keys not supported by AWS Batch "
+                    "and will be ignored: {keys}. "
+                    "Supported keys for AWS Batch: cpu, memory, gpu.".format(
+                        param=param_name, keys=sorted(unsupported)
+                    ),
+                    UserWarning,
+                    stacklevel=2,
+                )
+
         # Set run time limit for the AWS Batch job.
         self.run_time_limit = get_run_time_limit_for_task(decos)
         if self.run_time_limit < 60:
@@ -285,14 +310,12 @@ class BatchDecorator(StepDecorator):
             cli_args.command_options["run-time-limit"] = self.run_time_limit
 
             # Pass per-role resource overrides as JSON if set.
-            import json as _json
-
             if self._worker_resources:
-                cli_args.command_options["worker_resources"] = _json.dumps(
+                cli_args.command_options["worker_resources"] = json.dumps(
                     self._worker_resources
                 )
             if self._control_resources:
-                cli_args.command_options["control_resources"] = _json.dumps(
+                cli_args.command_options["control_resources"] = json.dumps(
                     self._control_resources
                 )
 
