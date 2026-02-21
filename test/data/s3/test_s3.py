@@ -1110,3 +1110,190 @@ def test_put_many_exhausted_retries(s3root, monkeypatch):
     with S3(s3root=test_root, inject_failure_rate=100) as s3:
         with pytest.raises(MetaflowS3Exception, match="failed"):
             s3.put_many(test_data)
+
+
+# --- Delete Tests ---
+
+
+def test_delete_one(s3root):
+    """Test deleting a single object from S3."""
+    if not s3root:
+        pytest.skip("S3ROOT not set")
+
+    test_prefix = f"test_delete_one_{uuid4().hex[:8]}"
+    test_root = os.path.join(s3root, test_prefix)
+
+    with S3(s3root=test_root) as s3:
+        # Put an object
+        key = "delete_me.txt"
+        s3.put(key, "hello world")
+
+        # Verify it exists
+        obj = s3.get(key)
+        assert obj.blob == b"hello world"
+
+        # Delete it
+        url = s3.delete(key)
+        assert url.endswith(key)
+
+        # Verify it's gone
+        with pytest.raises(MetaflowS3NotFound):
+            s3.get(key)
+
+
+def test_delete_one_idempotent(s3root):
+    """Test that deleting a non-existent object does not raise an error."""
+    if not s3root:
+        pytest.skip("S3ROOT not set")
+
+    test_prefix = f"test_delete_idempotent_{uuid4().hex[:8]}"
+    test_root = os.path.join(s3root, test_prefix)
+
+    with S3(s3root=test_root) as s3:
+        # Deleting a key that doesn't exist should succeed silently
+        url = s3.delete("this_does_not_exist.txt")
+        assert url.endswith("this_does_not_exist.txt")
+
+
+@pytest.mark.parametrize("inject_failure_rate", [0, 10, 50])
+def test_delete_many(s3root, inject_failure_rate):
+    """Test deleting many objects from S3 in parallel."""
+    if not s3root:
+        pytest.skip("S3ROOT not set")
+
+    test_prefix = f"test_delete_many_{uuid4().hex[:8]}"
+    test_root = os.path.join(s3root, test_prefix)
+
+    keys = [f"file_{i}.txt" for i in range(5)]
+
+    # Put objects
+    with S3(s3root=test_root) as s3:
+        s3.put_many([(key, f"content {i}") for i, key in enumerate(keys)])
+
+    # Verify they exist
+    with S3(s3root=test_root) as s3:
+        objs = s3.get_many(keys)
+        assert len(objs) == len(keys)
+
+    # Delete them
+    with S3(s3root=test_root, inject_failure_rate=inject_failure_rate) as s3:
+        deleted_urls = s3.delete_many(keys)
+        assert len(deleted_urls) == len(keys)
+
+    # Verify they're gone
+    with S3(s3root=test_root) as s3:
+        for key in keys:
+            with pytest.raises(MetaflowS3NotFound):
+                s3.get(key)
+
+
+def test_delete_many_empty(s3root):
+    """Test that delete_many with an empty list returns empty list."""
+    if not s3root:
+        pytest.skip("S3ROOT not set")
+
+    test_prefix = f"test_delete_many_empty_{uuid4().hex[:8]}"
+    test_root = os.path.join(s3root, test_prefix)
+
+    with S3(s3root=test_root) as s3:
+        result = s3.delete_many([])
+        assert result == []
+
+
+@pytest.mark.parametrize("inject_failure_rate", [0, 10, 50])
+def test_delete_recursive(s3root, inject_failure_rate):
+    """Test deleting objects recursively under a prefix."""
+    if not s3root:
+        pytest.skip("S3ROOT not set")
+
+    test_prefix = f"test_delete_recursive_{uuid4().hex[:8]}"
+    test_root = os.path.join(s3root, test_prefix)
+
+    # Create a hierarchy
+    files = {
+        "subdir/a.txt": "content a",
+        "subdir/b.txt": "content b",
+        "subdir/nested/c.txt": "content c",
+        "other/d.txt": "content d",
+    }
+
+    with S3(s3root=test_root) as s3:
+        s3.put_many(list(files.items()))
+
+    # Recursively delete only "subdir"
+    with S3(s3root=test_root, inject_failure_rate=inject_failure_rate) as s3:
+        deleted_urls = s3.delete_recursive(["subdir"])
+
+    # The 3 files under subdir should be deleted
+    assert len(deleted_urls) == 3
+
+    # Verify subdir files are gone
+    with S3(s3root=test_root) as s3:
+        for key in ["subdir/a.txt", "subdir/b.txt", "subdir/nested/c.txt"]:
+            with pytest.raises(MetaflowS3NotFound):
+                s3.get(key)
+
+        # "other/d.txt" should still exist
+        obj = s3.get("other/d.txt")
+        assert obj.blob == b"content d"
+
+
+def test_delete_all(s3root):
+    """Test delete_all() removes everything under the S3 prefix."""
+    if not s3root:
+        pytest.skip("S3ROOT not set")
+
+    test_prefix = f"test_delete_all_{uuid4().hex[:8]}"
+    test_root = os.path.join(s3root, test_prefix)
+
+    files = {
+        "a.txt": "content a",
+        "b.txt": "content b",
+        "sub/c.txt": "content c",
+    }
+
+    with S3(s3root=test_root) as s3:
+        s3.put_many(list(files.items()))
+
+    # Delete all
+    with S3(s3root=test_root) as s3:
+        deleted_urls = s3.delete_all()
+        assert len(deleted_urls) == len(files)
+
+    # Verify everything is gone
+    with S3(s3root=test_root) as s3:
+        remaining = s3.list_recursive()
+        assert len(remaining) == 0
+
+
+def test_delete_all_requires_prefix():
+    """Test that delete_all() raises when S3 is initialized without a prefix."""
+    with S3() as s3:
+        with pytest.raises(MetaflowS3URLException):
+            s3.delete_all()
+
+
+@pytest.mark.parametrize("inject_failure_rate", [0, 10, 50])
+def test_delete_many_exhausted_retries(s3root, inject_failure_rate, monkeypatch):
+    """Test that delete_many raises exception when transient retries are exhausted."""
+    if not s3root:
+        pytest.skip("S3ROOT not set")
+
+    import metaflow.plugins.datatools.s3.s3 as s3_module
+
+    # Set retry count to 0 to immediately exhaust retries
+    monkeypatch.setattr(s3_module, "S3_TRANSIENT_RETRY_COUNT", 0)
+
+    test_prefix = f"test_delete_retry_exhaustion_{uuid4().hex[:8]}"
+    test_root = os.path.join(s3root, test_prefix)
+
+    keys = ["file1.txt", "file2.txt", "file3.txt"]
+
+    # Put objects first
+    with S3(s3root=test_root) as s3:
+        s3.put_many([(key, f"data {i}") for i, key in enumerate(keys)])
+
+    # With inject_failure_rate=100 and 0 retries, all deletes should fail
+    with S3(s3root=test_root, inject_failure_rate=100) as s3:
+        with pytest.raises(MetaflowS3Exception, match="failed"):
+            s3.delete_many(keys)

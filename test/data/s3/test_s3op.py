@@ -152,3 +152,60 @@ def test_long_filename_download_from_s3():
 
     finally:
         pass
+
+
+def test_format_result_line_delete_output():
+    """Test that format_result_line produces expected output for delete operations."""
+    from metaflow.plugins.datatools.s3.s3op import format_result_line
+    from metaflow.util import url_unquote
+
+    # For successful deletes: format_result_line(idx, prefix, url)
+    line = format_result_line(0, "s3://bucket/prefix", "s3://bucket/prefix/key.txt")
+    parts = line.split(" ")
+    # idx, prefix, url, local (local is empty since not provided)
+    assert parts[0] == "0"
+    assert url_unquote(parts[1]) == "s3://bucket/prefix"
+    assert url_unquote(parts[2]) == "s3://bucket/prefix/key.txt"
+
+    # For listing-only output: format_result_line(idx, url)
+    line = format_result_line(1, "s3://bucket/prefix/key.txt")
+    parts = line.split(" ")
+    assert parts[0] == "1"
+    assert url_unquote(parts[1]) == "s3://bucket/prefix/key.txt"
+
+
+def test_populate_prefixes_for_delete():
+    """Test that _populate_prefixes correctly parses delete input format."""
+    import tempfile
+
+    from metaflow.plugins.datatools.s3.s3op import _populate_prefixes
+
+    # Write prefixes to a temp file in the expected format
+    with tempfile.NamedTemporaryFile(mode="wb", suffix=".txt", delete=False) as f:
+        f.write(
+            b"\n".join(
+                [
+                    url_quote("s3://bucket/key1.txt"),
+                    url_quote("s3://bucket/key2.txt"),
+                ]
+            )
+        )
+        tmp_path = f.name
+
+    try:
+        result, is_retry = _populate_prefixes([], tmp_path)
+        result_list = list(result)
+
+        assert not is_retry
+        assert len(result_list) == 2
+
+        # Each result is (idx, prefix, url, range)
+        idx0, prefix0, url0, range0 = result_list[0]
+        assert idx0 == 0
+        assert url0 == "s3://bucket/key1.txt"
+
+        idx1, prefix1, url1, range1 = result_list[1]
+        assert idx1 == 1
+        assert url1 == "s3://bucket/key2.txt"
+    finally:
+        os.unlink(tmp_path)
