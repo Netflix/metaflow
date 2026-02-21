@@ -109,9 +109,9 @@ if __name__ == "__main__":
             "netrc", ContentType.OTHER_CONTENT
         )
         netrc_dest = os.path.expanduser("~/.netrc")
+        netrc_backup = netrc_dest + ".metaflow_bak"
         netrc_installed = False
         netrc_had_original = os.path.exists(netrc_dest)
-        netrc_backup = netrc_dest + ".metaflow_bak"
         if netrc_in_package is not None:
             if netrc_had_original:
                 shutil.copy2(netrc_dest, netrc_backup)
@@ -132,9 +132,10 @@ if __name__ == "__main__":
                 """
             run_cmd(cmd)
         finally:
-            # Clean up .netrc after sync — restore original if there was one
+            # Remove .netrc after sync to avoid credentials persisting in the task env.
+            # If a .netrc was present before we arrived, restore it from backup.
             if netrc_installed:
-                if netrc_had_original and os.path.exists(netrc_backup):
+                if netrc_had_original:
                     shutil.move(netrc_backup, netrc_dest)
                 elif os.path.exists(netrc_dest):
                     os.remove(netrc_dest)

@@ -1,10 +1,14 @@
 import os
+import re
 import shlex
 
 from metaflow.exception import MetaflowException
 from metaflow.metaflow_config import UV_FORWARD_ENV_VARS, UV_FORWARD_NETRC
 from metaflow.metaflow_environment import MetaflowEnvironment
 from metaflow.packaging_sys import ContentType
+
+# Shell identifier: must start with letter or underscore, then letters/digits/underscores.
+_VALID_ENV_VAR_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
 
 
 class UVException(MetaflowException):
@@ -27,6 +31,14 @@ class UVEnvironment(MetaflowEnvironment):
                 "Private index authentication via netrc will not be available on the remote worker.",
                 bad=True,
             )
+        if UV_FORWARD_ENV_VARS:
+            for var_name in (v.strip() for v in UV_FORWARD_ENV_VARS.split(",")):
+                if var_name and not _VALID_ENV_VAR_RE.match(var_name):
+                    raise UVException(
+                        "METAFLOW_UV_FORWARD_ENV_VARS contains an invalid environment variable "
+                        "name: %r. Names must start with a letter or underscore and contain only "
+                        "letters, digits, and underscores." % var_name
+                    )
 
     def init_environment(self, echo, only_steps=None):
         self.logger("Bootstrapping uv...")
@@ -83,18 +95,23 @@ class UVEnvironment(MetaflowEnvironment):
         (comma-separated).
         """
         cmds = []
+        seen = set()
 
         # Auto-forward all UV_INDEX_* vars (named-index auth tokens, URLs, etc.)
-        seen = set()
         for key, value in os.environ.items():
             if key.startswith("UV_INDEX_"):
                 cmds.append("export %s=%s" % (key, shlex.quote(value)))
                 seen.add(key)
 
-        # Forward any explicitly requested extra variables
+        # Forward any explicitly requested extra variables (skip duplicates and invalid names)
         if UV_FORWARD_ENV_VARS:
             for var_name in (v.strip() for v in UV_FORWARD_ENV_VARS.split(",")):
-                if var_name and var_name not in seen and var_name in os.environ:
+                if (
+                    var_name
+                    and _VALID_ENV_VAR_RE.match(var_name)
+                    and var_name not in seen
+                    and var_name in os.environ
+                ):
                     cmds.append(
                         "export %s=%s" % (var_name, shlex.quote(os.environ[var_name]))
                     )

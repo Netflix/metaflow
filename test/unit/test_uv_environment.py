@@ -2,7 +2,7 @@ import os
 import pytest
 from unittest.mock import MagicMock, patch
 
-from metaflow.plugins.uv.uv_environment import UVEnvironment
+from metaflow.plugins.uv.uv_environment import UVEnvironment, UVException
 
 
 @pytest.fixture
@@ -72,6 +72,16 @@ class TestGetCredentialExportCmds:
                 cmds = uv_env._get_credential_export_cmds()
         assert cmds == []
 
+    def test_uv_index_var_not_duplicated_when_in_forward_env_vars(self, uv_env):
+        with patch.dict(os.environ, {"UV_INDEX_TOKEN": "tok"}, clear=True):
+            with patch(
+                "metaflow.plugins.uv.uv_environment.UV_FORWARD_ENV_VARS",
+                "UV_INDEX_TOKEN",
+            ):
+                cmds = uv_env._get_credential_export_cmds()
+        exports = [c for c in cmds if "UV_INDEX_TOKEN" in c]
+        assert len(exports) == 1
+
 
 # ---------------------------------------------------------------------------
 # add_to_package — .netrc forwarding
@@ -107,6 +117,26 @@ class TestAddToPackageNetrc:
         arcnames = [f[1] for f in files]
         assert "uv.lock" in arcnames
         assert "pyproject.toml" in arcnames
+
+
+# ---------------------------------------------------------------------------
+# validate_environment — UV_FORWARD_ENV_VARS name validation
+# ---------------------------------------------------------------------------
+
+
+class TestValidateEnvironment:
+    def test_invalid_var_name_in_forward_env_vars_raises(self, uv_env):
+        with patch(
+            "metaflow.plugins.uv.uv_environment.UV_FORWARD_ENV_VARS", "my-invalid-token"
+        ):
+            with pytest.raises(UVException, match="invalid environment variable name"):
+                uv_env.validate_environment(MagicMock(), "s3")
+
+    def test_valid_var_names_do_not_raise(self, uv_env):
+        with patch(
+            "metaflow.plugins.uv.uv_environment.UV_FORWARD_ENV_VARS", "MY_TOKEN,ANOTHER_VAR"
+        ):
+            uv_env.validate_environment(MagicMock(), "s3")  # must not raise
 
 
 # ---------------------------------------------------------------------------
