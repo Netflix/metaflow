@@ -281,3 +281,51 @@ def test_s3_delete_recursive_with_s3root_subpath():
                 s3_res.Bucket("test-bucket").objects.filter(Prefix="other/")
             )
             assert len(remaining_root) == 1, "Objects under other/ should remain"
+
+
+@mock_aws
+def test_s3_delete_recursive_with_s3root_prefix_boundary():
+    """
+    Test delete_recursive correctly handles prefix boundaries in s3root.
+    
+    This tests for the prefix boundary bug where s3root_key="data" would
+    incorrectly match "data-backup/file.txt" instead of requiring "data/"
+    as the prefix boundary, causing silent deletion of unintended objects.
+    """
+    # Setup: Create bucket with objects that could be confused by prefix matching
+    s3_res = boto3.resource("s3", region_name="us-east-1")
+    s3_res.create_bucket(Bucket="test-bucket")
+    
+    # Create objects: data/ prefix and data-backup/ that looks similar
+    s3_res.Object("test-bucket", "data/logs/app.log").put(Body=b"log")
+    s3_res.Object("test-bucket", "data-backup/file.txt").put(Body=b"backup")
+    
+    # Initialize S3 client with s3root pointing to "data"
+    with S3(s3root="s3://test-bucket/data") as s3_client:
+        # Mock list_recursive to return objects under data/ only
+        mock_objects = [
+            S3Object(
+                prefix="s3://test-bucket/data/logs/",
+                url="s3://test-bucket/data/logs/app.log",
+                path="",
+                size=3,
+            ),
+        ]
+        
+        with patch.object(s3_client, "list_recursive", return_value=mock_objects):
+            # Call delete_recursive
+            s3_client.delete_recursive(["logs/"])
+            
+            # Verify only data/logs/app.log is deleted
+            remaining_data = list(
+                s3_res.Bucket("test-bucket").objects.filter(Prefix="data/logs/")
+            )
+            assert len(remaining_data) == 0, "Objects under data/logs/ should be deleted"
+            
+            # Verify data-backup/ is NOT affected (critical!)
+            remaining_backup = list(
+                s3_res.Bucket("test-bucket").objects.filter(Prefix="data-backup/")
+            )
+            assert (
+                len(remaining_backup) == 1
+            ), "Objects under data-backup/ should NOT be affected by data/ prefix"

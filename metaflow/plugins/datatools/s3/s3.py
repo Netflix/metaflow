@@ -976,6 +976,13 @@ class S3(object):
         # Otherwise delete_many will pass "data/logs/file.txt" to _url(), which
         # combines it with s3root ("s3://bucket/data"), resulting in a duplicated
         # path segment: "s3://bucket/data/data/logs/file.txt".
+        
+        # Hoist s3root parsing outside the loop to avoid redundant computation
+        s3root_key = None
+        if self._s3root:
+            s3root_parsed = urlparse(self._s3root, allow_fragments=False)
+            s3root_key = s3root_parsed.path.lstrip("/")
+        
         keys_to_delete = []
         for obj in objs:
             parsed = urlparse(obj.url, allow_fragments=False)
@@ -983,13 +990,18 @@ class S3(object):
             full_key = parsed.path.lstrip("/")
             
             # If s3root is set, strip it from the full key to get the relative key
-            if self._s3root:
-                s3root_parsed = urlparse(self._s3root, allow_fragments=False)
-                s3root_key = s3root_parsed.path.lstrip("/")
-                # Remove s3root prefix from full key to get relative key
-                if s3root_key and full_key.startswith(s3root_key):
-                    s3_key = full_key[len(s3root_key):].lstrip("/")
+            if s3root_key:
+                # Check for path boundary match: s3root_key must be followed by "/"
+                # to avoid false matches like "data" matching "data-backup/file.txt"
+                prefix_with_sep = s3root_key + "/"
+                if full_key.startswith(prefix_with_sep):
+                    # Skip the s3root_key and the "/" separator
+                    s3_key = full_key[len(prefix_with_sep):]
+                elif full_key == s3root_key:
+                    # Exact match to root (edge case for deleting root itself)
+                    s3_key = ""
                 else:
+                    # Prefix doesn't match
                     s3_key = full_key
             else:
                 # No s3root, use full key as-is
