@@ -25,6 +25,7 @@ def get_credential_debug_info(s3config=None):
         # IAM role — the STS identity below will show the base credentials,
         # not the assumed role that triggered the 403.
         if s3config and getattr(s3config, "role", None):
+        if s3config and getattr(s3config, "role", None):
             lines.append(
                 "  Note: S3 operations use assumed role: %s\n"
                 "  The credentials below reflect the base session, not the assumed role."
