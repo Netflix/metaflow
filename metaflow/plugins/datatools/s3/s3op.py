@@ -707,7 +707,8 @@ def exit(exit_code, url, s3config=None):
         print("\nTip: Set METAFLOW_DEBUG_S3CLIENT=1 to see which AWS credentials are being used.", file=sys.stderr)
     
     sys.exit(exit_code)
-    
+
+
 def verify_results(urls, s3config=None, verbose=False):
     for url, expected in urls:
         if verbose:
