@@ -3,7 +3,7 @@ import re
 from metaflow.exception import MetaflowException
 
 
-def get_credential_debug_info(s3config=None):
+def get_credential_debug_info():
     """
     Return a human-readable string describing the active AWS credentials.
 
