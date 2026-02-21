@@ -2252,12 +2252,13 @@ class Worker(object):
             args.top_level_options["local-config-file"] = self._config_file_name
         # Pass configuration options
         env.update(args.get_env())
-        env["PYTHONUNBUFFERED"] = "x"
         tracing.inject_tracing_vars(env)
         # NOTE bufsize=1 below enables line buffering which is required
         # by read_logline() below that relies on readline() not blocking
         # print('running', args)
         cmdline = args.get_args()
+        if cmdline and cmdline[0] == sys.executable:
+            cmdline.insert(1, "-u")
         from_start(f"Command line: {' '.join(cmdline)}")
         debug.subcommand_exec(cmdline)
         return subprocess.Popen(

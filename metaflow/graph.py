@@ -191,7 +191,7 @@ class DAGNode(object):
                 self.out_funcs = [e.attr for e in tail.value.args]
 
             keywords = dict(
-                (k.arg, getattr(k.value, "s", None)) for k in tail.value.keywords
+                (k.arg, getattr(k.value, "value", getattr(k.value, "s", None))) for k in tail.value.keywords
             )
             if len(keywords) == 1:
                 if "foreach" in keywords:

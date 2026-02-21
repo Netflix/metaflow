@@ -1,6 +1,6 @@
 import pytest
 
-from metaflow.plugins.kubernetes.kubernetes import KubernetesException
+from metaflow.plugins.kubernetes.kube_utils import KubernetesException
 
 from metaflow.plugins.kubernetes.kube_utils import (
     validate_kube_labels,
