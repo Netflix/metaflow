@@ -7,87 +7,137 @@ def get_credential_debug_info(s3config=None):
     """
     Return a human-readable string describing the active AWS credentials.
 
-    This function reflects the *effective* identity used by boto3,
-    including assumed-role contexts (via STS get_caller_identity).
+    When s3config.role is set, mirrors the AssumeRole credential chain used by
+    aws_client.py so the reported identity matches what actually made the S3 call.
+    When no role is configured, reflects ambient boto3 credential resolution.
 
     Never raises — failures are reported inline.
     """
     lines = []
 
     try:
+        # Lazy imports: boto3/botocore are optional dependencies and may not be
+        # present in all Metaflow deployments. Importing here avoids import-time
+        # errors in environments that do not use AWS at all.
         import boto3
         import botocore.config
+        import botocore.credentials
+        import botocore.session as botocore_session_module
 
-        session = boto3.session.Session()
+        # Extract the configured IAM role ARN, if any. getattr guards against
+        # s3config namedtuple fields being absent in older versions.
+        role = s3config and getattr(s3config, "role", None)
 
-        # Note: this reflects ambient credential resolution only.
-        # If s3config.role is set, the actual S3 operations assume a different
-        # IAM role — the STS identity below will show the base credentials,
-        # not the assumed role that triggered the 403.
-        if s3config and getattr(s3config, "role", None):
-            lines.append(
-                "  Note: S3 operations use assumed role: %s\n"
-                "  The credentials below reflect the base session, not the assumed role."
-                % s3config.role
+        # Always start from a plain ambient session. When a role is configured
+        # this becomes the *source* session for AssumeRole; otherwise it is used
+        # directly for credential inspection and the STS call.
+        base_session = boto3.session.Session()
+
+        if role:
+            # Replicate the exact credential chain from aws_client.py so the
+            # STS get_caller_identity() call reflects the identity that actually
+            # performed the failing S3 operation, not the base caller.
+            #
+            # AssumeRoleCredentialFetcher lazily calls sts:AssumeRole on first
+            # use. DeferredRefreshableCredentials wraps it so that credentials
+            # are auto-refreshed before they expire — matching the behaviour of
+            # the live S3 client that triggered the 403.
+            fetcher = botocore.credentials.AssumeRoleCredentialFetcher(
+                client_creator=base_session._session.create_client,
+                source_credentials=base_session._session.get_credentials(),
+                role_arn=role,
+                extra_args={},
             )
-            
-        credentials = session.get_credentials()
-
-        if credentials is None:
-            lines.append("  No AWS credentials found in the credential chain.")
+            creds = botocore.credentials.DeferredRefreshableCredentials(
+                method="assume-role", refresh_using=fetcher.fetch_credentials
+            )
+            # Inject the assumed-role credentials into a fresh botocore session,
+            # then wrap it as a boto3 Session so we can call .client() normally.
+            bc_session = botocore_session_module.Session()
+            bc_session._credentials = creds
+            session = boto3.session.Session(botocore_session=bc_session)
+            lines.append("  Credential source : AssumeRole")
+            lines.append("  Role ARN          : %s" % role)
         else:
-            method = getattr(credentials, "method", None) or "unknown"
+            # No role configured — inspect ambient credentials directly.
+            session = base_session
+            credentials = session.get_credentials()
 
-            if hasattr(credentials, "get_frozen_credentials"):
-                credentials = credentials.get_frozen_credentials()
-
-            method_labels = {
-                "env": "Environment variables",
-                "shared-credentials-file": "Shared credentials file (~/.aws/credentials)",
-                "config-file": "AWS config file (~/.aws/config)",
-                "iam-role": "EC2 instance IAM role (IMDS)",
-                "container-role": "ECS / EKS container IAM role",
-                "web-identity": "Web identity token (OIDC / IRSA)",
-                "assume-role": "AssumeRole",
-                "process": "Credential process",
-            }
-
-            lines.append(
-                f"  Credential source : {method_labels.get(method, method)}"
-            )
-
-            access_key = getattr(credentials, "access_key", None) or ""
-            if len(access_key) >= 8:
-                masked = f"{access_key[:4]}...{access_key[-4:]}"
-            elif access_key:
-                masked = "(too short to display safely)"
+            if credentials is None:
+                lines.append("  No AWS credentials found in the credential chain.")
             else:
-                masked = "(not available)"
+                # `method` identifies which provider in the credential chain
+                # resolved the credentials (e.g. "env", "iam-role").
+                method = getattr(credentials, "method", None) or "unknown"
 
-            lines.append(f"  Access key ID     : {masked}")
+                # get_frozen_credentials() resolves any lazy/refreshable wrapper
+                # and returns a plain FrozenCredentials with stable field access.
+                if hasattr(credentials, "get_frozen_credentials"):
+                    frozen = credentials.get_frozen_credentials()
+                else:
+                    frozen = credentials
+
+                # Map botocore's internal provider method names to human-readable
+                # labels for display. Falls back to the raw method string for any
+                # provider not listed here (e.g. a custom credential plugin).
+                method_labels = {
+                    "env": "Environment variables",
+                    "shared-credentials-file": "Shared credentials file (~/.aws/credentials)",
+                    "config-file": "AWS config file (~/.aws/config)",
+                    "iam-role": "EC2 instance IAM role (IMDS)",
+                    "container-role": "ECS / EKS container IAM role",
+                    "web-identity": "Web identity token (OIDC / IRSA)",
+                    "assume-role": "AssumeRole",
+                    "process": "Credential process",
+                }
+
+                lines.append(
+                    "  Credential source : %s" % method_labels.get(method, method)
+                )
+
+                # Mask the access key so it is identifiable but not leakable in
+                # logs. Only the first and last 4 characters are shown.
+                access_key = getattr(frozen, "access_key", None) or ""
+                if len(access_key) >= 8:
+                    masked = "%s...%s" % (access_key[:4], access_key[-4:])
+                elif access_key:
+                    masked = "(too short to display safely)"
+                else:
+                    masked = "(not available)"
+
+                lines.append("  Access key ID     : %s" % masked)
 
         region = session.region_name or "(not set)"
-        lines.append(f"  AWS region        : {region}")
+        lines.append("  AWS region        : %s" % region)
 
-        # Authoritative identity via STS
+        # STS get_caller_identity() is the authoritative source of the effective
+        # identity: it reflects what AWS sees as the caller, including any assumed
+        # role chain. The call uses the same session constructed above (base or
+        # assumed-role) so the reported identity matches the failing S3 client.
+        # A short timeout prevents this debug call from blocking noticeably.
         try:
             config = botocore.config.Config(connect_timeout=5, read_timeout=5)
             sts = session.client("sts", config=config)
             identity = sts.get_caller_identity()
 
             lines.append("  Effective identity (STS):")
-            lines.append(f"    ARN        : {identity.get('Arn', '(unknown)')}")
-            lines.append(f"    Account ID : {identity.get('Account', '(unknown)')}")
-            lines.append(f"    User ID    : {identity.get('UserId', '(unknown)')}")
+            lines.append("    ARN        : %s" % identity.get("Arn", "(unknown)"))
+            lines.append("    Account ID : %s" % identity.get("Account", "(unknown)"))
+            lines.append("    User ID    : %s" % identity.get("UserId", "(unknown)"))
 
         except Exception as sts_err:
-            lines.append(
-                f"  Effective identity (STS lookup failed): {sts_err}"
-            )
+            # Non-fatal: the STS call itself might be denied or unreachable.
+            # Surface the error inline rather than suppressing it entirely so the
+            # caller still gets the partial credential info gathered above.
+            lines.append("  Effective identity (STS lookup failed): %s" % sts_err)
 
     except Exception as e:
-        lines.append(f"  (Could not retrieve credential info: {e})")
+        # Catch-all so that a bug in this debug helper never propagates to the
+        # caller. The original access-denied error is what matters; this info
+        # is supplementary.
+        lines.append("  (Could not retrieve credential info: %s)" % e)
 
+    # The header and tip bracket the per-field lines collected above.
     header = "Credential debug info (METAFLOW_DEBUG_S3CLIENT=1):"
     tip = (
         "Tip: Verify this identity has required S3 permissions "

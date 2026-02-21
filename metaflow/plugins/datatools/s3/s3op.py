@@ -666,15 +666,19 @@ def op_list_prefix_nonrecursive(s3config, prefix_urls):
 
 
 def exit(exit_code, url, s3config=None, worker_exit_code=None):
+    # Normalise `url` to a plain string for display. `url` may be an S3Url
+    # namedtuple (which has a .url attribute), a raw string (local path), or
+    # None (e.g. for ERROR_WORKER_EXCEPTION where no URL is involved).
     if hasattr(url, "url"):
         url_str = url.url
     elif url is not None:
         url_str = str(url)
     else:
         url_str = None
-    # Note: the original `url` object is intentionally retained below —
-    # some branches (ERROR_VERIFY_FAILED) still need attribute access
-    # via getattr(url, "local", None). url_str is used for display only.
+    # The original `url` object is retained for branches that need attribute
+    # access beyond the URL string itself (e.g. ERROR_VERIFY_FAILED reads
+    # url.local). url_str is used solely for formatting the human-readable msg.
+
     if exit_code == ERROR_INVALID_URL:
         msg = "Invalid url: %s" % url_str
     elif exit_code == ERROR_NOT_FULL_PATH:
@@ -683,21 +687,31 @@ def exit(exit_code, url, s3config=None, worker_exit_code=None):
         msg = "URL not found: %s" % url_str
     elif exit_code == ERROR_URL_ACCESS_DENIED:
         msg = "Access denied to URL: %s" % url_str
-        # Append credential debug info here, inside the subprocess, where the
-        # live boto3 session exists. The parent reads this from stderr and
-        # surfaces it directly in MetaflowS3AccessDenied. We reuse the existing
-        # METAFLOW_DEBUG_S3CLIENT flag — no new flag needed.
+        # Credential debug info is appended here, inside the s3op subprocess,
+        # because that is where the live boto3 session exists. The parent
+        # process (s3.py) reads the entire stderr output and surfaces it as
+        # the MetaflowS3AccessDenied exception message, so any text written
+        # here will be visible to the user in the exception.
+        # We reuse the existing METAFLOW_DEBUG_S3CLIENT flag so no new env
+        # variable is needed to opt in.
         if debug.s3client:
             try:
                 from metaflow.plugins.aws.aws_utils import get_credential_debug_info
 
                 msg = f"{msg}\n\n{get_credential_debug_info(s3config)}"
             except Exception as e:
+                # Non-fatal: a bug in the debug helper must not mask the real
+                # access-denied error that the user needs to act on.
                 msg = f"{msg}\n\n(credential info unavailable: {e})"
     elif exit_code == ERROR_WORKER_EXCEPTION:
+        # Include the worker's exit code when available so operators can map
+        # the failure to a specific error constant defined at the top of this
+        # file without having to re-run with extra logging.
         code_detail = " (worker exit code: %d)" % worker_exit_code if worker_exit_code is not None else ""
         msg = "Operation failed: worker process terminated%s" % code_detail
     elif exit_code == ERROR_VERIFY_FAILED:
+        # url.local holds the expected local file path; read it via getattr so
+        # this branch degrades gracefully if called with a plain string url.
         local_str = getattr(url, "local", None)
         msg = "Verification failed for URL %s, local file %s" % (url_str, local_str)
     elif exit_code == ERROR_LOCAL_FILE_NOT_FOUND:
@@ -708,16 +722,10 @@ def exit(exit_code, url, s3config=None, worker_exit_code=None):
         msg = "Out of disk space when downloading URL: %s" % url_str
     else:
         msg = "Unknown error"
+    # Write a single, structured message to stderr. The parent process captures
+    # this verbatim and uses it as the exception message, so exactly one print
+    # call here keeps the exception text clean and predictable.
     print("s3op failed:\n%s" % msg, file=sys.stderr)
-
-    # Show debug tip separately for access denied (not part of exception message)
-    # Only shown in interactive contexts where it's actionable
-    # Always show actionable tip when access is denied and debug flag is not enabled.
-    if exit_code == ERROR_URL_ACCESS_DENIED and not debug.s3client:
-        print(
-            "\nTip: Set METAFLOW_DEBUG_S3CLIENT=1 to see which AWS credentials are being used.",
-            file=sys.stderr,
-        )
     sys.exit(exit_code)
 
 
