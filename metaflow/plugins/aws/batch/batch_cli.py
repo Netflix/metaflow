@@ -25,6 +25,42 @@ def batch():
     pass
 
 
+def _sync_local_metadata_from_datastore_best_effort(
+    flow_datastore,
+    metadata,
+    run_id,
+    step_name,
+    task_id,
+    attempt,
+    warn_fn=None,
+):
+    """
+    Synchronize local metadata from datastore without masking the real task error.
+
+    This sync is best-effort and should not raise when a failed task didn't
+    produce a completed datastore attempt.
+    """
+    if metadata.TYPE != "local":
+        return
+    try:
+        task_ds = flow_datastore.get_task_datastore(
+            run_id,
+            step_name,
+            task_id,
+            attempt=attempt,
+            allow_not_done=True,
+        )
+        if task_ds.has_metadata("local_metadata"):
+            sync_local_metadata_from_datastore(DATASTORE_LOCAL_DIR, task_ds)
+    except Exception as e:
+        if warn_fn is not None:
+            warn_fn(
+                "Warning: Failed to sync local metadata from datastore: %s" % str(e)
+            )
+        # Best-effort sync: never shadow task failures with metadata sync errors.
+        pass
+
+
 def _execute_cmd(func, flow_name, run_id, user, my_runs, echo):
     if user and my_runs:
         raise CommandException("--user and --my-runs are mutually exclusive.")
@@ -323,13 +359,15 @@ def step(
     stderr_location = ds.get_log_location(TASK_LOG_SOURCE, "stderr")
 
     def _sync_metadata():
-        if ctx.obj.metadata.TYPE == "local":
-            sync_local_metadata_from_datastore(
-                DATASTORE_LOCAL_DIR,
-                ctx.obj.flow_datastore.get_task_datastore(
-                    kwargs["run_id"], step_name, kwargs["task_id"]
-                ),
-            )
+        _sync_local_metadata_from_datastore_best_effort(
+            flow_datastore=ctx.obj.flow_datastore,
+            metadata=ctx.obj.metadata,
+            run_id=kwargs["run_id"],
+            step_name=step_name,
+            task_id=kwargs["task_id"],
+            attempt=int(retry_count),
+            warn_fn=ctx.obj.echo_always,
+        )
 
     batch = Batch(ctx.obj.metadata, ctx.obj.environment)
     try:
