@@ -889,6 +889,11 @@ class S3(object):
             Object to delete. It can be an S3 url or a path suffix.
         """
 
+        # Guard against empty key which would delete the root prefix object
+        if not key:
+            raise MetaflowS3URLException(
+                "A non-empty key is required for delete."
+            )
         url = self._url(key)
         src = urlparse(url, allow_fragments=False)
 
@@ -959,18 +964,25 @@ class S3(object):
             Prefixes to delete. If None, deletes under the S3 root for this
             client (if configured). Each key may be an S3 url or a path suffix.
         """
+        from urllib.parse import urlparse
 
         # list_recursive returns S3Object instances with .url (full S3 path) set
         objs = self.list_recursive(keys)
         if not objs:
             return
-        # Use full S3 URLs to ensure correct path targeting.
-        # Note: obj.key is relative to the listing prefix, so it loses the prefix segment.
-        # Instead, extract full URLs from S3Object.url which is the absolute S3 path.
-        # list_recursive always returns existing objects, so no need to filter
-        urls_to_delete = [obj.url for obj in objs]
-        if urls_to_delete:
-            self.delete_many(urls_to_delete)
+        # Extract S3 keys (paths) from full S3 URLs to pass to delete_many.
+        # obj.url is the full s3://bucket/path, but when _url() processes it in
+        # delete_many, it will reject keys starting with s3:// if s3root is set.
+        # Solution: Extract just the path portion (after bucket) from obj.url,
+        # then _url() will correctly combine it with s3root.
+        keys_to_delete = []
+        for obj in objs:
+            parsed = urlparse(obj.url, allow_fragments=False)
+            # Extract S3 key: path without leading slash
+            s3_key = parsed.path.lstrip("/")
+            keys_to_delete.append(s3_key)
+        if keys_to_delete:
+            self.delete_many(keys_to_delete)
 
     def get(
         self,

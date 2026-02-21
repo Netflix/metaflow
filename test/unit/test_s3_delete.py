@@ -4,6 +4,7 @@ Unit tests for S3 delete APIs (delete, delete_many, delete_recursive).
 Tests use moto to mock S3 without requiring real AWS credentials or services.
 """
 
+import pytest
 from unittest.mock import patch
 from moto import mock_aws
 import boto3
@@ -54,6 +55,32 @@ def test_s3_delete_many_objects():
         # Verify all objects are deleted
         for key in keys:
             assert not s3_client.info(key, return_missing=True).exists
+
+
+@mock_aws
+def test_s3_delete_empty_key_guard():
+    """Test S3.delete() guards against empty keys (destructive operation)."""
+    from metaflow.plugins.datatools.s3.s3 import MetaflowS3URLException
+
+    s3_res = boto3.resource("s3", region_name="us-east-1")
+    s3_res.create_bucket(Bucket="test-bucket")
+    s3_res.Object("test-bucket", "file.txt").put(Body=b"data")
+
+    # Test with no s3root
+    with S3() as s3_client:
+        with pytest.raises(MetaflowS3URLException):
+            s3_client.delete("")
+
+        with pytest.raises(MetaflowS3URLException):
+            s3_client.delete(None)
+
+    # Test with s3root set (most common case)
+    with S3(s3root="s3://test-bucket") as s3_client:
+        with pytest.raises(MetaflowS3URLException):
+            s3_client.delete("")
+
+        # Verify file.txt still exists
+        assert s3_client.info("file.txt", return_missing=True).exists
 
 
 @mock_aws
@@ -138,21 +165,28 @@ def test_s3_delete_many_cross_bucket():
 
 
 @mock_aws
-def test_s3_delete_recursive_uses_full_urls():
-    """Test S3.delete_recursive() correctly passes full S3 URLs to delete_many.
+def test_s3_delete_recursive_with_s3root():
+    """Test S3.delete_recursive() with s3root set (typical usage pattern).
 
-    This unit test verifies that delete_recursive:
-    - Gets full S3 URLs from S3Object.url (not relative keys)
-    - Passes full URLs to delete_many for correct path targeting
-    - Handles nested directories within the prefix
+    This test verifies that delete_recursive:
+    - Correctly processes full S3 URLs from obj.url
+    - Extracts relative paths that work with s3root
+    - Passes relative paths to delete_many (not full s3:// URLs)
+    - Works correctly when S3() is initialized with s3root
 
-    The test mocks list_recursive to avoid s3op subprocess dependency.
+    Since list_recursive uses s3op subprocess (can't work with moto), we mock it.
     """
     s3_res = boto3.resource("s3", region_name="us-east-1")
     s3_res.create_bucket(Bucket="test-bucket")
 
-    with S3() as s3_client:
-        # Mock list_recursive to return test objects under logs/ prefix
+    # Create test objects that delete_many will delete
+    s3_res.Object("test-bucket", "logs/2025-01/app.log").put(Body=b"log1")
+    s3_res.Object("test-bucket", "logs/2025-02/app.log").put(Body=b"log2")
+    s3_res.Object("test-bucket", "logs/2025-02/subdir/error.log").put(Body=b"err")
+
+    # Create S3 client WITH s3root set (typical usage pattern)
+    with S3(s3root="s3://test-bucket") as s3_client:
+        # Mock list_recursive to return objects with full s3:// URLs
         mock_objects = [
             S3Object(
                 prefix="s3://test-bucket/logs/",
@@ -175,18 +209,11 @@ def test_s3_delete_recursive_uses_full_urls():
         ]
 
         with patch.object(s3_client, "list_recursive", return_value=mock_objects):
-            with patch.object(s3_client, "delete_many") as mock_delete_many:
-                # Call delete_recursive with prefix
-                s3_client.delete_recursive(["s3://test-bucket/logs/"])
+            # Call delete_recursive - it should extract paths from URLs and call delete_many
+            s3_client.delete_recursive(["logs/"])
 
-                # Verify delete_many was called
-                assert mock_delete_many.called
-
-                # Extract the keys passed to delete_many
-                call_args = mock_delete_many.call_args
-                keys_passed = call_args[0][0]
-
-                # Verify full S3 URLs are passed (not relative keys)
-                assert "s3://test-bucket/logs/2025-01/app.log" in keys_passed
-                assert "s3://test-bucket/logs/2025-02/app.log" in keys_passed
-                assert "s3://test-bucket/logs/2025-02/subdir/error.log" in keys_passed
+            # Verify objects are actually deleted via boto3
+            remaining = list(
+                s3_res.Bucket("test-bucket").objects.filter(Prefix="logs/")
+            )
+            assert len(remaining) == 0, "All objects under logs/ should be deleted"
