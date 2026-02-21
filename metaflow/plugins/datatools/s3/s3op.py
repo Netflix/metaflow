@@ -697,6 +697,7 @@ def exit(exit_code, url, s3config=None, worker_exit_code=None):
     elif exit_code == ERROR_WORKER_EXCEPTION:
         code_detail = " (worker exit code: %d)" % worker_exit_code if worker_exit_code is not None else ""
         msg = "Operation failed: worker process terminated%s" % code_detail
+        msg = "Operation failed: worker process terminated%s" % code_detail
     elif exit_code == ERROR_VERIFY_FAILED:
         local_str = getattr(url, "local", None)
         msg = "Verification failed for URL %s, local file %s" % (url_str, local_str)
