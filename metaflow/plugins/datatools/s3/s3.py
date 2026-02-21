@@ -879,7 +879,7 @@ class S3(object):
 
         return list(starmap(S3Object, _head()))
 
-    def delete(self, key: Optional[str]) -> None:
+    def delete(self, key: str) -> None:
         """
         Delete a single object from S3.
 
