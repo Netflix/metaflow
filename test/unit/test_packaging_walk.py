@@ -7,7 +7,7 @@ directory (GitHub issue #2791).
 """
 
 import os
-import tempfile
+import pytest
 import pytest
 
 from metaflow.packaging_sys.utils import walk
