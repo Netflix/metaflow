@@ -96,6 +96,8 @@ class S3Url(object):
         return self.url
 
 
+# We use error codes instead of Exceptions, which are trickier to
+# handle reliably in a multiprocess world
 ERROR_INVALID_URL = 4
 ERROR_NOT_FULL_PATH = 5
 ERROR_URL_NOT_FOUND = 6
@@ -118,6 +120,10 @@ def format_result_line(idx, prefix, url="", local=""):
     return " ".join(
         [str(idx)] + [url_quote(x).decode("utf-8") for x in (prefix, url, local)]
     )
+
+
+# We want to reuse an S3 client instance over multiple operations.
+# This is accomplished by op_ functions below.
 
 
 def normalize_client_error(err):
@@ -157,6 +163,9 @@ def normalize_client_error(err):
         ):
             return 503
     return error_code
+
+
+# S3 worker pool
 
 
 @tracing.cli("s3op/worker")
@@ -369,6 +378,12 @@ def worker(result_file_name, queue, mode, s3config):
                         )
                         result_file.flush()
                         continue
+                else:
+                    # Unknown mode
+                    result_file.write(
+                        "%d %d %s\n" % (idx, -ERROR_WORKER_EXCEPTION, "UnknownMode")
+                    )
+                    result_file.flush()
         except:
             traceback.print_exc()
             result_file.flush()
@@ -494,7 +509,10 @@ def start_workers(mode, urls, num_workers, inject_failure, s3config):
 def process_urls(mode, urls, verbose, inject_failure, num_workers, s3config):
 
     if verbose:
-        print("%sing %d files.." % (mode.capitalize(), len(urls)), file=sys.stderr)
+        if mode == "delete":
+            print("Deleting %d files.." % len(urls), file=sys.stderr)
+        else:
+            print("%sing %d files.." % (mode.capitalize(), len(urls)), file=sys.stderr)
 
     start = time.time()
     sz_results, transient_error_type = start_workers(
@@ -503,22 +521,37 @@ def process_urls(mode, urls, verbose, inject_failure, num_workers, s3config):
     end = time.time()
 
     if verbose:
-        total_size = sum(sz for sz in sz_results if sz is not None and sz > 0)
-        bw = total_size / (end - start)
-        print(
-            "%sed %d files, %s in total, in %d seconds (%s/s)."
-            % (
-                mode.capitalize(),
-                len(urls),
-                with_unit(total_size),
-                end - start,
-                with_unit(bw),
-            ),
-            file=sys.stderr,
-        )
+        if mode == "delete":
+            # For delete, total_size is not meaningful, count successful deletes
+            successful_ops = sum(1 for sz in sz_results if sz is not None and sz == 0)
+            msg = "Deleted %d files" % successful_ops
+            print(
+                "%s in %d seconds."
+                % (
+                    msg,
+                    end - start,
+                ),
+                file=sys.stderr,
+            )
+        else:
+            total_size = sum(sz for sz in sz_results if sz is not None and sz > 0)
+            bw = total_size / (end - start)
+            msg = "%sed %d files" % (mode.capitalize(), len(urls))
+
+            print(
+                "%s, %s in total, in %d seconds (%s/s)."
+                % (
+                    msg,
+                    with_unit(total_size),
+                    end - start,
+                    with_unit(bw),
+                ),
+                file=sys.stderr,
+            )
     return sz_results, transient_error_type
 
 
+# Utility functions
 def with_unit(x):
     if x > 1024**3:
         return "%.1fGB" % (x / 1024.0**3)
@@ -938,7 +971,7 @@ def put(
             local_file = url_unquote(local)
             if not os.path.exists(local_file):
                 exit(ERROR_LOCAL_FILE_NOT_FOUND, local_file)
-            yield line_idx, local_file, url_unquote(url), None, None
+            yield line_idx, local_file, url_unquote(url), None, None, None
             line_idx += 1
         if filelist:
             # NOTE: We are assuming that the idx is properly set. This is only used
@@ -1079,6 +1112,14 @@ def _populate_prefixes(prefixes, inputs):
                         (int(url_unquote(s[0].strip())), prefix, url, range_info)
                     )
     return prefixes, is_transient_retry
+
+
+# CLI
+
+
+@click.group()
+def cli():
+    pass
 
 
 @cli.command(help="Download files from S3")

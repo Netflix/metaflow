@@ -164,6 +164,7 @@ class S3Object(object):
         last_modified: Optional[int] = None,
         encryption: Optional[str] = None,
     ):
+        # all fields of S3Object should return a unicode object
         prefix, url, path = map(ensure_unicode, (prefix, url, path))
 
         self._size = size
@@ -529,6 +530,7 @@ class S3(object):
         encryption: Optional[str] = S3_SERVER_SIDE_ENCRYPTION,
         **kwargs
     ):
+        # 1. use a (current) run ID with optional customizations
         if run:
             if DATATOOLS_S3ROOT is None:
                 raise MetaflowS3URLException(
@@ -551,6 +553,7 @@ class S3(object):
                 prefix = os.path.join(prefix, run.parent.id, run.id)
 
             self._s3root = "s3://%s" % os.path.join(bucket, prefix.strip("/"))
+        # 2. use an explicit S3 prefix
         elif s3root:
             parsed = urlparse(to_unicode(s3root))
             if parsed.scheme != "s3":
@@ -558,6 +561,7 @@ class S3(object):
                     "s3root needs to be an S3 URL prefixed with s3://."
                 )
             self._s3root = s3root.rstrip("/")
+        # 3. use the client only with full URLs
         else:
             self._s3root = None
 
@@ -1600,6 +1604,8 @@ class S3(object):
 
     def _delete_many_files(self, keys, recursive=False):
         prefixes_and_ranges = [(self._url(key), None) for key in keys]
+        if not prefixes_and_ranges:
+            return []
         with NamedTemporaryFile(
             dir=self._tmpdir,
             mode="wb",
