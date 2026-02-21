@@ -1371,7 +1371,6 @@ def info(
         sys.stderr.writelines(retry_lines)
         sys.stderr.flush()
         sys.exit(ERROR_TRANSIENT)
-    cli(auto_envvar_prefix="S3OP")
 
 if __name__ == "__main__":
     cli(auto_envvar_prefix="S3OP")
