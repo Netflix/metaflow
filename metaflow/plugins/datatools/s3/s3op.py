@@ -466,8 +466,6 @@ def start_workers(mode, urls, num_workers, inject_failure, s3config):
                 proc.join(timeout=1)
                 if proc.exitcode is not None:
                     if proc.exitcode != 0:
-                        msg = "Worker process failed (exit code %d)" % proc.exitcode
-
                         # IMPORTANT: if this process has put items on a queue, then it will not terminate
                         # until all buffered items have been flushed to the pipe, causing a deadlock.
                         # `cancel_join_thread()` allows it to exit without flushing the queue.
@@ -483,7 +481,7 @@ def start_workers(mode, urls, num_workers, inject_failure, s3config):
                         # 6. it will never be empty because all subprocesses (workers) have died.
                         queue.cancel_join_thread()
 
-                        exit(proc.exitcode, msg, s3config)
+                        exit(ERROR_WORKER_EXCEPTION, None, s3config)
                     # Read the output file if all went well
                     with open(out_path, "r") as out_file:
                         for line in out_file:
@@ -668,14 +666,21 @@ def op_list_prefix_nonrecursive(s3config, prefix_urls):
 
 
 def exit(exit_code, url, s3config=None):
+    if hasattr(url, "url"):
+        url_str = url.url
+    elif url is not None:
+        url_str = str(url)
+    else:
+        url_str = None
+
     if exit_code == ERROR_INVALID_URL:
-        msg = "Invalid url: %s" % url.url
+        msg = "Invalid url: %s" % url_str
     elif exit_code == ERROR_NOT_FULL_PATH:
-        msg = "URL not a full path: %s" % url.url
+        msg = "URL not a full path: %s" % url_str
     elif exit_code == ERROR_URL_NOT_FOUND:
-        msg = "URL not found: %s" % url.url
+        msg = "URL not found: %s" % url_str
     elif exit_code == ERROR_URL_ACCESS_DENIED:
-        msg = "Access denied to URL: %s" % url.url
+        msg = "Access denied to URL: %s" % url_str
         # Append credential debug info here, inside the subprocess, where the
         # live boto3 session exists. The parent reads this from stderr and
         # surfaces it directly in MetaflowS3AccessDenied. We reuse the existing
@@ -690,7 +695,8 @@ def exit(exit_code, url, s3config=None):
     elif exit_code == ERROR_WORKER_EXCEPTION:
         msg = "Download failed"
     elif exit_code == ERROR_VERIFY_FAILED:
-        msg = "Verification failed for URL %s, local file %s" % (url.url, url.local)
+        local_str = getattr(url, "local", None)
+        msg = "Verification failed for URL %s, local file %s" % (url_str, local_str)
     elif exit_code == ERROR_LOCAL_FILE_NOT_FOUND:
         msg = "Local file not found: %s" % url
     elif exit_code == ERROR_TRANSIENT:
@@ -703,9 +709,15 @@ def exit(exit_code, url, s3config=None):
 
     # Show debug tip separately for access denied (not part of exception message)
     # Only shown in interactive contexts where it's actionable
-    if exit_code == ERROR_URL_ACCESS_DENIED and not debug.s3client:
-        print("\nTip: Set METAFLOW_DEBUG_S3CLIENT=1 to see which AWS credentials are being used.", file=sys.stderr)
-    
+    if (
+         exit_code == ERROR_URL_ACCESS_DENIED
+         and not debug.s3client
+         and sys.stderr.isatty()
+    ):
+        print(
+             "\nTip: Set METAFLOW_DEBUG_S3CLIENT=1 to see which AWS credentials are being used.",
+             file=sys.stderr,
+         )
     sys.exit(exit_code)
 
 
