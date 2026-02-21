@@ -10,6 +10,7 @@ from math import inf
 from typing import List
 
 from metaflow import JSONType, current
+from metaflow.parameters import EnumTypeClass
 from metaflow.decorators import flow_decorators
 from metaflow.exception import MetaflowException
 from metaflow.graph import FlowGraph
@@ -582,6 +583,10 @@ class ArgoWorkflows(object):
             extra_attrs = {}
             if param.kwargs.get("type") == JSONType:
                 param_type = str(param.kwargs.get("type").name)
+            elif isinstance(param.kwargs.get("type"), EnumTypeClass):
+                param_type = str(param.kwargs.get("type").name)
+                extra_attrs["enum"] = list(param.kwargs.get("type").choices)
+                extra_attrs["case_sensitive"] = param.kwargs.get("type").case_sensitive
             elif isinstance(param.kwargs.get("type"), FilePathClass):
                 param_type = str(param.kwargs.get("type").name)
                 extra_attrs["is_text"] = getattr(

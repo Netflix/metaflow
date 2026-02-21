@@ -34,6 +34,14 @@ def generate_fake_flow_file_contents(
                 f"is_text={is_text}, encoding='{encoding}', help='''{param_help}''', "
                 f"required={param_required})\n"
             )
+        elif param_type == "Enum":
+            enum_values = param_details.get("enum", [])
+            case_sensitive = param_details.get("case_sensitive", True)
+            params_code += (
+                f"    {param_python_var_name} = Parameter('{param_name}', "
+                f"type='enum', values={enum_values!r}, case_sensitive={case_sensitive}, "
+                f"help='''{param_help}''', required={param_required})\n"
+            )
         else:
             params_code += (
                 f"    {param_python_var_name} = Parameter('{param_name}', "

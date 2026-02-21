@@ -4,6 +4,7 @@ from contextlib import contextmanager
 from threading import local
 
 from typing import Any, Callable, Dict, NamedTuple, Optional, TYPE_CHECKING, Type, Union
+from metaflow._vendor.typing_extensions import Literal
 
 from metaflow._vendor import click
 
@@ -105,6 +106,24 @@ class JSONTypeClass(click.ParamType):
         return "JSON"
 
 
+class EnumTypeClass(click.Choice):
+    """
+    Parameter type for enumerated string choices.
+    This allows to define a strict set of allowed values for a Parameter.
+    Users typically don't need to instantiate this directly. Instead, you can use
+    type='enum' with the 'values' argument inside a Parameter definition. This automatically
+    hooks into Click to validate command-line inputs against the provided list of choices.
+    """
+
+    name = "Enum"
+
+    def __repr__(self):
+        return "Enum[%s]" % "|".join(self.choices)
+
+    def __str__(self):
+        return repr(self)
+
+
 class DeployTimeField(object):
     """
     This a wrapper object for a user-defined function that is called
@@ -191,6 +210,18 @@ class DeployTimeField(object):
                 msg += "Expected a %s." % TYPES[self.parameter_type]
                 raise ParameterFieldTypeMismatch(msg)
             return str(val) if self.return_str else val
+        elif isinstance(self.parameter_type, EnumTypeClass):
+            str_val = str(val)
+            choices = self.parameter_type.choices
+            if self.parameter_type.case_sensitive:
+                if str_val in choices:
+                    return str_val
+            else:
+                for choice in choices:
+                    if str_val.lower() == choice.lower():
+                        return choice
+            msg += "Expected one of %s." % list(choices)
+            raise ParameterFieldTypeMismatch(msg)
         else:
             if deploy_time:
                 try:
@@ -309,10 +340,16 @@ class Parameter(object):
         indicate that the value must be a valid JSON object. A function
         implies that the parameter corresponds to a *deploy-time parameter*.
         The type of the default value is used as the parameter `type`.
-    type : Type, default None
+    type : Type or {"enum"}, default None
         If `default` is not specified, define the parameter type. Specify
-        one of `str`, `float`, `int`, `bool`, or `JSONType`. If None, defaults
-        to the type of `default` or `str` if none specified.
+        one of `str`, `float`, `int`, `bool`, `JSONType`, `EnumTypeClass`,
+        or the string `"enum"` (requires `values`). If None, defaults to the
+        type of `default` or `str` if none specified.
+    values : Sequence[str], optional
+        When `type="enum"` (or `type` is an `EnumTypeClass`), the list of
+        allowed values. Required for `type="enum"`.
+    case_sensitive : bool, optional, default True
+        When `type="enum"`, whether comparisons are case sensitive.
     help : str, optional, default None
         Help text to show in `run --help`.
     required : bool, optional, default None
@@ -342,7 +379,7 @@ class Parameter(object):
             ]
         ] = None,
         type: Optional[
-            Union[Type[str], Type[float], Type[int], Type[bool], JSONTypeClass]
+            Union[Type[str], Type[float], Type[int], Type[bool], JSONTypeClass, EnumTypeClass, Literal["enum"],]
         ] = None,
         help: Optional[str] = None,
         required: Optional[bool] = None,
@@ -389,6 +426,40 @@ class Parameter(object):
         self.kwargs.setdefault("show_default", True)
 
         # Continue processing kwargs free of any configuration values :)
+
+        # Map enum parameters to EnumTypeClass
+        if self.kwargs.get("type") == "enum":
+            values = self.kwargs.pop("values", None)
+            if not values or not isinstance(values, (list, tuple)):
+                raise MetaflowException(
+                    "Parameter *%s*: type='enum' requires a non-empty 'values' "
+                    "list of valid choices, e.g., values=['a', 'b']" % self.name
+                )
+            case_sensitive = self.kwargs.pop("case_sensitive", True)
+            str_values = [str(v) for v in values]
+            default = self.kwargs.get("default")
+            if default is not None and not callable(default):
+                compare_vals = (
+                    str_values if case_sensitive else [v.lower() for v in str_values]
+                )
+                compare_default = str(default) if case_sensitive else str(default).lower()
+                if compare_default not in compare_vals:
+                    raise MetaflowException(
+                        "Parameter *%s*: default '%s' is not in values %s"
+                        % (self.name, default, str_values)
+                    )
+            self.kwargs["type"] = EnumTypeClass(
+                str_values,
+                case_sensitive=case_sensitive,
+            )
+        elif isinstance(self.kwargs.get("type"), EnumTypeClass):
+            self.kwargs.pop("values", None)
+            self.kwargs.pop("case_sensitive", None)
+        elif "values" in self.kwargs:
+            raise MetaflowException(
+                "Parameter *%s*: 'values' is only supported when type='enum'"
+                % self.name
+            )
 
         # TODO: check that the type is one of the supported types
         param_type = self.kwargs["type"] = self._get_type(self.kwargs)

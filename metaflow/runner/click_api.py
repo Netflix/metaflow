@@ -46,7 +46,7 @@ from metaflow.exception import MetaflowException
 from metaflow.flowspec import FlowStateItems
 from metaflow.includefile import FilePathClass
 from metaflow.metaflow_config import CLICK_API_PROCESS_CONFIG
-from metaflow.parameters import JSONTypeClass, flow_context
+from metaflow.parameters import JSONTypeClass, EnumTypeClass, flow_context
 from metaflow.user_configs.config_options import (
     ConfigValue,
     ConvertDictOrStr,
@@ -72,6 +72,7 @@ click_to_python_types = {
     Choice: str,
     File: str,
     JSONTypeClass: JSON,
+    EnumTypeClass: str,
     FilePathClass: str,
     LocalFileInput: str,
     MultipleTuple: TTuple[str, Union[JSON, ConfigValue]],
