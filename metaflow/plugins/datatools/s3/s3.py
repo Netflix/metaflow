@@ -879,6 +879,81 @@ class S3(object):
 
         return list(starmap(S3Object, _head()))
 
+    def delete(self, key: Optional[str]) -> None:
+        """
+        Delete a single object from S3.
+
+        Parameters
+        ----------
+        key : str
+            Object to delete. It can be an S3 url or a path suffix.
+        """
+
+        url = self._url(key)
+        src = urlparse(url, allow_fragments=False)
+
+        def _delete(s3, tmpname=None):
+            s3.delete_object(Bucket=src.netloc, Key=src.path.lstrip("/"))
+
+        # Use _one_boto_op to get consistent error handling and retries
+        self._one_boto_op(_delete, url, create_tmp_file=False)
+
+    def delete_many(self, keys: Iterable[str]) -> None:
+        """
+        Delete many objects from S3 in batches.
+
+        Parameters
+        ----------
+        keys : Iterable[str]
+            Iterable of S3 urls or path suffixes to delete.
+        """
+
+        # Group keys by bucket to make delete_objects calls
+        buckets = {}
+        for k in keys:
+            url = self._url(k)
+            parsed = urlparse(url, allow_fragments=False)
+            bucket = parsed.netloc
+            path = parsed.path.lstrip("/")
+            buckets.setdefault(bucket, []).append((url, path))
+
+        for bucket, url_path_pairs in buckets.items():
+            # boto3 delete_objects supports up to 1000 keys per request
+            for i in range(0, len(url_path_pairs), 1000):
+                chunk = url_path_pairs[i : i + 1000]
+                # create list of dicts for Delete
+                delete_list = [{"Key": path} for (_url, path) in chunk]
+
+                # Use the first url for error context
+                first_url = chunk[0][0]
+
+                def _delete_batch(
+                    s3, tmpname=None, bucket=bucket, delete_list=delete_list
+                ):
+                    s3.delete_objects(Bucket=bucket, Delete={"Objects": delete_list})
+
+                self._one_boto_op(_delete_batch, first_url, create_tmp_file=False)
+
+    def delete_recursive(self, keys: Optional[Iterable[str]] = None) -> None:
+        """
+        Recursively delete all objects under the given prefixes.
+
+        Parameters
+        ----------
+        keys : Iterable[str], optional
+            Prefixes to delete. If None, deletes under the S3 root for this
+            client (if configured). Each key may be an S3 url or a path suffix.
+        """
+
+        # list_recursive returns S3Object instances with .url set for each object
+        objs = self.list_recursive(keys)
+        if not objs:
+            return
+        # collect urls
+        urls = [obj.url for obj in objs if obj.exists]
+        if urls:
+            self.delete_many(urls)
+
     def get(
         self,
         key: Optional[Union[str, S3GetObject]] = None,
