@@ -1,45 +1,43 @@
-import pytest
-
-from metaflow.plugins.metadata_providers.local import LocalMetadataProvider
-from metaflow.plugins.datastores.local_storage import LocalStorage
-
-
-class DummyEnvironment:
-    def get_environment_info(self):
-        # Minimal required structure for MetadataProvider
-        return {
-            "platform": "test",
-            "production_token": None,
-            "runtime": "dev",
-        }
-
-
-class DummyFlow:
-    name = "TestFlow"
+import json
+import os
 
 
 def test_modifying_tags_does_not_change_created_at(tmp_path):
-    # Save original datastore root to avoid state leakage
+    from metaflow.plugins.metadata_providers.local import (
+        LocalMetadataProvider,
+    )
+    from metaflow.plugins.datastores.local_storage import LocalStorage
+    from metaflow.metaflow_environment import MetaflowEnvironment
+
+    class DummyFlow:
+        name = "TestFlow"
+
+    # Preserve original class-level datastore root
     original_root = LocalStorage.datastore_root
 
     try:
-        # Explicitly control datastore root
+        # Use isolated temporary directory
         LocalStorage.datastore_root = str(tmp_path)
 
+        # Use real Metaflow environment
+        environment = MetaflowEnvironment(None)
+
         provider = LocalMetadataProvider(
-            environment=DummyEnvironment(),
+            environment=environment,
             flow=DummyFlow(),
             event_logger=None,
             monitor=None,
         )
 
-        # Create a run
         run_id = provider.new_run_id()
 
-        # Read ts_epoch using public API
-        before = LocalMetadataProvider.get_object(
-            "run", "self", {}, None, "TestFlow", run_id
-        )["ts_epoch"]
+        meta_dir = provider._get_metadir("TestFlow", run_id)
+        self_file = os.path.join(meta_dir, "_self.json")
+
+        assert os.path.exists(self_file)
+
+        with open(self_file) as f:
+            before = json.load(f)["ts_epoch"]
 
         # Mutate tags
         LocalMetadataProvider._mutate_user_tags_for_run(
@@ -49,13 +47,12 @@ def test_modifying_tags_does_not_change_created_at(tmp_path):
             tags_to_remove=[],
         )
 
-        # Read again
-        after = LocalMetadataProvider.get_object(
-            "run", "self", {}, None, "TestFlow", run_id
-        )["ts_epoch"]
+        with open(self_file) as f:
+            after = json.load(f)["ts_epoch"]
 
         assert before == after
 
     finally:
-        # Restore global state
+        # Restore original state to avoid test leakage
         LocalStorage.datastore_root = original_root
+        

@@ -613,7 +613,7 @@ class LocalMetadataProvider(MetadataProvider):
             os.rename(f.name, filepath)
         finally:
             # clean up in case anything goes wrong
-            if "f" in locals() and os.path.isfile(f.name):
+            if f and os.path.isfile(f.name):
                 os.remove(f.name)
 
     @classmethod
