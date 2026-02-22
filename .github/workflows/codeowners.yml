@@ -13,4 +13,4 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Verify generated CODEOWNERS is up to date
-        run: npx codeowners-generator generate --check
+        run: npx codeowners-generator@2.4.0 generate --check
