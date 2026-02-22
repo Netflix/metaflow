@@ -130,3 +130,15 @@ class TestVegaChartFromAltairChart:
         """from_altair_chart raises ValueError for non-Altair objects."""
         with pytest.raises(ValueError, match="is not an altair chart"):
             VegaChart.from_altair_chart({"not": "a chart"})
+
+    def test_update_with_vegafusion(self):
+        """update() works with an Altair chart when vegafusion is enabled."""
+        alt.data_transformers.enable("vegafusion")
+        chart = self._make_chart()
+
+        vc = VegaChart(spec={"placeholder": True})
+        vc.update(chart)
+
+        assert isinstance(vc._spec, dict)
+        assert "$schema" in vc._spec
+        assert "vega/v" in vc._spec["$schema"]

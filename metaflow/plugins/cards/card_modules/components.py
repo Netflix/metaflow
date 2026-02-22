@@ -1023,7 +1023,13 @@ class VegaChart(UserComponent):
         """
         _spec = spec
         if self._object_is_altair_chart(spec):
-            _spec = spec.to_dict()
+            try:
+                _spec = spec.to_dict()
+            except ValueError as e:
+                if "vegafusion" in str(e):
+                    _spec = spec.to_dict(format="vega")
+                else:
+                    raise
         if _spec is not None:
             self._spec = _spec
 
