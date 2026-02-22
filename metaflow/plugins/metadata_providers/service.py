@@ -120,14 +120,19 @@ class ServiceMetadataProvider(MetadataProvider):
                 return v
             # Only retry on transient server errors; fail fast on all others
             if resp.status_code not in (500, 503):
-                raise ValueError(
+                raise ServiceException(
                     "Metaflow service [%s] returned unexpected status %s: %s"
-                    % (v, resp.status_code, resp.text)
+                    % (v, resp.status_code, resp.text),
+                    resp.status_code,
+                    resp.text,
                 )
             if i < SERVICE_RETRY_COUNT - 1:
                 time.sleep(2 ** (i - 1))  # 500/503 backoff only; transport uses 2**i inside _request()
 
-        raise ValueError("Metaflow service [%s] unreachable." % v)
+        raise ServiceException(
+            "Metaflow service [%s] unreachable after %d retries."
+            % (v, SERVICE_RETRY_COUNT)
+        )
 
     @classmethod
     def default_info(cls):
