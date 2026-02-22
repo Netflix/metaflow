@@ -475,21 +475,21 @@ class LocalMetadataProvider(MetadataProvider):
                 return
             else:
                 raise
+
     @classmethod
     def _persist_tags_for_run(cls, flow_id, run_id, tags, system_tags):
         subpath = cls._create_and_get_metadir(flow_name=flow_id, run_id=run_id)
         selfname = os.path.join(subpath, "_self.json")
-
         if not os.path.isfile(selfname):
             raise MetaflowInternalError(
                 msg="Could not verify Run existence on disk - missing %s" % selfname
             )
-
+            
         current = cls._read_json_file(selfname)
-
+        
         current["tags"] = list(tags)
         current["system_tags"] = list(system_tags)
-
+        
         cls._dump_json_to_file(selfname, current, allow_overwrite=True)
 
     def _ensure_meta(
@@ -499,16 +499,18 @@ class LocalMetadataProvider(MetadataProvider):
             tags = set()
         if sys_tags is None:
             sys_tags = set()
-
         subpath = self.__class__._create_and_get_metadir(
             self._flow_name, run_id, step_name, task_id
         )
         selfname = os.path.join(subpath, "_self.json")
         self.__class__._makedirs(subpath)
-
         if os.path.isfile(selfname):
+            # There is a race here, but we are not aiming to make this as solid as
+            # the metadata service. This is used primarily for concurrent resumes,
+            # so it is highly unlikely that this combination (multiple resumes of
+            # the same flow on the same machine) happens.
             return False
-
+        # In this case the metadata information does not exist, so we create it
         self._save_meta(
             subpath,
             {
@@ -547,6 +549,7 @@ class LocalMetadataProvider(MetadataProvider):
         task_id=None,
         create_on_absent=True,
     ):
+
         storage_class = cls._get_storage_class()
 
         if storage_class.datastore_root is None:
@@ -557,13 +560,11 @@ class LocalMetadataProvider(MetadataProvider):
             storage_class.datastore_root = storage_class.get_datastore_root_from_config(
                 print_clean, create_on_absent=create_on_absent
             )
-
         if storage_class.datastore_root is None:
             return None
 
         if flow_name is None:
             return storage_class.datastore_root
-
         components = []
         if flow_name:
             components.append(flow_name)
@@ -573,7 +574,6 @@ class LocalMetadataProvider(MetadataProvider):
                     components.append(step_name)
                     if task_id:
                         components.append(task_id)
-
         return storage_class().full_uri(storage_class.path_join(*components))
 
     @classmethod
@@ -581,16 +581,16 @@ class LocalMetadataProvider(MetadataProvider):
         cls, flow_name=None, run_id=None, step_name=None, task_id=None
     ):
         storage_class = cls._get_storage_class()
+
         root_path = cls._make_path(flow_name, run_id, step_name, task_id)
         subpath = os.path.join(root_path, storage_class.METADATA_DIR)
         cls._makedirs(subpath)
         return subpath
 
     @classmethod
-    def _get_metadir(
-        cls, flow_name=None, run_id=None, step_name=None, task_id=None
-    ):
+    def _get_metadir(cls, flow_name=None, run_id=None, step_name=None, task_id=None):
         storage_class = cls._get_storage_class()
+
         root_path = cls._make_path(
             flow_name, run_id, step_name, task_id, create_on_absent=False
         )
@@ -612,6 +612,7 @@ class LocalMetadataProvider(MetadataProvider):
                 json.dump(data, f)
             os.rename(f.name, filepath)
         finally:
+            # clean up in case anything goes wrong
             if "f" in locals() and os.path.isfile(f.name):
                 os.remove(f.name)
 
@@ -624,8 +625,4 @@ class LocalMetadataProvider(MetadataProvider):
     def _save_meta(cls, root_dir, metadict, allow_overwrite=False):
         for name, datum in metadict.items():
             filename = os.path.join(root_dir, "%s.json" % name)
-            cls._dump_json_to_file(
-                filename, datum, allow_overwrite=allow_overwrite
-            )
-            
-            
+            cls._dump_json_to_file(filename, datum, allow_overwrite=allow_overwrite)
