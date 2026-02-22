@@ -6,6 +6,8 @@ on:
       - '**/CODEOWNERS'
       - '.codeowners-generatorrc'
 
+permissions: read-all
+
 jobs:
   check-codeowners:
     runs-on: ubuntu-latest
