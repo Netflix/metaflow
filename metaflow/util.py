@@ -12,44 +12,16 @@ from itertools import takewhile
 from typing import Dict, Any, Tuple, Optional, List, Generator
 
 
-try:
-    # python2
-    unicode_type = unicode
-    bytes_type = str
-    from urllib import quote, unquote
+unicode_type = str
+bytes_type = bytes
 
-    # unquote_bytes should be a function that takes a urlencoded byte
-    # string, encoded in UTF-8, url-decodes it and returns it as a
-    # unicode object. Confusingly, how to accomplish this differs
-    # between Python2 and Python3.
-    #
-    # Test with this input URL:
-    # b'crazypath/%01%C3%B'
-    # it should produce
-    # u'crazypath/\x01\xff'
-    def unquote_bytes(x):
-        return to_unicode(unquote(to_bytes(x)))
+from urllib.parse import quote, unquote
+from pathlib import Path
+from shlex import quote as _quote
 
-    # this is used e.g. by mflog/save_logs.py to identify paths
-    class Path(object):
-        def __init__(self, path):
-            self.path = path
 
-        def __str__(self):
-            return self.path
-
-    from pipes import quote as _quote
-except NameError:
-    # python3
-    unicode_type = str
-    bytes_type = bytes
-    from urllib.parse import quote, unquote
-    from pathlib import Path
-
-    def unquote_bytes(x):
-        return unquote(to_unicode(x))
-
-    from shlex import quote as _quote
+def unquote_bytes(x):
+    return unquote(to_unicode(x))
 
 
 class TempDir(object):
