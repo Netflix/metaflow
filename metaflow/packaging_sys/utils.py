@@ -5,6 +5,22 @@ from typing import Callable, Generator, List, Optional, Tuple
 from ..util import to_unicode, walk_without_cycles
 
 
+DIRS_TO_SKIP = {
+    ".git",
+    ".hg",
+    ".svn",
+    "__pycache__",
+    ".tox",
+    ".mypy_cache",
+    ".pytest_cache",
+}
+
+
+def _should_skip(rel_path: str) -> bool:
+    parts = [p for p in rel_path.split(os.sep) if p]
+    return any(p in DIRS_TO_SKIP for p in parts)
+
+
 def walk(
     root: str,
     exclude_hidden: bool = True,
@@ -21,7 +37,7 @@ def walk(
         # Only check path components *under* root for hidden directories;
         # ancestor directories (above root) are not relevant.
         rel = path[len(root.rstrip(os.sep)) :]
-        if exclude_hidden and "/." in rel:
+        if exclude_hidden and _should_skip(rel):
             continue
         # path = path[2:] # strip the ./ prefix
         # if path and (path[0] == '.' or './' in path):
