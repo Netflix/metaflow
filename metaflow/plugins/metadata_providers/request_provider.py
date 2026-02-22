@@ -45,14 +45,23 @@ class DefaultRequestProvider:
 
     def __init__(self) -> None:
         self._session = requests.Session()
-        adapter = requests.adapters.HTTPAdapter(
+        # Use separate adapter instances so each protocol gets its own
+        # independent urllib3.PoolManager, matching the original
+        # ServiceMetadataProvider behavior (20 connections per protocol).
+        http_adapter = requests.adapters.HTTPAdapter(
             pool_connections=20,
             pool_maxsize=20,
             max_retries=0,
             pool_block=False,
         )
-        self._session.mount("http://", adapter)
-        self._session.mount("https://", adapter)
+        https_adapter = requests.adapters.HTTPAdapter(
+            pool_connections=20,
+            pool_maxsize=20,
+            max_retries=0,
+            pool_block=False,
+        )
+        self._session.mount("http://", http_adapter)
+        self._session.mount("https://", https_adapter)
 
     def request(
         self,
@@ -93,14 +102,23 @@ class TracingRequestProvider:
 
     def __init__(self) -> None:
         self._session = requests.Session()
-        adapter = requests.adapters.HTTPAdapter(
+        # Use separate adapter instances so each protocol gets its own
+        # independent urllib3.PoolManager, matching the original
+        # ServiceMetadataProvider behavior (20 connections per protocol).
+        http_adapter = requests.adapters.HTTPAdapter(
             pool_connections=20,
             pool_maxsize=20,
             max_retries=0,
             pool_block=False,
         )
-        self._session.mount("http://", adapter)
-        self._session.mount("https://", adapter)
+        https_adapter = requests.adapters.HTTPAdapter(
+            pool_connections=20,
+            pool_maxsize=20,
+            max_retries=0,
+            pool_block=False,
+        )
+        self._session.mount("http://", http_adapter)
+        self._session.mount("https://", https_adapter)
 
     def request(
         self,
