@@ -45,6 +45,19 @@ def test_build_step_entrypoint_with_debug():
     )
 
 
+def test_build_step_entrypoint_quotes_debug_host():
+    assert (
+        _build_step_entrypoint(
+            executable="python3",
+            flow_filename="flow.py",
+            debug=True,
+            debug_port=5678,
+            debug_listen_host="0.0.0.0;rm -rf /",
+        )
+        == "python3 -u -m debugpy --listen '0.0.0.0;rm -rf /':5678 --wait-for-client flow.py"
+    )
+
+
 def test_apply_debug_settings_without_debug():
     assert (
         _apply_debug_settings(
@@ -68,6 +81,19 @@ def test_apply_debug_settings_sets_default_port():
             num_parallel=None,
         )
         == 5678
+    )
+
+
+def test_apply_debug_settings_keeps_explicit_port():
+    assert (
+        _apply_debug_settings(
+            debug=True,
+            debug_port=5678,
+            debug_listen_host="0.0.0.0",
+            port=9999,
+            num_parallel=None,
+        )
+        == 9999
     )
 
 

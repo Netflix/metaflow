@@ -1,4 +1,5 @@
 import os
+import shlex
 import sys
 import time
 import traceback
@@ -34,9 +35,10 @@ def _build_step_entrypoint(
 ):
     if not debug:
         return "%s -u %s" % (executable, flow_filename)
+    safe_debug_listen_host = shlex.quote(debug_listen_host)
     return "%s -u -m debugpy --listen %s:%s --wait-for-client %s" % (
         executable,
-        debug_listen_host,
+        safe_debug_listen_host,
         int(debug_port),
         flow_filename,
     )

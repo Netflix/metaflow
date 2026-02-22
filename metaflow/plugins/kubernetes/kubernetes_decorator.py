@@ -458,6 +458,12 @@ class KubernetesDecorator(StepDecorator):
                 )
 
         if self.attributes["debug"]:
+            if any(deco.name == "parallel" for deco in decos):
+                raise KubernetesException(
+                    "Remote debugging with @parallel on @kubernetes is not supported yet for step *{step}*.".format(
+                        step=step
+                    )
+                )
             if not self.attributes["debug_listen_host"]:
                 raise KubernetesException(
                     "Invalid debug_listen_host for step *{step}* (must be a non-empty string).".format(
