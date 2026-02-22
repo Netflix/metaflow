@@ -20,6 +20,9 @@ from metaflow.metaflow_config import (
     KUBERNETES_GPU_VENDOR,
     KUBERNETES_IMAGE_PULL_POLICY,
     KUBERNETES_IMAGE_PULL_SECRETS,
+    KUBERNETES_DEBUG,
+    KUBERNETES_DEBUG_LISTEN_HOST,
+    KUBERNETES_DEBUG_PORT,
     KUBERNETES_MEMORY,
     KUBERNETES_LABELS,
     KUBERNETES_ANNOTATIONS,
@@ -120,6 +123,13 @@ class KubernetesDecorator(StepDecorator):
         Shared memory size (in MiB) required for this step
     port: int, optional
         Port number to specify in the Kubernetes job object
+    debug : bool, default False
+        Enable remote debugging for this step in Kubernetes using `debugpy`.
+        When enabled, the step process starts in wait-for-client mode.
+    debug_port : int, default 5678
+        Port on which `debugpy` listens inside the task container.
+    debug_listen_host : str, default 0.0.0.0
+        Interface on which `debugpy` listens inside the task container.
     compute_pool : str, optional, default None
         Compute pool to be used for for this step.
         If not specified, any accessible compute pool within the perimeter is used.
@@ -163,6 +173,9 @@ class KubernetesDecorator(StepDecorator):
         "persistent_volume_claims": None,  # e.g., {"pvc-name": "/mnt/vol", "another-pvc": "/mnt/vol2"}
         "shared_memory": None,
         "port": None,
+        "debug": None,
+        "debug_port": None,
+        "debug_listen_host": None,
         "compute_pool": None,
         "executable": None,
         "hostname_resolution_timeout": 10 * 60,
@@ -309,6 +322,16 @@ class KubernetesDecorator(StepDecorator):
             self.attributes["shared_memory"] = KUBERNETES_SHARED_MEMORY
         if not self.attributes["port"]:
             self.attributes["port"] = KUBERNETES_PORT
+        if self.attributes["debug"] is None:
+            self.attributes["debug"] = KUBERNETES_DEBUG
+        if not self.attributes["debug_listen_host"]:
+            self.attributes["debug_listen_host"] = KUBERNETES_DEBUG_LISTEN_HOST
+        if self.attributes["debug_port"] is None:
+            self.attributes["debug_port"] = KUBERNETES_DEBUG_PORT
+        # If a debug session is enabled and no explicit container port is provided,
+        # expose the debug port by default.
+        if self.attributes["debug"] and not self.attributes["port"]:
+            self.attributes["port"] = self.attributes["debug_port"]
 
     # Refer https://github.com/Netflix/metaflow/blob/master/docs/lifecycle.png
     def step_init(self, flow, graph, step, decos, environment, flow_datastore, logger):
@@ -433,6 +456,29 @@ class KubernetesDecorator(StepDecorator):
                         size=self.attributes["shared_memory"], step=step
                     )
                 )
+
+        if self.attributes["debug"]:
+            if not self.attributes["debug_listen_host"]:
+                raise KubernetesException(
+                    "Invalid debug_listen_host for step *{step}* (must be a non-empty string).".format(
+                        step=step
+                    )
+                )
+            try:
+                debug_port = int(self.attributes["debug_port"])
+            except (TypeError, ValueError):
+                raise KubernetesException(
+                    "Invalid debug_port value: *{port}* for step *{step}* (should be an integer between 1 and 65535)".format(
+                        port=self.attributes["debug_port"], step=step
+                    )
+                )
+            if not (1 <= debug_port <= 65535):
+                raise KubernetesException(
+                    "Invalid debug_port value: *{port}* for step *{step}* (should be an integer between 1 and 65535)".format(
+                        port=self.attributes["debug_port"], step=step
+                    )
+                )
+            self.attributes["debug_port"] = debug_port
 
         validate_kube_labels(self.attributes["labels"])
         # TODO: add validation to annotations as well?

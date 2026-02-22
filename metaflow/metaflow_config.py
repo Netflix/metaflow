@@ -422,6 +422,11 @@ KUBERNETES_FETCH_EC2_METADATA = from_conf("KUBERNETES_FETCH_EC2_METADATA", False
 KUBERNETES_SHARED_MEMORY = from_conf("KUBERNETES_SHARED_MEMORY", None)
 # Default port number to open on the pods
 KUBERNETES_PORT = from_conf("KUBERNETES_PORT", None)
+# Enable remote debugging support for Kubernetes tasks (debugpy).
+KUBERNETES_DEBUG = from_conf("KUBERNETES_DEBUG", False)
+# debugpy host and port used when Kubernetes debug mode is enabled.
+KUBERNETES_DEBUG_LISTEN_HOST = from_conf("KUBERNETES_DEBUG_LISTEN_HOST", "0.0.0.0")
+KUBERNETES_DEBUG_PORT = from_conf("KUBERNETES_DEBUG_PORT", 5678)
 # Default kubernetes resource requests for CPU, memory and disk
 KUBERNETES_CPU = from_conf("KUBERNETES_CPU", None)
 KUBERNETES_MEMORY = from_conf("KUBERNETES_MEMORY", None)

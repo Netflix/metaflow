@@ -29,6 +29,52 @@ def cli():
     pass
 
 
+def _build_step_entrypoint(
+    executable, flow_filename, debug=False, debug_port=None, debug_listen_host=None
+):
+    if not debug:
+        return "%s -u %s" % (executable, flow_filename)
+    return "%s -u -m debugpy --listen %s:%s --wait-for-client %s" % (
+        executable,
+        debug_listen_host,
+        int(debug_port),
+        flow_filename,
+    )
+
+
+def _apply_debug_settings(
+    debug=False,
+    debug_port=None,
+    debug_listen_host=None,
+    port=None,
+    num_parallel=None,
+):
+    if not debug:
+        return port
+
+    if num_parallel and num_parallel > 1:
+        raise KubernetesException(
+            "Remote debugging with @parallel on @kubernetes is not supported yet."
+        )
+    try:
+        parsed_debug_port = int(debug_port)
+    except (TypeError, ValueError):
+        parsed_debug_port = None
+    if parsed_debug_port is None or not (1 <= parsed_debug_port <= 65535):
+        raise KubernetesException(
+            "Invalid debug_port value *%s*. It must be an integer between 1 and 65535."
+            % debug_port
+        )
+    if not debug_listen_host:
+        raise KubernetesException(
+            "Invalid debug_listen_host value *%s*. It must be a non-empty string."
+            % debug_listen_host
+        )
+    if port is None:
+        return parsed_debug_port
+    return port
+
+
 @cli.group(help="Commands related to Kubernetes.")
 def kubernetes():
     pass
@@ -126,6 +172,22 @@ def kubernetes():
 @click.option("--shared-memory", default=None, help="Size of shared memory in MiB")
 @click.option("--port", default=None, help="Port number to expose from the container")
 @click.option(
+    "--debug",
+    is_flag=True,
+    help="Enable remote debugging in Kubernetes with debugpy.",
+)
+@click.option(
+    "--debug-port",
+    default=None,
+    type=int,
+    help="Port for the debugpy listener when --debug is enabled.",
+)
+@click.option(
+    "--debug-listen-host",
+    default=None,
+    help="Host/interface for debugpy listener when --debug is enabled.",
+)
+@click.option(
     "--ubf-context", default=None, type=click.Choice([None, UBF_CONTROL, UBF_TASK])
 )
 @click.option(
@@ -187,6 +249,9 @@ def step(
     tolerations=None,
     shared_memory=None,
     port=None,
+    debug=False,
+    debug_port=None,
+    debug_listen_host=None,
     num_parallel=None,
     qos=None,
     labels=None,
@@ -228,6 +293,19 @@ def step(
             "Using @parallel with `num_parallel` <= 1 is not supported with "
             "@kubernetes. Please set the value of `num_parallel` to be greater than 1."
         )
+    port = _apply_debug_settings(
+        debug=debug,
+        debug_port=debug_port,
+        debug_listen_host=debug_listen_host,
+        port=port,
+        num_parallel=num_parallel,
+    )
+    if debug:
+        ctx.obj.echo_always(
+            "Kubernetes remote debugging enabled. "
+            "Attach your debugger to %s:%s after network forwarding is configured."
+            % (debug_listen_host, debug_port)
+        )
 
     # Set retry policy.
     retry_count = int(kwargs.get("retry_count", 0))
@@ -255,8 +333,15 @@ def step(
     if num_parallel:
         kwargs.pop("task_id")
 
+    flow_filename = os.path.basename(sys.argv[0])
     step_cli = "{entrypoint} {top_args} step {step} {step_args}".format(
-        entrypoint="%s -u %s" % (executable, os.path.basename(sys.argv[0])),
+        entrypoint=_build_step_entrypoint(
+            executable=executable,
+            flow_filename=flow_filename,
+            debug=debug,
+            debug_port=debug_port,
+            debug_listen_host=debug_listen_host,
+        ),
         top_args=" ".join(util.dict_to_cli_options(ctx.parent.parent.params)),
         step=step_name,
         step_args=" ".join(util.dict_to_cli_options(kwargs)),
