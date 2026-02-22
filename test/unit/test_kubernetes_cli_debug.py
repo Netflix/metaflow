@@ -84,16 +84,16 @@ def test_apply_debug_settings_sets_default_port():
     )
 
 
-def test_apply_debug_settings_keeps_explicit_port():
+def test_apply_debug_settings_accepts_matching_explicit_port():
     assert (
         _apply_debug_settings(
             debug=True,
             debug_port=5678,
             debug_listen_host="0.0.0.0",
-            port=9999,
+            port=5678,
             num_parallel=None,
         )
-        == 9999
+        == 5678
     )
 
 
@@ -105,6 +105,29 @@ def test_apply_debug_settings_rejects_invalid_port(debug_port):
             debug_port=debug_port,
             debug_listen_host="0.0.0.0",
             port=None,
+            num_parallel=None,
+        )
+
+
+def test_apply_debug_settings_rejects_conflicting_explicit_port():
+    with pytest.raises(KubernetesException):
+        _apply_debug_settings(
+            debug=True,
+            debug_port=5678,
+            debug_listen_host="0.0.0.0",
+            port=9999,
+            num_parallel=None,
+        )
+
+
+@pytest.mark.parametrize("port", [0, 65536, "abc"])
+def test_apply_debug_settings_rejects_invalid_explicit_port(port):
+    with pytest.raises(KubernetesException):
+        _apply_debug_settings(
+            debug=True,
+            debug_port=5678,
+            debug_listen_host="0.0.0.0",
+            port=port,
             num_parallel=None,
         )
 

@@ -12,29 +12,29 @@ from metaflow.metadata_provider.util import sync_local_metadata_to_datastore
 from metaflow.metaflow_config import (
     DATASTORE_LOCAL_DIR,
     FEAT_ALWAYS_UPLOAD_CODE_PACKAGE,
+    KUBERNETES_ANNOTATIONS,
+    KUBERNETES_CONDA_ARCH,
     KUBERNETES_CONTAINER_IMAGE,
     KUBERNETES_CONTAINER_REGISTRY,
     KUBERNETES_CPU,
+    KUBERNETES_DEBUG,
+    KUBERNETES_DEBUG_LISTEN_HOST,
+    KUBERNETES_DEBUG_PORT,
     KUBERNETES_DISK,
     KUBERNETES_FETCH_EC2_METADATA,
     KUBERNETES_GPU_VENDOR,
     KUBERNETES_IMAGE_PULL_POLICY,
     KUBERNETES_IMAGE_PULL_SECRETS,
-    KUBERNETES_DEBUG,
-    KUBERNETES_DEBUG_LISTEN_HOST,
-    KUBERNETES_DEBUG_PORT,
-    KUBERNETES_MEMORY,
     KUBERNETES_LABELS,
-    KUBERNETES_ANNOTATIONS,
+    KUBERNETES_MEMORY,
     KUBERNETES_NAMESPACE,
     KUBERNETES_NODE_SELECTOR,
     KUBERNETES_PERSISTENT_VOLUME_CLAIMS,
     KUBERNETES_PORT,
+    KUBERNETES_QOS,
     KUBERNETES_SERVICE_ACCOUNT,
     KUBERNETES_SHARED_MEMORY,
     KUBERNETES_TOLERATIONS,
-    KUBERNETES_QOS,
-    KUBERNETES_CONDA_ARCH,
 )
 from metaflow.plugins.resources_decorator import ResourcesDecorator
 from metaflow.plugins.timeout_decorator import get_run_time_limit_for_task
@@ -122,7 +122,8 @@ class KubernetesDecorator(StepDecorator):
     shared_memory: int, optional
         Shared memory size (in MiB) required for this step
     port: int, optional
-        Port number to specify in the Kubernetes job object
+        Port number to specify in the Kubernetes job object.
+        When `debug=True`, this must match `debug_port` if set explicitly.
     debug : bool, default False
         Enable remote debugging for this step in Kubernetes using `debugpy`.
         When enabled, the step process starts in wait-for-client mode.

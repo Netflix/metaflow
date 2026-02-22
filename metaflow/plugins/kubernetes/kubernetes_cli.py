@@ -74,7 +74,23 @@ def _apply_debug_settings(
         )
     if port is None:
         return parsed_debug_port
-    return port
+    try:
+        parsed_port = int(port)
+    except (TypeError, ValueError):
+        raise KubernetesException(
+            "Invalid port value *%s*. It must be an integer between 1 and 65535." % port
+        )
+    if not (1 <= parsed_port <= 65535):
+        raise KubernetesException(
+            "Invalid port value *%s*. It must be an integer between 1 and 65535." % port
+        )
+    if parsed_port != parsed_debug_port:
+        raise KubernetesException(
+            "When debug mode is enabled, @kubernetes(port=...) must match debug_port "
+            "(%s). Either omit port or set port=%s."
+            % (parsed_debug_port, parsed_debug_port)
+        )
+    return parsed_port
 
 
 @cli.group(help="Commands related to Kubernetes.")
