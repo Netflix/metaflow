@@ -18,6 +18,7 @@ bytes_type = bytes
 from urllib.parse import quote, unquote
 from pathlib import Path
 from shlex import quote as _quote
+from metaflow.exception import MetaflowInternalError
 
 
 def unquote_bytes(x):
@@ -261,7 +262,7 @@ def get_latest_task_pathspec(
     try:
         task = Step(f"{flow_name}/{run_id}/{step_name}").task
         return task
-    except:
+    except Exception:
         raise MetaflowNotFound(f"No task found for step {step_name} in run {run_id}")
 
 
