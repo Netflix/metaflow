@@ -136,7 +136,6 @@ class ServiceMetadataProvider(MetadataProvider):
                     resp.status_code,
                     resp.text,
                 )
-            time.sleep(2 ** (i - 1))  # 500/503 backoff only; transport uses 2**i inside _request()
 
         # Should be unreachable, but kept as a safety net
         raise ServiceException(
