@@ -84,6 +84,19 @@ def test_build_step_entrypoint_quotes_executable_and_flow_filename():
     )
 
 
+def test_build_step_entrypoint_formats_ipv6_debug_host():
+    assert (
+        _build_step_entrypoint(
+            executable="python3",
+            flow_filename="flow.py",
+            debug=True,
+            debug_port=5678,
+            debug_listen_host="::1",
+        )
+        == "python3 -u -m debugpy --listen '[::1]':5678 --wait-for-client flow.py"
+    )
+
+
 @pytest.mark.parametrize(
     "debug_port,debug_listen_host",
     [

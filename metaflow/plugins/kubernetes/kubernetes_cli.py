@@ -39,9 +39,14 @@ def _build_step_entrypoint(
         raise KubernetesException(
             "debug_port and debug_listen_host are required when debug mode is enabled."
         )
+    listen_host = debug_listen_host
+    if ":" in listen_host and not (
+        listen_host.startswith("[") and listen_host.endswith("]")
+    ):
+        listen_host = "[%s]" % listen_host
     safe_executable = shlex.quote(executable)
     safe_flow_filename = shlex.quote(flow_filename)
-    safe_debug_listen_host = shlex.quote(debug_listen_host)
+    safe_debug_listen_host = shlex.quote(listen_host)
     return "%s -u -m debugpy --listen %s:%s --wait-for-client %s" % (
         safe_executable,
         safe_debug_listen_host,
