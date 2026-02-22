@@ -58,6 +58,28 @@ def test_build_step_entrypoint_quotes_debug_host():
     )
 
 
+@pytest.mark.parametrize(
+    "debug_port,debug_listen_host",
+    [
+        (None, "0.0.0.0"),
+        (5678, None),
+        (5678, ""),
+    ],
+)
+def test_build_step_entrypoint_requires_debug_settings(debug_port, debug_listen_host):
+    with pytest.raises(
+        KubernetesException,
+        match="required when debug mode is enabled",
+    ):
+        _build_step_entrypoint(
+            executable="python3",
+            flow_filename="flow.py",
+            debug=True,
+            debug_port=debug_port,
+            debug_listen_host=debug_listen_host,
+        )
+
+
 def test_apply_debug_settings_without_debug():
     assert _apply_debug_settings(
         debug=False,

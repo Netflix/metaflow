@@ -35,6 +35,10 @@ def _build_step_entrypoint(
 ):
     if not debug:
         return "%s -u %s" % (executable, flow_filename)
+    if debug_port is None or not debug_listen_host:
+        raise KubernetesException(
+            "debug_port and debug_listen_host are required when debug mode is enabled."
+        )
     safe_debug_listen_host = shlex.quote(debug_listen_host)
     return "%s -u -m debugpy --listen %s:%s --wait-for-client %s" % (
         executable,

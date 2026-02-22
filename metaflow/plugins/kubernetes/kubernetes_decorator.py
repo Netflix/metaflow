@@ -556,6 +556,8 @@ class KubernetesDecorator(StepDecorator):
 
             # skip certain keys as CLI arguments
             _skip_keys = ["compute_pool", "hostname_resolution_timeout"]
+            if not self.attributes.get("debug"):
+                _skip_keys.extend(["debug_port", "debug_listen_host"])
             # --namespace is used to specify Metaflow namespace (a different
             # concept from k8s namespace).
             for k, v in self.attributes.items():
