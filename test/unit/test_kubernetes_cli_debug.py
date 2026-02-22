@@ -59,42 +59,33 @@ def test_build_step_entrypoint_quotes_debug_host():
 
 
 def test_apply_debug_settings_without_debug():
-    assert (
-        _apply_debug_settings(
-            debug=False,
-            debug_port=5678,
-            debug_listen_host="0.0.0.0",
-            port=1234,
-            num_parallel=None,
-        )
-        == 1234
-    )
+    assert _apply_debug_settings(
+        debug=False,
+        debug_port=5678,
+        debug_listen_host="0.0.0.0",
+        port=1234,
+        num_parallel=None,
+    ) == (1234, None)
 
 
 def test_apply_debug_settings_sets_default_port():
-    assert (
-        _apply_debug_settings(
-            debug=True,
-            debug_port=5678,
-            debug_listen_host="0.0.0.0",
-            port=None,
-            num_parallel=None,
-        )
-        == 5678
-    )
+    assert _apply_debug_settings(
+        debug=True,
+        debug_port=5678,
+        debug_listen_host="0.0.0.0",
+        port=None,
+        num_parallel=None,
+    ) == (5678, 5678)
 
 
 def test_apply_debug_settings_accepts_matching_explicit_port():
-    assert (
-        _apply_debug_settings(
-            debug=True,
-            debug_port=5678,
-            debug_listen_host="0.0.0.0",
-            port=5678,
-            num_parallel=None,
-        )
-        == 5678
-    )
+    assert _apply_debug_settings(
+        debug=True,
+        debug_port=5678,
+        debug_listen_host="0.0.0.0",
+        port=5678,
+        num_parallel=None,
+    ) == (5678, 5678)
 
 
 @pytest.mark.parametrize("debug_port", [None, 0, -1, 65536, "abc"])

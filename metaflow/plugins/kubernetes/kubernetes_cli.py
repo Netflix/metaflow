@@ -52,7 +52,7 @@ def _apply_debug_settings(
     num_parallel=None,
 ):
     if not debug:
-        return port
+        return port, None
 
     if num_parallel and num_parallel > 1:
         raise KubernetesException(
@@ -73,7 +73,7 @@ def _apply_debug_settings(
             % debug_listen_host
         )
     if port is None:
-        return parsed_debug_port
+        return parsed_debug_port, parsed_debug_port
     try:
         parsed_port = int(port)
     except (TypeError, ValueError):
@@ -90,7 +90,7 @@ def _apply_debug_settings(
             "(%s). Either omit port or set port=%s."
             % (parsed_debug_port, parsed_debug_port)
         )
-    return parsed_port
+    return parsed_port, parsed_debug_port
 
 
 @cli.group(help="Commands related to Kubernetes.")
@@ -311,14 +311,13 @@ def step(
             "Using @parallel with `num_parallel` <= 1 is not supported with "
             "@kubernetes. Please set the value of `num_parallel` to be greater than 1."
         )
-    port = _apply_debug_settings(
+    port, normalized_debug_port = _apply_debug_settings(
         debug=debug,
         debug_port=debug_port,
         debug_listen_host=debug_listen_host,
         port=port,
         num_parallel=num_parallel,
     )
-    normalized_debug_port = int(debug_port) if debug else debug_port
     if debug:
         ctx.obj.echo_always(
             "Kubernetes remote debugging enabled. "
@@ -358,7 +357,7 @@ def step(
             executable=executable,
             flow_filename=flow_filename,
             debug=debug,
-            debug_port=debug_port,
+            debug_port=normalized_debug_port,
             debug_listen_host=debug_listen_host,
         ),
         top_args=" ".join(util.dict_to_cli_options(ctx.parent.parent.params)),
