@@ -174,7 +174,7 @@ class FlowDataStore(object):
             task_attempt_range = attempt_range
             if len(task_splits) == 5:
                 task_attempt_range = [int(task_splits[4])]
-            for attempt in task_attempt_range:
+            for current_attempt in task_attempt_range:
                 for suffix in [
                     TaskDataStore.METADATA_DATA_SUFFIX,
                     TaskDataStore.METADATA_ATTEMPT_SUFFIX,
@@ -183,7 +183,9 @@ class FlowDataStore(object):
                     urls.append(
                         self._storage_impl.path_join(
                             task_url,
-                            TaskDataStore.metadata_name_for_attempt(suffix, attempt),
+                            TaskDataStore.metadata_name_for_attempt(
+                                suffix, current_attempt
+                            ),
                         )
                     )
 
