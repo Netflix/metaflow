@@ -6,81 +6,16 @@ raises ValueError when the vegafusion data transformer is enabled.
 """
 
 import json
-import sys
 
 import pytest
 
-
-# These tests require altair and vegafusion to be installed.
 alt = pytest.importorskip("altair")
 pd = pytest.importorskip("pandas")
 pytest.importorskip("vegafusion")
+pytest.importorskip("pyarrow")
 
-try:
-    from metaflow.plugins.cards.card_modules.components import VegaChart
-except Exception:
-    # On Windows, metaflow's __init__.py triggers plugin imports that
-    # require fcntl (Linux-only). Fall back to loading the card_modules
-    # package with proper parent packages so relative imports work.
-    import importlib
-    import importlib.util
-    import os
-    import types
-
-    _base = os.path.normpath(
-        os.path.join(
-            os.path.dirname(__file__),
-            "..",
-            "..",
-            "metaflow",
-            "plugins",
-            "cards",
-            "card_modules",
-        )
-    )
-
-    # Register stub parent packages so relative imports resolve
-    for pkg in [
-        "metaflow",
-        "metaflow.plugins",
-        "metaflow.plugins.cards",
-        "metaflow.plugins.cards.card_modules",
-    ]:
-        if pkg not in sys.modules:
-            mod = types.ModuleType(pkg)
-            mod.__path__ = [
-                os.path.normpath(
-                    os.path.join(
-                        os.path.dirname(__file__),
-                        "..",
-                        "..",
-                        *pkg.split("."),
-                    )
-                )
-            ]
-            mod.__package__ = pkg
-            sys.modules[pkg] = mod
-
-    def _load(name, filepath):
-        full_name = f"metaflow.plugins.cards.card_modules.{name}"
-        spec = importlib.util.spec_from_file_location(
-            full_name,
-            filepath,
-            submodule_search_locations=[],
-        )
-        mod = importlib.util.module_from_spec(spec)
-        mod.__package__ = "metaflow.plugins.cards.card_modules"
-        sys.modules[full_name] = mod
-        spec.loader.exec_module(mod)
-        return mod
-
-    _load("card", os.path.join(_base, "card.py"))
-    _load("convert_to_native_type", os.path.join(_base, "convert_to_native_type.py"))
-    _load("renderer_tools", os.path.join(_base, "renderer_tools.py"))
-    _load("basic", os.path.join(_base, "basic.py"))
-    _load("json_viewer", os.path.join(_base, "json_viewer.py"))
-    components = _load("components", os.path.join(_base, "components.py"))
-    VegaChart = components.VegaChart
+metaflow = pytest.importorskip("metaflow")
+from metaflow.plugins.cards.card_modules.components import VegaChart
 
 
 @pytest.fixture(autouse=True)

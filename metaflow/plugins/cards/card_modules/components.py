@@ -1047,7 +1047,7 @@ class VegaChart(UserComponent):
             if "vegafusion" in str(e):
                 altair_chart_dict = altair_chart.to_dict(format="vega")
             else:
-                raise e
+                raise
         cht = cls(spec=altair_chart_dict)
         return cht
 
