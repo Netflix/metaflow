@@ -107,18 +107,15 @@ class ServiceMetadataProvider(MetadataProvider):
         # Outer loop retries only on HTTP 500/503 (transient server errors).
         # Transport-level failures are handled entirely inside _request() which
         # retries up to SERVICE_RETRY_COUNT times before raising; any transport
-        # exception that reaches here is re-raised immediately (no outer retry).
+        # exception propagates immediately (no outer retry).
         for i in range(SERVICE_RETRY_COUNT):
-            try:
-                resp, _ = cls._request(
-                    None,
-                    os.path.join(v, "ping"),
-                    "GET",
-                    is_absolute_url=True,
-                    return_raw_resp=True,
-                )
-            except Exception:
-                raise  # transport failure: exhausted internal retries in _request()
+            resp, _ = cls._request(
+                None,
+                os.path.join(v, "ping"),
+                "GET",
+                is_absolute_url=True,
+                return_raw_resp=True,
+            )
             if resp.status_code < 300:
                 return v
             # Only retry on transient server errors; fail fast on all others
@@ -577,7 +574,7 @@ class ServiceMetadataProvider(MetadataProvider):
                         return v, False
                     else:
                         return None, False
-                elif resp.status_code != 503:
+                elif resp.status_code not in (500, 503):
                     raise ServiceException(
                         "Metadata request (%s) failed (code %s): %s"
                         % (path, resp.status_code, resp.text),
@@ -605,12 +602,9 @@ class ServiceMetadataProvider(MetadataProvider):
         # Outer loop retries only on HTTP 500/503 (transient server errors).
         # Transport-level failures are handled entirely inside _request() which
         # retries up to SERVICE_RETRY_COUNT times before raising; any transport
-        # exception that reaches here is re-raised immediately (no outer retry).
+        # exception propagates immediately (no outer retry).
         for i in range(SERVICE_RETRY_COUNT):
-            try:
-                resp, _ = cls._request(monitor, "ping", "GET", return_raw_resp=True)
-            except Exception:
-                raise  # transport failure: exhausted internal retries in _request()
+            resp, _ = cls._request(monitor, "ping", "GET", return_raw_resp=True)
             if resp.status_code < 300:
                 return resp.headers.get("METADATA_SERVICE_VERSION", None)
             # Only retry on transient server errors, matching original semantics
