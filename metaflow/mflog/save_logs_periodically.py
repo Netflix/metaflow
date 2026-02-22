@@ -17,7 +17,9 @@ class SaveLogsPeriodicallySidecar(object):
 
     def process_message(self, msg):
         if msg.msg_type == MessageTypes.SHUTDOWN:
-            self.shutdown()
+            # shutdown() is invoked by sidecar_worker after the message loop exits;
+            # calling it here would cause a double shutdown and redundant log flush.
+            pass
 
     def shutdown(self):
         self._stop.set()
