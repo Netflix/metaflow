@@ -1023,13 +1023,7 @@ class VegaChart(UserComponent):
         """
         _spec = spec
         if self._object_is_altair_chart(spec):
-            try:
-                _spec = spec.to_dict()
-            except ValueError as e:
-                if "vegafusion" in str(e):
-                    _spec = spec.to_dict(format="vega")
-                else:
-                    raise
+            _spec = self._chart_to_dict(spec)
         if _spec is not None:
             self._spec = _spec
 
@@ -1043,17 +1037,20 @@ class VegaChart(UserComponent):
             return False
         return True
 
+    @staticmethod
+    def _chart_to_dict(altair_chart):
+        try:
+            return altair_chart.to_dict()
+        except ValueError as e:
+            if "vegafusion" in str(e):
+                return altair_chart.to_dict(format="vega")
+            raise
+
     @classmethod
     def from_altair_chart(cls, altair_chart):
         if not cls._object_is_altair_chart(altair_chart):
             raise ValueError(_full_classname(altair_chart) + " is not an altair chart")
-        try:
-            altair_chart_dict = altair_chart.to_dict()
-        except ValueError as e:
-            if "vegafusion" in str(e):
-                altair_chart_dict = altair_chart.to_dict(format="vega")
-            else:
-                raise
+        altair_chart_dict = cls._chart_to_dict(altair_chart)
         cht = cls(spec=altair_chart_dict)
         return cht
 
