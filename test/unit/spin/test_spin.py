@@ -33,7 +33,7 @@ def test_artifacts_module(complex_dag_run):
     flow_path = os.path.join(FLOWS_DIR, "complex_dag_flow.py")
     artifacts_path = os.path.join(ARTIFACTS_DIR, "complex_dag_step_a.py")
 
-    with Runner(flow_path, environment="conda").spin(
+    with Runner(flow_path, cwd=FLOWS_DIR, environment="conda").spin(
         task.pathspec,
         artifacts_module=artifacts_path,
         persist=True,
@@ -57,7 +57,7 @@ def test_artifacts_module_join_step(
     temp_artifacts_file = tmp_path / "temp_complex_dag_step_d.py"
     temp_artifacts_file.write_text(f"ARTIFACTS = {repr(complex_dag_step_d_artifacts)}")
 
-    with Runner(flow_path, environment="conda").spin(
+    with Runner(flow_path, cwd=FLOWS_DIR, environment="conda").spin(
         task.pathspec,
         artifacts_module=str(temp_artifacts_file),
         persist=True,
