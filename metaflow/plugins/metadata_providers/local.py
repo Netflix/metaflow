@@ -627,3 +627,4 @@ class LocalMetadataProvider(MetadataProvider):
             cls._dump_json_to_file(
                 filename, datum, allow_overwrite=allow_overwrite
             )
+            
