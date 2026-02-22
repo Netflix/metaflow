@@ -54,7 +54,7 @@ except NameError:
 SUPPORTED_KUBERNETES_QOS_CLASSES = ["Guaranteed", "Burstable"]
 
 
-def _coerce_to_bool(value):
+def _coerce_debug_to_bool(value):
     if isinstance(value, bool):
         return value
     if value is None:
@@ -343,7 +343,7 @@ class KubernetesDecorator(StepDecorator):
             self.attributes["port"] = KUBERNETES_PORT
         if self.attributes["debug"] is None:
             self.attributes["debug"] = KUBERNETES_DEBUG
-        self.attributes["debug"] = _coerce_to_bool(self.attributes["debug"])
+        self.attributes["debug"] = _coerce_debug_to_bool(self.attributes["debug"])
         if not self.attributes["debug_listen_host"]:
             self.attributes["debug_listen_host"] = KUBERNETES_DEBUG_LISTEN_HOST
         if self.attributes["debug_port"] is None:

@@ -330,10 +330,15 @@ def step(
         num_parallel=num_parallel,
     )
     if debug:
+        display_host = debug_listen_host
+        if ":" in display_host and not (
+            display_host.startswith("[") and display_host.endswith("]")
+        ):
+            display_host = "[%s]" % display_host
         ctx.obj.echo_always(
             "Kubernetes remote debugging enabled. "
             "Attach your debugger to %s:%s after network forwarding is configured."
-            % (debug_listen_host, normalized_debug_port)
+            % (display_host, normalized_debug_port)
         )
 
     # Set retry policy.
