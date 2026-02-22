@@ -1,4 +1,5 @@
 import signal
+import sys
 import traceback
 
 from metaflow.exception import MetaflowException
@@ -52,6 +53,14 @@ class TimeoutDecorator(StepDecorator):
         self.logger = logger
         if not self.secs:
             raise MetaflowException("Specify a duration for @timeout.")
+        if not hasattr(signal, "SIGALRM"):
+            raise MetaflowException(
+                "The @timeout decorator for step *%s* is not supported on %s. "
+                "The @timeout decorator relies on POSIX signals (SIGALRM) which "
+                "are not available on this platform. "
+                "Please run your flow on Linux, macOS, or Windows Subsystem for "
+                "Linux (WSL)." % (step, sys.platform)
+            )
 
     def task_pre_step(
         self,
