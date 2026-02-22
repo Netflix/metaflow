@@ -484,15 +484,10 @@ class LocalMetadataProvider(MetadataProvider):
             raise MetaflowInternalError(
                 msg="Could not verify Run existence on disk - missing %s" % selfname
             )
-        cls._save_meta(
-            subpath,
-            {
-                "_self": MetadataProvider._run_to_json_static(
-                    flow_id, run_id=run_id, tags=tags, sys_tags=system_tags
-                )
-            },
-            allow_overwrite=True,
-        )
+        current = cls._read_json_file(selfname)
+        current["tags"] = list(tags)
+        current["system_tags"] = list(system_tags)
+        cls._dump_json_to_file(selfname, current, allow_overwrite=True)
 
     def _ensure_meta(
         self, obj_type, run_id, step_name, task_id, tags=None, sys_tags=None
