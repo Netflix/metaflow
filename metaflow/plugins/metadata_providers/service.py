@@ -129,6 +129,16 @@ class ServiceMetadataProvider(MetadataProvider):
             if i < SERVICE_RETRY_COUNT - 1:
                 time.sleep(2 ** (i - 1))  # 500/503 backoff only; transport uses 2**i inside _request()
 
+            if i == SERVICE_RETRY_COUNT - 1:
+                raise ServiceException(
+                    "Metaflow service [%s] unreachable after %d retries (last status %s): %s"
+                    % (v, SERVICE_RETRY_COUNT, resp.status_code, resp.text),
+                    resp.status_code,
+                    resp.text,
+                )
+            time.sleep(2 ** (i - 1))  # 500/503 backoff only; transport uses 2**i inside _request()
+
+        # Should be unreachable, but kept as a safety net
         raise ServiceException(
             "Metaflow service [%s] unreachable after %d retries."
             % (v, SERVICE_RETRY_COUNT)
