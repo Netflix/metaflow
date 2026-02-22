@@ -318,11 +318,12 @@ def step(
         port=port,
         num_parallel=num_parallel,
     )
+    normalized_debug_port = int(debug_port) if debug else debug_port
     if debug:
         ctx.obj.echo_always(
             "Kubernetes remote debugging enabled. "
             "Attach your debugger to %s:%s after network forwarding is configured."
-            % (debug_listen_host, debug_port)
+            % (debug_listen_host, normalized_debug_port)
         )
 
     # Set retry policy.

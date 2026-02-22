@@ -486,6 +486,28 @@ class KubernetesDecorator(StepDecorator):
                     )
                 )
             self.attributes["debug_port"] = debug_port
+            if self.attributes["port"] is not None:
+                try:
+                    port = int(self.attributes["port"])
+                except (TypeError, ValueError):
+                    raise KubernetesException(
+                        "Invalid port value: *{port}* for step *{step}* (should be an integer between 1 and 65535)".format(
+                            port=self.attributes["port"], step=step
+                        )
+                    )
+                if not (1 <= port <= 65535):
+                    raise KubernetesException(
+                        "Invalid port value: *{port}* for step *{step}* (should be an integer between 1 and 65535)".format(
+                            port=self.attributes["port"], step=step
+                        )
+                    )
+                if port != debug_port:
+                    raise KubernetesException(
+                        "When debug mode is enabled, port must match debug_port "
+                        "({debug_port}) for step *{step}*. Either omit port or set "
+                        "port={debug_port}.".format(debug_port=debug_port, step=step)
+                    )
+                self.attributes["port"] = port
 
         validate_kube_labels(self.attributes["labels"])
         # TODO: add validation to annotations as well?

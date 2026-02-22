@@ -1,0 +1,68 @@
+import os
+import sys
+import types
+
+import pytest
+
+if sys.platform == "win32" and "fcntl" not in sys.modules:
+    fcntl_stub = types.ModuleType("fcntl")
+    fcntl_stub.F_SETFL = 0
+    fcntl_stub.fcntl = lambda *args, **kwargs: 0
+    sys.modules["fcntl"] = fcntl_stub
+if sys.platform == "win32" and not hasattr(os, "O_NONBLOCK"):
+    os.O_NONBLOCK = 0
+
+from metaflow.plugins.kubernetes.kubernetes import KubernetesException
+from metaflow.plugins.kubernetes.kubernetes_decorator import KubernetesDecorator
+
+
+class _DummyFlowDatastore(object):
+    TYPE = "s3"
+
+
+class _DummyDeco(object):
+    def __init__(self, name):
+        self.name = name
+        self.attributes = {}
+
+
+def _make_decorator(attributes):
+    deco = KubernetesDecorator(attributes=attributes)
+    deco.external_init()
+    return deco
+
+
+def _run_step_init(deco, decos):
+    deco.step_init(
+        flow=None,
+        graph=None,
+        step="debug_step",
+        decos=decos,
+        environment=None,
+        flow_datastore=_DummyFlowDatastore(),
+        logger=lambda *args, **kwargs: None,
+    )
+
+
+def test_kubernetes_decorator_rejects_parallel_debug():
+    deco = _make_decorator({"debug": True, "debug_port": 5678})
+    with pytest.raises(KubernetesException, match="@parallel"):
+        _run_step_init(deco, [deco, _DummyDeco("parallel")])
+
+
+def test_kubernetes_decorator_rejects_debug_port_mismatch():
+    deco = _make_decorator({"debug": True, "debug_port": 5678, "port": 8080})
+    with pytest.raises(KubernetesException, match="port must match debug_port"):
+        _run_step_init(deco, [deco])
+
+
+def test_kubernetes_decorator_rejects_invalid_explicit_port_in_debug_mode():
+    deco = _make_decorator({"debug": True, "debug_port": 5678, "port": "abc"})
+    with pytest.raises(KubernetesException, match="Invalid port value"):
+        _run_step_init(deco, [deco])
+
+
+def test_kubernetes_decorator_accepts_matching_explicit_port():
+    deco = _make_decorator({"debug": True, "debug_port": 5678, "port": 5678})
+    _run_step_init(deco, [deco])
+    assert deco.attributes["port"] == 5678
