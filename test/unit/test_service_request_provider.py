@@ -100,11 +100,12 @@ class TestServiceRequestProvider(unittest.TestCase):
             method="GET", url="http://test.com", headers=headers, json={"data": 1}
         )
         self.assertEqual(res, mock_response)
-        
+
         mock_stderr_write.assert_called_once()
         log_message = mock_stderr_write.call_args[0][0]
         self.assertRegex(
-            log_message, r"\[METAFLOW_TRACE\] GET    http://test\.com -> 200 \(\d+\.\d+ms\)\n"
+            log_message,
+            r"\[METAFLOW_TRACE\] GET    http://test\.com -> 200 \(\d+\.\d+ms\)\n",
         )
 
     @patch("sys.stderr.write")
@@ -125,13 +126,14 @@ class TestServiceRequestProvider(unittest.TestCase):
         mock_session_request.assert_called_once_with(
             method="POST", url="http://test.com", headers=headers, json={"data": 1}
         )
-        
+
         mock_stderr_write.assert_called_once()
         log_message = mock_stderr_write.call_args[0][0]
         self.assertRegex(
             log_message,
             r"\[METAFLOW_TRACE\] POST   http://test\.com -> ERROR: ConnectionError \(\d+\.\d+ms\)\n",
         )
+
 
 if __name__ == "__main__":
     unittest.main()
