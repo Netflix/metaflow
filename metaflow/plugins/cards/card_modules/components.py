@@ -1041,7 +1041,13 @@ class VegaChart(UserComponent):
     def from_altair_chart(cls, altair_chart):
         if not cls._object_is_altair_chart(altair_chart):
             raise ValueError(_full_classname(altair_chart) + " is not an altair chart")
-        altair_chart_dict = altair_chart.to_dict()
+        try:
+            altair_chart_dict = altair_chart.to_dict()
+        except ValueError as e:
+            if "vegafusion" in str(e):
+                altair_chart_dict = altair_chart.to_dict(format="vega")
+            else:
+                raise e
         cht = cls(spec=altair_chart_dict)
         return cht
 
