@@ -25,7 +25,7 @@ def unquote_bytes(x):
 
 
 class TempDir(object):
-    # Provide a temporary directory since Python 2.7 does not have it inbuilt
+    # Context manager that creates and removes a temporary directory
     def __enter__(self):
         self.name = tempfile.mkdtemp()
         return self.name
@@ -61,16 +61,10 @@ def all_equal(it):
 
 
 def url_quote(url):
-    """
-    Encode a unicode URL to a safe byte string
-    """
-    # quote() works reliably only with (byte)strings in Python2,
-    # hence we need to .encode('utf-8') first. To see by yourself,
-    # try quote(u'\xff') in python2. Python3 converts the output
-    # always to Unicode, hence we need the outer to_bytes() too.
-    #
-    # We mark colon as a safe character to keep simple ASCII urls
-    # nice looking, e.g. "http://google.com"
+    """ Encode a URL into a safe byte string.
+
+    Marks ':' as safe to preserve readable ASCII URLs
+    (e.g., "http://google.com"). """
     return to_bytes(quote(to_bytes(url), safe="/:"))
 
 
