@@ -18,7 +18,6 @@ bytes_type = bytes
 from urllib.parse import quote, unquote
 from pathlib import Path
 from shlex import quote as _quote
-from metaflow.exception import MetaflowInternalError
 
 
 def unquote_bytes(x):
