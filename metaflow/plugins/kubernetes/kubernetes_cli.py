@@ -34,7 +34,7 @@ def _build_step_entrypoint(
     executable, flow_filename, debug=False, debug_port=None, debug_listen_host=None
 ):
     if not debug:
-        return "%s -u %s" % (executable, flow_filename)
+        return "%s -u %s" % (shlex.quote(executable), shlex.quote(flow_filename))
     if debug_port is None or not debug_listen_host:
         raise KubernetesException(
             "debug_port and debug_listen_host are required when debug mode is enabled."

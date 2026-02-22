@@ -32,6 +32,19 @@ def test_build_step_entrypoint_without_debug():
     )
 
 
+def test_build_step_entrypoint_without_debug_quotes_executable_and_flow_filename():
+    assert (
+        _build_step_entrypoint(
+            executable="python3 -X dev",
+            flow_filename="flow file.py",
+            debug=False,
+            debug_port=5678,
+            debug_listen_host="0.0.0.0",
+        )
+        == "'python3 -X dev' -u 'flow file.py'"
+    )
+
+
 def test_build_step_entrypoint_with_debug():
     assert (
         _build_step_entrypoint(

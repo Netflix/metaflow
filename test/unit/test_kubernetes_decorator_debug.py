@@ -89,6 +89,21 @@ def test_kubernetes_decorator_warns_for_retry_with_debug():
     assert any("@retry is active" in msg for msg in logs)
 
 
+def test_kubernetes_decorator_coerces_string_debug_true_to_bool():
+    deco = _make_decorator({"debug": "True", "debug_port": 5678})
+    assert deco.attributes["debug"] is True
+
+
+def test_kubernetes_decorator_coerces_string_debug_false_to_bool():
+    deco = _make_decorator({"debug": "False", "debug_port": 5678})
+    assert deco.attributes["debug"] is False
+
+
+def test_kubernetes_decorator_rejects_invalid_string_debug_value():
+    with pytest.raises(KubernetesException, match="Invalid debug value"):
+        _make_decorator({"debug": "definitely"})
+
+
 def test_runtime_step_cli_omits_debug_connection_args_when_debug_disabled():
     deco = _make_decorator({"debug": False})
     cli_args = _DummyCLIArgs()
@@ -115,3 +130,17 @@ def test_runtime_step_cli_keeps_debug_connection_args_when_debug_enabled():
     )
     assert cli_args.command_options["debug_port"] == 5678
     assert cli_args.command_options["debug_listen_host"] == "0.0.0.0"
+
+
+def test_runtime_step_cli_uses_flag_style_debug_option_after_string_coercion():
+    deco = _make_decorator(
+        {"debug": "True", "debug_port": 5678, "debug_listen_host": "0.0.0.0"}
+    )
+    cli_args = _DummyCLIArgs()
+    deco.runtime_step_cli(
+        cli_args=cli_args,
+        retry_count=0,
+        max_user_code_retries=0,
+        ubf_context=None,
+    )
+    assert cli_args.command_options["debug"] is True

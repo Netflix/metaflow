@@ -54,6 +54,24 @@ except NameError:
 SUPPORTED_KUBERNETES_QOS_CLASSES = ["Guaranteed", "Burstable"]
 
 
+def _coerce_to_bool(value):
+    if isinstance(value, bool):
+        return value
+    if value is None:
+        return None
+    if isinstance(value, (int, float)):
+        return bool(value)
+    if isinstance(value, (unicode, basestring)):
+        normalized = value.strip().lower()
+        if normalized in ("1", "true", "yes", "y", "on"):
+            return True
+        if normalized in ("0", "false", "no", "n", "off", ""):
+            return False
+    raise KubernetesException(
+        "Invalid debug value: *{value}* (should be a boolean).".format(value=value)
+    )
+
+
 class KubernetesDecorator(StepDecorator):
     """
     Specifies that this step should execute on Kubernetes.
@@ -325,6 +343,7 @@ class KubernetesDecorator(StepDecorator):
             self.attributes["port"] = KUBERNETES_PORT
         if self.attributes["debug"] is None:
             self.attributes["debug"] = KUBERNETES_DEBUG
+        self.attributes["debug"] = _coerce_to_bool(self.attributes["debug"])
         if not self.attributes["debug_listen_host"]:
             self.attributes["debug_listen_host"] = KUBERNETES_DEBUG_LISTEN_HOST
         if self.attributes["debug_port"] is None:
