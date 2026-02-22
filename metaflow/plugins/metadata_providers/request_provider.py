@@ -37,6 +37,30 @@ class MetaflowServiceRequestProvider(Protocol):
     def close(self) -> None: ...
 
 
+def _make_configured_session() -> requests.Session:
+    """
+    Return a new requests.Session with separate HTTPAdapter instances for
+    http:// and https://, matching the original ServiceMetadataProvider
+    pool configuration (20 connections per protocol).
+    """
+    session = requests.Session()
+    http_adapter = requests.adapters.HTTPAdapter(
+        pool_connections=20,
+        pool_maxsize=20,
+        max_retries=0,
+        pool_block=False,
+    )
+    https_adapter = requests.adapters.HTTPAdapter(
+        pool_connections=20,
+        pool_maxsize=20,
+        max_retries=0,
+        pool_block=False,
+    )
+    session.mount("http://", http_adapter)
+    session.mount("https://", https_adapter)
+    return session
+
+
 class DefaultRequestProvider:
     """
     Default transport provider. Wraps requests.Session with the same
@@ -44,24 +68,7 @@ class DefaultRequestProvider:
     """
 
     def __init__(self) -> None:
-        self._session = requests.Session()
-        # Use separate adapter instances so each protocol gets its own
-        # independent urllib3.PoolManager, matching the original
-        # ServiceMetadataProvider behavior (20 connections per protocol).
-        http_adapter = requests.adapters.HTTPAdapter(
-            pool_connections=20,
-            pool_maxsize=20,
-            max_retries=0,
-            pool_block=False,
-        )
-        https_adapter = requests.adapters.HTTPAdapter(
-            pool_connections=20,
-            pool_maxsize=20,
-            max_retries=0,
-            pool_block=False,
-        )
-        self._session.mount("http://", http_adapter)
-        self._session.mount("https://", https_adapter)
+        self._session = _make_configured_session()
 
     def request(
         self,
@@ -101,24 +108,7 @@ class TracingRequestProvider:
     """
 
     def __init__(self) -> None:
-        self._session = requests.Session()
-        # Use separate adapter instances so each protocol gets its own
-        # independent urllib3.PoolManager, matching the original
-        # ServiceMetadataProvider behavior (20 connections per protocol).
-        http_adapter = requests.adapters.HTTPAdapter(
-            pool_connections=20,
-            pool_maxsize=20,
-            max_retries=0,
-            pool_block=False,
-        )
-        https_adapter = requests.adapters.HTTPAdapter(
-            pool_connections=20,
-            pool_maxsize=20,
-            max_retries=0,
-            pool_block=False,
-        )
-        self._session.mount("http://", http_adapter)
-        self._session.mount("https://", https_adapter)
+        self._session = _make_configured_session()
 
     def request(
         self,
