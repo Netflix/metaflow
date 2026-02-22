@@ -9,10 +9,13 @@ DIRS_TO_SKIP = {
     ".git",
     ".hg",
     ".svn",
-    "__pycache__",
     ".tox",
     ".mypy_cache",
     ".pytest_cache",
+    ".venv",
+    "venv",
+    ".nox",
+    ".eggs",
 }
 
 
@@ -27,6 +30,14 @@ def walk(
     file_filter: Optional[Callable[[str], bool]] = None,
     exclude_tl_dirs: Optional[List[str]] = None,
 ) -> Generator[Tuple[str, str], None, None]:
+    """
+    Yields all files in the given root directory.
+
+    When exclude_hidden is True, this logic skips specific tool and metadata
+    directories defined in DIRS_TO_SKIP. It intentionally includes
+    arbitrary dot-prefixed paths like .buildtool to support
+    build-system sandboxes.
+    """
     root = to_unicode(root)  # handle files/folder with non ascii chars
     prefixlen = len("%s/" % os.path.dirname(root))
     for (
