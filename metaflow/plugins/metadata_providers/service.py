@@ -1,4 +1,5 @@
 import atexit
+import contextlib
 import importlib
 import os
 import random
@@ -25,15 +26,7 @@ from urllib.parse import urlencode
 from metaflow.util import version_parse
 
 
-class _NullContext:
-    def __enter__(self):
-        return self
-
-    def __exit__(self, exc_type, exc_value, traceback):
-        pass
-
-
-_NULL_CTX = _NullContext()
+_NULL_CTX = contextlib.nullcontext()
 
 
 # Define message enums
