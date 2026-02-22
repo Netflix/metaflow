@@ -58,6 +58,19 @@ def test_build_step_entrypoint_quotes_debug_host():
     )
 
 
+def test_build_step_entrypoint_quotes_executable_and_flow_filename():
+    assert (
+        _build_step_entrypoint(
+            executable="python3 -X dev",
+            flow_filename="flow file.py",
+            debug=True,
+            debug_port=5678,
+            debug_listen_host="0.0.0.0",
+        )
+        == "'python3 -X dev' -u -m debugpy --listen 0.0.0.0:5678 --wait-for-client 'flow file.py'"
+    )
+
+
 @pytest.mark.parametrize(
     "debug_port,debug_listen_host",
     [

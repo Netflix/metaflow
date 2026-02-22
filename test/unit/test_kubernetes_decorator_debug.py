@@ -40,7 +40,9 @@ def _make_decorator(attributes):
     return deco
 
 
-def _run_step_init(deco, decos):
+def _run_step_init(deco, decos, logger=None):
+    if logger is None:
+        logger = lambda *args, **kwargs: None
     deco.step_init(
         flow=None,
         graph=None,
@@ -48,7 +50,7 @@ def _run_step_init(deco, decos):
         decos=decos,
         environment=None,
         flow_datastore=_DummyFlowDatastore(),
-        logger=lambda *args, **kwargs: None,
+        logger=logger,
     )
 
 
@@ -74,6 +76,17 @@ def test_kubernetes_decorator_accepts_matching_explicit_port():
     deco = _make_decorator({"debug": True, "debug_port": 5678, "port": 5678})
     _run_step_init(deco, [deco])
     assert deco.attributes["port"] == 5678
+
+
+def test_kubernetes_decorator_warns_for_retry_with_debug():
+    logs = []
+    deco = _make_decorator({"debug": True, "debug_port": 5678})
+    _run_step_init(
+        deco,
+        [deco, _DummyDeco("retry")],
+        logger=lambda msg, *args, **kwargs: logs.append(msg),
+    )
+    assert any("@retry is active" in msg for msg in logs)
 
 
 def test_runtime_step_cli_omits_debug_connection_args_when_debug_disabled():

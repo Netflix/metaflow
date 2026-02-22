@@ -465,6 +465,12 @@ class KubernetesDecorator(StepDecorator):
                         step=step
                     )
                 )
+            if any(deco.name == "retry" for deco in decos):
+                logger(
+                    "Warning: @retry is active on step *{step}* with "
+                    "@kubernetes(debug=True). Each retry attempt will block "
+                    "waiting for a debugger to attach.".format(step=step)
+                )
             if not self.attributes["debug_listen_host"]:
                 raise KubernetesException(
                     "Invalid debug_listen_host for step *{step}* (must be a non-empty string).".format(
