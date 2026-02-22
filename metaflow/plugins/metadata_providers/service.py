@@ -104,10 +104,17 @@ class ServiceMetadataProvider(MetadataProvider):
     @classmethod
     def compute_info(cls, val):
         v = val.rstrip("/")
-        # Outer loop retries only on HTTP 500/503 (transient server errors).
-        # Transport-level failures are handled entirely inside _request() which
-        # retries up to SERVICE_RETRY_COUNT times before raising; any transport
-        # exception propagates immediately (no outer retry).
+        # Two-level retry strategy:
+        #   Outer loop (here): retries only on HTTP 500/503 (transient server errors).
+        #     Backoff: 2**(i-1) -> 0.5s, 1s, 2s, 4s, ... (HTTP errors only).
+        #   Inner loop (_request): retries transport failures up to SERVICE_RETRY_COUNT
+        #     times with 2**i backoff before raising.
+        # The two levels do NOT compound: with return_raw_resp=True, _request() returns
+        # on the first successful HTTP response regardless of status code, so a 500/503
+        # costs exactly one network round-trip inside _request() (no inner status retry).
+        # Only a transport exception causes _request() to consume multiple inner retries.
+        # Any transport exception that exhausts _request()'s retries propagates here
+        # immediately — this outer loop does not catch or retry transport failures.
         for i in range(SERVICE_RETRY_COUNT):
             resp, _ = cls._request(
                 None,
@@ -125,7 +132,7 @@ class ServiceMetadataProvider(MetadataProvider):
                     % (v, resp.status_code, resp.text)
                 )
             if i < SERVICE_RETRY_COUNT - 1:
-                time.sleep(2 ** (i - 1))
+                time.sleep(2 ** (i - 1))  # 500/503 backoff only; transport uses 2**i inside _request()
 
         raise ValueError("Metaflow service [%s] unreachable." % v)
 
@@ -599,10 +606,16 @@ class ServiceMetadataProvider(MetadataProvider):
                 "Missing Metaflow Service URL. "
                 "Specify with METAFLOW_SERVICE_URL environment variable"
             )
-        # Outer loop retries only on HTTP 500/503 (transient server errors).
-        # Transport-level failures are handled entirely inside _request() which
-        # retries up to SERVICE_RETRY_COUNT times before raising; any transport
-        # exception propagates immediately (no outer retry).
+        # Two-level retry strategy:
+        #   Outer loop (here): retries only on HTTP 500/503 (transient server errors).
+        #     Backoff: 2**i -> 1s, 2s, 4s, 8s, ... (HTTP errors only).
+        #   Inner loop (_request): retries transport failures up to SERVICE_RETRY_COUNT
+        #     times with 2**i backoff before raising.
+        # The two levels do NOT compound: with return_raw_resp=True, _request() returns
+        # on the first successful HTTP response regardless of status code, so a 500/503
+        # costs exactly one network round-trip inside _request() (no inner status retry).
+        # Any transport exception that exhausts _request()'s retries propagates here
+        # immediately — this outer loop does not catch or retry transport failures.
         for i in range(SERVICE_RETRY_COUNT):
             resp, _ = cls._request(monitor, "ping", "GET", return_raw_resp=True)
             if resp.status_code < 300:
@@ -622,4 +635,4 @@ class ServiceMetadataProvider(MetadataProvider):
                     resp.status_code,
                     resp.text,
                 )
-            time.sleep(2**i)
+            time.sleep(2**i)  # 500/503 backoff only; transport uses 2**i inside _request()
