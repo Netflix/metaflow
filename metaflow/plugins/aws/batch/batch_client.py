@@ -278,7 +278,7 @@ class BatchJob(object):
                     and int(max_swap) >= 0
                 ):
                     raise BatchJobException(
-                        "Invalid swappiness value ({}); "
+                        "Invalid max_swap value ({}); "
                         "(should be 0 or greater)".format(max_swap)
                     )
                 else:
