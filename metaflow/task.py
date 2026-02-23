@@ -18,6 +18,7 @@ from .metaflow_profile import from_start
 from .mflog import TASK_LOG_SOURCE
 from .datastore import Inputs, TaskDataStoreSet
 from .exception import (
+    MetaflowException,
     MetaflowInternalError,
     MetaflowDataMissing,
     MetaflowExceptionWrapper,
@@ -185,19 +186,35 @@ class MetaflowTask(object):
     def _init_parameters(self, parameter_ds, passdown=True):
         cls = self.flow.__class__
 
-        def _set_cls_var(_, __):
-            raise AttributeError(
-                "Flow level attributes and Parameters are not modifiable"
-            )
+        # Issue #422: use a per-name setter factory so the error message
+        # names the exact attribute that caused the conflict and raises
+        # MetaflowException (not the generic AttributeError) so that it is
+        # clearly surfaced to the user.
+        def _make_readonly_setter(name):
+            def _set_cls_var(flow_instance, __):
+                raise MetaflowException(
+                    "Step *%s* assigns to *self.%s* which is also defined as a "
+                    "class-level attribute. Class-level attributes are read-only "
+                    "constants. Rename the artifact or remove the class-level "
+                    "attribute *%s*."
+                    % (
+                        getattr(flow_instance, "_current_step", "?"),
+                        name,
+                        name,
+                    )
+                )
+
+            return _set_cls_var
 
         def set_as_parameter(name, value):
+            setter = _make_readonly_setter(name)
             if callable(value):
-                setattr(cls, name, property(fget=value, fset=_set_cls_var))
+                setattr(cls, name, property(fget=value, fset=setter))
             else:
                 setattr(
                     cls,
                     name,
-                    property(fget=lambda _, val=value: val, fset=_set_cls_var),
+                    property(fget=lambda _, val=value: val, fset=setter),
                 )
 
         # overwrite Parameters in the flow object
@@ -220,9 +237,9 @@ class MetaflowTask(object):
             all_vars.append(var)
 
         param_only_vars = list(all_vars)
-        # make class-level values read-only to be more consistent across steps in a flow
-        # they are also only persisted once, so we similarly pass them down if
-        # required
+
+        # Collect class-level non-parameter attributes (mirrors _set_constants).
+        class_attr_vars = []
         for var in dir(cls):
             if var[0] == "_" or var in cls._NON_PARAMETERS or var in all_vars:
                 continue
@@ -230,7 +247,50 @@ class MetaflowTask(object):
             # Exclude methods, properties and other classes
             if isinstance(val, (MethodType, FunctionType, property, type)):
                 continue
-            set_as_parameter(var, val)
+            class_attr_vars.append(var)
+
+        # Issue #422: Early conflict detection — no AST analysis required.
+        #
+        # The input datastore (`parameter_ds`) is the previous step's output.
+        # It records which names were class-level constants via
+        # _graph_info["constants"].  If an artifact name:
+        #   (a) matches a class-level attribute of the *current* class, AND
+        #   (b) was NOT listed as a class constant in the previous step
+        #       (i.e. it is a genuine user-produced artifact, not a passed-down
+        #        class constant),
+        # then that artifact would be silently overridden before the step body
+        # runs.  Raise MetaflowException now — before _exec_step_function —
+        # so the conflict is visible at task-initialisation time rather than
+        # buried inside the step body.
+        if class_attr_vars:
+            # Read _graph_info defensively: the key may be absent (first step,
+            # unusual datastore implementation) or the value may not be a dict.
+            prev_constants = frozenset()
+            try:
+                prev_graph_info = parameter_ds["_graph_info"]
+            except (KeyError, TypeError):
+                prev_graph_info = {}
+            if isinstance(prev_graph_info, dict):
+                prev_constants = frozenset(
+                    c["name"]
+                    for c in prev_graph_info.get("constants", [])
+                    if isinstance(c, dict) and "name" in c
+                )
+
+            for var in class_attr_vars:
+                if var in parameter_ds and var not in prev_constants:
+                    raise MetaflowException(
+                        "Class-level attribute *%s* clashes with an artifact of "
+                        "the same name produced by a previous step. Class-level "
+                        "attributes are read-only constants; either rename the "
+                        "class-level attribute or rename the artifact." % var
+                    )
+
+        # make class-level values read-only to be more consistent across steps in a flow
+        # they are also only persisted once, so we similarly pass them down if
+        # required
+        for var in class_attr_vars:
+            set_as_parameter(var, getattr(cls, var))
             all_vars.append(var)
 
         # We also passdown _graph_info through the entire graph
