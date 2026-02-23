@@ -12,7 +12,6 @@ from unittest.mock import patch
 
 from metaflow.exception import MetaflowInvalidPathspec
 
-
 # We test validation by calling the constructors with invalid pathspecs.
 # The MetaflowInvalidPathspec should be raised *before* any metadata
 # service call, so no mocking is needed for the invalid cases.
@@ -155,9 +154,7 @@ class TestTrailingSlashAccepted:
     def test_flow_trailing_slash(self, mock_mf, mock_ns):
         from metaflow import Flow
 
-        mock_mf.return_value.metadata.get_object.return_value = (
-            _mock_metadata_object()
-        )
+        mock_mf.return_value.metadata.get_object.return_value = _mock_metadata_object()
         flow = Flow("MyFlow/")
         assert flow._pathspec == "MyFlow"
         assert flow.id == "MyFlow"
@@ -167,9 +164,7 @@ class TestTrailingSlashAccepted:
     def test_run_trailing_slash(self, mock_mf, mock_ns):
         from metaflow import Run
 
-        mock_mf.return_value.metadata.get_object.return_value = (
-            _mock_metadata_object()
-        )
+        mock_mf.return_value.metadata.get_object.return_value = _mock_metadata_object()
         run = Run("MyFlow/123/")
         assert run._pathspec == "MyFlow/123"
         assert run.id == "123"
@@ -179,9 +174,7 @@ class TestTrailingSlashAccepted:
     def test_step_trailing_slash(self, mock_mf, mock_ns):
         from metaflow import Step
 
-        mock_mf.return_value.metadata.get_object.return_value = (
-            _mock_metadata_object()
-        )
+        mock_mf.return_value.metadata.get_object.return_value = _mock_metadata_object()
         step = Step("MyFlow/123/start/")
         assert step._pathspec == "MyFlow/123/start"
         assert step.id == "start"
@@ -191,9 +184,7 @@ class TestTrailingSlashAccepted:
     def test_task_trailing_slash(self, mock_mf, mock_ns):
         from metaflow import Task
 
-        mock_mf.return_value.metadata.get_object.return_value = (
-            _mock_metadata_object()
-        )
+        mock_mf.return_value.metadata.get_object.return_value = _mock_metadata_object()
         task = Task("MyFlow/123/start/456/")
         assert task._pathspec == "MyFlow/123/start/456"
         assert task.id == "456"
@@ -203,9 +194,7 @@ class TestTrailingSlashAccepted:
     def test_data_artifact_trailing_slash(self, mock_mf, mock_ns):
         from metaflow import DataArtifact
 
-        mock_mf.return_value.metadata.get_object.return_value = (
-            _mock_metadata_object()
-        )
+        mock_mf.return_value.metadata.get_object.return_value = _mock_metadata_object()
         artifact = DataArtifact("MyFlow/123/start/456/x/")
         assert artifact._pathspec == "MyFlow/123/start/456/x"
         assert artifact.id == "x"
