@@ -185,17 +185,22 @@ class MetaflowEnvironment(object):
         # Prefer uv (fast, no pip dependency)
         # If uv not available, fallback to pip
         # If pip is missing, bootstrap it first via ensurepip before falling back.
-        uv_cmd = "uv pip install -q --system {}".format(packages)
+        uv_cmd = "uv pip install -q --system --python {python} {packages}".format(python=python, packages=packages)
         pip_cmd = "{python} -m pip install -qqq --no-compile --no-cache-dir --disable-pip-version-check {packages}".format(
             python=python, packages=packages
         )
         bootstrap_pip = "{python} -m ensurepip --upgrade".format(python=python)
 
-        # Chain: try uv first, then try pip, then install pip and then pip
+        # Chain: try uv first, then try pip; if pip is missing bootstrap it via
+        # ensurepip.  On minimal Python installs (e.g. Debian/Ubuntu without the
+        # python3-venv package) ensurepip may also be absent, so we catch that
+        # case and emit a clear, actionable error instead of a cryptic traceback.
         install_cmd = (
             "if command -v uv > /dev/null 2>&1; then {uv_cmd}; "
             "elif {python} -m pip --version > /dev/null 2>&1; then {pip_cmd}; "
-            "else {bootstrap_pip} && {pip_cmd}; fi"
+            "else ({bootstrap_pip} && {pip_cmd}) || "
+            "(echo 'ERROR: Neither uv, pip, nor ensurepip are available. "
+            "Install pip manually (e.g. apt-get install python3-pip).' && exit 1); fi"
         ).format(
             uv_cmd=uv_cmd,
             python=python,
