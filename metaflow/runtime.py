@@ -2227,6 +2227,8 @@ class Worker(object):
             skip_decorators=self._skip_decorators,
         )
         env = dict(os.environ)
+        if sys.stdout.isatty() and "FORCE_COLOR" not in env:
+            env["FORCE_COLOR"] = "1"
 
         if self.task.clone_run_id:
             args.command_options["clone-run-id"] = self.task.clone_run_id

@@ -152,7 +152,7 @@ class SubprocessManager(object):
         int
             The process ID of the subprocess.
         """
-        env = env or {}
+        env = dict(env) if env is not None else {}
         installed_root = os.environ.get("METAFLOW_EXTRACTED_ROOT", get_metaflow_root())
 
         for k, v in MetaflowCodeContent.get_env_vars_for_packaged_metaflow(
@@ -196,7 +196,7 @@ class SubprocessManager(object):
         int
             The process ID of the subprocess.
         """
-        env = env or {}
+        env = dict(env) if env is not None else {}
         if "PYTHONPATH" in env:
             env["PYTHONPATH"] = "%s:%s" % (get_metaflow_root(), env["PYTHONPATH"])
         else:
@@ -256,7 +256,9 @@ class CommandManager(object):
         """
         self.command = command
 
-        self.env = env if env is not None else os.environ.copy()
+        self.env = dict(env) if env is not None else os.environ.copy()
+        if sys.stdout.isatty() and "FORCE_COLOR" not in self.env:
+            self.env["FORCE_COLOR"] = "1"
         self.cwd = cwd or os.getcwd()
 
         self.process = None
