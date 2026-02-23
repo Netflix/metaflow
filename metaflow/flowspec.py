@@ -135,7 +135,7 @@ class _FlowState(MutableMapping):
     def __iter__(self):
         # All keys are in self._self_data
         for key in self._self_data:
-            yield self[key]
+            yield key
 
     def __len__(self):
         return len(self._self_data)
