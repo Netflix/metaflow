@@ -130,12 +130,12 @@ class _FlowState(MutableMapping):
         if key in self._non_inherited_items:
             del self._self_data[key]
 
-        del self._merged_data[key]
+        self._merged_data.pop(key, None)
 
     def __iter__(self):
         # All keys are in self._self_data
         for key in self._self_data:
-            yield self[key]
+            yield key
 
     def __len__(self):
         return len(self._self_data)
