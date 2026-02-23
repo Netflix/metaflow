@@ -2039,10 +2039,14 @@ class ArgoWorkflows(object):
             # {{foo.bar['param_name']}}.
             # https://argoproj.github.io/argo-events/tutorials/02-parameterization/
             # http://masterminds.github.io/sprig/strings.html
-            param_partial = [
-                "mapfile -t param_args < <(python -m metaflow.plugins.argo.set_parameters %s)"
-                % params_csv,
-            ]
+            param_partial = (
+                [
+                    "mapfile -t param_args < <(python -m metaflow.plugins.argo.set_parameters %s)"
+                    % params_csv,
+                ]
+                if self.parameters
+                else []
+            )
 
             init_cmds = " && ".join(
                 [
