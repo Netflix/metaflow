@@ -157,10 +157,6 @@ class MetaflowEnvironment(object):
             )
 
     def _get_install_dependencies_cmd(self, datastore_type):
-        base_cmd = "{} -m pip install -qqq --no-compile --no-cache-dir --disable-pip-version-check".format(
-            self._python()
-        )
-
         datastore_packages = {
             "s3": ["boto3"],
             "azure": [
@@ -183,11 +179,34 @@ class MetaflowEnvironment(object):
                 "Unknown datastore type: {}".format(datastore_type)
             )
 
-        cmd = "{} {}".format(
-            base_cmd, " ".join(datastore_packages[datastore_type] + ["requests"])
+        packages = " ".join(datastore_packages[datastore_type] + ["requests"])
+        python = self._python()
+
+        # Prefer uv (fast, no pip dependency)
+        # If uv not available, fallback to pip
+        # If pip is missing, bootstrap it first via ensurepip before falling back.
+        uv_cmd = "uv pip install -q --system {}".format(packages)
+        pip_cmd = "{python} -m pip install -qqq --no-compile --no-cache-dir --disable-pip-version-check {packages}".format(
+            python=python, packages=packages
         )
-        # skip pip installs if we know that packages might already be available
-        return "if [ -z $METAFLOW_SKIP_INSTALL_DEPENDENCIES ]; then {}; fi".format(cmd)
+        bootstrap_pip = "{python} -m ensurepip --upgrade".format(python=python)
+
+        # Chain: try uv first, then try pip, then install pip and then pip
+        install_cmd = (
+            "if command -v uv > /dev/null 2>&1; then {uv_cmd}; "
+            "elif {python} -m pip --version > /dev/null 2>&1; then {pip_cmd}; "
+            "else {bootstrap_pip} && {pip_cmd}; fi"
+        ).format(
+            uv_cmd=uv_cmd,
+            python=python,
+            pip_cmd=pip_cmd,
+            bootstrap_pip=bootstrap_pip,
+        )
+
+        # skip installs if we know that packages might already be available
+        return "if [ -z $METAFLOW_SKIP_INSTALL_DEPENDENCIES ]; then {}; fi".format(
+            install_cmd
+        )
 
     def get_package_commands(
         self, code_package_url, datastore_type, code_package_metadata=None
