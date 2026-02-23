@@ -96,19 +96,20 @@ def merge_lists(base, overrides, attr):
 def get_plugin(category, class_path, name):
     path, cls_name = class_path.rsplit(".", 1)
     try:
-        plugin_module = importlib.import_module(path)   
+        plugin_module = importlib.import_module(path)
     except ImportError as e:
         missing_module = getattr(e, "name", "")
 
-        UNIX_ONLY_MODULES = {
+        # At module level, near the top of the file
+        _UNIX_ONLY_MODULES = frozenset({
             "fcntl",
             "termios",
             "resource",
             "grp",
             "pwd",
-        }
+        })
 
-        if missing_module in UNIX_ONLY_MODULES:
+        if missing_module in _UNIX_ONLY_MODULES:
             raise RuntimeError(
                 "\n Metaflow plugin requires Unix-only modules.\n\n"
                 "The plugin '%s' depends on '%s', which is not available on Windows.\n\n"
@@ -122,7 +123,7 @@ def get_plugin(category, class_path, name):
 
         raise ValueError(
             "Cannot locate %s plugin '%s' at '%s'" % (category, name, path)
-        ) from e     
+        ) from e
     cls = getattr(plugin_module, cls_name, None)
     if cls is None:
         raise ValueError(
