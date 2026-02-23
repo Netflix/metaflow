@@ -98,7 +98,7 @@ def get_plugin(category, class_path, name):
     try:
         plugin_module = importlib.import_module(path)
     except ImportError as e:
-        missing_module = getattr(e, "name", "")
+        missing_module = getattr(e, "name", None) or ""
 
         _UNIX_ONLY_MODULES = frozenset({
             "fcntl",
