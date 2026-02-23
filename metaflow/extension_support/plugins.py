@@ -1,17 +1,22 @@
 import importlib
 import traceback
+import sys
 
 from metaflow.metaflow_config_funcs import from_conf
 
 from . import _ext_debug, alias_submodules, get_modules, lazy_load_aliases
+
+
 # Unix-only standard library modules not available on Windows
-_UNIX_ONLY_MODULES = frozenset({
-    "fcntl",
-    "termios",
-    "resource",
-    "grp",
-    "pwd",
-})
+_UNIX_ONLY_MODULES = frozenset(
+    {
+        "fcntl",
+        "termios",
+        "resource",
+        "grp",
+        "pwd",
+    }
+)
 
 
 def process_plugins(module_globals):
@@ -108,7 +113,7 @@ def get_plugin(category, class_path, name):
     except ImportError as e:
         missing_module = getattr(e, "name", "")
 
-        if missing_module in _UNIX_ONLY_MODULES:
+        if missing_module in _UNIX_ONLY_MODULES and sys.platform == "win32":
             raise RuntimeError(
                 "\n Metaflow plugin requires Unix-only modules.\n\n"
                 "The plugin '%s' depends on '%s', which is not available on Windows.\n\n"
@@ -116,8 +121,7 @@ def get_plugin(category, class_path, name):
                 "  1) Use WSL (Windows Subsystem for Linux)\n"
                 "  2) Run Metaflow on Linux or macOS\n"
                 "  3) Disable this plugin if not needed\n\n"
-                "Docs: https://docs.metaflow.org\n"
-                % (name, missing_module)
+                "Docs: https://docs.metaflow.org\n" % (name, missing_module)
             ) from e
         raise ValueError(
             "Cannot locate %s plugin '%s' at '%s'" % (category, name, path)
