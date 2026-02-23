@@ -544,6 +544,8 @@ class CommandManager(object):
                     f.close()
                 except Exception:
                     pass
+        self._stdout_file = None
+        self._stderr_file = None
         if self.run_called:
             shutil.rmtree(self.temp_dir, ignore_errors=True)
 
