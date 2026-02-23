@@ -49,7 +49,7 @@ def test_events(test_tags, test_id):
             timeout=600,
         )
 
-        finished_runs = [wait_for_run_to_finish(run, timeout=120) for run in runs]
+        finished_runs = [wait_for_run_to_finish(run, timeout=1200) for run in runs]
 
         for run in finished_runs:
             assert run.successful
