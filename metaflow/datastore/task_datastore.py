@@ -892,7 +892,7 @@ class TaskDataStore(object):
         except Exception as e:
             # Log the error but don't fail the operation
             import logging
-            logging.getLogger(__name__).error(f"Failed to register log scrub audit trail: {e}")
+            logging.getLogger(__name__).warning("Failed to register log scrub audit trail: %s", e)
 
     @require_mode("r")
     def load_log_legacy(self, stream, attempt_override=None):
