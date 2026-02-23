@@ -196,10 +196,10 @@ class MetaflowEnvironment(object):
         # python3-venv package) ensurepip may also be absent, so we catch that
         # case and emit a clear, actionable error instead of a cryptic traceback.
         install_cmd = (
-            "if command -v uv > /dev/null 2>&1; then {uv_cmd}; "
-            "elif {python} -m pip --version > /dev/null 2>&1; then {pip_cmd}; "
+            "if {python} -m pip --version > /dev/null 2>&1; then {pip_cmd}; "
+            "elif command -v uv > /dev/null 2>&1; then {uv_cmd}; "
             "else ({bootstrap_pip} && {pip_cmd}) || "
-            "(echo 'ERROR: Neither uv, pip, nor ensurepip are available. "
+            "(echo 'ERROR: Neither pip, uv, nor ensurepip are available. "
             "Install pip manually (e.g. apt-get install python3-pip).' && exit 1); fi"
         ).format(
             uv_cmd=uv_cmd,
