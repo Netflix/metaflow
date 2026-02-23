@@ -96,8 +96,7 @@ def merge_lists(base, overrides, attr):
 def get_plugin(category, class_path, name):
     path, cls_name = class_path.rsplit(".", 1)
     try:
-        plugin_module = importlib.import_module(path)
-    
+        plugin_module = importlib.import_module(path)   
     except ImportError as e:
         missing_module = getattr(e, "name", "")
 
@@ -123,8 +122,7 @@ def get_plugin(category, class_path, name):
 
         raise ValueError(
             "Cannot locate %s plugin '%s' at '%s'" % (category, name, path)
-        ) from e 
-      
+        ) from e     
     cls = getattr(plugin_module, cls_name, None)
     if cls is None:
         raise ValueError(
