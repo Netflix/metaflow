@@ -13,7 +13,7 @@ from .. import metaflow_config
 from ..exception import MetaflowInternalError
 from ..metadata_provider import DataArtifact, MetaDatum
 from ..parameters import Parameter
-from ..util import Path, is_stringish, to_fileobj
+from ..util import Path, get_username, is_stringish, to_fileobj
 
 from .exceptions import DataException, UnpicklableArtifactException
 
@@ -864,6 +864,30 @@ class TaskDataStore(object):
         }
 
         self._save_file(to_store_dict, add_attempt=False, allow_overwrite=True)
+
+        # Register audit trail so that Metaflow UI can
+        # detect the scrub event and revoke any cached log content.
+        if self._metadata and existing_paths:
+            attempt = attempt_override if attempt_override is not None else self._attempt
+            self._metadata.register_metadata(
+                self._run_id,
+                self._step_name,
+                self._task_id,
+                [
+                    MetaDatum(
+                        field="log-scrubbed",
+                        value=json.dumps(
+                            {
+                                "stream": stream,
+                                "scrubbed_by": get_username(),
+                                "scrubbed_at": int(round(time.time() * 1000)),
+                            }
+                        ),
+                        type="log-scrubbed",
+                        tags=["attempt_id:{0}".format(attempt)],
+                    )
+                ],
+            )
 
     @require_mode("r")
     def load_log_legacy(self, stream, attempt_override=None):
