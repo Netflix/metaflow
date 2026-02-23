@@ -2,17 +2,8 @@ import os
 import sys
 
 _py_ver = sys.version_info[:2]
-
-if _py_ver >= (3, 8):
-    from metaflow._vendor.typeguard import TypeCheckError, check_type
-elif _py_ver >= (3, 7):
-    from metaflow._vendor.v3_7.typeguard import TypeCheckError, check_type
-else:
-    raise RuntimeError(
-        """
-        The Metaflow Programmatic API is not supported for versions of Python less than 3.7
-    """
-    )
+_check_type = None
+_type_check_error = None
 
 import datetime
 import functools
@@ -57,6 +48,34 @@ from metaflow.user_configs.config_options import (
 )
 from metaflow.user_decorators.user_flow_decorator import FlowMutator
 
+
+def _get_typeguard():
+    """
+    Load typeguard lazily to avoid importing vendored typing extensions while we
+    are only introspecting a flow file.
+    """
+
+    global _check_type, _type_check_error
+
+    if _check_type is not None and _type_check_error is not None:
+        return _check_type, _type_check_error
+
+    if _py_ver >= (3, 8):
+        from metaflow._vendor.typeguard import TypeCheckError, check_type
+    elif _py_ver >= (3, 7):
+        from metaflow._vendor.v3_7.typeguard import TypeCheckError, check_type
+    else:
+        raise RuntimeError(
+            """
+            The Metaflow Programmatic API is not supported for versions of Python less than 3.7
+        """
+        )
+
+    _check_type = check_type
+    _type_check_error = TypeCheckError
+    return _check_type, _type_check_error
+
+
 # Define a recursive type alias for JSON
 JSON = Union[Dict[str, "JSON"], List["JSON"], str, int, float, bool, None]
 
@@ -86,6 +105,7 @@ def _method_sanity_check(
     **kwargs
 ) -> Dict[str, Any]:
     method_params = {"args": {}, "options": {}, "defaults": defaults}
+    check_type, type_check_error = _get_typeguard()
 
     possible_params = OrderedDict()
     possible_params.update(possible_arg_params)
@@ -101,7 +121,7 @@ def _method_sanity_check(
 
         try:
             check_type(supplied_v, annotations[supplied_k])
-        except TypeCheckError:
+        except type_check_error:
             raise TypeError(
                 "Invalid type for '%s' (%s), expected: '%s', default is '%s' but found '%s'"
                 % (
