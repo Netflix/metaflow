@@ -30,10 +30,7 @@ def param_opts(params: Dict[str, str]) -> str:
 
 if __name__ == "__main__":
     params = {}
-    try:
-        raw_params = sys.argv[1:]
-    except Exception:
-        pass
+    raw_params = sys.argv[1:]
 
     try:
         for p in raw_params:
