@@ -97,26 +97,34 @@ def get_plugin(category, class_path, name):
     path, cls_name = class_path.rsplit(".", 1)
     try:
         plugin_module = importlib.import_module(path)
+    
     except ImportError as e:
-        # Special handling for Unix-only modules missing on Windows
         missing_module = getattr(e, "name", "")
 
-        if missing_module == "fcntl":
+        UNIX_ONLY_MODULES = {
+            "fcntl",
+            "termios",
+            "resource",
+            "grp",
+            "pwd",
+        }
+
+        if missing_module in UNIX_ONLY_MODULES:
             raise RuntimeError(
                 "\n Metaflow plugin requires Unix-only modules.\n\n"
-                "The plugin '%s' depends on 'fcntl', which is not available on Windows.\n\n"
+                "The plugin '%s' depends on '%s', which is not available on Windows.\n\n"
                 "Fix options:\n"
                 "  1) Use WSL (Windows Subsystem for Linux)\n"
                 "  2) Run Metaflow on Linux or macOS\n"
                 "  3) Disable this plugin if not needed\n\n"
                 "Docs: https://docs.metaflow.org\n"
-                % name
-            ) from None
+                % (name, missing_module)
+            ) from e
 
-        # Default behavior for other import errors
         raise ValueError(
             "Cannot locate %s plugin '%s' at '%s'" % (category, name, path)
-        ) from e
+        ) from e 
+      
     cls = getattr(plugin_module, cls_name, None)
     if cls is None:
         raise ValueError(
