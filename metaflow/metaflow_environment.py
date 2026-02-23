@@ -182,9 +182,9 @@ class MetaflowEnvironment(object):
         packages = " ".join(datastore_packages[datastore_type] + ["requests"])
         python = self._python()
 
-        # Prefer uv (fast, no pip dependency)
-        # If uv not available, fallback to pip
-        # If pip is missing, bootstrap it first via ensurepip before falling back.
+        # Try pip first (preserves existing behavior for most users).
+        # If pip is not available, try uv as a fallback.
+        # If neither is available, bootstrap pip via ensurepip before retrying.
         uv_cmd = "uv pip install -q --system --python {python} {packages}".format(python=python, packages=packages)
         pip_cmd = "{python} -m pip install -qqq --no-compile --no-cache-dir --disable-pip-version-check {packages}".format(
             python=python, packages=packages
