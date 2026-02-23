@@ -100,7 +100,6 @@ def get_plugin(category, class_path, name):
     except ImportError as e:
         missing_module = getattr(e, "name", "")
 
-        # At module level, near the top of the file
         _UNIX_ONLY_MODULES = frozenset({
             "fcntl",
             "termios",
