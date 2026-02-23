@@ -4,6 +4,14 @@ import traceback
 from metaflow.metaflow_config_funcs import from_conf
 
 from . import _ext_debug, alias_submodules, get_modules, lazy_load_aliases
+# Unix-only standard library modules not available on Windows
+_UNIX_ONLY_MODULES = frozenset({
+    "fcntl",
+    "termios",
+    "resource",
+    "grp",
+    "pwd",
+})
 
 
 def process_plugins(module_globals):
@@ -98,15 +106,7 @@ def get_plugin(category, class_path, name):
     try:
         plugin_module = importlib.import_module(path)
     except ImportError as e:
-        missing_module = getattr(e, "name", None) or ""
-
-        _UNIX_ONLY_MODULES = frozenset({
-            "fcntl",
-            "termios",
-            "resource",
-            "grp",
-            "pwd",
-        })
+        missing_module = getattr(e, "name", "")
 
         if missing_module in _UNIX_ONLY_MODULES:
             raise RuntimeError(
@@ -119,7 +119,6 @@ def get_plugin(category, class_path, name):
                 "Docs: https://docs.metaflow.org\n"
                 % (name, missing_module)
             ) from e
-
         raise ValueError(
             "Cannot locate %s plugin '%s' at '%s'" % (category, name, path)
         ) from e
