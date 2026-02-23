@@ -7,10 +7,10 @@ def _make_flow_state():
     """Create a _FlowState with realistic initial data for all FlowStateItems keys."""
     init_data = {
         FlowStateItems.FLOW_MUTATORS: [],
-        FlowStateItems.FLOW_DECORATORS: [],
+        FlowStateItems.FLOW_DECORATORS: {},
         FlowStateItems.CONFIGS: {},
-        FlowStateItems.CACHED_PARAMETERS: {},
-        FlowStateItems.SET_CONFIG_PARAMETERS: {},
+        FlowStateItems.CACHED_PARAMETERS: None,
+        FlowStateItems.SET_CONFIG_PARAMETERS: [],
     }
     return _FlowState(init_data)
 
@@ -31,7 +31,7 @@ class TestFlowStateIter:
         vals = list(fs.values())
         assert len(vals) == len(FlowStateItems)
         for v in vals:
-            assert isinstance(v, (list, dict))
+            assert isinstance(v, (list, dict, type(None)))
 
     def test_items_method(self):
         fs = _make_flow_state()
