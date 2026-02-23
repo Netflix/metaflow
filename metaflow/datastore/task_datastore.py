@@ -867,27 +867,31 @@ class TaskDataStore(object):
 
         # Register audit trail so that Metaflow UI can
         # detect the scrub event and revoke any cached log content.
-        if self._metadata and existing_paths:
-            attempt = attempt_override if attempt_override is not None else self._attempt
-            self._metadata.register_metadata(
-                self._run_id,
-                self._step_name,
-                self._task_id,
-                [
-                    MetaDatum(
-                        field="log-scrubbed",
-                        value=json.dumps(
-                            {
-                                "stream": stream,
-                                "scrubbed_by": get_username(),
-                                "scrubbed_at": int(round(time.time() * 1000)),
-                            }
-                        ),
-                        type="log-scrubbed",
-                        tags=["attempt_id:{0}".format(attempt)],
-                    )
-                ],
-            )
+        try:
+            if self._metadata and existing_paths:
+                attempt = attempt_override if attempt_override is not None else self._attempt
+                self._metadata.register_metadata(
+                    self._run_id,
+                    self._step_name,
+                    self._task_id,
+                    [
+                        MetaDatum(
+                            field="log-scrubbed",
+                            value=json.dumps(
+                                {
+                                    "stream": stream,
+                                    "scrubbed_by": get_username(),
+                                    "scrubbed_at": int(round(time.time() * 1000)),
+                                }
+                            ),
+                            type="log-scrubbed",
+                            tags=["attempt_id:{0}".format(attempt)],
+                        )
+                    ],
+                )
+        except Exception as e:
+            # Log the error but don't fail the operation
+            logger.error(f"Failed to register log scrub audit trail: {e}")
 
     @require_mode("r")
     def load_log_legacy(self, stream, attempt_override=None):
