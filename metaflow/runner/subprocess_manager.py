@@ -265,6 +265,8 @@ class CommandManager(object):
         self.run_called: bool = False
         self.timeout: bool = False
         self.log_files: Dict[str, str] = {}
+        self._stdout_file = None
+        self._stderr_file = None
 
     async def __aenter__(self) -> "CommandManager":
         return self
@@ -405,12 +407,14 @@ class CommandManager(object):
             try:
                 # returns when process has been started,
                 # not when it is finished...
+                self._stdout_file = open(stdout_logfile, "w", encoding="utf-8")
+                self._stderr_file = open(stderr_logfile, "w", encoding="utf-8")
                 self.process = await asyncio.create_subprocess_exec(
                     *self.command,
                     cwd=self.cwd,
                     env=self.env,
-                    stdout=open(stdout_logfile, "w", encoding="utf-8"),
-                    stderr=open(stderr_logfile, "w", encoding="utf-8"),
+                    stdout=self._stdout_file,
+                    stderr=self._stderr_file,
                 )
 
                 self.log_files["stdout"] = stdout_logfile
@@ -534,6 +538,12 @@ class CommandManager(object):
     def cleanup(self):
         """Clean up log files for a running subprocesses."""
 
+        for f in (self._stdout_file, self._stderr_file):
+            if f is not None:
+                try:
+                    f.close()
+                except Exception:
+                    pass
         if self.run_called:
             shutil.rmtree(self.temp_dir, ignore_errors=True)
 

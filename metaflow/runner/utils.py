@@ -204,8 +204,10 @@ async def async_read_from_fifo_when_ready(
 def make_process_error_message(
     command_obj: "metaflow.runner.subprocess_manager.CommandManager",
 ):
-    stdout_log = open(command_obj.log_files["stdout"], encoding="utf-8").read()
-    stderr_log = open(command_obj.log_files["stderr"], encoding="utf-8").read()
+    with open(command_obj.log_files["stdout"], encoding="utf-8") as f:
+        stdout_log = f.read()
+    with open(command_obj.log_files["stderr"], encoding="utf-8") as f:
+        stderr_log = f.read()
     command = " ".join(command_obj.command)
     error_message = "Error executing: '%s':\n" % command
     if stdout_log.strip():
