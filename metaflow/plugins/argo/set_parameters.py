@@ -17,15 +17,15 @@ def parse_parameter_value(base64_value):
 
 
 def param_opts(params: Dict[str, str]) -> str:
-    param_opts = []
+    opts = []
     for k, v in params.items():
         val, none_default = v
         parsed_value = parse_parameter_value(val)
         if none_default and parsed_value is None:
             continue
-        param_opts.append(f"--{k}={parsed_value}")
+        opts.append(f"--{k}={parsed_value}")
 
-    return "\0".join(param_opts)
+    return "\0".join(opts)
 
 
 if __name__ == "__main__":
