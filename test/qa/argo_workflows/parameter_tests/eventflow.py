@@ -28,7 +28,7 @@ class EventParamFlow(BaseParamsFlow):
                 # param value needs to be from payload if provided
                 if v != pl[k]:
                     raise Exception(
-                        f"Payload value does not match parameter value.\nParameter {k} has value {v} instead of {pl[k]} from the payload."
+                        f"Payload value does not match parameter value.\nParameter {k} has value\n{repr(v)}\n instead of\n{repr(pl[k])}\nfrom the payload."
                     )
             else:
                 # param value should be default if not provided in payload.
