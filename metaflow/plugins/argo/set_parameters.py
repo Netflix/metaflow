@@ -23,9 +23,10 @@ def param_opts(params: Dict[str, str]) -> str:
         parsed_value = parse_parameter_value(val)
         if none_default and parsed_value is None:
             continue
-        opts.append(f"--{k}={parsed_value}")
+        # utilize b64 encoding to make the output safe for Bash mapfile.
+        opts.append(base64.b64encode(f"--{k}={parsed_value}".encode("utf-8")).decode())
 
-    return "\0".join(opts)
+    return "\n".join(opts)
 
 
 if __name__ == "__main__":
@@ -43,4 +44,4 @@ if __name__ == "__main__":
     opts = param_opts(params)
 
     if opts:
-        print(opts, end="")
+        print(opts)

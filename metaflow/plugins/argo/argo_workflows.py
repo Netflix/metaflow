@@ -2041,13 +2041,14 @@ class ArgoWorkflows(object):
             # http://masterminds.github.io/sprig/strings.html
             params_expr = (
                 [
-                    "mapfile -d '' param_args < <(python -m metaflow.plugins.argo.set_parameters %s)"
+                    "mapfile param_args < <(python -m metaflow.plugins.argo.set_parameters %s)"
                     % params_csv,
+                    'params=(); for item in \\"${param_args[@]}\\"; do params+=(\\"$(python3 -c \\"import base64,sys; print(base64.b64decode(sys.argv[1]).decode())\\" \\"$item\\")\\"); done',
                 ]
                 if self.parameters
                 else []
             )
-            param_opts = ['\\"${param_args[@]}\\"'] if self.parameters else []
+            param_opts = ['\\"${params[@]}\\"'] if self.parameters else []
 
             init_cmds = " && ".join(
                 [
