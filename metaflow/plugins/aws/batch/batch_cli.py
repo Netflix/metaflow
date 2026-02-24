@@ -250,8 +250,15 @@ def step(
         }
         kwargs["input_paths"] = "".join("${%s}" % s for s in split_vars.keys())
 
-    step_args = " ".join(util.dict_to_cli_options(kwargs))
+    # For multinode, create modified kwargs for command construction only
     num_parallel = num_parallel or 0
+    step_kwargs = kwargs.copy()
+    if num_parallel and num_parallel > 1:
+        # Pass task_id via an env var so shell can expand node index at runtime.
+        # Using a value starting with '$' prevents quoting in dict_to_cli_options.
+        step_kwargs["task_id"] = "$MF_TASK_ID_BASE[NODE-INDEX]"
+
+    step_args = " ".join(util.dict_to_cli_options(step_kwargs))
     if num_parallel and num_parallel > 1:
         # For multinode, we need to add a placeholder that can be mutated by the caller
         step_args += " [multinode-args]"
@@ -272,15 +279,26 @@ def step(
             retry_deco[0].attributes.get("minutes_between_retries", 1)
         )
 
-    # Set batch attributes
+    # Set batch attributes - use modified task_id for multinode to ensure MF_PATHSPEC has placeholder
+    task_spec_task_id = (
+        step_kwargs["task_id"] if num_parallel > 1 else kwargs["task_id"]
+    )
     task_spec = {
+        "flow_name": ctx.obj.flow.name,
+        "step_name": step_name,
+        "run_id": kwargs["run_id"],
+        "task_id": task_spec_task_id,
+        "retry_count": str(retry_count),
+    }
+    # Keep attrs clean with original task_id for metadata
+    main_task_spec = {
         "flow_name": ctx.obj.flow.name,
         "step_name": step_name,
         "run_id": kwargs["run_id"],
         "task_id": kwargs["task_id"],
         "retry_count": str(retry_count),
     }
-    attrs = {"metaflow.%s" % k: v for k, v in task_spec.items()}
+    attrs = {"metaflow.%s" % k: v for k, v in main_task_spec.items()}
     attrs["metaflow.user"] = util.get_username()
     attrs["metaflow.version"] = ctx.obj.environment.get_environment_info()[
         "metaflow_version"
@@ -303,6 +321,11 @@ def step(
     # Add the environment variables related to the input-paths argument
     if split_vars:
         env.update(split_vars)
+
+    # For multinode, provide the base task id to be expanded in the container
+    if num_parallel and num_parallel > 1:
+        # Ensure we don't carry a possible 'control-' prefix into worker IDs
+        env["MF_TASK_ID_BASE"] = str(kwargs["task_id"]).replace("control-", "")
 
     if retry_count:
         ctx.obj.echo_always(
