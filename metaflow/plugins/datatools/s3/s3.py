@@ -11,6 +11,7 @@ from io import RawIOBase, BufferedIOBase
 from itertools import chain, starmap
 from tempfile import mkdtemp, NamedTemporaryFile
 from typing import Dict, Iterable, List, Optional, Tuple, Union, TYPE_CHECKING
+from botocore.exceptions import ClientError
 
 from metaflow import FlowSpec
 from metaflow.metaflow_current import current
@@ -760,6 +761,33 @@ class S3(object):
                 yield s3prefix, s3url, None, int(size)
 
         return list(starmap(S3Object, _list(keys)))
+
+    def delete(self, key: str):
+    try:
+        self._s3.delete_object(
+            Bucket=self._bucket,
+            Key=key
+        )
+    except ClientError as e:
+        code = e.response["Error"]["Code"]
+        if code in ("NoSuchKey", "404"):
+            return  # idempotent delete
+        raise MetaflowS3Exception(str(e))
+    
+    def delete_many(self, keys: Iterable[str]):
+    objects = [{"Key": k} for k in keys]
+    if not objects:
+        return
+
+    try:
+        self._s3.delete_objects(
+            Bucket=self._bucket,
+            Delete={"Objects": objects}
+        )
+    except ClientError as e:
+        raise MetaflowS3Exception(str(e))
+
+
 
     def info(self, key: Optional[str] = None, return_missing: bool = False) -> S3Object:
         """
