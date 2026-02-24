@@ -1,3 +1,4 @@
+import shlex
 from typing import Dict, Optional, Any
 
 
@@ -34,7 +35,14 @@ def generate_devcontainer_json(
 
     if python_dependencies:
         # Construct the pip install command based on the provided dependencies
-        deps = [f"{pkg}{version}" for pkg, version in python_dependencies.items()]
+        deps = [
+            shlex.quote(
+                f"{pkg}{version}"
+                if not version or version[0] in ("<", ">", "!", "~", "@", "=")
+                else f"{pkg}=={version}"
+            )
+            for pkg, version in python_dependencies.items()
+        ]
         if deps:
             deps_str = " ".join(deps)
             commands.append(f"pip install {deps_str}")

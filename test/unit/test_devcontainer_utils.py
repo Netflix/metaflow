@@ -8,11 +8,14 @@ def test_generate_basic_devcontainer():
 
 
 def test_generate_with_python_dependencies():
-    deps = {"pandas": "==2.0.0", "numpy": ""}
+    deps = {"pandas": "==2.0.0", "numpy": "", "requests": "2.31.0"}
     config = generate_devcontainer_json("python:3.11", python_dependencies=deps)
     assert config["image"] == "python:3.11"
     assert "postCreateCommand" in config
-    assert "pip install pandas==2.0.0 numpy" in config["postCreateCommand"]
+    assert (
+        "pip install pandas==2.0.0 numpy requests==2.31.0"
+        in config["postCreateCommand"]
+    )
 
 
 def test_generate_with_features():
@@ -30,3 +33,15 @@ def test_generate_with_multiple_commands():
         post_create_command="echo 'hello world'",
     )
     assert config["postCreateCommand"] == "echo 'hello world' && pip install pytest"
+
+
+def test_generate_with_empty_dependencies():
+    config = generate_devcontainer_json("python:3.11", python_dependencies={})
+    assert config["image"] == "python:3.11"
+    assert "postCreateCommand" not in config
+
+
+def test_generate_with_post_create_command_only():
+    config = generate_devcontainer_json("python:3.11", post_create_command="echo 'hi'")
+    assert config["image"] == "python:3.11"
+    assert config["postCreateCommand"] == "echo 'hi'"
