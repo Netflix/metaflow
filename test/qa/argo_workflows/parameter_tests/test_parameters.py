@@ -54,8 +54,10 @@ def test_events(test_tags, test_id):
         for run in finished_runs:
             assert run.successful
     finally:
-        deployed_trigger_flow.delete()
-        deployed_event_flow.delete()
+        if deployed_trigger_flow is not None:
+            deployed_trigger_flow.delete()
+        if deployed_event_flow is not None:
+            deployed_event_flow.delete()
 
 
 def test_cron(test_tags, test_id):
