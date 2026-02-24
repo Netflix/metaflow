@@ -25,7 +25,7 @@ def param_opts(params: Dict[str, str]) -> str:
             continue
         param_opts.append(f"--{k}={parsed_value}")
 
-    return "\n".join(param_opts)
+    return "\0".join(param_opts)
 
 
 if __name__ == "__main__":

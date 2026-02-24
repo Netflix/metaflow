@@ -2041,7 +2041,7 @@ class ArgoWorkflows(object):
             # http://masterminds.github.io/sprig/strings.html
             params_expr = (
                 [
-                    "mapfile -t param_args < <(python -m metaflow.plugins.argo.set_parameters %s)"
+                    "mapfile -d '' param_args < <(python -m metaflow.plugins.argo.set_parameters %s)"
                     % params_csv,
                 ]
                 if self.parameters
