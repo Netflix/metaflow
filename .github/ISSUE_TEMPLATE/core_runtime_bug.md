@@ -10,13 +10,25 @@ assignees: ""
 ---
 
 <!--
-Core Runtime covers:
-  metaflow/runtime.py · metaflow/task.py · metaflow/flowspec.py
-  metaflow/runner/  · metaflow/cli.py · metaflow/cli_components/
-  metaflow/datastore/  · metaflow/metadata_provider/
-  metaflow/plugins/aws/  · metaflow/plugins/kubernetes/
-  metaflow/plugins/argo/  · metaflow/mflog/  · metaflow/graph.py
-  metaflow/decorators.py · metaflow/metaflow_config.py
+Core Runtime covers (see CONTRIBUTING.md for the authoritative list):
+
+  Execution engine:      metaflow/runtime.py, metaflow/task.py, metaflow/flowspec.py
+  Subprocess / runner:   metaflow/runner/metaflow_runner.py,
+                         metaflow/runner/subprocess_manager.py,
+                         metaflow/runner/deployer_impl.py,
+                         metaflow/runner/click_api.py
+  CLI plumbing:          metaflow/cli.py, metaflow/cli_components/
+  Datastore:             metaflow/datastore/, metaflow/plugins/datastores/
+  Metadata:              metaflow/metadata_provider/, metaflow/plugins/metadata_providers/
+  AWS client / S3:       metaflow/plugins/aws/aws_client.py, metaflow/plugins/datatools/s3/
+  Config / parameters:   metaflow/metaflow_config.py, metaflow/parameters.py,
+                         metaflow/user_configs/
+  Logging / capture:     metaflow/mflog/, metaflow/system/, metaflow/debug.py
+  Decorators (core):     metaflow/decorators.py
+  Graph / DAG:           metaflow/graph.py
+  Orchestrators:         metaflow/plugins/argo/, metaflow/plugins/aws/batch/,
+                         metaflow/plugins/aws/step_functions/,
+                         metaflow/plugins/kubernetes/
 
 If your bug is in user-facing APIs or a non-core plugin, use the standard
 Bug Report template instead.
