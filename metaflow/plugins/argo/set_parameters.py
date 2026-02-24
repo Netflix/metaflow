@@ -43,4 +43,4 @@ if __name__ == "__main__":
     opts = param_opts(params)
 
     if opts:
-        print(opts)
+        print(opts, end="")
