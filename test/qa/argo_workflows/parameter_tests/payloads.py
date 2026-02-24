@@ -10,7 +10,7 @@ PURE_PAYLOADS = [
         "param-opttwo": "null",
         "param-optthree": None,
     },  # default values but through payload.
-    {"param_a": "custom payload A", "param-b": ["C", "E"]},
+    {"param_a": "custom payload A\nwith newlines\n", "param-b": ["C", "E"]},
     {
         "param_a": "http://example.com/test?a=123&b=test  and some values \"' '' && testing! \\",
         "param-b": [""],
