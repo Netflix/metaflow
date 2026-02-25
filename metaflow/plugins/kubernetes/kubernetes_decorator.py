@@ -3,7 +3,7 @@ import os
 import platform
 import sys
 import time
-from decimal import Decimal
+from decimal import Decimal, InvalidOperation
 
 from metaflow import current
 from metaflow.decorators import StepDecorator
@@ -379,9 +379,21 @@ class KubernetesDecorator(StepDecorator):
                         # TODO: Fix https://github.com/Netflix/metaflow/issues/467
                         my_val = self.attributes.get(k)
                         if not (my_val is None and v is None):
-                            self.attributes[k] = str(
-                                max(Decimal(str(my_val or 0)), Decimal(str(v or 0)))
-                            )
+                            try:
+                                self.attributes[k] = str(
+                                    max(Decimal(str(my_val or 0)), Decimal(str(v or 0)))
+                                )
+                            except (ValueError, TypeError, InvalidOperation):
+                                if (
+                                    my_val is not None
+                                    and v is not None
+                                    and str(my_val) != str(v)
+                                ):
+                                    raise MetaflowException(
+                                        "'resources' and compute decorator have conflicting "
+                                        "values for '%s'. Please use consistent values or "
+                                        "specify this resource constraint once" % k
+                                    )
 
         # Check GPU vendor.
         if self.attributes["gpu_vendor"].lower() not in ("amd", "nvidia"):
