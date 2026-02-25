@@ -57,11 +57,22 @@ class Boto3ClientProvider(object):
                 url = "%s/auth/token" % AWS_SANDBOX_STS_ENDPOINT_URL
                 headers = {"x-api-key": AWS_SANDBOX_API_KEY}
                 try:
-                    r = requests.get(url, headers=headers)
+                    r = requests.get(url, headers=headers, timeout=(5, 30))
                     r.raise_for_status()
                     cached_aws_sandbox_creds = r.json()
                 except requests.exceptions.HTTPError as e:
                     raise MetaflowException(repr(e))
+                except requests.exceptions.Timeout:
+                    raise MetaflowException(
+                        "Timed out connecting to AWS sandbox STS endpoint %s "
+                        "Check that AWS_SANDBOX_STS_ENDPOINT_URL is reachable"
+                        % AWS_SANDBOX_STS_ENDPOINT_URL
+                    )
+                except requests.exceptions.ConnectionError as e:
+                    raise MetaflowException(
+                        "Could not connect to AWS sandbox STS endpoint %s: %s"
+                        % (AWS_SANDBOX_STS_ENDPOINT_URL, repr(e))
+                    )
             if with_error:
                 return (
                     boto3.session.Session(**cached_aws_sandbox_creds).client(
