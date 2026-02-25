@@ -20,8 +20,11 @@ class SecretsDecorator(StepDecorator):
 
     Parameters
     ----------
-    sources : List[Union[str, Dict[str, Any]]], default: []
-        List of secret specs, defining how the secrets are to be retrieved
+    sources : Union[List[Union[str, Dict[str, Any]]], Callable[[FlowSpec], List[Union[str, Dict[str, Any]]]]], default: []
+        List of secret specs defining how the secrets are to be retrieved, or a callable
+        that accepts the flow instance at runtime and returns such a list. Using a callable
+        defers evaluation until runtime, allowing dynamic secret configuration based on
+        instance attributes or methods.
     role : str, optional, default: None
         Role to use for fetching secrets
     allow_override : bool, optional, default: False
@@ -73,7 +76,11 @@ class SecretsDecorator(StepDecorator):
         if role is None:
             role = DEFAULT_SECRETS_ROLE
 
-        for secret_spec_str_or_dict in self.attributes["sources"]:
+        sources = self.attributes["sources"]
+        if callable(sources):
+            sources = sources(flow)
+
+        for secret_spec_str_or_dict in sources:
             if isinstance(secret_spec_str_or_dict, str):
                 secret_specs.append(
                     SecretSpec.secret_spec_from_str(secret_spec_str_or_dict, role=role)

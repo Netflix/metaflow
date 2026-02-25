@@ -1,11 +1,12 @@
 import os
 import time
 import unittest
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 from metaflow.exception import MetaflowException
 import metaflow.metaflow_config
 from metaflow.plugins.secrets.secrets_decorator import (
+    SecretsDecorator,
     SecretSpec,
     validate_env_vars_across_secrets,
     validate_env_vars_vs_existing_env,
@@ -194,6 +195,110 @@ class TestEnvVarValidations(unittest.TestCase):
         for k in weird_keys:
             with self.assertRaises(MetaflowException):
                 validate_env_vars({k: "v"})
+
+
+class TestCallableSources(unittest.TestCase):
+    """Tests that @secrets sources accepts callables evaluated at runtime."""
+
+    def _make_decorator(self, sources):
+        dec = SecretsDecorator(attributes={"sources": sources})
+        dec._ran_init = True  # skip external_init; set attributes directly
+        return dec
+
+    def _call_task_pre_step(self, dec, flow):
+        """Invoke task_pre_step with all non-essential args mocked out."""
+        dec.task_pre_step(
+            step_name="my_step",
+            task_datastore=None,
+            metadata=None,
+            run_id="1",
+            task_id="1",
+            flow=flow,
+            graph=None,
+            retry_count=0,
+            max_user_code_retries=0,
+            ubf_context=None,
+            inputs=None,
+        )
+
+    @patch(
+        "metaflow.metaflow_config.DEFAULT_SECRETS_BACKEND_TYPE",
+        "mock-backend",
+    )
+    @patch(
+        "metaflow.plugins.secrets.secrets_decorator.get_secrets_backend_provider"
+    )
+    def test_lambda_sources_called_with_flow(self, mock_get_provider):
+        """A lambda passed as sources is called with the flow instance."""
+        mock_provider = MagicMock()
+        mock_provider.get_secret_as_dict.return_value = {"MY_SECRET": "value"}
+        mock_get_provider.return_value = mock_provider
+
+        flow = MagicMock()
+        flow.secret_name = "mock-backend.my_secret"
+
+        dec = self._make_decorator(sources=lambda f: [f.secret_name])
+        self._call_task_pre_step(dec, flow)
+
+        mock_provider.get_secret_as_dict.assert_called_once()
+        self.assertEqual(os.environ.get("MY_SECRET"), "value")
+
+    @patch(
+        "metaflow.metaflow_config.DEFAULT_SECRETS_BACKEND_TYPE",
+        "mock-backend",
+    )
+    @patch(
+        "metaflow.plugins.secrets.secrets_decorator.get_secrets_backend_provider"
+    )
+    def test_function_sources_called_with_flow(self, mock_get_provider):
+        """A regular function passed as sources is called with the flow instance."""
+        mock_provider = MagicMock()
+        mock_provider.get_secret_as_dict.return_value = {"FUNC_SECRET": "func_value"}
+        mock_get_provider.return_value = mock_provider
+
+        flow = MagicMock()
+
+        def get_sources(f):
+            return ["mock-backend.func_secret"]
+
+        dec = self._make_decorator(sources=get_sources)
+        self._call_task_pre_step(dec, flow)
+
+        mock_provider.get_secret_as_dict.assert_called_once()
+        self.assertEqual(os.environ.get("FUNC_SECRET"), "func_value")
+
+    @patch(
+        "metaflow.metaflow_config.DEFAULT_SECRETS_BACKEND_TYPE",
+        "mock-backend",
+    )
+    @patch(
+        "metaflow.plugins.secrets.secrets_decorator.get_secrets_backend_provider"
+    )
+    def test_static_list_sources_unchanged(self, mock_get_provider):
+        """A static list passed as sources continues to work as before."""
+        mock_provider = MagicMock()
+        mock_provider.get_secret_as_dict.return_value = {"STATIC_SECRET": "static_val"}
+        mock_get_provider.return_value = mock_provider
+
+        flow = MagicMock()
+
+        dec = self._make_decorator(sources=["mock-backend.static_secret"])
+        self._call_task_pre_step(dec, flow)
+
+        mock_provider.get_secret_as_dict.assert_called_once()
+        self.assertEqual(os.environ.get("STATIC_SECRET"), "static_val")
+
+    @patch(
+        "metaflow.metaflow_config.DEFAULT_SECRETS_BACKEND_TYPE",
+        "mock-backend",
+    )
+    def test_callable_returning_invalid_item_raises(self):
+        """A callable that returns items that are not str or dict raises MetaflowException."""
+        flow = MagicMock()
+
+        dec = self._make_decorator(sources=lambda f: [42])
+        with self.assertRaises(MetaflowException):
+            self._call_task_pre_step(dec, flow)
 
 
 if __name__ == "__main__":
