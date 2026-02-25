@@ -20,7 +20,7 @@ jobs:
     strategy:
       matrix:
         os: [ubuntu-22.04]
-        ver: ['3.8', '3.9', '3.10', '3.11', '3.12']
+        ver: ['3.8', '3.9', '3.10', '3.11', '3.12', '3.13']
     
     steps:
     - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8  # v6.0.1
@@ -40,7 +40,10 @@ jobs:
           echo "Starting environment in the background..."
           MINIKUBE_CPUS=2 metaflow-dev all-up &
           # Give time to spin up. Adjust as needed:
-          sleep 150
+          sleep 180
+    - name: Wait for MinIO to be ready
+      run: |
+        timeout 300 bash -c 'until curl -f http://localhost:9000/minio/health/live; do sleep 5; done'
     - name: Execute tests
       run: |
         cat <<EOF | metaflow-dev shell
