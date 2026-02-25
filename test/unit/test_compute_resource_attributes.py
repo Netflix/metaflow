@@ -37,7 +37,7 @@ def test_compute_resource_attributes():
         [MockDeco("resources", {"cpu": "2"})],
         MockDeco("batch", {"cpu": 1}),
         {"cpu": "3"},
-    ) == {"cpu": "2.0"}
+    ) == {"cpu": "2"}
 
     # take largest of @resources and @batch if both are present
     assert compute_resource_attributes(
@@ -75,3 +75,21 @@ def test_compute_resource_attributes_string():
         MockDeco("batch", {"instance_type": None}),
         {"cpu": "1", "instance_type": "p4.xlarge"},
     ) == {"cpu": "1", "instance_type": "p4.xlarge"}
+
+
+def test_compute_resource_attributes_floats():
+    """Test float-valued resource attributes to prevent regression of #1014"""
+
+    # take largest of @resources and @batch with floats
+    assert compute_resource_attributes(
+        [MockDeco("resources", {"cpu": 1.5})],
+        MockDeco("batch", {"cpu": "1.0"}),
+        {"cpu": "1"},
+    ) == {"cpu": "1.5"}
+
+    # handle float vs int comparison natively without throwing conflicting values error
+    assert compute_resource_attributes(
+        [MockDeco("resources", {"cpu": "2.0"})],
+        MockDeco("batch", {"cpu": 2}),
+        {"cpu": "1"},
+    ) == {"cpu": "2"}

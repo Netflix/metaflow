@@ -3,6 +3,7 @@ import os
 import platform
 import sys
 import time
+from decimal import Decimal
 
 from metaflow import current
 from metaflow.decorators import StepDecorator
@@ -379,7 +380,7 @@ class KubernetesDecorator(StepDecorator):
                         my_val = self.attributes.get(k)
                         if not (my_val is None and v is None):
                             self.attributes[k] = str(
-                                max(float(my_val or 0), float(v or 0))
+                                max(Decimal(str(my_val or 0)), Decimal(str(v or 0)))
                             )
 
         # Check GPU vendor.

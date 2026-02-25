@@ -1,6 +1,7 @@
 import re
 
 from metaflow.exception import MetaflowException
+from decimal import Decimal, InvalidOperation
 
 
 def parse_s3_full_path(s3_uri):
@@ -157,11 +158,13 @@ def compute_resource_attributes(decos, compute_deco, resource_defaults):
                         # that numbers that can't be exactly represented as
                         # floats (e.g. 0.8) still look "nice". We don't care
                         # about precision more that .001 for resources anyway.
-                        result[k] = str(max(float(my_val or 0), float(v or 0)))
-                    except ValueError:
+                        result[k] = str(
+                            max(Decimal(str(my_val or 0)), Decimal(str(v or 0)))
+                        )
+                    except (ValueError, TypeError, InvalidOperation):
                         # Here we don't have ints, so we compare the value and raise
                         # an exception if not equal
-                        if my_val != v:
+                        if str(my_val) != str(v):
                             # TODO: Throw a better exception since the user has no
                             #       knowledge of 'compute' decorator
                             raise MetaflowException(
