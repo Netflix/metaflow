@@ -79,6 +79,11 @@ class SecretsDecorator(StepDecorator):
         sources = self.attributes["sources"]
         if callable(sources):
             sources = sources(flow)
+            if not isinstance(sources, list):
+                raise MetaflowException(
+                    "@secrets sources callable must return a list, got %s"
+                    % type(sources).__name__
+                )
 
         for secret_spec_str_or_dict in sources:
             if isinstance(secret_spec_str_or_dict, str):

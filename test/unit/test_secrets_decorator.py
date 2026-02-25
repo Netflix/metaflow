@@ -200,6 +200,13 @@ class TestEnvVarValidations(unittest.TestCase):
 class TestCallableSources(unittest.TestCase):
     """Tests that @secrets sources accepts callables evaluated at runtime."""
 
+    def setUp(self):
+        self._env_backup = os.environ.copy()
+
+    def tearDown(self):
+        for key in set(os.environ) - set(self._env_backup):
+            del os.environ[key]
+
     def _make_decorator(self, sources):
         dec = SecretsDecorator(attributes={"sources": sources})
         dec._ran_init = True  # skip external_init; set attributes directly
@@ -297,6 +304,31 @@ class TestCallableSources(unittest.TestCase):
         flow = MagicMock()
 
         dec = self._make_decorator(sources=lambda f: [42])
+        with self.assertRaises(MetaflowException):
+            self._call_task_pre_step(dec, flow)
+
+    @patch(
+        "metaflow.metaflow_config.DEFAULT_SECRETS_BACKEND_TYPE",
+        "mock-backend",
+    )
+    def test_callable_returning_none_raises(self):
+        """A callable that returns None raises MetaflowException, not a raw TypeError."""
+        flow = MagicMock()
+
+        dec = self._make_decorator(sources=lambda f: None)
+        with self.assertRaises(MetaflowException):
+            self._call_task_pre_step(dec, flow)
+
+    @patch(
+        "metaflow.metaflow_config.DEFAULT_SECRETS_BACKEND_TYPE",
+        "mock-backend",
+    )
+    def test_callable_returning_bare_string_raises(self):
+        """A callable that returns a bare string raises MetaflowException instead of
+        silently iterating over characters."""
+        flow = MagicMock()
+
+        dec = self._make_decorator(sources=lambda f: "mock-backend.my_secret")
         with self.assertRaises(MetaflowException):
             self._call_task_pre_step(dec, flow)
 
