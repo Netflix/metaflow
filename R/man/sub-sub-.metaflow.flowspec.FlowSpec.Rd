@@ -20,4 +20,3 @@ Overload getter for self object
  print(self[["var"]])
 }
 }
-

@@ -99,4 +99,3 @@ retry <- function(times = 3L, minutes_between_retries = 2L) {
 catch <- function(var = NULL, print_exception = TRUE) {
   decorator("catch", var = var, print_exception = print_exception)
 }
-

@@ -136,4 +136,3 @@ class Composer:
         end_event = self.get_event()
         node.end_mark = end_event.end_mark
         return node
-

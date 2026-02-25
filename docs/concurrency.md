@@ -327,4 +327,3 @@ Async                 no             yes             yes            no
    partially isolated from the parent which makes `parallel_map` a bad
    candidate for execution of arbitrary code.
 7. Values returned by `parallel_map` need to be picklable.
-
