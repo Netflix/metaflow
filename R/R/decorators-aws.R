@@ -14,7 +14,7 @@
 #'
 #' @param cpu Integer number of CPUs required for this step. Defaults to `1`.
 #' @param gpu Integer number of GPUs required for this step. Defaults to `0`.
-#' @param memory Integer memory size (in MB) required for this step. Defaults to
+#' @param memory Integer memory size (in MiB) required for this step. Defaults to
 #'   `4096`.
 #' @param image Character. Specifies the image to use when launching on AWS
 #'   Batch. If not specified, an appropriate
