@@ -2264,6 +2264,7 @@ class ArgoWorkflows(object):
                         "METAFLOW_KUBERNETES_FETCH_EC2_METADATA": KUBERNETES_FETCH_EC2_METADATA,
                         "METAFLOW_RUNTIME_ENVIRONMENT": "kubernetes",
                         "METAFLOW_OWNER": self.username,
+                        "METAFLOW_CURRENT_RUNTIME": "argo-workflows",
                     },
                     **{
                         # Configuration for Argo Events. Keep these in sync with the
