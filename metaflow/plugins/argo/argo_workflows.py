@@ -48,6 +48,7 @@ from metaflow.metaflow_config import (
     SERVICE_HEADERS,
     SERVICE_INTERNAL_URL,
     UI_URL,
+    MAX_ATTEMPTS,
 )
 from metaflow.metaflow_config_funcs import config_values
 from metaflow.mflog import BASH_SAVE_LOGS, bash_capture_logs, export_mflog_env_vars
@@ -2264,6 +2265,7 @@ class ArgoWorkflows(object):
                         "METAFLOW_KUBERNETES_FETCH_EC2_METADATA": KUBERNETES_FETCH_EC2_METADATA,
                         "METAFLOW_RUNTIME_ENVIRONMENT": "kubernetes",
                         "METAFLOW_OWNER": self.username,
+                        "METAFLOW_MAX_ATTEMPTS": MAX_ATTEMPTS,
                     },
                     **{
                         # Configuration for Argo Events. Keep these in sync with the

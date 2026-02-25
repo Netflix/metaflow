@@ -585,7 +585,7 @@ DISABLE_TRACING = bool(os.environ.get("DISABLE_TRACING", False))
 #
 # Note also that DataStoreSet resolves the latest attempt_id using
 # lexicographic ordering of attempts. This won't work if MAX_ATTEMPTS > 99.
-MAX_ATTEMPTS = 6
+MAX_ATTEMPTS = from_conf("MAX_ATTEMPTS", 6)
 
 # Feature flag (experimental features that are *explicitly* unsupported)
 
