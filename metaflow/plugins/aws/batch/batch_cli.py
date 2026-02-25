@@ -327,7 +327,7 @@ def step(
             sync_local_metadata_from_datastore(
                 DATASTORE_LOCAL_DIR,
                 ctx.obj.flow_datastore.get_task_datastore(
-                    kwargs["run_id"], step_name, kwargs["task_id"]
+                    kwargs["run_id"], step_name, kwargs["task_id"], allow_not_done=True
                 ),
             )
 
