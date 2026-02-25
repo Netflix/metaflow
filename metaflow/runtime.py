@@ -1429,13 +1429,17 @@ class NativeRuntime(object):
                             yield w
 
         # Poll no-capture workers by process exit (no pipe FDs to watch)
-        for pid, worker in list(self._no_capture_workers.items()):
-            retcode = worker._proc.poll()
-            if retcode is not None:
-                # Process has exited
-                for w in self._finalize_worker(worker):
-                    yield w
-                del self._no_capture_workers[pid]
+        if self._no_capture_workers:
+            if not self._workers:
+                # No pipe-based workers to block on — sleep to avoid busy-waiting
+                time.sleep(POLL_TIMEOUT / 1000.0)
+            for pid, worker in list(self._no_capture_workers.items()):
+                retcode = worker._proc.poll()
+                if retcode is not None:
+                    # Process has exited
+                    for w in self._finalize_worker(worker):
+                        yield w
+                    del self._no_capture_workers[pid]
 
     def _finalize_worker(self, worker):
         returncode = worker.terminate()
@@ -2386,16 +2390,17 @@ class Worker(object):
         # the worker, e.g. sidecars, so we can't rely on EOF. We try to
         # read just what's available in the pipe buffer
         for fileobj, buf in self._logs.values():
-            fileno = fileobj.fileno()
-            fcntl.fcntl(fileno, fcntl.F_SETFL, os.O_NONBLOCK)
-            try:
-                while self.read_logline(fileno):
+            if fileobj is not None:
+                fileno = fileobj.fileno()
+                fcntl.fcntl(fileno, fcntl.F_SETFL, os.O_NONBLOCK)
+                try:
+                    while self.read_logline(fileno):
+                        pass
+                except:
+                    # ignore "resource temporarily unavailable" etc. errors
+                    # caused due to non-blocking. Draining is done on a
+                    # best-effort basis.
                     pass
-            except:
-                # ignore "resource temporarily unavailable" etc. errors
-                # caused due to non-blocking. Draining is done on a
-                # best-effort basis.
-                pass
 
         # Return early if the task is cloned since we don't want to
         # perform any log collection.
@@ -2417,6 +2422,8 @@ class Worker(object):
                             system_msg=True,
                         )
                     else:
+                        # Note: in no-capture mode these messages go to TruncatedBuffer only
+                        # and are not persisted since save_logs is guarded below
                         self.emit_log(b"Task failed.", self._stderr, system_msg=True)
             else:
                 if not self._spin_pathspec:
@@ -2430,12 +2437,14 @@ class Worker(object):
                 self.task.log(
                     "Task finished successfully.", system_msg=True, pid=self._proc.pid
                 )
-            self.task.save_logs(
-                {
-                    "stdout": self._stdout.get_buffer(),
-                    "stderr": self._stderr.get_buffer(),
-                }
-            )
+            
+            if self._capture_output:
+                self.task.save_logs(
+                    {
+                        "stdout": self._stdout.get_buffer(),
+                        "stderr": self._stderr.get_buffer(),
+                    }
+                )
 
         return returncode
 
