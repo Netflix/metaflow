@@ -175,6 +175,17 @@ def common_run_options(func):
         "in steps.",
         callback=config_callback,
     )
+    @click.option(
+        "--no-capture",
+        is_flag=True,
+        default=False,
+        show_default=True,
+        help=(
+            "Disable stdout/stderr capture for worker subprocesses. "
+            "Use when debugging interactively with pdb or ipdb. "
+            "Step logs will NOT be persisted to the datastore."
+        ),
+    )
     @wraps(func)
     def wrapper(*args, **kwargs):
         return func(*args, **kwargs)
@@ -236,6 +247,7 @@ def resume(
     run_id_file=None,
     resume_identifier=None,
     runner_attribute_file=None,
+    no_capture=False,
 ):
     before_run(obj, tags, decospecs)
 
@@ -303,6 +315,7 @@ def resume(
         max_num_splits=max_num_splits,
         max_log_size=max_log_size * 1024 * 1024,
         resume_identifier=resume_identifier,
+        capture_output=not no_capture,
     )
     write_file(run_id_file, runtime.run_id)
     runtime.print_workflow_info()
@@ -374,6 +387,7 @@ def run(
     run_id_file=None,
     runner_attribute_file=None,
     user_namespace=None,
+    no_capture=False,
     **kwargs,
 ):
     if user_namespace is not None:
@@ -394,6 +408,7 @@ def run(
         max_workers=max_workers,
         max_num_splits=max_num_splits,
         max_log_size=max_log_size * 1024 * 1024,
+        capture_output=not no_capture,
     )
     write_latest_run_id(obj, runtime.run_id)
     write_file(run_id_file, runtime.run_id)

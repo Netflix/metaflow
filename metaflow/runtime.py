@@ -364,6 +364,7 @@ class NativeRuntime(object):
         max_log_size=MAX_LOG_SIZE,
         resume_identifier=None,
         skip_decorator_hooks=False,
+        capture_output=True,
     ):
         if run_id is None:
             self._run_id = metadata.new_run_id()
@@ -449,6 +450,8 @@ class NativeRuntime(object):
         # and ensure that the join tasks runs only if all dependent tasks have
         # finished.
         self._control_num_splits = {}  # control_task -> num_splits mapping
+        self._capture_output = capture_output
+        self._no_capture_workers = {}  # pid -> worker mapping
 
         if not self._skip_decorator_hooks:
             for step in flow:
@@ -1422,41 +1425,49 @@ class NativeRuntime(object):
                     if event.can_read:
                         worker.read_logline(event.fd)
                     if event.is_terminated:
-                        returncode = worker.terminate()
+                        for w in self._finalize_worker(worker):
+                            yield w
 
-                        for fd in worker.fds():
-                            self._poll.remove(fd)
-                            del self._workers[fd]
-                        step_counts = self._active_tasks[worker.task.step]
-                        step_counts[0] -= 1  # One less task for this step is running
-                        step_counts[1] += 1  # ... and one more completed.
-                        # We never remove from self._active_tasks because it is possible
-                        # for all currently running task for a step to complete but
-                        # for others to still be queued up.
-                        self._active_tasks[0] -= 1
+        # Poll no-capture workers by process exit (no pipe FDs to watch)
+        for pid, worker in list(self._no_capture_workers.items()):
+            retcode = worker._proc.poll()
+            if retcode is not None:
+                # Process has exited
+                for w in self._finalize_worker(worker):
+                    yield w
+                del self._no_capture_workers[pid]
 
-                        task = worker.task
-                        if returncode:
-                            # worker did not finish successfully
-                            if (
-                                worker.cleaned
-                                or returncode == METAFLOW_EXIT_DISALLOW_RETRY
-                            ):
-                                self._logger(
-                                    "This failed task will not be retried.",
-                                    system_msg=True,
-                                )
-                            else:
-                                if (
-                                    task.retries
-                                    < task.user_code_retries + task.error_retries
-                                ):
-                                    self._retry_worker(worker)
-                                else:
-                                    raise TaskFailed(task)
-                        else:
-                            # worker finished successfully
-                            yield task
+    def _finalize_worker(self, worker):
+        returncode = worker.terminate()
+
+        for fd in worker.fds():
+            if fd in self._workers:
+                self._poll.remove(fd)
+                del self._workers[fd]
+        step_counts = self._active_tasks[worker.task.step]
+        step_counts[0] -= 1  # One less task for this step is running
+        step_counts[1] += 1  # ... and one more completed.
+        # We never remove from self._active_tasks because it is possible
+        # for all currently running task for a step to complete but
+        # for others to still be queued up.
+        self._active_tasks[0] -= 1
+
+        task = worker.task
+        if returncode:
+            # worker did not finish successfully
+            if worker.cleaned or returncode == METAFLOW_EXIT_DISALLOW_RETRY:
+                self._logger(
+                    "This failed task will not be retried.",
+                    system_msg=True,
+                )
+            else:
+                if task.retries < task.user_code_retries + task.error_retries:
+                    self._retry_worker(worker)
+                else:
+                    raise TaskFailed(task)
+        else:
+            # worker finished successfully
+            yield task
 
     def _launch_workers(self):
         while self._run_queue and self._active_tasks[0] < self._max_workers:
@@ -1507,10 +1518,19 @@ class NativeRuntime(object):
             )
             return
 
-        worker = Worker(task, self._max_log_size, self._config_file_name)
-        for fd in worker.fds():
-            self._workers[fd] = worker
-            self._poll.add(fd)
+        worker = Worker(
+            task,
+            self._max_log_size,
+            self._config_file_name,
+            capture_output=self._capture_output,
+        )
+        if self._capture_output:
+            for fd in worker.fds():
+                self._workers[fd] = worker
+                self._poll.add(fd)
+        else:
+            # No pipe FDs — track by PID for poll()-based completion detection
+            self._no_capture_workers[worker._proc.pid] = worker
         active_step_counts = self._active_tasks.setdefault(task.step, [0, 0])
 
         # We have an additional task for this step running
@@ -2179,6 +2199,7 @@ class Worker(object):
         artifacts_module=None,
         persist=True,
         skip_decorators=False,
+        capture_output=True,
     ):
         self.task = task
         self._config_file_name = config_file_name
@@ -2187,6 +2208,7 @@ class Worker(object):
         self._artifacts_module = artifacts_module
         self._skip_decorators = skip_decorators
         self._persist = persist
+        self._capture_output = capture_output
         self._proc = self._launch()
 
         if task.retries > task.user_code_retries:
@@ -2204,10 +2226,13 @@ class Worker(object):
         self._stdout = TruncatedBuffer("stdout", max_logs_size)
         self._stderr = TruncatedBuffer("stderr", max_logs_size)
 
-        self._logs = {
-            self._proc.stderr.fileno(): (self._proc.stderr, self._stderr),
-            self._proc.stdout.fileno(): (self._proc.stdout, self._stdout),
-        }
+        if self._capture_output:
+            self._logs = {
+                self._proc.stderr.fileno(): (self._proc.stderr, self._stderr),
+                self._proc.stdout.fileno(): (self._proc.stdout, self._stdout),
+            }
+        else:
+            self._logs = {}
 
         self._encoding = sys.stdout.encoding or "UTF-8"
         self.killed = False  # Killed indicates that the task was forcibly killed
@@ -2260,13 +2285,19 @@ class Worker(object):
         cmdline = args.get_args()
         from_start(f"Command line: {' '.join(cmdline)}")
         debug.subcommand_exec(cmdline)
+
+        if self._capture_output:
+            stdin_arg = stdout_arg = stderr_arg = subprocess.PIPE
+        else:
+            stdin_arg = stdout_arg = stderr_arg = None
+
         return subprocess.Popen(
             cmdline,
             env=env,
             bufsize=1,
-            stdin=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            stdout=subprocess.PIPE,
+            stdin=stdin_arg,
+            stderr=stderr_arg,
+            stdout=stdout_arg,
         )
 
     def emit_log(self, msg, buf, system_msg=False):
@@ -2316,7 +2347,14 @@ class Worker(object):
             return False
 
     def fds(self):
-        return (self._proc.stderr.fileno(), self._proc.stdout.fileno())
+        if not self._capture_output:
+            return []
+        fds = []
+        if self._proc.stdout is not None:
+            fds.append(self._proc.stdout.fileno())
+        if self._proc.stderr is not None:
+            fds.append(self._proc.stderr.fileno())
+        return fds
 
     def clean(self):
         if self.killed:
