@@ -197,7 +197,9 @@ def show(
                         if timestamps:
                             ts = mflog.utc_to_local(line.utc_tstamp)
                             tstamp = ts.strftime("%Y-%m-%d %H:%M:%S.%f")[:-3]
-                            click.secho(tstamp + " ", fg=LOGGER_TIMESTAMP, nl=False, color=True)
+                            click.secho(
+                                tstamp + " ", fg=LOGGER_TIMESTAMP, nl=False, color=True
+                            )
                         echo_unicode(line.msg)
                     maybe_old_style = False
                 elif maybe_old_style:

@@ -117,7 +117,9 @@ def logger(body="", system_msg=False, head="", bad=False, timestamp=True, nl=Tru
         click.secho(tstamp + " ", fg=LOGGER_TIMESTAMP, nl=False, color=True)
     if head:
         click.secho(head, fg=LOGGER_COLOR, nl=False, color=True)
-    click.secho(body, bold=system_msg, fg=LOGGER_BAD_COLOR if bad else None, nl=nl, color=True)
+    click.secho(
+        body, bold=system_msg, fg=LOGGER_BAD_COLOR if bad else None, nl=nl, color=True
+    )
 
 
 @click.group(
