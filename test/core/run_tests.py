@@ -82,14 +82,14 @@ def log(
             line = click.style(line, fg="white", bold=True)
 
         pid = os.getpid()
-        click.echo("[pid %s] %s" % (pid, line), color=True)
+        click.echo("[pid %s] %s" % (pid, line))
         if processes:
-            click.echo("STDOUT follows:", color=True)
+            click.echo("STDOUT follows:")
             for p in processes:
-                click.echo(p.stdout, nl=False, color=True)
-            click.echo("STDERR follows:", color=True)
+                click.echo(p.stdout, nl=False)
+            click.echo("STDERR follows:")
             for p in processes:
-                click.echo(p.stderr, nl=False, color=True)
+                click.echo(p.stderr, nl=False)
 
 
 def run_test(formatter, context, debug, checks, env_base, executor):
