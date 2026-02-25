@@ -332,6 +332,7 @@ class Batch(object):
             .environment_variable("METAFLOW_DEFAULT_DATASTORE", "s3")
             .environment_variable("METAFLOW_DEFAULT_METADATA", DEFAULT_METADATA)
             .environment_variable("METAFLOW_CARD_S3ROOT", CARD_S3ROOT)
+            .environment_variable("METAFLOW_S3_WORKER_COUNT", max(1, int(cpu) - 2))
             .environment_variable("METAFLOW_OTEL_ENDPOINT", OTEL_ENDPOINT)
             .environment_variable("METAFLOW_RUNTIME_ENVIRONMENT", "aws-batch")
         )

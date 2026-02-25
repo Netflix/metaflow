@@ -2259,6 +2259,9 @@ class ArgoWorkflows(object):
                         "METAFLOW_DATATOOLS_S3ROOT": DATATOOLS_S3ROOT,
                         "METAFLOW_DEFAULT_DATASTORE": self.flow_datastore.TYPE,
                         "METAFLOW_DEFAULT_METADATA": DEFAULT_METADATA,
+                        "METAFLOW_S3_WORKER_COUNT": max(
+                            1, int(float(resources["cpu"])) - 2
+                        ),
                         "METAFLOW_CARD_S3ROOT": CARD_S3ROOT,
                         "METAFLOW_KUBERNETES_WORKLOAD": 1,
                         "METAFLOW_KUBERNETES_FETCH_EC2_METADATA": KUBERNETES_FETCH_EC2_METADATA,
