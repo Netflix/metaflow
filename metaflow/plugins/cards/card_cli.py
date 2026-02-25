@@ -360,7 +360,7 @@ def card_read_options_and_arguments(func):
         default=None,
         show_default=True,
         type=str,
-        help="Hash of the stored HTML",
+        help="UUID of the card",
     )
     @click.option(
         "--type",
@@ -1113,3 +1113,128 @@ def _get_run_object(obj, run_id, user_namespace):
 
     obj.echo("Using run-id %s" % run.pathspec, fg="blue", bold=False)
     return run, follow_new_runs, None
+
+
+@card.command(help="Copy cards from one pathspec to another")
+@click.argument("origin_pathspec", type=str)
+@click.argument("destination_pathspec", type=str)
+@card_read_options_and_arguments
+@click.pass_context
+def copy(
+    ctx,
+    origin_pathspec,
+    destination_pathspec,
+    hash=None,
+    type=None,
+    id=None,
+    follow_resumed=True,
+):
+    """
+    Copy cards from one pathspec to another.
+
+    Args:
+        origin_pathspec: Pathspec of the card to copy from.
+        destination_pathspec: Pathspec of the card to copy to.
+        hash: Hash of the card to copy.
+        type: Type of the card to copy.
+        id: ID of the card to copy.
+        follow_resumed: Whether to follow the origin-task-id of resumed tasks to seek cards stored for resumed tasks.
+    """
+    from metaflow import Task
+    from metaflow.exception import MetaflowNotFound
+
+    # Resolve the origin task
+    try:
+        origin_task = Task(origin_pathspec, _namespace_check=False)
+        if follow_resumed:
+            origin_taskpathspec = resumed_info(origin_task)
+            if origin_taskpathspec:
+                origin_task = Task(origin_taskpathspec, _namespace_check=False)
+
+    except MetaflowNotFound as ex:
+        click.echo(f"Error resolving origin pathspec: {str(ex)}", err=True)
+        return exit(1)
+
+    # Resolve the destination task
+    try:
+        dest_task = Task(destination_pathspec, _namespace_check=False)
+    except MetaflowNotFound as ex:
+        click.echo(f"Error resolving destination pathspec: {str(ex)}", err=True)
+        return exit(1)
+
+    flow_datastore = ctx.obj.flow_datastore
+
+    # Get the card paths from origin
+    card_paths, card_datastore = resolve_paths_from_task(
+        flow_datastore,
+        pathspec=origin_task.pathspec,
+        type=type,
+        hash=hash,
+        card_id=id,
+    )
+
+    if not card_paths:
+        click.echo(f"No cards found for pathspec: {origin_pathspec}", err=True)
+        return exit(1)
+
+    # Create destination card datastore
+    # Get the card paths from origin
+    dest_card_datastore = CardDatastore(
+        flow_datastore,
+        pathspec=dest_task.pathspec,
+    )
+
+    # Copy each card
+    copied_count = 0
+    for card_path in card_paths:
+        try:
+            # Get card info
+            card_info = card_datastore.info_from_path(card_path)
+
+            # Get card HTML content
+            card_html = card_datastore.get_card_html(card_path)
+
+            # Save to destination
+            dest_card_datastore.save_card(
+                uuid=card_info.hash,
+                card_type=card_info.type,
+                card_html=card_html,
+                card_id=card_info.id,
+            )
+
+            # Try to copy the data file if it exists
+            try:
+                data_paths = card_datastore.extract_data_paths(
+                    card_type=card_info.type,
+                    card_hash=card_info.hash,
+                    card_id=card_info.id,
+                )
+
+                if data_paths:
+                    data_path = data_paths[0]
+                    card_data = card_datastore.get_card_data(data_path)
+                    if card_data is not None:
+                        dest_card_datastore.save_data(
+                            uuid=card_info.hash,
+                            card_type=card_info.type,
+                            json_data=card_data,
+                            card_id=card_info.id,
+                        )
+            except Exception as e:
+                # If data copy fails, we still continue with the HTML copy
+                click.echo(
+                    f"Warning: Could not copy data for card {card_info.type}/{card_info.id}: {str(e)}",
+                    err=True,
+                )
+            else:
+                copied_count += 1
+                click.echo(
+                    f"Copied card {card_info.type}/{card_info.id or ''} from {origin_pathspec} to {destination_pathspec}",
+                    err=True,
+                )
+
+        except Exception as e:
+            click.echo(f"Error copying card {card_path}: {str(e)}", err=True)
+
+    click.echo(f"Successfully copied {copied_count} card(s)")
+    return exit(0)
