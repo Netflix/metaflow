@@ -264,13 +264,31 @@ class FlowDecorator(Decorator):
 
 # compare this to parameters.add_custom_parameters
 def add_decorator_options(cmd):
-    flow_cls = getattr(current_flow, "flow_cls", None)
-    if flow_cls is None:
-        return cmd
+    """
+    Lazily adds flow decorator options to a Click command.
 
+    Defers option registration until get_params() is called, ensuring
+    current_flow.flow_cls is set (which happens after module imports complete).
+    """
+    _original_get_params = cmd.get_params
+    _options_added = [False]  # Use list for mutable closure variable
+
+    def _lazy_get_params(ctx):
+        if not _options_added[0]:
+            _options_added[0] = True
+            flow_cls = getattr(current_flow, "flow_cls", None)
+            if flow_cls is not None:
+                _add_flow_decorator_options(cmd, flow_cls)
+        return _original_get_params(ctx)
+
+    cmd.get_params = _lazy_get_params
+    return cmd
+
+
+def _add_flow_decorator_options(cmd, flow_cls):
+    """Helper to add decorator options to a command."""
     seen = {}
     existing_params = set(p.name.lower() for p in cmd.params)
-    # Add decorator options
     for deco in flow_decorators(flow_cls):
         for option, kwargs in deco.options.items():
             if option in seen:
@@ -290,7 +308,6 @@ def add_decorator_options(cmd):
                 kwargs["envvar"] = "METAFLOW_FLOW_%s" % option.upper()
                 seen[option] = deco.name
                 cmd.params.insert(0, click.Option(("--" + option,), **kwargs))
-    return cmd
 
 
 def flow_decorators(flow_cls):
