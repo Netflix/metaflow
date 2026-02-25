@@ -184,7 +184,7 @@ class ArgoWorkflows(object):
         self.parameters = self._process_parameters()
         self.config_parameters = self._process_config_parameters()
         self.triggers, self.trigger_options = self._process_triggers()
-        self._schedule, self._timezone = self._get_schedule()
+        self._schedule, self._timezone, self._concurrency_policy = self._get_schedule()
 
         self._base_labels = self._base_kubernetes_labels()
         self._base_annotations = self._base_kubernetes_annotations()
@@ -460,14 +460,18 @@ class ArgoWorkflows(object):
         if schedule:
             # Remove the field "Year" if it exists
             schedule = schedule[0]
-            return " ".join(schedule.schedule.split()[:5]), schedule.timezone
-        return None, None
+            return (
+                " ".join(schedule.schedule.split()[:5]),
+                schedule.timezone,
+                schedule.concurrency_policy,
+            )
+        return None, None, None
 
     def schedule(self):
         try:
             argo_client = ArgoClient(namespace=KUBERNETES_NAMESPACE)
             argo_client.schedule_workflow_template(
-                self.name, self._schedule, self._timezone
+                self.name, self._schedule, self._timezone, self._concurrency_policy
             )
             # Register sensor.
             # Metaflow will overwrite any existing sensor.
@@ -818,7 +822,13 @@ class ArgoWorkflows(object):
             # hence configuring it to an empty string
             if self._timezone is None:
                 self._timezone = ""
-            cron_info = {"schedule": self._schedule, "tz": self._timezone}
+            if self._concurrency_policy is None:
+                self._concurrency_policy = ""
+            cron_info = {
+                "schedule": self._schedule,
+                "tz": self._timezone,
+                "concurrency_policy": self._concurrency_policy,
+            }
             annotations.update({"metaflow/cron": json.dumps(cron_info)})
 
         if self.parameters:

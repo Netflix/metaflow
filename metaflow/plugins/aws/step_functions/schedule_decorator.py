@@ -30,6 +30,7 @@ class ScheduleDecorator(FlowDecorator):
         "daily": True,
         "hourly": False,
         "timezone": None,
+        "concurrency_policy": None,
     }
 
     def flow_init(
@@ -50,3 +51,4 @@ class ScheduleDecorator(FlowDecorator):
 
         # Argo Workflows supports the IANA timezone standard, e.g. America/Los_Angeles
         self.timezone = self.attributes["timezone"]
+        self.concurrency_policy = self.attributes["concurrency_policy"]
