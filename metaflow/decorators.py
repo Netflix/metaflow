@@ -270,6 +270,7 @@ def add_decorator_options(cmd):
 
     seen = {}
     existing_params = set(p.name.lower() for p in cmd.params)
+
     # Add decorator options
     for deco in flow_decorators(flow_cls):
         for option, kwargs in deco.options.items():
@@ -290,6 +291,30 @@ def add_decorator_options(cmd):
                 kwargs["envvar"] = "METAFLOW_FLOW_%s" % option.upper()
                 seen[option] = deco.name
                 cmd.params.insert(0, click.Option(("--" + option,), **kwargs))
+
+    # Add flow mutator options
+    for mutator in flow_mutators(flow_cls):
+        for option, kwargs in mutator.options.items():
+            mutator_name = mutator.__class__.__name__
+            if option in seen:
+                msg = (
+                    "Flow mutator '%s' uses an option '%s' which is also "
+                    "used by '%s'. This is a bug in Metaflow. "
+                    "Please file a ticket on GitHub."
+                    % (mutator_name, option, seen[option])
+                )
+                raise MetaflowInternalError(msg)
+            elif mutator_name.lower() in existing_params:
+                raise MetaflowInternalError(
+                    "Flow mutator '%s' uses an option '%s' which is a reserved "
+                    "keyword. Please use a different option name."
+                    % (mutator_name, option)
+                )
+            else:
+                kwargs["envvar"] = "METAFLOW_FLOW_%s" % option.upper()
+                seen[option] = mutator_name
+                cmd.params.insert(0, click.Option(("--" + option,), **kwargs))
+
     return cmd
 
 
@@ -299,6 +324,10 @@ def flow_decorators(flow_cls):
         for deco_list in flow_cls._flow_state[FlowStateItems.FLOW_DECORATORS].values()
         for d in deco_list
     ]
+
+
+def flow_mutators(flow_cls):
+    return flow_cls._flow_state.get(FlowStateItems.FLOW_MUTATORS, [])
 
 
 class StepDecorator(Decorator):
@@ -823,6 +852,7 @@ def _init_step_decorators(
                 pre_mutate=False,
                 statically_defined=deco.statically_defined,
                 inserted_by=inserted_by_value,
+                mutator=deco,
             )
             # Sanity check to make sure we are applying the decorator to the right
             # class
