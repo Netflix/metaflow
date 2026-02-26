@@ -2023,6 +2023,33 @@ class ArgoWorkflows(object):
                 retry_count=retry_count,
             )
 
+            # construct parameters cmd partial so we can cleanly fall back to defaults in case of missing values.
+            params_csv = " ".join(
+                [
+                    "%s,%s,{{=toBase64(workflow.parameters['%s'])}}"
+                    % (
+                        parameter["name"],
+                        "t" if parameter["value"] == "null" else "f",
+                        parameter["name"],
+                    )
+                    for parameter in self.parameters.values()
+                ]
+            )
+            # Parameter names can be hyphenated, hence we use
+            # {{foo.bar['param_name']}}.
+            # https://argoproj.github.io/argo-events/tutorials/02-parameterization/
+            # http://masterminds.github.io/sprig/strings.html
+            params_expr = (
+                [
+                    "mapfile -t param_args < <(python -m metaflow.plugins.argo.set_parameters %s)"
+                    % params_csv,
+                    'params=(); for item in \\"${param_args[@]}\\"; do params+=(\\"$(python -c \\"import base64,sys; print(base64.b64decode(sys.argv[1]).decode())\\" \\"$item\\")\\"); done',
+                ]
+                if self.parameters
+                else []
+            )
+            param_opts = ['\\"${params[@]}\\"'] if self.parameters else []
+
             init_cmds = " && ".join(
                 [
                     # For supporting sandboxes, ensure that a custom script is executed
@@ -2039,6 +2066,7 @@ class ArgoWorkflows(object):
                     self.flow_datastore.TYPE,
                     self.code_package_metadata,
                 )
+                + params_expr
             )
             step_cmds = self.environment.bootstrap_commands(
                 node.name, self.flow_datastore.TYPE
@@ -2082,15 +2110,7 @@ class ArgoWorkflows(object):
                         "--run-id %s" % run_id,
                         "--task-id %s" % task_id_params,
                     ]
-                    + [
-                        # Parameter names can be hyphenated, hence we use
-                        # {{foo.bar['param_name']}}.
-                        # https://argoproj.github.io/argo-events/tutorials/02-parameterization/
-                        # http://masterminds.github.io/sprig/strings.html
-                        "--%s=\\\"$(python -m metaflow.plugins.argo.param_val {{=toBase64(workflow.parameters['%s'])}})\\\""
-                        % (parameter["name"], parameter["name"])
-                        for parameter in self.parameters.values()
-                    ]
+                    + param_opts
                 )
                 if self.tags:
                     init.extend("--tag %s" % tag for tag in self.tags)

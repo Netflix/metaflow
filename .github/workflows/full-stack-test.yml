@@ -16,10 +16,10 @@ jobs:
       - name: Check out source
         uses: actions/checkout@v6
 
-      - name: Install Metaflow
+      - name: Install Metaflow and test dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install . kubernetes
+          pip install . kubernetes pytest
 
 
       - name: Bring up the environment
@@ -36,6 +36,13 @@ jobs:
           cat <<EOF | metaflow-dev shell
           echo "Environment is ready; running flow now..."
           python metaflow/tutorials/00-helloworld/helloworld.py --environment=pypi run --with kubernetes --with card
+          EOF
+
+      - name: Wait & run QA tests
+        run: |
+          cat <<EOF | metaflow-dev shell
+          echo "Environment is ready; running QA tests..."
+          pytest test/qa
           EOF
 
       - name: Tear down environment
