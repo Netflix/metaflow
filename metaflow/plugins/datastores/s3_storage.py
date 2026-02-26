@@ -78,12 +78,12 @@ class S3Storage(DataStoreStorage):
     def save_bytes(self, path_and_bytes_iter, overwrite=False, len_hint=0):
         def _convert():
             # Output format is the same as what is needed for S3PutObject:
-            # key, value, path, content_type, metadata
+            # key, value, path, content_type, encryption, metadata
             for path, obj in path_and_bytes_iter:
                 if isinstance(obj, tuple):
-                    yield path, obj[0], None, None, obj[1]
+                    yield path, obj[0], None, None, None, obj[1]
                 else:
-                    yield path, obj, None, None, None
+                    yield path, obj, None, None, None, None
 
         with S3(
             s3root=self.datastore_root,
@@ -112,7 +112,7 @@ class S3Storage(DataStoreStorage):
                 s3.put_many(starmap(S3PutObject, _convert()), overwrite)
             else:
                 # Sequential upload
-                for key, obj, _, _, metadata in _convert():
+                for key, obj, _, _, _, metadata in _convert():
                     s3.put(key, obj, overwrite=overwrite, metadata=metadata)
 
     def load_bytes(self, paths):
