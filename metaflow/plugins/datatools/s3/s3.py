@@ -1043,9 +1043,9 @@ class S3(object):
                             )
                             yield self._s3root, s3url, os.path.join(
                                 self._tmpdir, fname
-                            ), None, info.get("content_type"), info[
-                                "metadata"
-                            ], range_info, info[
+                            ), None, info.get("content_type"), info.get(
+                                "metadata", {}
+                            ), range_info, info[
                                 "last_modified"
                             ], info.get(
                                 "encryption"
