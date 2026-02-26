@@ -1,5 +1,4 @@
 import csv
-from io import StringIO
 
 SAMPLE_CSV = (
     "movie_title,title_year,genres,gross\n"
