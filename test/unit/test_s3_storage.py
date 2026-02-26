@@ -3,6 +3,11 @@ from io import BytesIO
 import metaflow.plugins.datastores.s3_storage as s3_storage_module
 from metaflow.plugins.datastores.s3_storage import S3Storage
 
+TEST_ITEMS = [
+    ("a", (BytesIO(b"abc"), {"k": "v"})),
+    ("b", BytesIO(b"def")),
+]
+
 
 class DummyS3(object):
     last_instance = None
@@ -32,22 +37,21 @@ def _make_storage():
     return storage
 
 
-def test_save_bytes_put_many_preserves_metadata_slot(monkeypatch):
+def _run_save_bytes(monkeypatch, *, overwrite, len_hint):
     monkeypatch.setattr(s3_storage_module, "S3", DummyS3)
     storage = _make_storage()
-
     storage.save_bytes(
-        iter(
-            [
-                ("a", (BytesIO(b"abc"), {"k": "v"})),
-                ("b", BytesIO(b"def")),
-            ]
-        ),
-        overwrite=True,
-        len_hint=11,
+        iter(TEST_ITEMS),
+        overwrite=overwrite,
+        len_hint=len_hint,
     )
+    return DummyS3.last_instance
 
-    put_objs, overwrite = DummyS3.last_instance.put_many_calls[0]
+
+def test_save_bytes_put_many_preserves_metadata_slot(monkeypatch):
+    s3 = _run_save_bytes(monkeypatch, overwrite=True, len_hint=11)
+
+    put_objs, overwrite = s3.put_many_calls[0]
     assert overwrite is True
     assert put_objs[0].encryption is None
     assert put_objs[0].metadata == {"k": "v"}
@@ -56,21 +60,9 @@ def test_save_bytes_put_many_preserves_metadata_slot(monkeypatch):
 
 
 def test_save_bytes_sequential_preserves_metadata(monkeypatch):
-    monkeypatch.setattr(s3_storage_module, "S3", DummyS3)
-    storage = _make_storage()
+    s3 = _run_save_bytes(monkeypatch, overwrite=False, len_hint=2)
 
-    storage.save_bytes(
-        iter(
-            [
-                ("a", (BytesIO(b"abc"), {"k": "v"})),
-                ("b", BytesIO(b"def")),
-            ]
-        ),
-        overwrite=False,
-        len_hint=2,
-    )
-
-    put_calls = DummyS3.last_instance.put_calls
+    put_calls = s3.put_calls
     assert len(put_calls) == 2
     assert put_calls[0][0] == "a"
     assert put_calls[0][3] == {"k": "v"}
