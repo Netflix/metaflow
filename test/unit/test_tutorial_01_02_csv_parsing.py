@@ -3,7 +3,7 @@ from io import StringIO
 
 SAMPLE_CSV = (
     "movie_title,title_year,genres,gross\n"
-    '"Monsters, Inc.",2001,Animation|Comedy,289907418\n'
+    '"Monsters,\n Inc.",2001,"Animation|\nComedy",289907418\n'
     '"I, Robot",2004,Action|Sci-Fi,144795350\n'
 )
 
