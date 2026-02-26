@@ -18,7 +18,10 @@ def walk(
         _,
         files,
     ) in walk_without_cycles(root, exclude_tl_dirs):
-        if exclude_hidden and "/." in path:
+        # Only check path components *under* root for hidden directories;
+        # ancestor directories (above root) are not relevant.
+        rel = path[len(root.rstrip(os.sep)) :]
+        if exclude_hidden and "/." in rel:
             continue
         # path = path[2:] # strip the ./ prefix
         # if path and (path[0] == '.' or './' in path):

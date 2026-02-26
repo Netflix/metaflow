@@ -391,6 +391,7 @@ class CondaEnvironment(MetaflowEnvironment):
                 "snowpark",
                 "slurm",
                 "nvct",
+                "skypilot",
             ]:
                 target_platform = getattr(decorator, "target_platform", "linux-64")
                 break
