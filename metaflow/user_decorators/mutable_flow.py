@@ -15,6 +15,7 @@ class MutableFlow:
     IGNORE = 1
     ERROR = 2
     OVERRIDE = 3
+    ALLOWED = 4
 
     def __init__(
         self,
@@ -297,6 +298,8 @@ class MutableFlow:
           - if `duplicates` is set to `MutableFlow.ERROR`, then an error is raised but only
             if the newly added decorator is *static* (ie: defined directly in the code).
             If not, it is ignored.
+          - if `duplicates` is set to `MutableFlow.ALLOWED`, then the decorator is always
+            added even if a duplicate already exists (both are kept).
 
         Parameters
         ----------
@@ -313,6 +316,7 @@ class MutableFlow:
             - `MutableFlow.IGNORE`: Ignore the decorator if it already exists.
             - `MutableFlow.ERROR`: Raise an error if the decorator already exists.
             - `MutableFlow.OVERRIDE`: Remove the existing decorator and add this one.
+            - `MutableFlow.ALLOWED`: Always add the decorator even if it already exists.
 
         """
         if not self._pre_mutate:
@@ -364,7 +368,11 @@ class MutableFlow:
             flow_decos = self._flow_cls._flow_state[FlowStateItems.FLOW_DECORATORS]
             existing_deco = [d for d in flow_decos if d == flow_deco.name]
 
-            if flow_deco.allow_multiple or not existing_deco:
+            if (
+                flow_deco.allow_multiple
+                or not existing_deco
+                or duplicates == MutableFlow.ALLOWED
+            ):
                 _do_add()
             elif duplicates == MutableFlow.IGNORE:
                 # If we ignore, we do not add the decorator

@@ -25,6 +25,7 @@ class MutableStep:
     IGNORE = 1
     ERROR = 2
     OVERRIDE = 3
+    ALLOWED = 4
 
     def __init__(
         self,
@@ -181,6 +182,8 @@ class MutableStep:
           - if `duplicates` is set to `MutableStep.ERROR`, then an error is raised but only
             if the newly added decorator is *static* (ie: defined directly in the code).
             If not, it is ignored.
+          - if `duplicates` is set to `MutableStep.ALLOWED`, then the decorator is always
+            added even if a duplicate already exists (both are kept).
 
         Parameters
         ----------
@@ -195,6 +198,7 @@ class MutableStep:
             - `MutableStep.IGNORE`: Ignore the decorator if it already exists.
             - `MutableStep.ERROR`: Raise an error if the decorator already exists.
             - `MutableStep.OVERRIDE`: Remove the existing decorator and add this one.
+            - `MutableStep.ALLOWED`: Always add the decorator even if it already exists.
         """
         # Prevent circular import
         from metaflow.decorators import (
@@ -228,7 +232,11 @@ class MutableStep:
                 d for d in self._my_step.decorators if d.name == step_deco.name
             ]
 
-            if step_deco.allow_multiple or not existing_deco:
+            if (
+                step_deco.allow_multiple
+                or not existing_deco
+                or duplicates == MutableStep.ALLOWED
+            ):
                 _do_add()
             elif duplicates == MutableStep.IGNORE:
                 # If we ignore, we do not add the decorator

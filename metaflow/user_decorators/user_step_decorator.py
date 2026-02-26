@@ -240,6 +240,8 @@ class UserStepDecoratorBase(metaclass=UserStepDecoratorMeta):
 
         if not existing_deco:
             self(step, _statically_defined=statically_defined, _inserted_by=inserted_by)
+        elif duplicates == MutableStep.ALLOWED:
+            self(step, _statically_defined=statically_defined, _inserted_by=inserted_by)
         elif duplicates == MutableStep.IGNORE:
             # If we are ignoring duplicates, we just return
             debug.userconf_exec(
