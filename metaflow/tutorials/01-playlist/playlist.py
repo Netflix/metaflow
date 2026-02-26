@@ -51,16 +51,14 @@ class PlayListFlow(FlowSpec):
 
         """
         import csv
-
+        
         # For this example, we only need the movie title and the genres.
-        self.dataframe = {
-            "movie_title": [],
-            "genres": [],
-        }
+        columns = ["movie_title", "genres"]
+        self.dataframe = {col: [] for col in columns}
 
         for row in csv.DictReader(self.movie_data.splitlines()):
-            self.dataframe["movie_title"].append(row["movie_title"])
-            self.dataframe["genres"].append(row["genres"])
+            for col in columns:
+                self.dataframe[col].append(row[col])
 
         # Compute genre-specific movies and a bonus movie in parallel.
         self.next(self.bonus_movie, self.genre_movies)
