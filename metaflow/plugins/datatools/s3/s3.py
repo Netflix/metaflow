@@ -791,8 +791,8 @@ class S3(object):
         def _info(s3, tmp):
             resp = s3.head_object(Bucket=src.netloc, Key=src.path.lstrip('/"'))
             return {
-                "content_type": resp["ContentType"],
-                "metadata": resp["Metadata"],
+                "content_type": resp.get("ContentType"),
+                "metadata": resp.get("Metadata", {}),
                 "size": resp["ContentLength"],
                 "last_modified": get_timestamp(resp["LastModified"]),
                 "encryption": resp.get("ServerSideEncryption"),
@@ -952,14 +952,14 @@ class S3(object):
                     read_in_chunks(t, resp["Body"], sz, DOWNLOAD_MAX_CHUNK)
             if return_info:
                 return {
-                    "content_type": resp["ContentType"],
+                    "content_type": resp.get("ContentType"),
                     # Since Metaflow can also use S3-compatible storage like MinIO,
                     # there maybe some keys missing in the responses given by different S3-compatible object stores.
                     # MinIO is generally accessed via HTTPS, and so it's encrpytion scheme is
                     # TLS/SSL. This is why the `ServerSideEncryption` key is not present
                     # in the response from MinIO.
                     "encryption": resp.get("ServerSideEncryption"),
-                    "metadata": resp["Metadata"],
+                    "metadata": resp.get("Metadata", {}),
                     "range_result": range_result,
                     "last_modified": get_timestamp(resp["LastModified"]),
                 }
