@@ -6,6 +6,8 @@ First off, thanks for taking the time to contribute! We'd love to hear from you!
 
 - [Quick Start](#quick-start)
 - [PR Requirements (READ THIS FIRST)](#pr-requirements-read-this-first)
+- [Core Runtime Contributions (Higher Bar)](#core-runtime-contributions-higher-bar)
+- [AI Tool Usage Policy](#ai-tool-usage-policy)
 - [Testing Requirements](#testing-requirements)
 - [PR Description Template](#pr-description-template)
 - [Code Style](#code-style)
@@ -80,6 +82,79 @@ Use the [PR Description Template](#pr-description-template) below. PRs with vagu
 - **Discuss major changes first** - Open an issue or chat with us for big features
 - **Comment on the issue** - Let others know you're working on it
 
+## Core Runtime Contributions (Higher Bar)
+
+Changes touching any of the following files or directories are **Core Runtime** and have a higher acceptance bar:
+
+| Area | Paths |
+|------|-------|
+| **Execution engine** | `metaflow/runtime.py`, `metaflow/task.py`, `metaflow/flowspec.py` |
+| **Subprocess management** | `metaflow/runner/metaflow_runner.py`, `metaflow/runner/subprocess_manager.py`, `metaflow/runner/deployer_impl.py` |
+| **CLI plumbing** | `metaflow/cli.py`, `metaflow/cli_components/`, `metaflow/runner/click_api.py` |
+| **Datastore** | `metaflow/datastore/`, `metaflow/plugins/datastores/` |
+| **Metadata** | `metaflow/metadata_provider/`, `metaflow/plugins/metadata_providers/` |
+| **AWS client/credentials** | `metaflow/plugins/aws/aws_client.py`, `metaflow/plugins/datatools/s3/` |
+| **Config/parameters** | `metaflow/metaflow_config.py`, `metaflow/parameters.py`, `metaflow/user_configs/` |
+| **Logging/capture** | `metaflow/mflog/`, `metaflow/system/`, `metaflow/debug.py` |
+| **Decorators (core)** | `metaflow/decorators.py` |
+| **Graph/DAG** | `metaflow/graph.py` |
+| **Orchestrator plugins** | `metaflow/plugins/argo/`, `metaflow/plugins/aws/batch/`, `metaflow/plugins/aws/step_functions/`, `metaflow/plugins/kubernetes/` |
+
+If you're unsure whether your change is Core Runtime, it probably is. When in doubt, open an issue first.
+
+### Why the higher bar?
+
+Metaflow executes user code in subprocesses and worker processes across local, Kubernetes, Batch, and Argo runtimes. Bugs in these areas are subtle: something that "works" when tested naively (e.g., printing to stderr in the parent process) may completely fail in production where output must propagate across subprocess boundaries. We have seen multiple PRs where the test validates something different from what the fix claims to address.
+
+**Maintainer bandwidth is limited.** We cannot provide step-by-step debugging or mentorship for Core Runtime PRs. We review contributions that are already reproducible, minimal, and defended with a correct model of Metaflow's execution semantics.
+
+### Before you open a Core Runtime PR
+
+**Required:**
+
+1. **Open or link an issue** describing the user-visible problem and expected behavior.
+2. **Provide a minimal reproduction** that demonstrates the failure in the real execution mode that matters (e.g., local runtime vs. Kubernetes/Batch/Argo, subprocess boundaries, worker logs).
+3. **Write a short technical rationale:**
+   - Root cause: what invariant was violated?
+   - Why this fix is correct
+   - What failure modes were considered (at least two)
+
+PRs that don't meet these requirements may be closed without further review.
+
+### What "tested" means for Core Runtime
+
+"Manual testing" only counts if you specify:
+
+- The exact command(s) run
+- The runtime used (`--with kubernetes`, `--with batch`, local, etc.)
+- Where the evidence shows up (parent console, task logs, UI logs, metadata)
+
+Because Metaflow uses subprocesses and worker processes, printing to stderr inside a worker **does not necessarily appear where you expect** unless you explicitly propagate it. Tests must validate behavior across that boundary.
+
+**Examples of good Core Runtime PRs:**
+- [PR #2796](https://github.com/Netflix/metaflow/pull/2796) -- race condition in local storage: identifies the exact interleaving that causes `json.load()` to fail on partial writes, fix is a single atomic write helper, links to CI failure as evidence.
+- [PR #2751](https://github.com/Netflix/metaflow/pull/2751) -- symlink traversal edge case: concrete directory structure that reproduces the bug, explains the global-vs-per-branch invariant that was violated, minimal fix.
+- [PR #2714](https://github.com/Netflix/metaflow/pull/2714) -- Argo input-paths with nested conditionals: links to issue, identifies the template generation bug, scoped fix.
+
+### Feature PRs touching Core Runtime
+
+We only accept Core Runtime feature changes after issue discussion and maintainer alignment. Open an issue describing the problem and proposed approach first. We can then evaluate whether this belongs in core vs. an extension or plugin.
+
+## AI Tool Usage Policy
+
+We welcome contributions that use AI tools responsibly. However, the contributor is fully accountable for every line of code they submit.
+
+**Requirements:**
+
+1. **Disclose AI use** -- Check the AI disclosure box in the PR template if you used AI tools (LLMs, code generators, copilots, etc.) for any part of your contribution.
+2. **Understand your code** -- You must be able to answer technical questions about your changes without referring back to an AI tool. If you cannot explain why your fix is correct or what failure modes you considered, the PR will be closed.
+3. **No AI-only submissions** -- PRs must represent human judgment and understanding. Using AI to help write code is fine; submitting AI output you haven't critically reviewed is not.
+4. **Test what matters** -- AI tools often generate tests that look plausible but validate the wrong thing. Ensure your tests exercise the actual failure mode, not a superficial approximation of it.
+
+Undisclosed AI use discovered during review, or inability to explain your changes when asked, will result in PR closure. Repeated violations may result in future PRs being declined.
+
+This policy follows the approach taken by [CPython](https://devguide.python.org/getting-started/generative-ai/), [LLVM](https://llvm.org/docs/DeveloperPolicy.html), and [scikit-learn](https://scikit-learn.org/stable/developers/contributing.html).
+
 ## Testing Requirements
 
 **Testing is not optional.** Here's exactly what you need to know:
@@ -152,8 +227,8 @@ How you tested these changes:
 ```
 
 **Examples of excellent PR descriptions:**
-- [PR #2743](https://github.com/Netflix/metaflow/pull/2743): Skip Kubernetes cluster access when using `--only-json` flag
-- [PR #2744](https://github.com/Netflix/metaflow/pull/2744): Better command processing for compress state machine
+- [PR #2796](https://github.com/Netflix/metaflow/pull/2796): Fix race condition in local storage with atomic writes
+- [PR #2751](https://github.com/Netflix/metaflow/pull/2751): Fix symlink traversal edge case in packaging
 
 **Common mistakes to avoid:**
 - ❌ Empty or one-line descriptions

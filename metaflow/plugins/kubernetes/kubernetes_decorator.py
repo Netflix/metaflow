@@ -640,7 +640,7 @@ class KubernetesDecorator(StepDecorator):
         try:
             self._save_logs_sidecar.terminate()
             self._spot_monitor_sidecar.terminate()
-        except:
+        except Exception:
             # Best effort kill
             pass
 
