@@ -2043,7 +2043,7 @@ class ArgoWorkflows(object):
                 [
                     "mapfile -t param_args < <(python -m metaflow.plugins.argo.set_parameters %s)"
                     % params_csv,
-                    'params=(); for item in \\"${param_args[@]}\\"; do params+=(\\"$(python3 -c \\"import base64,sys; print(base64.b64decode(sys.argv[1]).decode())\\" \\"$item\\")\\"); done',
+                    'params=(); for item in \\"${param_args[@]}\\"; do params+=(\\"$(python -c \\"import base64,sys; print(base64.b64decode(sys.argv[1]).decode())\\" \\"$item\\")\\"); done',
                 ]
                 if self.parameters
                 else []
