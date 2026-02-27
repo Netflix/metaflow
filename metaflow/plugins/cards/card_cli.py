@@ -449,9 +449,51 @@ def update_card(mf_card, mode, task, data, timeout_value=None):
             - `timeout_stack_trace` : stack trace of the function if it timed out.
     """
 
+    def _ensure_complete_html(html):
+        """
+        Wrap HTML fragments in a proper document structure.
+
+        Cards like @card(type="html") may return raw HTML fragments (e.g.,
+        a bare <table> from pandas.to_html()) without a full document wrapper.
+        When these fragments are embedded in iframes (card viewer, platform UI),
+        the lack of <html>/<body> with proper styling causes the content to
+        appear "crammed" at the top instead of filling the available space.
+
+        This function detects HTML fragments and wraps them in a minimal
+        document with full-viewport styling.
+        """
+        if html is None:
+            return None
+        stripped = html.strip()
+        lower = stripped[:50].lower()
+        if lower.startswith("<!doctype") or lower.startswith("<html"):
+            return html
+        return (
+            "<!DOCTYPE html>\n"
+            "<html>\n"
+            "<head>\n"
+            '  <meta charset="utf-8">\n'
+            '  <meta name="viewport" '
+            'content="width=device-width, initial-scale=1.0">\n'
+            "  <style>\n"
+            "    html, body {\n"
+            "      margin: 0;\n"
+            "      padding: 0;\n"
+            "      width: 100%;\n"
+            "      min-height: 100vh;\n"
+            "    }\n"
+            "  </style>\n"
+            "</head>\n"
+            "<body>\n"
+            + html
+            + "\n</body>\n"
+            "</html>\n"
+        )
+
     def _add_token_html(html):
         if html is None:
             return None
+        html = _ensure_complete_html(html)
         return html.replace(
             mf_card.RELOAD_POLICY_TOKEN,
             _extract_reload_token(data=data, task=task, mf_card=mf_card),
