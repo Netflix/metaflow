@@ -42,23 +42,15 @@ class MovieStatsFlow(FlowSpec):
 
         """
         import csv
-        from io import StringIO
 
-        # Load the data set into a dataframe structure.
-        self.dataframe = {
-            "movie_title": [],
-            "title_year": [],
-            "genres": [],
-            "gross": [],
-        }
+        # Load the dataset into a dataframe structure.
+        columns = ["movie_title", "title_year", "genres", "gross"]
+        self.dataframe = {col: [] for col in columns}
 
-        for row in csv.reader(StringIO(self.movie_data), delimiter=","):
-            if row[0] == "movie_title":
-                continue
-            self.dataframe["movie_title"].append(row[0])
-            self.dataframe["title_year"].append(int(row[1]))
-            self.dataframe["genres"].append(row[2])
-            self.dataframe["gross"].append(int(row[3]))
+        for row in csv.DictReader(self.movie_data.splitlines()):
+            for col in columns:
+                val = int(row[col]) if col in ("title_year", "gross") else row[col]
+                self.dataframe[col].append(val)
 
         # The column 'genres' has a list of genres for each movie. Let's get
         # all the unique genres.
