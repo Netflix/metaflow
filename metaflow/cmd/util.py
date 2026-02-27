@@ -20,4 +20,5 @@ def echo_dev_null(*args, **kwargs):
 
 
 def echo_always(line, **kwargs):
+    kwargs.setdefault("color", True)
     click.secho(line, **kwargs)

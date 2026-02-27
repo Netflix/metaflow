@@ -813,6 +813,7 @@ def azure(ctx, profile):
             " or a self-managed Kubernetes cluster on Azure VMs."
             + " If/when your Kubernetes cluster is ready for use,"
             " please run 'metaflow configure kubernetes'.",
+            color=True,
         )
 
 
@@ -854,6 +855,7 @@ def gcp(ctx, profile):
             " or a self-managed Kubernetes cluster on Google Compute Engine VMs."
             + " If/when your Kubernetes cluster is ready for use,"
             " please run 'metaflow configure kubernetes'.",
+            color=True,
         )
 
 
@@ -939,7 +941,8 @@ def kubernetes(ctx, profile):
     if existing_env.get("METAFLOW_DEFAULT_DATASTORE") == "local":
         click.echo(
             "\nCannot run Kubernetes with local datastore. Please run"
-            " 'metaflow configure aws' or 'metaflow configure azure'."
+            " 'metaflow configure aws' or 'metaflow configure azure'.",
+            color=True,
         )
         click.Abort()
 
