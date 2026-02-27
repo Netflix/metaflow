@@ -51,7 +51,7 @@ class PlayListFlow(FlowSpec):
 
         """
         import csv
-        
+
         # For this example, we only need the movie title and the genres.
         columns = ["movie_title", "genres"]
         self.dataframe = {col: [] for col in columns}
