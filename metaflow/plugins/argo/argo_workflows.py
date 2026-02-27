@@ -52,7 +52,11 @@ from metaflow.metaflow_config import (
 from metaflow.metaflow_config_funcs import config_values
 from metaflow.mflog import BASH_SAVE_LOGS, bash_capture_logs, export_mflog_env_vars
 from metaflow.parameters import deploy_time_eval
-from metaflow.plugins.kubernetes.kube_utils import qos_requests_and_limits
+from metaflow.plugins.kubernetes.kube_utils import (
+    qos_requests_and_limits,
+    parse_kube_keyvalue_list,
+    validate_kube_labels,
+)
 
 from metaflow.plugins.kubernetes.kubernetes_jobsets import KubernetesArgoJobSet
 from metaflow.unbounded_foreach import UBF_CONTROL, UBF_TASK
@@ -403,8 +407,23 @@ class ArgoWorkflows(object):
         """
         Get shared Kubernetes labels for Argo resources.
         """
-        # TODO: Add configuration through an environment variable or Metaflow config in the future if required.
+        # Base labels applied to all Argo resources created by Metaflow.
         labels = {"app.kubernetes.io/part-of": "metaflow"}
+
+        # Optional extra labels from environment.
+        #
+        # Format: METAFLOW_ARGO_WORKFLOWS_LABELS="team=data,env=prod"
+        # Label precedence (decreasing):
+        # - Base labels (hard-coded above)
+        # - Environment labels: METAFLOW_ARGO_WORKFLOWS_LABELS
+        #
+        # Environment labels may override base label values but not remove keys.
+        extra = os.environ.get("METAFLOW_ARGO_WORKFLOWS_LABELS")
+        if extra:
+            env_labels = parse_kube_keyvalue_list(extra.split(","), False)
+            # Reuse Kubernetes label validation to ensure values are well-formed.
+            validate_kube_labels(env_labels)
+            labels = {**labels, **env_labels}
 
         return labels
 
