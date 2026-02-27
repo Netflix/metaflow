@@ -173,7 +173,7 @@ class ArgoClient(object):
 
     def delete_workflow_template(self, name):
         """
-        Issues an API call for deleting a cronworkflow
+        Issues an API call for deleting a workflow template
 
         Returns either the successful API response, or None in case the resource was not found.
         """
@@ -279,7 +279,9 @@ class ArgoClient(object):
                 json.loads(e.body)["message"] if e.body is not None else e.reason
             )
 
-    def trigger_workflow_template(self, name, usertype, username, parameters={}):
+    def trigger_workflow_template(self, name, usertype, username, parameters=None):
+        if parameters is None:
+            parameters = {}
         client = self._client.get()
         body = {
             "apiVersion": "argoproj.io/v1alpha1",
