@@ -1,0 +1,18 @@
+name: CODEOWNERS check
+
+on:
+  pull_request:
+    paths:
+      - '**/CODEOWNERS'
+      - '.codeowners-generatorrc'
+
+permissions: read-all
+
+jobs:
+  check-codeowners:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Verify generated CODEOWNERS is up to date
+        run: npx codeowners-generator@2.4.0 generate --check
