@@ -319,7 +319,15 @@ class MetaflowObject(object):
             # attempt exists".
 
         if pathspec and _object is None:
+            # Strip trailing slashes so 'FlowName/RunID/' is treated
+            # the same as 'FlowName/RunID' (as mentioned in #948).
+            pathspec = pathspec.rstrip("/")
             ids = pathspec.split("/")
+
+            if any(component == "" for component in ids):
+                raise MetaflowInvalidPathspec(
+                    "Pathspec contains empty components: '%s'" % pathspec
+                )
 
             if self._NAME == "flow" and len(ids) != 1:
                 raise MetaflowInvalidPathspec("Expects Flow('FlowName')")
