@@ -2118,7 +2118,7 @@ class ArgoWorkflows(object):
                 export_params = (
                     "python -m "
                     "metaflow.plugins.argo.set_parameters %s %s"
-                    "&& . `pwd`/%s" % (param_file, param_csv, param_file)
+                    " && . `pwd`/%s" % (param_file, param_csv, param_file)
                 )
 
                 if self.tags:

@@ -45,10 +45,7 @@ if __name__ == "__main__":
         raise Exception("an output filename is required.")
 
     params = {}
-    try:
-        raw_params = sys.argv[2:]
-    except Exception:
-        pass
+    raw_params = sys.argv[2:]
 
     try:
         for p in raw_params:
