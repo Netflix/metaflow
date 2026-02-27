@@ -1,0 +1,34 @@
+name: E2E Tests
+
+on:
+  push:
+    branches:
+      - master
+  pull_request:
+    branches:
+      - master
+  workflow_call:
+
+permissions: read-all
+
+jobs:
+  e2e:
+    name: E2E / Python 3.12 on ubuntu-22.04
+    runs-on: ubuntu-22.04
+
+    steps:
+      - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8  # v6.0.1
+
+      - name: Set up Python
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405  # v6.2.0
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: |
+          python3 -m pip install --upgrade pip setuptools
+          python3 -m pip install pytest
+          python3 -m pip install -e .
+
+      - name: Run E2E tests
+        run: python3 -m pytest test/e2e/ -v
