@@ -98,6 +98,29 @@ class TagMutationTest(MetaflowTest):
         # try to replace nothing with nothing - should fail
         assert_exception(lambda: checker.replace_tags([], []), Exception)
 
+        if checker.__class__.__name__ == "CliCheck":
+            # Verify script-friendly JSON payload shape and values.
+            json_payload = checker.get_tag_list_json()
+            cli_user_tags = checker.get_user_tags()
+            cli_system_tags = checker.get_system_tags()
+            assert json_payload["group_by"] == "none"
+            assert len(json_payload["all_tags_by_group"]) == 1
+            assert len(json_payload["system_tags_by_group"]) == 1
+            assert next(iter(json_payload["all_tags_by_group"].keys())).endswith(
+                "/%s" % checker.run_id
+            )
+            assert next(iter(json_payload["system_tags_by_group"].keys())).endswith(
+                "/%s" % checker.run_id
+            )
+            all_tags_in_payload = set(
+                next(iter(json_payload["all_tags_by_group"].values()))
+            )
+            system_tags_in_payload = set(
+                next(iter(json_payload["system_tags_by_group"].values()))
+            )
+            assert all_tags_in_payload == cli_user_tags.union(cli_system_tags)
+            assert system_tags_in_payload == cli_system_tags
+
         # these check actions do not work for CliCheck. As of 6/3/2022, the only other
         # checker is MetadataCheck. But we write the code like this to force consideration
         # if/when we add the third checker.

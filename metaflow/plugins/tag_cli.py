@@ -1,3 +1,4 @@
+import json
 import sys
 
 from itertools import chain
@@ -408,9 +409,14 @@ def replace(obj, run_id, user_namespace, tags_to_add=None, tags_to_remove=None):
     is_flag=True,
     default=False,
     help="List tags, one line per tag, no groupings",
-    # As of 6/3/2022, a hidden option helps automate CLI testing.
-    # We may consider public supporting --flatten and/or --json in future
-    hidden=True,
+)
+@click.option(
+    "--json",
+    "as_json",
+    required=False,
+    is_flag=True,
+    default=False,
+    help="List tags in JSON format.",
 )
 @click.argument(
     "arg_run_id",  # For backwards compatibility with Netflix internal usage of an early version of this CLI
@@ -428,6 +434,7 @@ def tag_list(
     group_by_tag,
     group_by_run,
     flat,
+    as_json,
     arg_run_id,
 ):
     _set_current(obj)
@@ -449,11 +456,6 @@ def tag_list(
     if group_by_run and group_by_tag:
         raise CommandException(
             "Option --group-by-tag cannot be used with --group-by-run"
-        )
-
-    if flat and (group_by_run or group_by_tag):
-        raise CommandException(
-            "Option --flat cannot be used with any --group-by-* option"
         )
 
     system_tags_by_some_grouping = dict()
@@ -515,13 +517,44 @@ def tag_list(
         if "_" in all_tags_by_some_grouping:
             del all_tags_by_some_grouping["_"]
 
-    if flat:
-        if len(all_tags_by_some_grouping) != 1:
-            raise MetaflowInternalError("Failed to flatten tag set")
-        for v in all_tags_by_some_grouping.values():
-            for tag in v:
-                obj.echo(tag)
+    def _flattened_tags():
+        if group_by_tag:
+            tags = set(all_tags_by_some_grouping.keys())
+            tags.update(system_tags_by_some_grouping.keys())
+            return sorted(tags)
+
+        tags = set()
+        for values in all_tags_by_some_grouping.values():
+            tags.update(values)
+        return sorted(tags)
+
+    if flat and not as_json:
+        for tag in _flattened_tags():
+            click.echo(tag, err=True)
+        return
+
+    if as_json:
+        if flat:
+            payload = {"tags": _flattened_tags()}
+            click.echo(json.dumps(payload, sort_keys=True), err=True)
             return
+
+        def _normalized(value):
+            return sorted(set(value))
+
+        payload = {
+            "group_by": ("tag" if group_by_tag else "run" if group_by_run else "none"),
+            "all_tags_by_group": {
+                key: _normalized(value)
+                for key, value in sorted(all_tags_by_some_grouping.items())
+            },
+            "system_tags_by_group": {
+                key: _normalized(value)
+                for key, value in sorted(system_tags_by_some_grouping.items())
+            },
+        }
+        click.echo(json.dumps(payload, sort_keys=True), err=True)
+        return
 
     _print_tags_for_runs_by_groups(
         obj, system_tags_by_some_grouping, all_tags_by_some_grouping, group_by_tag
