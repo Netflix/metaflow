@@ -1150,7 +1150,7 @@ class NativeRuntime(object):
                         msg.format(
                             step=task.step,
                             typ=type(mapper_tasks),
-                            elem_type=type(mapper_tasks[0]),
+                            elem_typ=type(mapper_tasks[0]),
                         )
                     )
                 num_splits = len(mapper_tasks)
