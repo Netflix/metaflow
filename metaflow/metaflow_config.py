@@ -96,6 +96,8 @@ DATASTORE_SYSROOT_S3 = from_conf("DATASTORE_SYSROOT_S3")
 # Azure Blob Storage container and blob prefix
 DATASTORE_SYSROOT_AZURE = from_conf("DATASTORE_SYSROOT_AZURE")
 DATASTORE_SYSROOT_GS = from_conf("DATASTORE_SYSROOT_GS")
+# OCI Object Storage bucket and prefix
+DATASTORE_SYSROOT_OCI = from_conf("DATASTORE_SYSROOT_OCI")
 # GS bucket and prefix to store artifacts for 'gs' datastore
 
 
@@ -198,6 +200,14 @@ DATATOOLS_GSROOT = from_conf(
         else None
     ),
 )
+DATATOOLS_OCIROOT = from_conf(
+    "DATATOOLS_OCIROOT",
+    (
+        os.path.join(DATASTORE_SYSROOT_OCI, DATATOOLS_SUFFIX)
+        if DATASTORE_SYSROOT_OCI
+        else None
+    ),
+)
 # Local datatools root location
 DATATOOLS_LOCALROOT = from_conf(
     "DATATOOLS_LOCALROOT",
@@ -249,6 +259,10 @@ CARD_AZUREROOT = from_conf(
 CARD_GSROOT = from_conf(
     "CARD_GSROOT",
     os.path.join(DATASTORE_SYSROOT_GS, CARD_SUFFIX) if DATASTORE_SYSROOT_GS else None,
+)
+CARD_OCIROOT = from_conf(
+    "CARD_OCIROOT",
+    os.path.join(DATASTORE_SYSROOT_OCI, CARD_SUFFIX) if DATASTORE_SYSROOT_OCI else None,
 )
 CARD_NO_WARNING = from_conf("CARD_NO_WARNING", False)
 
@@ -612,6 +626,8 @@ def get_pinned_conda_libs(python_version, datastore_type):
         pins["google-cloud-secret-manager"] = ">=2.10.0"
         pins["simple-gcp-object-downloader"] = ">=0.1.0"
         pins["packaging"] = ">=24.0"
+    elif datastore_type == "oci":
+        pins["oci"] = ">=2.90.0"
     elif datastore_type == "local":
         pass
     else:

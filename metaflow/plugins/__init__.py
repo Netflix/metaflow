@@ -93,6 +93,7 @@ DATASTORES_DESC = [
     ("s3", ".datastores.s3_storage.S3Storage"),
     ("azure", ".datastores.azure_storage.AzureStorage"),
     ("gs", ".datastores.gs_storage.GSStorage"),
+    ("oci", ".datastores.oci_storage.OCIStorage"),
 ]
 
 # Dataclients are used for IncludeFile
