@@ -1,6 +1,10 @@
 import os
 import sys
 import types
+import uuid
+import datetime
+
+from typing import Dict, List, Union, Tuple as TTuple
 
 from metaflow.exception import MetaflowException
 from metaflow.metaflow_config_funcs import from_conf, get_validate_choice_fn
@@ -621,6 +625,58 @@ def get_pinned_conda_libs(python_version, datastore_type):
     return pins
 
 
+###
+# Runner API type mappings
+# Extensions can add custom Click parameter types via get_click_to_python_types
+###
+
+# Define JSON type for type hints
+from metaflow._vendor.click.types import (
+    BoolParamType,
+    Choice,
+    DateTime,
+    File,
+    FloatParamType,
+    IntParamType,
+    Path,
+    StringParamType,
+    Tuple,
+    UUIDParameterType,
+)
+from metaflow.parameters import JSONTypeClass
+from metaflow.includefile import FilePathClass
+from metaflow.user_configs.config_options import (
+    LocalFileInput,
+    MultipleTuple,
+    ConfigValue,
+)
+JSON = Union[Dict[str, "JSON"], List["JSON"], str, int, float, bool, None]
+
+
+def get_click_to_python_types():
+    """
+    Returns the mapping from Click parameter types to Python types for Runner API.
+    Extensions can override this function to add custom type mappings.
+    """
+
+    return {
+        StringParamType: str,
+        IntParamType: int,
+        FloatParamType: float,
+        BoolParamType: bool,
+        UUIDParameterType: uuid.UUID,
+        Path: str,
+        DateTime: datetime.datetime,
+        Tuple: tuple,
+        Choice: str,
+        File: str,
+        JSONTypeClass: JSON,
+        FilePathClass: str,
+        LocalFileInput: str,
+        MultipleTuple: TTuple[str, Union[JSON, ConfigValue]],
+    }
+
+
 # Check if there are extensions to Metaflow to load and override everything
 try:
     from metaflow.extension_support import get_modules
@@ -656,6 +712,16 @@ try:
                 if any(" " in x for x in o):
                     raise ValueError("Decospecs cannot contain spaces")
                 _TOGGLE_DECOSPECS.extend(o)
+            elif n == "get_click_to_python_types":
+                # Extension provides additional Click type mappings for Runner API
+                # Merge extension's types with base types
+                def _new_get_click_to_python_types(f1=globals()[n], f2=o):
+                    d1 = f1()
+                    d2 = f2()
+                    d1.update(d2)
+                    return d1
+
+                globals()[n] = _new_get_click_to_python_types
             elif not n.startswith("__") and not isinstance(o, types.ModuleType):
                 globals()[n] = o
     # If DEFAULT_DECOSPECS is set, use that, else extrapolate from extensions
