@@ -740,13 +740,6 @@ def term_len(x):
 
 
 def isatty(stream):
-    # Patched to respect FORCE_COLOR env var.
-    # Upstream Click does not implement this — see
-    # https://github.com/pallets/click/issues/3022
-    # If Click is ever re-vendored, this patch MUST be re-applied.
-    force = os.environ.get("FORCE_COLOR", "")
-    if force and force != "0":
-        return True
     try:
         return stream.isatty()
     except Exception:
