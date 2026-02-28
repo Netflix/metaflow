@@ -72,6 +72,7 @@ if __name__ == "__main__":
                                 if os.path.basename(member.name) == "uv":
                                     member.path = os.path.basename(member.name)
                                     tar.extract(member, uv_install_path)
+                                    break  # Stop after extracting uv binary
                 break
             except (URLError, IOError) as e:
                 if attempt == max_retries - 1:
