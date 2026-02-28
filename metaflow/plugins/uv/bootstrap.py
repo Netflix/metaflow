@@ -62,7 +62,17 @@ if __name__ == "__main__":
                 req = Request(UV_URL, headers=headers)
                 with urlopen(req) as response:
                     with tarfile.open(fileobj=response, mode="r:gz") as tar:
-                        tar.extractall(uv_install_path, filter=_tar_filter)
+                        # Python 3.12+ supports the filter parameter for extractall
+                        # For older versions, we manually filter members
+                        if sys.version_info >= (3, 12):
+                            tar.extractall(uv_install_path, filter=_tar_filter)
+                        else:
+                            # Manually filter and extract for Python < 3.12
+                            for member in tar.getmembers():
+                                if os.path.basename(member.name) == "uv":
+                                    member.path = os.path.basename(member.name)
+                                    tar.extract(member, uv_install_path)
+                                    break  # Stop after extracting uv binary
                 break
             except (URLError, IOError) as e:
                 if attempt == max_retries - 1:
