@@ -293,6 +293,10 @@ def get_latest_task_pathspec(
         raise MetaflowNotFound(f"No task found for step {step_name} in run {run_id}")
 
 
+MAX_RECENT_RUNS = 10
+_RECENT_RUNS_FILE = "recent_runs"
+
+
 def get_latest_run_id(echo, flow_name):
     from metaflow.plugins.datastores.local_storage import LocalStorage
 
@@ -309,7 +313,31 @@ def get_latest_run_id(echo, flow_name):
     return None
 
 
+def get_recent_run_ids(echo, flow_name):
+    import json
+
+    from metaflow.plugins.datastores.local_storage import LocalStorage
+
+    local_root = LocalStorage.datastore_root
+    if local_root is None:
+        local_root = LocalStorage.get_datastore_root_from_config(
+            echo, create_on_absent=False
+        )
+    if local_root:
+        path = os.path.join(local_root, flow_name, _RECENT_RUNS_FILE)
+        if os.path.exists(path):
+            try:
+                with open(path) as f:
+                    return json.load(f)
+            except Exception:
+                pass
+    return []
+
+
 def write_latest_run_id(obj, run_id):
+    import json
+    from datetime import datetime
+
     from metaflow.plugins.datastores.local_storage import LocalStorage
 
     if LocalStorage.datastore_root is None:
@@ -326,6 +354,32 @@ def write_latest_run_id(obj, run_id):
     with open(os.path.join(path, "latest_run"), "w") as f:
         f.write(str(run_id))
 
+    # Maintain a capped history of recent run IDs.
+    history_path = os.path.join(path, _RECENT_RUNS_FILE)
+    try:
+        with open(history_path) as f:
+            history = json.load(f)
+    except Exception:
+        history = []
+    new_entry = {
+        "run_id": str(run_id),
+        "created_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+    }
+
+    history = [new_entry] + [e for e in history if e.get("run_id") != str(run_id)]
+    history = history[:MAX_RECENT_RUNS]
+    fd, tmp_path = tempfile.mkstemp(dir=path)
+    try:
+        with os.fdopen(fd, 'w') as f:
+            json.dump(history, f)
+        os.rename(tmp_path, history_path)
+    except:
+        try:
+            os.unlink(tmp_path)
+        except OSError:
+            pass
+        raise
+    
 
 def get_object_package_version(obj):
     """
