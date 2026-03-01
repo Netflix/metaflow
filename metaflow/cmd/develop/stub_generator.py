@@ -594,6 +594,9 @@ class StubGenerator:
                     if args_str[0] != "...":
                         call_args = "[" + ", ".join(args_str[:-1]) + "]"
                         args_str = [call_args, args_str[-1]]
+                elif element._name == "Tuple" and not args_str:
+                    # Tuple[()] means an empty tuple; Tuple[] is invalid syntax
+                    return "typing.Tuple[()]"
                 return "typing.%s[%s]" % (element._name, ", ".join(args_str))
             else:
                 # Handle the case where we have a generic type without a _name
