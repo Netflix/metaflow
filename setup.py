@@ -4,6 +4,13 @@ from setuptools import setup, find_packages
 with open("metaflow/version.py", mode="r") as f:
     version = f.read().splitlines()[0].split("=")[1].strip(" \"'")
 
+# Define the shared core dependencies for tracing to avoid repetition (DRY)
+_tracing_base = [
+    "opentelemetry-sdk",
+    "opentelemetry-api",
+    "opentelemetry-instrumentation",
+    "opentelemetry-instrumentation-requests",
+]
 
 def find_devtools_files():
     filepaths = []
@@ -11,7 +18,6 @@ def find_devtools_files():
         if os.path.isfile(path):
             filepaths.append(path)
     return filepaths
-
 
 setup(
     include_package_data=True,
@@ -64,19 +70,7 @@ setup(
     install_requires=["requests", "boto3"],
     extras_require={
         "stubs": ["metaflow-stubs==%s" % version],
-        "tracing-otel": [
-            "opentelemetry-sdk",
-            "opentelemetry-api",
-            "opentelemetry-instrumentation",
-            "opentelemetry-instrumentation-requests",
-            "opentelemetry-exporter-otlp",
-        ],
-        "tracing-zipkin": [
-            "opentelemetry-sdk",
-            "opentelemetry-api",
-            "opentelemetry-instrumentation",
-            "opentelemetry-instrumentation-requests",
-            "opentelemetry-exporter-zipkin",
-        ],
+        "tracing-otel": _tracing_base + ["opentelemetry-exporter-otlp"],
+        "tracing-zipkin": _tracing_base + ["opentelemetry-exporter-zipkin"],
     },
 )
