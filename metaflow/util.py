@@ -354,7 +354,7 @@ def write_latest_run_id(obj, run_id):
     with open(os.path.join(path, "latest_run"), "w") as f:
         f.write(str(run_id))
 
-   # Maintain a capped history of recent run IDs.
+    # Maintain a capped history of recent run IDs.
     history_path = os.path.join(path, _RECENT_RUNS_FILE)
     try:
         with open(history_path) as f:
@@ -379,6 +379,7 @@ def write_latest_run_id(obj, run_id):
         except OSError:
             pass
         raise
+    
 
 def get_object_package_version(obj):
     """

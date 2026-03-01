@@ -7,6 +7,7 @@ import sys
 import tempfile
 import types
 import unittest
+import shutil
 
 
 def _load_util(tmpdir):
@@ -69,6 +70,9 @@ class TestRecentRunIds(unittest.TestCase):
         self.tmpdir = tempfile.mkdtemp()
         self.util = _load_util(self.tmpdir)
         self.obj = _FlowObj()
+
+    def tearDown(self):
+        shutil.rmtree(self.tmpdir, ignore_errors=True)
 
     def _write(self, *run_ids):
         for rid in run_ids:

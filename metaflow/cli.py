@@ -220,7 +220,7 @@ def runs(obj, num_runs):
         return
 
     latest_run_id = history[0]["run_id"]
-    display = history[:num_runs]
+    display = history[:max(num_runs, 1)]
 
     echo("\nRecent local runs of flow *%s*:" % obj.flow.name, fg="magenta")
     echo(
