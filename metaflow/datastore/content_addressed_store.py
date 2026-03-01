@@ -177,7 +177,7 @@ class ContentAddressedStore(object):
                             version = meta.get("cas_version", -1)
                             if version == -1:
                                 raise DataException(
-                                    "Could not extract encoding version for '%s'" % path
+                                    "Could not extract encoding version for '%s'" % path_key
                                 )
                             unpack_code = getattr(self, "_unpack_v%d" % version, None)
                             if unpack_code is None:
@@ -185,13 +185,13 @@ class ContentAddressedStore(object):
                                     "Unknown encoding version %d for '%s' -- "
                                     "the artifact is either corrupt or you "
                                     "need to update Metaflow to the latest "
-                                    "version" % (version, path)
+                                    "version" % (version, path_key)
                                 )
                         try:
                             blob = unpack_code(f)
                         except Exception as e:
                             raise DataException(
-                                "Could not unpack artifact '%s': %s" % (path, e)
+                                "Could not unpack artifact '%s': %s" % (path_key, e)
                             )
 
                 if self._blob_cache:
