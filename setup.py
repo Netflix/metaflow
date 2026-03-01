@@ -64,5 +64,19 @@ setup(
     install_requires=["requests", "boto3"],
     extras_require={
         "stubs": ["metaflow-stubs==%s" % version],
+        "tracing-otel": [
+            "opentelemetry-sdk",
+            "opentelemetry-api",
+            "opentelemetry-instrumentation",
+            "opentelemetry-instrumentation-requests",
+            "opentelemetry-exporter-otlp",
+        ],
+        "tracing-zipkin": [
+            "opentelemetry-sdk",
+            "opentelemetry-api",
+            "opentelemetry-instrumentation",
+            "opentelemetry-instrumentation-requests",
+            "opentelemetry-exporter-zipkin",
+        ],
     },
 )
