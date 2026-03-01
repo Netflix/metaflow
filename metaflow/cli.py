@@ -219,7 +219,7 @@ def runs(obj, num_runs):
         )
         return
 
-    latest_run_id = history[0]["run_id"] if history else None
+    latest_run_id = history[0]["run_id"]
     display = history[:num_runs]
 
     echo("\nRecent local runs of flow *%s*:" % obj.flow.name, fg="magenta")
