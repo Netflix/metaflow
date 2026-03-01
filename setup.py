@@ -12,12 +12,14 @@ _tracing_base = [
     "opentelemetry-instrumentation-requests",
 ]
 
+
 def find_devtools_files():
     filepaths = []
     for path in glob.iglob("devtools/**/*", recursive=True):
         if os.path.isfile(path):
             filepaths.append(path)
     return filepaths
+
 
 setup(
     include_package_data=True,
@@ -74,3 +76,4 @@ setup(
         "tracing-zipkin": _tracing_base + ["opentelemetry-exporter-zipkin"],
     },
 )
+
