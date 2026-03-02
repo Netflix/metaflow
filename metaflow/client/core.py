@@ -1142,7 +1142,7 @@ class MetaflowData(object):
     def __dir__(self):
         return list(super().__dir__()) + list(self._artifacts.keys())
 
-    def _ipython_key_completions_(self):
+    def _ipython_key_completions_(self) -> list:
         return list(self._artifacts.keys())
 
     def __contains__(self, var):
@@ -2633,7 +2633,7 @@ class Metaflow(object):
                 default_metadata()
             self.metadata = current_metadata
 
-    def _ipython_key_completions_(self):
+    def _ipython_key_completions_(self) -> list:
         try:
             return [f.id for f in self]
         except Exception:
