@@ -158,9 +158,14 @@ class Batch(object):
         if user is None:
             regex = "-{flow_name}-".format(flow_name=flow_name)
         else:
-            regex = "{user}-{flow_name}-".format(user=user, flow_name=flow_name)
+            sanitized_user = user.replace(".", "-")
+            regex = "{user}-{flow_name}-".format(
+                user=sanitized_user, flow_name=flow_name
+            )
+
         jobs = []
         for job in self._client.unfinished_jobs():
+
             if regex in job["jobName"]:
                 jobs.append(job["jobId"])
         if run_id is not None:
