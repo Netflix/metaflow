@@ -472,7 +472,7 @@ class UserStepDecorator(UserStepDecoratorBase):
         If the step (or any code being wrapped by this decorator) raises an exception,
         it will be passed here and can either be caught (in which case the step will
         be considered as successful) or re-raised (in which case the entire step
-        will be considered a failure unless another decorator catches the execption).
+        will be considered a failure unless another decorator catches the exception).
 
         Note that this method executes *before* artifacts are stored in the datastore
         so it is able to modify, add or remove artifacts from `flow`.
@@ -656,7 +656,7 @@ def user_step_decorator(*args, **kwargs):
                     if v:
                         self.skip_step = v
                     else:
-                        # Emtpy dict is just skip the step
+                        # Empty dict is just skip the step
                         self.skip_step = True
                     return None
                 return v

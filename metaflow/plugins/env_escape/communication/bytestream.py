@@ -49,7 +49,7 @@ class ByteStream(object):
         """
         Closes the stream releasing all system resources
 
-        Once closed, the stream cannot be re-opened or re-used. If a
+        Once closed, the stream cannot be re-opened or reused. If a
         stream is already closed, this operation will have no effect
         """
         raise NotImplementedError()

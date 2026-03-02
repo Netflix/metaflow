@@ -422,7 +422,7 @@ class NativeRuntime(object):
             # cloned.
             # 2. If yes, we fire off a clone-only task which copies the
             # metadata from the `clone_origin` to pathspec=run/step/task to
-            # mimmick that the resumed run looks like an actual run.
+            # mimic that the resumed run looks like an actual run.
             # 3. All steps that couldn't be cloned (either unsuccessful or not
             # run) are run as regular tasks.
             # Lastly, to improve the performance of the cloning process, we
@@ -659,8 +659,8 @@ class NativeRuntime(object):
             ):
                 # "_unbounded_foreach" is a special flag to indicate that the transition
                 # is an unbounded foreach.
-                # Both parent and splitted children tasks will have this flag set.
-                # The splitted control/mapper tasks
+                # Both parent and split children tasks will have this flag set.
+                # The split control/mapper tasks
                 # are not foreach types because UBF is always followed by a join step.
                 is_ubf_task = (
                     "_unbounded_foreach" in task_ds and task_ds["_unbounded_foreach"]
@@ -784,9 +784,7 @@ class NativeRuntime(object):
                         # the finished iterations, we would incorrectly launch multiple
                         # successors. We therefore have to strip out all non-last
                         # iterations *per* foreach branch.
-                        idx_per_finished_id = (
-                            {}
-                        )  # type: Dict[Tuple[str, Tuple[int, ...], Tuple[int, Tuple[int, ...]]]]
+                        idx_per_finished_id = {}  # type: Dict[Tuple[str, Tuple[int, ...], Tuple[int, Tuple[int, ...]]]]
                         for task in self._cloned_tasks:
                             step_name, foreach_stack, iteration_stack = task.finished_id
                             existing_task_idx = idx_per_finished_id.get(
@@ -1837,21 +1835,21 @@ class Task(object):
         sys.stdout.flush()
 
     def is_resume_leader(self):
-        assert (
-            self.step == "_parameters"
-        ), "Only _parameters step can check resume leader."
+        assert self.step == "_parameters", (
+            "Only _parameters step can check resume leader."
+        )
         return self._is_resume_leader
 
     def resume_done(self):
-        assert (
-            self.step == "_parameters"
-        ), "Only _parameters step can check wheather resume is complete."
+        assert self.step == "_parameters", (
+            "Only _parameters step can check whether resume is complete."
+        )
         return self._resume_done
 
     def mark_resume_done(self):
-        assert (
-            self.step == "_parameters"
-        ), "Only _parameters step can mark resume as done."
+        assert self.step == "_parameters", (
+            "Only _parameters step can mark resume as done."
+        )
         assert self.is_resume_leader(), "Only resume leader can mark resume as done."
 
         # Mark the resume as done. This is called at the end of the resume flow and after

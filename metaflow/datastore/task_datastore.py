@@ -436,7 +436,7 @@ class TaskDataStore(object):
         for key, blob in self._ca_store.load_blobs(to_load.keys()):
             names = to_load[key]
             for name in names:
-                # We unpickle everytime to have fully distinct objects (the user
+                # We unpickle every time to have fully distinct objects (the user
                 # would not expect two artifacts with different names to actually
                 # be aliases of one another)
                 yield name, pickle.loads(blob)
@@ -934,8 +934,11 @@ class TaskDataStore(object):
                     sz = self[k].size
                 else:
                     sz = self._info[k]["size"]
-                yield k, "*{key}* [size: {size} type: {type}] = {value}".format(
-                    key=k, value=v, size=sz, type=self._info[k]["type"]
+                yield (
+                    k,
+                    "*{key}* [size: {size} type: {type}] = {value}".format(
+                        key=k, value=v, size=sz, type=self._info[k]["type"]
+                    ),
                 )
 
         return "\n".join(line for k, line in sorted(lines()))

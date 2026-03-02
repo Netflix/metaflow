@@ -495,7 +495,7 @@ class Config(Parameter, collections.abc.Mapping):
         required: Optional[bool] = None,
         parser: Optional[Union[str, Callable[[str], Dict[Any, Any]]]] = None,
         plain: bool = False,
-        **kwargs: Dict[str, str]
+        **kwargs: Dict[str, str],
     ):
         if default is not None and default_value is not None:
             raise MetaflowException(
@@ -529,7 +529,7 @@ class Config(Parameter, collections.abc.Mapping):
 
     # Support <config>.<var> syntax
     def __getattr__(self, name):
-        # Need to return a new DelayEvaluator everytime because the evaluator will
+        # Need to return a new DelayEvaluator every time because the evaluator will
         # contain the "path" (ie: .name) and can be further accessed.
         return getattr(DelayEvaluator(self.name), name)
 

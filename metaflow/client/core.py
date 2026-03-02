@@ -2202,7 +2202,7 @@ class Run(MetaflowObject):
     def code(self) -> Optional[MetaflowCode]:
         """
         Returns the MetaflowCode object for this run, if present.
-        Code is packed if atleast one `Step` runs remotely, else None is returned.
+        Code is packed if at least one `Step` runs remotely, else None is returned.
 
         Returns
         -------

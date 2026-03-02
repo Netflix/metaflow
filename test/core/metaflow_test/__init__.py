@@ -54,7 +54,7 @@ def retry_until_timeout(cb_fn, *args, timeout=4, **kwargs):
 
 def try_to_get_card(id=None, timeout=60):
     """
-    Safetly try to get the card object until a timeout value.
+    Safely try to get the card object until a timeout value.
     """
 
     def _get_card(card_id):
@@ -89,21 +89,19 @@ class ResumeFromHere(MetaflowException):
     headline = "Resume requested"
 
     def __init__(self):
-        super(ResumeFromHere, self).__init__(
-            "This is not an error. " "Testing resume..."
-        )
+        super(ResumeFromHere, self).__init__("This is not an error. Testing resume...")
 
 
 class TestRetry(MetaflowException):
     headline = "Testing retry"
 
     def __init__(self):
-        super(TestRetry, self).__init__("This is not an error. " "Testing retry...")
+        super(TestRetry, self).__init__("This is not an error. Testing retry...")
 
 
 def get_card_container(id=None):
     """
-    Safetly try to load the card_container object.
+    Safely try to load the card_container object.
     """
     try:
         return get_cards(current.pathspec, id=id)

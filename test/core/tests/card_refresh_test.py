@@ -12,10 +12,10 @@ class CardWithRefreshTest(MetaflowTest):
     1. In step code:
         1. We create a random array of strings.
         2. We call `current.card.refresh` with the array.
-        3. We check if the card is present given that we have called referesh and the card
+        3. We check if the card is present given that we have called refresh and the card
             should have reached the backend in some short period of time
         4. Keep adding new data to the array and keep calling refresh.
-        5. The data-update that got shipped should *atleast* be a subset the actual data present in the runtime code.
+        5. The data-update that got shipped should *at least* be a subset the actual data present in the runtime code.
     2. In check_results:
         1. We check if the data that got shipped can be access post task completion
         2. We check if the data that got shipped is a subset of the actual data created during the runtime code.
@@ -86,14 +86,14 @@ class CardWithRefreshTest(MetaflowTest):
             #   1. the update to cards is run via async processes
             #   2. card refreshes are rate-limited by RUNTIME_CARD_MIN_REFRESH_INTERVAL so we can't validate with each update.
             # There by there is no consistent way to know from during user-code when a data update
-            # actually got shiped.
+            # actually got shipped.
             start_arr.append(_create_random_strings(10))
             current.card.refresh({"arr": start_arr})
             # We call the `card.get_data` interface to validate the data is available in the card.
             # This is a private interface and should not be used by users but is used by internal services.
             card_data = card.get_data()
             if card_data is not None:
-                # Assert that data is atleast subset of what we sent to the datastore.
+                # Assert that data is at least subset of what we sent to the datastore.
                 assert_equals(
                     _array_is_a_subset(card_data["data"]["user"]["arr"], start_arr),
                     True,
@@ -160,6 +160,6 @@ class CardWithRefreshTest(MetaflowTest):
                 )
                 assert_equals(data_has_latest_artifact, True)
                 print(
-                    "Succesfully validated task pathspec %s"
+                    "Successfully validated task pathspec %s"
                     % run[step.name][task_id].pathspec
                 )

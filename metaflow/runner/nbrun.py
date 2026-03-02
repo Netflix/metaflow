@@ -21,7 +21,7 @@ class NBRunner(object):
     a `flow` is defined. In contrast to `Runner`, this class is not
     meant to be used in a context manager. Instead, use a blocking helper
     function like `nbrun` (which calls `cleanup()` internally) or call
-    `cleanup()` explictly when using non-blocking APIs.
+        `cleanup()` explicitly when using non-blocking APIs.
 
     ```python
     run = NBRunner(FlowName).nbrun()

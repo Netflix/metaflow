@@ -58,8 +58,11 @@ class CardComponentRefreshTest(MetaflowTest):
         import time
 
         possible_reload_tokens = []
-        make_reload_token = lambda a1, a2: "runtime-%s" % _component_values_to_hash(
-            {"random_key_1": {"abc": a1}, "random_key_2": {"abc": a2}}
+        make_reload_token = lambda a1, a2: (
+            "runtime-%s"
+            % _component_values_to_hash(
+                {"random_key_1": {"abc": a1}, "random_key_2": {"abc": a2}}
+            )
         )
         component_1_arr = create_random_string_array(5)
         # Calling the first refresh should trigger a render of the card.
@@ -95,7 +98,7 @@ class CardComponentRefreshTest(MetaflowTest):
             # How do we test it :
             #   1. Add new values to the components that have been created.
             #   2. Since the card is calculating the reload token based on the hash of the value, we verify that dataupdates have the same reload token or any of the possible reload tokens.
-            #   3. We also verify that the card_data contains the `data` key that has the lastest information updated for `component_1`
+            #   3. We also verify that the card_data contains the `data` key that has the latest information updated for `component_1`
             component_2_arr.append(_create_random_strings(10))
             component_1_arr.append(_create_random_strings(10))
 
@@ -136,7 +139,7 @@ class CardComponentRefreshTest(MetaflowTest):
             meta_check_dict = checker.artifact_dict_if_exists(step.name, "final_data")
             # Which ever steps ran the actual card testing code
             # contains the `final_data` attribute and the `step_name` attribute.
-            # If these exist then we can succesfully validate the card data since it is meant to exist.
+            # If these exist then we can successfully validate the card data since it is meant to exist.
             step_done_check_dict = checker.artifact_dict_if_exists(
                 step.name, "step_name"
             )

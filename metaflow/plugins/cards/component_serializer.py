@@ -119,7 +119,7 @@ class ComponentStore:
 
     def __getitem__(self, key):
         if key not in self._component_map:
-            # Store a stub-component in place since `key` doesnt exist.
+            # Store a stub-component in place since `key` doesn't exist.
             # If the user does a `current.card.append(component, id=key)`
             # then the stub component will be replaced by the actual component.
             self._store_component(StubComponent(key), component_id=key)
@@ -346,7 +346,7 @@ class CardComponentManager:
                 "render_seq": seq,
                 # `render_seq` is a counter that is incremented every time `render_runtime` is called.
                 # If a metaflow card has a RELOAD_POLICY_ALWAYS set then the reload token will be set to this value
-                # so that the card reload on the UI everytime `render_runtime` is called.
+                # so that the card reload on the UI every time `render_runtime` is called.
                 "component_update_ts": self.components.layout_last_changed_on,
                 # `component_update_ts` is the timestamp of the last time the component array was modified.
                 # `component_update_ts` can get used by the `reload_content_token` to make decisions on weather to
@@ -415,9 +415,7 @@ class CardComponentCollector:
             # value is of type `CardComponentManager`, holding a list of MetaflowCardComponents for that particular card
             {}
         )
-        self._cards_meta = (
-            {}
-        )  # a `dict` of (card_uuid, `dict)` holding all metadata about all @card decorators on the `current` @step.
+        self._cards_meta = {}  # a `dict` of (card_uuid, `dict)` holding all metadata about all @card decorators on the `current` @step.
         self._card_id_map = {}  # card_id to uuid map for all cards with ids
         self._logger = logger
         self._card_creator = card_creator

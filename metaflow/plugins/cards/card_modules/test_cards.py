@@ -123,7 +123,6 @@ window.metaflow_card_update = function(data) {
 
 
 class TestJSONComponent(MetaflowCardComponent):
-
     REALTIME_UPDATABLE = True
 
     def __init__(self, data):
@@ -197,7 +196,7 @@ class TestRefreshComponentCard(MetaflowCard):
         self._components = components
 
     def render(self, task) -> str:
-        # Calling `render`/`render_runtime` wont require the `data` object
+        # Calling `render`/`render_runtime` won't require the `data` object
         return self.HTML_TEMPLATE.replace(
             "[REPLACE_CONTENT_HERE]", json.dumps(self._components)
         ).replace("[PATHSPEC]", task.pathspec)

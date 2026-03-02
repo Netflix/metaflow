@@ -24,7 +24,7 @@ class BasicConfigTest(MetaflowTest):
     CONFIGS = {
         # Test a default value as a dict
         "config": {"default_value": "default_config"},
-        # Test parser, various arguments and overriden default
+        # Test parser, various arguments and overridden default
         "silly_config": {
             "required": True,
             "parser": "silly_parser",

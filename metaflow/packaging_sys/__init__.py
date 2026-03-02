@@ -55,7 +55,7 @@ class MetaflowCodeContent:
     function for that specific version.
 
     NOTE: This file must remain as dependency-free as possible as it is loaded *very*
-    early on. This is why you must decleare a *separate* class implementing what you want
+    early on. This is why you must declare a *separate* class implementing what you want
     the Metaflow code package (non user) to do.
     """
 

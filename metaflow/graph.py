@@ -269,7 +269,7 @@ class FlowGraph(object):
             if callable(func) and hasattr(func, "is_step"):
                 source_file = inspect.getsourcefile(func)
                 source_lines, lineno = inspect.getsourcelines(func)
-                # This also works for code (strips out leading whitspace based on
+                # This also works for code (strips out leading whitespace based on
                 # first line)
                 source_code = deindent_docstring("".join(source_lines))
                 function_ast = ast.parse(source_code).body[0]
@@ -388,17 +388,15 @@ class FlowGraph(object):
                     ).format(node, condition=condition_label)
                 else:
                     nodetype = "join" if node.num_args > 1 else node.type
-                    yield '"{0.name}"' '[ label = <<b>{0.name}</b> | <font point-size="10">{type}</font>> ' '  fontname = "Helvetica" ' '  shape = "record" ];'.format(
-                        node, type=nodetype
+                    yield (
+                        '"{0.name}"'
+                        '[ label = <<b>{0.name}</b> | <font point-size="10">{type}</font>> '
+                        '  fontname = "Helvetica" '
+                        '  shape = "record" ];'.format(node, type=nodetype)
                     )
 
-        return (
-            "digraph {0.name} {{\n"
-            "{nodes}\n"
-            "{edges}\n"
-            "}}".format(
-                self, nodes="\n".join(node_specs()), edges="\n".join(edge_specs())
-            )
+        return "digraph {0.name} {{\n{nodes}\n{edges}\n}}".format(
+            self, nodes="\n".join(node_specs()), edges="\n".join(edge_specs())
         )
 
     def output_steps(self):

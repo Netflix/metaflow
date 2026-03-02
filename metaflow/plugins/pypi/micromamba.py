@@ -96,7 +96,7 @@ class Micromamba(object):
         #    conda-forge/noarch/repodata.json.zst. Thankfully, now micromamba pulls
         #    zstd compressed files by default - https://github.com/conda-forge/conda-forge.github.io/issues/1835
         # 2. Tweak repodata ttl to pull either only once a day or if a solve fails -
-        #    this ensures that repodata is not pulled everytime it becomes dirty by
+        #    this ensures that repodata is not pulled every time it becomes dirty by
         #    default. This can result in an environment that has stale transitive
         #    dependencies but still correct. (--repodata-ttl 86400 --retry-clean-cache)
         # 3. Introduce pip as python dependency to resolve pip packages within conda
@@ -149,7 +149,7 @@ class Micromamba(object):
         # Unfortunately all the packages need to be catalogued in package cache
         # because of which this function can't be parallelized
 
-        # Micromamba is painfully slow in determining if many packages are infact
+        # Micromamba is painfully slow in determining if many packages are in fact
         # already cached. As a perf heuristic, we check if the environment already
         # exists to short circuit package downloads.
 

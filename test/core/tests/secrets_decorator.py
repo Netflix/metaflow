@@ -44,7 +44,7 @@ class SecretsDecoratorTest(MetaflowTest):
         ):
             # We don't check worker task secrets when there is a parallel step
             # run locally.
-            # todo (future): support the case where secrets need to be passsed to the
+            # todo (future): support the case where secrets need to be passed to the
             # control task in a parallel step when run locally.
             return
 

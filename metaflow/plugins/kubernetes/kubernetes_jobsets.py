@@ -130,7 +130,7 @@ def _derive_pod_status_and_status_code(control_pod):
 
 
 def _retrieve_replicated_job_statuses(jobset):
-    # We needed this abstraction because Jobsets changed thier schema
+    # We needed this abstraction because Jobsets changed their schema
     # in version v0.3.0 where `ReplicatedJobsStatus` became `replicatedJobsStatus`
     # So to handle users having an older version of jobsets, we need to account
     # for both the schemas.
@@ -351,7 +351,7 @@ class RunningJobSet(object):
                 # 1. Jobset has a `suspend` attribute to suspend it's execution, but this
                 # doesn't play nicely when jobsets are deployed with other components like kueue.
                 # 2. Jobset doesn't play nicely when we mutate status
-                # 3. Deletion is a gaurenteed way of removing any pods.
+                # 3. Deletion is a guaranteed way of removing any pods.
                 api_instance = client.CustomObjectsApi(api_client)
                 try:
                     api_instance.delete_namespaced_custom_object(
@@ -533,7 +533,7 @@ class JobSetSpec(object):
             return self
         self._kwargs["environment_variables_from_selectors"] = dict(
             self._kwargs.get("environment_variables_from_selectors", {}),
-            **{name: label_value}
+            **{name: label_value},
         )
         return self
 
@@ -800,12 +800,12 @@ class KubernetesJobSet(object):
         name=None,
         namespace=None,
         num_parallel=None,
-        # explcitly declaring num_parallel because we need to ensure that
+        # explicitly declaring num_parallel because we need to ensure that
         # num_parallel is an INTEGER and this abstraction is called by the
         # local runtime abstraction of kubernetes.
         # Argo will call another abstraction that will allow setting a lot of these
         # values from the top level argo code.
-        **kwargs
+        **kwargs,
     ):
         self._client = client
         self._annotations = {}
@@ -829,9 +829,9 @@ class KubernetesJobSet(object):
         self._worker_spec = JobSetSpec(
             client.get(), name="worker", namespace=namespace, **kwargs
         )
-        assert (
-            type(num_parallel) == int
-        ), "num_parallel must be an integer"  # todo: [final-refactor] : fix-me
+        assert type(num_parallel) == int, (
+            "num_parallel must be an integer"
+        )  # todo: [final-refactor] : fix-me
 
     @property
     def jobset_control_addr(self):

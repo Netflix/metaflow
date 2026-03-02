@@ -28,7 +28,7 @@ class CustomGroup(click.Group):
         return super(CustomGroup, self).get_command(ctx, cmd_name)
 
     def parse_args(self, ctx, args):
-        # We first try to parse args as is, to determine whether we need to fall back to the default commmand
+        # We first try to parse args as is, to determine whether we need to fall back to the default command
         # if any options are supplied, the parse will fail, as the group does not support the options.
         # In this case we fallback to the default command, inserting that as the first arg and parsing again.
         # copy args as trying to parse will destroy them.
@@ -150,8 +150,7 @@ def show(
         run_id, step_name, task_id = parts
     else:
         raise CommandException(
-            "input_path should either be run_id/step_name "
-            "or run_id/step_name/task_id"
+            "input_path should either be run_id/step_name or run_id/step_name/task_id"
         )
 
     datastore_set = TaskDataStoreSet(
@@ -293,8 +292,7 @@ def scrub(
         run_id, step_name, task_id = parts
     else:
         raise CommandException(
-            "input_path should either be run_id/step_name "
-            "or run_id/step_name/task_id"
+            "input_path should either be run_id/step_name or run_id/step_name/task_id"
         )
 
     if task_id:

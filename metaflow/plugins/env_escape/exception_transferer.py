@@ -95,7 +95,7 @@ def load_exception(client, json_obj):
     exception_module = json_obj.get(FIELD_EXC_MODULE)
     exception_name = json_obj.get(FIELD_EXC_NAME)
     exception_class = None
-    # This name is already cannonical since we cannonicalize it on the server side
+    # This name is already canonical since we canonicalize it on the server side
     full_name = "%s.%s" % (exception_module, exception_name)
 
     exception_class = client.get_local_class(full_name, is_returned_exception=True)

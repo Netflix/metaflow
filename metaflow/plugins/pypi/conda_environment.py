@@ -95,14 +95,17 @@ class CondaEnvironment(MetaflowEnvironment):
                 if type_ in environment and environment["id_"] not in seen:
                     seen.add(environment["id_"])
                     for platform in environment[type_]["platforms"]:
-                        yield environment["id_"], {
-                            **{
-                                k: v
-                                for k, v in environment[type_].items()
-                                if k != "platforms"
+                        yield (
+                            environment["id_"],
+                            {
+                                **{
+                                    k: v
+                                    for k, v in environment[type_].items()
+                                    if k != "platforms"
+                                },
+                                **{"platform": platform},
                             },
-                            **{"platform": platform},
-                        }
+                        )
 
         def solve(id_, environment, type_):
             # Cached solve - should be quick!
@@ -351,7 +354,7 @@ class CondaEnvironment(MetaflowEnvironment):
         # TODO: Introduce support for `--telemetry` as a follow up.
         # Certain packages are required for metaflow runtime to function correctly.
         # Ensure these packages are available both in Conda channels and PyPI
-        # repostories.
+        # repositories.
         pinned_packages = get_pinned_conda_libs(env_python, self.datastore_type)
 
         # PyPI dependencies are prioritized over Conda dependencies.
@@ -418,10 +421,14 @@ class CondaEnvironment(MetaflowEnvironment):
 
         # Z combinator for a recursive lambda
         deep_sort = (lambda f: f(f))(
-            lambda f: lambda obj: (
-                {k: f(f)(v) for k, v in sorted(obj.items())}
-                if isinstance(obj, dict)
-                else sorted([f(f)(e) for e in obj]) if isinstance(obj, list) else obj
+            lambda f: (
+                lambda obj: (
+                    {k: f(f)(v) for k, v in sorted(obj.items())}
+                    if isinstance(obj, dict)
+                    else sorted([f(f)(e) for e in obj])
+                    if isinstance(obj, list)
+                    else obj
+                )
             )
         )
 

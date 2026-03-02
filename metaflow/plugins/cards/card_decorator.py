@@ -219,7 +219,7 @@ class CardDecorator(StepDecorator):
         self._task_datastore = task_datastore
         self._metadata = metadata
 
-        # If we have configs, we need to dump them to a file so we can re-use them
+        # If we have configs, we need to dump them to a file so we can reuse them
         # when calling the card creation subprocess.
         # Since a step can contain multiple card decorators, and all the card creation processes
         # will reference the same config file (because of how the CardCreator is created (only single class instance)),

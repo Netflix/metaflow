@@ -129,7 +129,7 @@ class Server(object):
 
         # Detect circular aliases. If a user lists ("a", "b") and then ("b", "a"), we
         # will have an entry in aliases saying b is an alias for a and a is an alias
-        # for b which is a recipe for disaster since we no longer have a cannonical name
+        # for b which is a recipe for disaster since we no longer have a canonical name
         # for things.
         for alias, base_name in self._aliases.items():
             if base_name in self._aliases:

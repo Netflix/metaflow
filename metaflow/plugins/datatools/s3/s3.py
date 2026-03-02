@@ -460,7 +460,7 @@ class S3(object):
     """
     The Metaflow S3 client.
 
-    This object manages the connection to S3 and a temporary diretory that is used
+    This object manages the connection to S3 and a temporary directory that is used
     to download objects. Note that in most cases when the data fits in memory, no local
     disk IO is needed as operations are cached by the operating system, which makes
     operations fast as long as there is enough memory available.
@@ -528,7 +528,7 @@ class S3(object):
         run: Optional[Union[FlowSpec, "metaflow.Run"]] = None,
         s3root: Optional[str] = None,
         encryption: Optional[str] = S3_SERVER_SIDE_ENCRYPTION,
-        **kwargs
+        **kwargs,
     ):
         if run:
             # 1. use a (current) run ID with optional customizations
@@ -867,11 +867,17 @@ class S3(object):
                         else:
                             raise MetaflowS3Exception("Got error: %d" % info["error"])
                     else:
-                        yield self._s3root, s3url, None, info["size"], info.get(
-                            "content_type"
-                        ), info.get("metadata", {}), None, info["last_modified"], info[
-                            "encryption"
-                        ]
+                        yield (
+                            self._s3root,
+                            s3url,
+                            None,
+                            info["size"],
+                            info.get("content_type"),
+                            info.get("metadata", {}),
+                            None,
+                            info["last_modified"],
+                            info["encryption"],
+                        )
                 else:
                     # This should not happen; we should always get a response
                     # even if it contains an error inside it
@@ -955,7 +961,7 @@ class S3(object):
                     "content_type": resp.get("ContentType"),
                     # Since Metaflow can also use S3-compatible storage like MinIO,
                     # there maybe some keys missing in the responses given by different S3-compatible object stores.
-                    # MinIO is generally accessed via HTTPS, and so it's encrpytion scheme is
+                    # MinIO is generally accessed via HTTPS, and so it's encryption scheme is
                     # TLS/SSL. This is why the `ServerSideEncryption` key is not present
                     # in the response from MinIO.
                     "encryption": resp.get("ServerSideEncryption"),
@@ -1041,14 +1047,16 @@ class S3(object):
                                 - range_info["start"]
                                 + 1,
                             )
-                            yield self._s3root, s3url, os.path.join(
-                                self._tmpdir, fname
-                            ), None, info.get("content_type"), info.get(
-                                "metadata", {}
-                            ), range_info, info[
-                                "last_modified"
-                            ], info.get(
-                                "encryption"
+                            yield (
+                                self._s3root,
+                                s3url,
+                                os.path.join(self._tmpdir, fname),
+                                None,
+                                info.get("content_type"),
+                                info.get("metadata", {}),
+                                range_info,
+                                info["last_modified"],
+                                info.get("encryption"),
                             )
                     else:
                         yield self._s3root, s3prefix, None
@@ -1105,14 +1113,16 @@ class S3(object):
                             request_offset=range_info["start"],
                             request_length=range_info["end"] - range_info["start"] + 1,
                         )
-                    yield self._s3root, s3url, os.path.join(
-                        self._tmpdir, fname
-                    ), None, info.get("content_type"), info.get(
-                        "metadata", {}
-                    ), range_info, info[
-                        "last_modified"
-                    ], info.get(
-                        "encryption"
+                    yield (
+                        self._s3root,
+                        s3url,
+                        os.path.join(self._tmpdir, fname),
+                        None,
+                        info.get("content_type"),
+                        info.get("metadata", {}),
+                        range_info,
+                        info["last_modified"],
+                        info.get("encryption"),
                     )
                 else:
                     yield s3prefix, s3url, os.path.join(self._tmpdir, fname)
@@ -1412,7 +1422,7 @@ class S3(object):
             if max_retry_count > 0:
                 self._jitter_sleep(i)
         raise MetaflowS3Exception(
-            "S3 operation failed.\n" "Key requested: %s\n" "Error: %s" % (url, error)
+            "S3 operation failed.\nKey requested: %s\nError: %s" % (url, error)
         )
 
     # add some jitter to make sure retries are not synchronized
@@ -1603,9 +1613,7 @@ class S3(object):
         transient_retry_count = 0  # Number of transient retries
         inject_failures = _inject_failure_rate()
         out_lines = []  # List to contain the lines returned by _s3op_with_retries
-        pending_retries = (
-            []
-        )  # Inputs that need to be retried due to a transient failure
+        pending_retries = []  # Inputs that need to be retried due to a transient failure
         loop_count = 0
         last_ok_count = 0  # Number of inputs that were successful in the last try
         total_ok_count = 0  # Total number of OK inputs

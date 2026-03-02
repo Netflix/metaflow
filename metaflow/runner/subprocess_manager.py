@@ -137,7 +137,7 @@ class SubprocessManager(object):
             The command to run in List form.
         env : Optional[Dict[str, str]], default None
             Environment variables to set for the subprocess; if not specified,
-            the current enviornment variables are used.
+            the current environment variables are used.
         cwd : Optional[str], default None
             The directory to run the subprocess in; if not specified, the current
             directory is used.
@@ -186,7 +186,7 @@ class SubprocessManager(object):
             The command to run in List form.
         env : Optional[Dict[str, str]], default None
             Environment variables to set for the subprocess; if not specified,
-            the current enviornment variables are used.
+            the current environment variables are used.
         cwd : Optional[str], default None
             The directory to run the subprocess in; if not specified, the current
             directory is used.
@@ -249,7 +249,7 @@ class CommandManager(object):
             The command to run in List form.
         env : Optional[Dict[str, str]], default None
             Environment variables to set for the subprocess; if not specified,
-            the current enviornment variables are used.
+            the current environment variables are used.
         cwd : Optional[str], default None
             The directory to run the subprocess in; if not specified, the current
             directory is used.

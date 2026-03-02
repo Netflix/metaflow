@@ -5,7 +5,7 @@ if sys.version_info < (3, 6):
 
     class Tags:
         __getattr__ = lambda self, name: (_ for _ in ()).throw(
-            Exception("packaging.tags is not avaliable for Python < 3.6")
+            Exception("packaging.tags is not available for Python < 3.6")
         )
 
     tags = Tags()

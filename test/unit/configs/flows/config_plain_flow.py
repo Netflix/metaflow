@@ -48,7 +48,7 @@ class ConfigPlainFlow(FlowSpec):
         plain=True,
     )
 
-    # None config and plain flag work properlty
+    # None config and plain flag work properly
     plain_none_config = Config(
         "plain-none-config",
         default_value=None,
@@ -65,15 +65,15 @@ class ConfigPlainFlow(FlowSpec):
         self.plain_str_type = type(self.plain_string_config).__name__
 
         # Validate plain string config
-        assert isinstance(
-            self.plain_string_config, str
-        ), f"Expected str, got {type(self.plain_string_config)}"
-        assert (
-            self.plain_str_value == '{"raw": "string", "number": 123}'
-        ), f"Unexpected value: {self.plain_str_value}"
-        assert (
-            self.plain_str_type == "str"
-        ), f"Expected 'str', got {self.plain_str_type}"
+        assert isinstance(self.plain_string_config, str), (
+            f"Expected str, got {type(self.plain_string_config)}"
+        )
+        assert self.plain_str_value == '{"raw": "string", "number": 123}', (
+            f"Unexpected value: {self.plain_str_value}"
+        )
+        assert self.plain_str_type == "str", (
+            f"Expected 'str', got {self.plain_str_type}"
+        )
         print(
             f"✓ Plain string validated: {self.plain_str_value} (type: {self.plain_str_type})"
         )
@@ -85,24 +85,24 @@ class ConfigPlainFlow(FlowSpec):
         self.plain_list_first = self.plain_list_config[0]
 
         # Validate plain list config
-        assert isinstance(
-            self.plain_list_config, list
-        ), f"Expected list, got {type(self.plain_list_config)}"
+        assert isinstance(self.plain_list_config, list), (
+            f"Expected list, got {type(self.plain_list_config)}"
+        )
         assert self.plain_list_value == [
             "apple",
             "banana",
             "cherry",
             "date",
         ], f"Unexpected list: {self.plain_list_value}"
-        assert (
-            self.plain_list_type == "list"
-        ), f"Expected 'list', got {self.plain_list_type}"
-        assert (
-            self.plain_list_length == 4
-        ), f"Expected length 4, got {self.plain_list_length}"
-        assert (
-            self.plain_list_first == "apple"
-        ), f"Expected 'apple', got {self.plain_list_first}"
+        assert self.plain_list_type == "list", (
+            f"Expected 'list', got {self.plain_list_type}"
+        )
+        assert self.plain_list_length == 4, (
+            f"Expected length 4, got {self.plain_list_length}"
+        )
+        assert self.plain_list_first == "apple", (
+            f"Expected 'apple', got {self.plain_list_first}"
+        )
         print(
             f"✓ Plain list validated: {self.plain_list_value} (type: {self.plain_list_type})"
         )
@@ -115,27 +115,27 @@ class ConfigPlainFlow(FlowSpec):
         self.tuple_enabled = self.plain_tuple_config[2]
 
         # Validate plain tuple config
-        assert isinstance(
-            self.plain_tuple_config, tuple
-        ), f"Expected tuple, got {type(self.plain_tuple_config)}"
-        assert (
-            self.plain_tuple_type == "tuple"
-        ), f"Expected 'tuple', got {self.plain_tuple_type}"
-        assert (
-            self.tuple_name == "test_tuple"
-        ), f"Expected 'test_tuple', got {self.tuple_name}"
+        assert isinstance(self.plain_tuple_config, tuple), (
+            f"Expected tuple, got {type(self.plain_tuple_config)}"
+        )
+        assert self.plain_tuple_type == "tuple", (
+            f"Expected 'tuple', got {self.plain_tuple_type}"
+        )
+        assert self.tuple_name == "test_tuple", (
+            f"Expected 'test_tuple', got {self.tuple_name}"
+        )
         assert self.tuple_count == 42, f"Expected 42, got {self.tuple_count}"
         assert self.tuple_enabled == True, f"Expected True, got {self.tuple_enabled}"
-        assert (
-            len(self.plain_tuple_config) == 3
-        ), f"Expected length 3, got {len(self.plain_tuple_config)}"
+        assert len(self.plain_tuple_config) == 3, (
+            f"Expected length 3, got {len(self.plain_tuple_config)}"
+        )
         print(
             f"✓ Plain tuple validated: {self.plain_tuple_value} (type: {self.plain_tuple_type})"
         )
 
-        assert (
-            self.plain_none_config is None
-        ), f"Expected None, got {self.plain_none_config}"
+        assert self.plain_none_config is None, (
+            f"Expected None, got {self.plain_none_config}"
+        )
         print(f"✓ Plain None config validated")
         assert self.none_config is None, f"Expected None, got {self.none_config}"
         print(f"✓ Non-plain None config validated")

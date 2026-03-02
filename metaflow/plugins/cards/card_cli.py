@@ -120,7 +120,7 @@ def resolve_card(
         hash (optional): This is to specifically resolve the card via the hash. This is useful when there may be many card with same id or type for a pathspec.
         type : type of card
         card_id : `id` given to card
-        no_echo : if set to `True` then supress logs about pathspec resolution.
+        no_echo : if set to `True` then suppress logs about pathspec resolution.
     Raises:
         CardNotPresentException: No card could be found for the pathspec
 

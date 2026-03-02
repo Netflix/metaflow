@@ -29,7 +29,6 @@ def _warning_with_component(component, msg):
 
 
 class UserComponent(MetaflowCardComponent):
-
     _warned_once = False
 
     def update(self, *args, **kwargs):
@@ -385,22 +384,25 @@ class Image(UserComponent):
         elif _full_classname(img_obj) == self._MATPLOTLIB_FIGURE_MODULE_PATH:
             parsed_image, err_comp = self._parse_matplotlib(img_obj)
         else:
-            parsed_image, err_comp = None, ErrorComponent(
-                self.render_fail_headline(
-                    "Invalid Type. Object %s is not supported. Supported types: %s"
-                    % (
-                        type(img_obj),
-                        ", ".join(
-                            [
-                                "str",
-                                "bytes",
-                                self._PIL_IMAGE_MODULE_PATH,
-                                self._MATPLOTLIB_FIGURE_MODULE_PATH,
-                            ]
-                        ),
-                    )
+            parsed_image, err_comp = (
+                None,
+                ErrorComponent(
+                    self.render_fail_headline(
+                        "Invalid Type. Object %s is not supported. Supported types: %s"
+                        % (
+                            type(img_obj),
+                            ", ".join(
+                                [
+                                    "str",
+                                    "bytes",
+                                    self._PIL_IMAGE_MODULE_PATH,
+                                    self._MATPLOTLIB_FIGURE_MODULE_PATH,
+                                ]
+                            ),
+                        )
+                    ),
+                    "",
                 ),
-                "",
             )
 
         if parsed_image is not None:
@@ -433,7 +435,7 @@ class Image(UserComponent):
             return cls._pil_parsing_error(_img_type)
 
         # Set the module as a part of the class so that
-        # we don't keep reloading the module everytime
+        # we don't keep reloading the module every time
         pil_module = cls._get_pil_module()
 
         if pil_module is None:
