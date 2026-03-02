@@ -739,6 +739,7 @@ class MetaflowTask(object):
             metadata_str=self.metadata.metadata_str(),
             is_running=True,
             tags=self.metadata.sticky_tags,
+            sys_tags=self.metadata.sticky_sys_tags,
         )
 
         # 5. run task

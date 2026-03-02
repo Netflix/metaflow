@@ -1,6 +1,6 @@
 from collections import namedtuple
 import os
-from typing import Any, Optional, TYPE_CHECKING
+from typing import Any, FrozenSet, Optional, TYPE_CHECKING
 
 from metaflow.metaflow_config import TEMPDIR
 
@@ -25,6 +25,8 @@ class Current(object):
         self._metadata_str = None
         self._is_running = False
         self._tempdir = TEMPDIR
+        self._user_tags = frozenset()
+        self._system_tags = frozenset()
 
         def _raise(ex):
             raise ex
@@ -46,6 +48,7 @@ class Current(object):
         metadata_str=None,
         is_running=True,
         tags=None,
+        sys_tags=None,
     ):
         if flow is not None:
             self._flow_name = flow.name
@@ -60,8 +63,9 @@ class Current(object):
         self._username = username
         self._metadata_str = metadata_str
         self._is_running = is_running
-        self._tags = tags
-
+        self._user_tags = frozenset(tags) if tags is not None else frozenset()
+        self._system_tags = frozenset(sys_tags) if sys_tags is not None else frozenset()
+        
     def _update_env(self, env):
         for k, v in env.items():
             setattr(self.__class__, k, property(fget=lambda _, v=v: v))
@@ -263,13 +267,51 @@ class Current(object):
         return self._username
 
     @property
-    def tags(self):
+    def tags(self) -> FrozenSet[str]:
         """
-        [Legacy function - do not use]
+        Tags associated with the current run.
 
-        Access tags through the Run object instead.
+        This includes both user-defined tags and system-defined tags.
+        This is a convenience property equivalent to
+        `current.user_tags | current.system_tags`.
+
+        Returns
+        -------
+        FrozenSet[str]
+            All tags (user and system) associated with the current run.
         """
-        return self._tags
+        return self._user_tags | self._system_tags
+
+    @property
+    def user_tags(self) -> FrozenSet[str]:
+        """
+        User-defined tags associated with the current run.
+
+        These are tags set explicitly by the user when starting the run,
+        e.g. via `--tag` on the command line.
+
+        Returns
+        -------
+        FrozenSet[str]
+            User-defined tags associated with the current run.
+        """
+        return self._user_tags
+
+    @property
+    def system_tags(self) -> FrozenSet[str]:
+        """
+        System-defined tags associated with the current run.
+
+        These are tags set automatically by Metaflow, such as
+        ``metaflow_version:<version>``, ``runtime:<name>``,
+        ``project:<name>``, and ``project_branch:<name>``.
+
+        Returns
+        -------
+        FrozenSet[str]
+            System-defined tags associated with the current run.
+        """
+        return self._system_tags
 
     @property
     def tempdir(self) -> Optional[str]:
