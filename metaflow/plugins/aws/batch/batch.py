@@ -176,6 +176,9 @@ class Batch(object):
                 yield job
 
     def _job_name(self, user, flow_name, run_id, step_name, task_id, retry_count):
+        if user:
+            user = user.replace(".", "-")
+
         return "{user}-{flow_name}-{run_id}-{step_name}-{task_id}-{retry_count}".format(
             user=user,
             flow_name=flow_name,
