@@ -193,10 +193,10 @@ def cards_for_run(
                 continue
             for card in card_generator:
                 curr_idx += 1
+                yield task.pathspec, card
                 if curr_idx >= max_cards:
                     return
-                yield task.pathspec, card
-
+                
 
 class CardViewerRoutes(BaseHTTPRequestHandler):
 
