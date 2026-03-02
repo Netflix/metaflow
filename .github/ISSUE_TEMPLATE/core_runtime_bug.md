@@ -17,7 +17,13 @@ Select all that apply:
 - [ ] Execution engine (`runtime.py`, `task.py`, `flowspec.py`)
 - [ ] Runner / subprocess management (`runner/`)
 - [ ] CLI plumbing (`cli.py`, `cli_components/`, `runner/click_api.py`)
-- [ ] Datastore / metadata (`datastore/`, `metadata_provider/`)
+- [ ] Datastore (`datastore/`, `plugins/datastores/`)
+- [ ] Metadata (`metadata_provider/`, `plugins/metadata_providers/`)
+- [ ] AWS client / credentials (`plugins/aws/aws_client.py`, `plugins/datatools/s3/`)
+- [ ] Config / parameters (`metaflow_config.py`, `parameters.py`, `user_configs/`)
+- [ ] Logging / capture (`mflog/`, `system/`, `debug.py`)
+- [ ] Decorators (core) (`decorators.py`)
+- [ ] Graph / DAG (`graph.py`)
 - [ ] Orchestrator plugins (`plugins/argo`, `plugins/aws/batch`, `plugins/aws/step_functions`, `plugins/kubernetes`)
 - [ ] Other core runtime area (specify below)
 
@@ -45,20 +51,13 @@ Provide the smallest runnable example and exact command(s).
 # Full traceback / logs
 ```
 
-## Root Cause Analysis (Required)
+## Suspected Root Cause (Optional)
 
-What invariant is violated and why does this happen?
+If you have a hypothesis, describe what may be happening and why.
 
-## Why This Fix Is Correct (Required)
+## Related Scenarios / Edge Cases (Optional)
 
-Explain the fix and why it addresses the root cause.
-
-## Failure Modes Considered (Required)
-
-List at least two edge cases or failure modes you considered.
-
-1.  
-2.  
+Are there adjacent scenarios that might also be affected?
 
 ## Environment
 
