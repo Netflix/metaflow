@@ -63,9 +63,9 @@ class Current(object):
         self._username = username
         self._metadata_str = metadata_str
         self._is_running = is_running
-        self._user_tags = frozenset(tags) if tags else frozenset()
-        self._system_tags = frozenset(sys_tags) if sys_tags else frozenset()
-
+        self._user_tags = frozenset(tags) if tags is not None else frozenset()
+        self._system_tags = frozenset(sys_tags) if sys_tags is not None else frozenset()
+        
     def _update_env(self, env):
         for k, v in env.items():
             setattr(self.__class__, k, property(fget=lambda _, v=v: v))
