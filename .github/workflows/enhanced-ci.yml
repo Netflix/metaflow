@@ -1,0 +1,193 @@
+name: Enhanced CI Pipeline
+
+on:
+  push:
+    branches: [master, main]
+  pull_request:
+    branches: [master, main]
+  schedule:
+    # Run weekly security scans
+    - cron: '0 2 * * 1'
+
+permissions:
+  contents: read
+  security-events: write
+
+jobs:
+  security-scan:
+    name: Security Scanning
+    runs-on: ubuntu-22.04
+    steps:
+    - uses: actions/checkout@v4
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.11'
+    
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        python -m pip install safety bandit semgrep
+        python -m pip install -e .
+    
+    - name: Run Safety check (dependency vulnerabilities)
+      run: |
+        python -m pip freeze | safety check --stdin --json > safety-report.json || true
+    
+    - name: Run Bandit (security linter)
+      run: |
+        bandit -r metaflow/ -f json -o bandit-report.json || true
+    
+    - name: Upload security reports
+      uses: actions/upload-artifact@v4
+      with:
+        name: security-reports
+        path: |
+          safety-report.json
+          bandit-report.json
+
+  dependency-review:
+    name: Dependency Review
+    runs-on: ubuntu-22.04
+    if: github.event_name == 'pull_request'
+    steps:
+    - uses: actions/checkout@v4
+    - name: Dependency Review
+      uses: actions/dependency-review-action@v4
+
+  python-compatibility:
+    name: Python ${{ matrix.python-version }} Compatibility
+    runs-on: ubuntu-22.04
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ['3.8', '3.9', '3.10', '3.11', '3.12', '3.13']
+    
+    steps:
+    - uses: actions/checkout@v4
+    - name: Set up Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v5
+      with:
+        python-version: ${{ matrix.python-version }}
+    
+    - name: Install and test basic imports
+      run: |
+        python -m pip install --upgrade pip
+        python -m pip install -e .
+        python -c "import metaflow; print(f'Metaflow {metaflow.__version__} works on Python {matrix.python-version}')"
+    
+    - name: Run basic functionality tests
+      run: |
+        python -c "
+        from metaflow import FlowSpec, step
+        class TestFlow(FlowSpec):
+            @step
+            def start(self):
+                print('Basic flow works')
+                self.next(self.end)
+            @step  
+            def end(self):
+                pass
+        if __name__ == '__main__':
+            TestFlow()
+        "
+
+  performance-tests:
+    name: Performance Benchmarks
+    runs-on: ubuntu-22.04
+    steps:
+    - uses: actions/checkout@v4
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.11'
+    
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        python -m pip install -e .
+        python -m pip install pytest pytest-benchmark
+    
+    - name: Run performance tests
+      run: |
+        cd test/data
+        PYTHONPATH=$(pwd)/../../ python -m pytest --benchmark-only -v
+
+  code-quality:
+    name: Code Quality Analysis
+    runs-on: ubuntu-22.04
+    steps:
+    - uses: actions/checkout@v4
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.11'
+    
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        python -m pip install black isort flake8 mypy
+        python -m pip install -e .
+    
+    - name: Check code formatting with black
+      run: black --check --diff metaflow/
+    
+    - name: Check import sorting with isort
+      run: isort --check-only --diff metaflow/
+    
+    - name: Lint with flake8
+      run: flake8 metaflow/ --max-line-length=88 --extend-ignore=E203,W503
+    
+    - name: Type checking with mypy (non-blocking)
+      run: mypy metaflow/ --ignore-missing-imports || true
+
+  docker-tests:
+    name: Docker Integration Tests
+    runs-on: ubuntu-22.04
+    steps:
+    - uses: actions/checkout@v4
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
+    
+    - name: Create test Dockerfile
+      run: |
+        cat > Dockerfile.test << 'EOF'
+        FROM python:3.11-slim
+        WORKDIR /app
+        COPY . .
+        RUN pip install -e .
+        RUN python -c "import metaflow; print('Metaflow works in Docker')"
+        EOF
+    
+    - name: Build and test Docker image
+      run: |
+        docker build -f Dockerfile.test -t metaflow-test .
+        docker run --rm metaflow-test python -c "import metaflow; print('Container test passed')"
+
+  documentation-tests:
+    name: Documentation Tests
+    runs-on: ubuntu-22.04
+    steps:
+    - uses: actions/checkout@v4
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.11'
+    
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        python -m pip install -e .
+        python -m pip install doctest pytest
+    
+    - name: Test docstrings
+      run: |
+        python -m pytest --doctest-modules metaflow/ -v || true
+    
+    - name: Validate README examples
+      run: |
+        # Check if README examples are valid
+        grep -o '```python.*```' README.md | sed 's/```python//' | sed 's/```//' > readme_examples.py || true
+        if [ -s readme_examples.py ]; then
+          python -m py_compile readme_examples.py || echo "README examples need review"
+        fi
