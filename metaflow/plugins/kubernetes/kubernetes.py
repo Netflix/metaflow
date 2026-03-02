@@ -781,6 +781,8 @@ class Kubernetes(object):
                     raise KubernetesException("%s (exit code %s)" % (msg, exit_code))
                 else:
                     msg = "%s (exit code %s)" % (msg, exit_code)
+            if msg.startswith("DeadlineExceeded"):
+                raise KubernetesException(msg)
             raise KubernetesException(
                 "%s. This could be a transient error. Use @retry to retry." % msg
             )

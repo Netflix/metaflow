@@ -749,22 +749,26 @@ class RunningJob(object):
                     # If pod status is dirty, check for newer status
                     self._pod = self._fetch_pod()
                 if self._pod:
-                    if self._pod.get("status", {}).get("container_statuses") is None:
-                        # We're done, but no container_statuses is set
-                        # This can happen when the pod is evicted
+                    pod_status = self._pod.get("status", {})
+                    pod_reason = pod_status.get("reason")
+                    # Check for pod-level reasons (like timeout) first - whether container_statuses exists or not
+                    # If no container_statuses is set, This can happen when the pod is evicted
+                    if (
+                        pod_reason == "DeadlineExceeded"
+                        or pod_status.get("container_statuses") is None
+                    ):
                         return None, ": ".join(
                             filter(
                                 None,
                                 [
-                                    self._pod.get("status", {}).get("reason"),
-                                    self._pod.get("status", {}).get("message"),
+                                    pod_status.get("reason"),
+                                    pod_status.get("message"),
                                 ],
                             )
                         )
 
-                    for k, v in (
-                        self._pod.get("status", {})
-                        .get("container_statuses", [{}])[0]
+                    for _, v in (
+                        pod_status.get("container_statuses", [{}])[0]
                         .get("state", {})
                         .items()
                     ):
