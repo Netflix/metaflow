@@ -991,12 +991,16 @@ class NativeRuntime(object):
         # If we are here, all children have received a signal and are shutting down.
         # We want to give them an opportunity to do so and then kill
         live_workers = set(self._workers.values())
-        now = int(time.time())
         self._logger(
-            "Terminating %d active tasks..." % len(live_workers),
+            "Attempting graceful shutdown of %d active tasks..." % len(live_workers),
             system_msg=True,
             bad=True,
         )
+
+        for each_worker in live_workers:
+            each_worker.shutdown()
+
+        now = int(time.time())
         while live_workers and int(time.time()) - now < 5:
             # While not all workers are dead and we have waited less than 5 seconds
             live_workers = [worker for worker in live_workers if not worker.clean()]
@@ -2210,6 +2214,8 @@ class Worker(object):
         }
 
         self._encoding = sys.stdout.encoding or "UTF-8"
+        self.terminated = False
+        # Terminated indicates that SIGTERM was sent to the task
         self.killed = False  # Killed indicates that the task was forcibly killed
         # with SIGKILL by the master process.
         # A killed task is always considered cleaned
@@ -2323,10 +2329,21 @@ class Worker(object):
             return True
         if not self.cleaned:
             for fileobj, buf in self._logs.values():
-                msg = b"[KILLED BY ORCHESTRATOR]\n"
+                if self.terminated:
+                    msg = b"[TERMINATED BY ORCHESTRATOR]\n"
+                else:
+                    msg = b"[KILLED BY ORCHESTRATOR]\n"
                 self.emit_log(msg, buf, system_msg=True)
             self.cleaned = True
         return self._proc.poll() is not None
+
+    def shutdown(self):
+        if not self.terminated:
+            try:
+                self._proc.terminate()
+            except:
+                pass
+            self.terminated = True
 
     def kill(self):
         if not self.killed:
