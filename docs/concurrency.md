@@ -262,10 +262,9 @@ execute many request handler tasks concurrently, more so than in parallel.
 
 The downsides of `asyncio` are many:
 
- - `asyncio` is not available in Python 2 and its standard library
-   implementation has been quickly evolving at least until Python 3.6.
-   This makes it practically unusable in Metaflow, which needs to support
-   Python 2 and earlier versions of Python 3.
+ - `asyncio`'s standard library implementation has been quickly evolving
+   at least until Python 3.6, making it difficult to use reliably across
+   different Python 3 versions.
 
  - `asyncio` requires a lot of attention from the programmer. It is very
    easy to introduce issues that tank the performance (e.g. a single blocking

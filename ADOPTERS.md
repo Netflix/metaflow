@@ -1,6 +1,6 @@
 # Adopters
 
-Below is a partial list of organizations using Metaflow in production. If you'd like to be included in this list, please raise a pull request
+Below is a partial list of organizations using Metaflow in production. If you'd like to be included in this list, please raise a pull request.
 
 - [23andMe](https://www.23andme.com)
 - [Adept](https://www.adept.ai)

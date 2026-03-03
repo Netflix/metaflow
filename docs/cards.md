@@ -78,7 +78,7 @@ if __name__ == "__main__":
 The [CardDatastore](../metaflow/plugins/cards/card_datastore.py) is used by the [card_cli](#card-cli) and the [metaflow card client](#access-cards-in-notebooks) (`get_cards`). It exposes methods to get metadata about a card and the paths to cards for a `pathspec`. 
 
 ### Card CLI
-Methods exposed by the [card_cli](../metaflow/plugins/cards/.card_cli.py). :
+Methods exposed by the [card_cli](../metaflow/plugins/cards/card_cli.py):
 
 - `create` : Creates the card in the datastore for a `Task`. Adding a `--render-error-card` will render a `ErrorCard` upon failure to render the card of the selected `type`. If `--render-error-card` is not passed then the CLI will fail loudly with the exception. 
 ```sh

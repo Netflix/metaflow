@@ -15,7 +15,7 @@ the main process (sidecar class) via
 [pipes](https://www.tutorialspoint.com/inter_process_communication/inter_process_communication_pipes.htm). 
 The sidecar worker consumes messages from the main process via stdin and logs debug and error messages to stderr. 
 Note that since metaflow blocks the completion of a task until the termination of stdout (to collect the logs), 
-the stdout for sidecars is directed to dev/nul instead of inheriting the stdout of the parent process to ensure
+the stdout for sidecars is directed to /dev/null instead of inheriting the stdout of the parent process to ensure
 the process is non-blocking.
  
 <img src="metaflow_sidecar_arch.png" style="width: 80%">
