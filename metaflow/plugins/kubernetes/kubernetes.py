@@ -7,6 +7,7 @@ from uuid import uuid4
 
 from metaflow import current, util
 from metaflow.exception import MetaflowException
+from metaflow.plugins.kubernetes.kube_utils import KubernetesException
 from metaflow.metaflow_config import (
     ARGO_EVENTS_EVENT,
     ARGO_EVENTS_EVENT_BUS,
@@ -62,10 +63,6 @@ STDERR_PATH = os.path.join(LOGS_DIR, STDERR_FILE)
 METAFLOW_PARALLEL_STEP_CLI_OPTIONS_TEMPLATE = (
     "{METAFLOW_PARALLEL_STEP_CLI_OPTIONS_TEMPLATE}"
 )
-
-
-class KubernetesException(MetaflowException):
-    headline = "Kubernetes error"
 
 
 class KubernetesKilledException(MetaflowException):
