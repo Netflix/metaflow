@@ -565,16 +565,18 @@ class FlowSpec(metaclass=FlowSpecMeta):
             if not issubclass(base, FlowSpec):
                 continue
 
-            for var, val in base.__dict__.items():
+            for var in base.__dict__:
                 if (
                     var[0] != "_"
                     and var not in cls._NON_PARAMETERS
-                    and isinstance(val, Parameter)
                     and var not in returned
                 ):
-                    build_list.append(var)
-                    returned.add(var)
-                    yield var, val
+                    val = getattr(cls, var)
+
+                    if isinstance(val, Parameter):
+                        build_list.append(var)
+                        returned.add(var)
+                        yield var, val
 
         cls._flow_state[FlowStateItems.CACHED_PARAMETERS] = build_list
 
