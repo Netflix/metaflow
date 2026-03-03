@@ -1,4 +1,5 @@
 from metaflow import FlowSpec, Parameter
+from metaflow.flowspec import FlowStateItems
 
 
 def test_get_parameters_full_semantics():
@@ -95,3 +96,53 @@ def test_get_parameters_full_semantics():
 
     # Parent parameter must come before BaseB parameter
     assert first_names.index("p") < first_names.index("b")
+
+
+def test_mixin_and_config_parameter_handling():
+    """
+    Validates:
+    - Non-FlowSpec mixins defining Parameters are discovered.
+    - Config parameters yielded from SET_CONFIG_PARAMETERS are not duplicated.
+    - Override semantics remain correct.
+    """
+
+    # -----------------------------
+    # 1️⃣ Non-FlowSpec mixin support
+    # -----------------------------
+
+    class ParamMixin:
+        x = Parameter("x")
+
+    class MixinFlow(ParamMixin, FlowSpec):
+        y = Parameter("y")
+
+    params = list(MixinFlow._get_parameters())
+    param_names = [name for name, _ in params]
+
+    assert set(param_names) == {"x", "y"}
+
+    # -----------------------------
+    # 2️⃣ Config parameter deduplication
+    # -----------------------------
+
+    class ConfigFlow(FlowSpec):
+        a = Parameter("a")
+        b = Parameter("b")
+
+    # Simulate config mutation behavior:
+    # Pretend parameter "a" has been converted and stored in SET_CONFIG_PARAMETERS
+    config_param = ConfigFlow.a
+    ConfigFlow._flow_state[FlowStateItems.SET_CONFIG_PARAMETERS] = [("a", config_param)]
+
+    params = list(ConfigFlow._get_parameters())
+    param_names = [name for name, _ in params]
+
+    # Must contain both parameters
+    assert set(param_names) == {"a", "b"}
+
+    # Must not duplicate "a"
+    assert param_names.count("a") == 1
+
+    # Clean up state for safety (avoid leaking into other tests)
+    ConfigFlow._flow_state[FlowStateItems.SET_CONFIG_PARAMETERS] = []
+    ConfigFlow._flow_state[FlowStateItems.CACHED_PARAMETERS] = None
