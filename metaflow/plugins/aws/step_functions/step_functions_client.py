@@ -1,6 +1,7 @@
 from metaflow.metaflow_config import (
     AWS_SANDBOX_ENABLED,
     AWS_SANDBOX_REGION,
+    SFN_CLIENT_PARAMS,
     SFN_EXECUTION_LOG_GROUP_ARN,
 )
 
@@ -9,7 +10,7 @@ class StepFunctionsClient(object):
     def __init__(self):
         from ..aws_client import get_aws_client
 
-        self._client = get_aws_client("stepfunctions")
+        self._client = get_aws_client("stepfunctions", client_params=SFN_CLIENT_PARAMS)
 
     def search(self, name):
         paginator = self._client.get_paginator("list_state_machines")
