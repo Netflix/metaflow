@@ -561,7 +561,7 @@ class FlowSpec(metaclass=FlowSpecMeta):
             returned.add(set_config[0])
             yield set_config[0], set_config[1]
 
-        for base in reversed(cls.__mro__):
+        for base in cls.__mro__:
             if not issubclass(base, FlowSpec):
                 continue
 
