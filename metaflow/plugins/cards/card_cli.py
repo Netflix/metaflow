@@ -466,7 +466,11 @@ def update_card(mf_card, mode, task, data, timeout_value=None):
             return None
         stripped = html.strip()
         lower = stripped[:50].lower()
-        if lower.startswith("<!doctype") or lower.startswith("<html"):
+        if (
+            lower.startswith("<!doctype")
+            or lower.startswith("<html")
+            or lower.startswith("<?xml")
+        ):
             return html
         return (
             "<!DOCTYPE html>\n"
