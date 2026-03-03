@@ -287,9 +287,10 @@ class FlowSpec(metaclass=FlowSpecMeta):
         "index",
         "input",
     }
-    # When checking for parameters, we look at dir(self) but we want to exclude
-    # attributes that are definitely not parameters and may be expensive to
-    # compute (like anything related to the `foreach_stack`). We don't need to exclude
+    # When checking for parameters, we walk the MRO and inspect each class's
+    # __dict__ but we want to exclude attributes that are definitely not
+    # parameters and may be expensive to compute (like anything related to
+    # the `foreach_stack`). We don't need to exclude
     # names starting with `_` as those are already excluded from `_get_parameters`.
     _NON_PARAMETERS = {"cmd", "foreach_stack", "index", "input", "script_name", "name"}
 
