@@ -75,7 +75,7 @@ class LazyPluginCommandCollection(click.CommandCollection):
         for source_name, source in self.lazy_sources.items():
             subgroup = self._lazy_load(source_name, source)
             base.extend(subgroup.list_commands(ctx))
-        return base
+        return sorted(base)
 
     def get_command(self, ctx, cmd_name):
         base_cmd = super().get_command(ctx, cmd_name)
