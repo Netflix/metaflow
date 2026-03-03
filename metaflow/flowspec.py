@@ -561,8 +561,10 @@ class FlowSpec(metaclass=FlowSpecMeta):
             returned.add(set_config[0])
             yield set_config[0], set_config[1]
         # Walk the MRO and inspect __dict__ directly instead of using dir() + getattr()
-        # This avoids a full reflective scan of the class and is more deterministic
-        for base in reversed(cls.__mro__):
+        # This avoids a full reflective scan of the class and is more deterministic.
+        # Iterate cls.__mro__ (not reversed) so derived classes are visited first,
+        # matching Python's standard attribute resolution order.
+        for base in cls.__mro__:
             if not issubclass(base, FlowSpec):
                 continue
             for var, val in base.__dict__.items():
