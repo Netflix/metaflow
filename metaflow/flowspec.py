@@ -560,16 +560,21 @@ class FlowSpec(metaclass=FlowSpecMeta):
         for set_config in cls._flow_state[FlowStateItems.SET_CONFIG_PARAMETERS]:
             returned.add(set_config[0])
             yield set_config[0], set_config[1]
-        for var in dir(cls):
-            if var[0] == "_" or var in cls._NON_PARAMETERS:
+        # Walk the MRO and inspect __dict__ directly instead of using dir() + getattr()
+        # This avoids a full reflective scan of the class and is more deterministic
+        for base in reversed(cls.__mro__):
+            if not issubclass(base, FlowSpec):
                 continue
-            try:
-                val = getattr(cls, var)
-            except:
-                continue
-            if isinstance(val, Parameter) and var not in returned:
-                build_list.append(var)
-                yield var, val
+            for var, val in base.__dict__.items():
+                if (
+                    var[0] != "_"
+                    and var not in cls._NON_PARAMETERS
+                    and isinstance(val, Parameter)
+                    and var not in returned
+                ):
+                    build_list.append(var)
+                    returned.add(var)
+                    yield var, val
         cls._flow_state[FlowStateItems.CACHED_PARAMETERS] = build_list
 
     def _set_datastore(self, datastore):
