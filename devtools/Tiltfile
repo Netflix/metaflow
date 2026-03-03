@@ -33,6 +33,7 @@ components = {
     "argo-workflows": [],
     "argo-events": ["argo-workflows"],
     "jobset": [],
+    "corral": ["minio"],
 }
 
 services_env = os.getenv("SERVICES", "all").strip().lower()
@@ -706,6 +707,47 @@ if "ui" in enabled_components:
 
     config_resources.append('metaflow-ui')
     config_resources.append('metaflow-ui-static')
+
+#################################################
+# CORRAL (local AWS Batch emulator)
+#################################################
+if "corral" in enabled_components:
+    # Build the serve command. Inject MinIO credentials so that Docker
+    # containers spawned by corral can reach S3 via host.docker.internal.
+    corral_serve_cmd = (
+        "corral --port 8000 --queue corral-default"
+        " --inject-env AWS_ACCESS_KEY_ID=rootuser"
+        " --inject-env AWS_SECRET_ACCESS_KEY=rootpass123"
+        " --inject-env AWS_ENDPOINT_URL_S3=http://host.docker.internal:9000"
+    )
+
+    # Also forward the metadata service URL when it's part of this stack.
+    if "metadata-service" in enabled_components:
+        corral_serve_cmd += (
+            " --inject-env METAFLOW_SERVICE_URL=http://host.docker.internal:8080"
+            " --inject-env METAFLOW_SERVICE_INTERNAL_URL=http://host.docker.internal:8080"
+        )
+
+    local_resource(
+        name="corral",
+        serve_cmd=corral_serve_cmd,
+        readiness_probe=probe(
+            http_get=http_get_action(port=8000, path="/health"),
+            period_secs=2,
+            initial_delay_secs=1,
+        ),
+        links=[
+            link("http://localhost:8000/health", "Corral health"),
+            link("http://localhost:8000/docs",   "Corral API docs"),
+        ],
+        labels=["corral"],
+        resource_deps=components["corral"],
+    )
+
+    metaflow_config["METAFLOW_BATCH_JOB_QUEUE"] = "corral-default"
+    metaflow_config["METAFLOW_BATCH_CLIENT_PARAMS"] = {"endpoint_url": "http://localhost:8000"}
+
+    config_resources.append("corral")
 
 cmd = '''
 ARCH=$(kubectl get nodes -o jsonpath='{.items[0].status.nodeInfo.architecture}')
