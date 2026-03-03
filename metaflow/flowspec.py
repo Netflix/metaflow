@@ -563,9 +563,8 @@ class FlowSpec(metaclass=FlowSpecMeta):
             yield set_config[0], set_config[1]
 
         for base in cls.__mro__:
-            if not issubclass(base, FlowSpec):
+            if base is object:
                 continue
-
             for var in base.__dict__:
                 if (
                     var[0] != "_"
