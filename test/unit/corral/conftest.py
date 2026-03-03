@@ -159,5 +159,5 @@ def simple_batch_run(corral_server):
         "AWS_SECRET_ACCESS_KEY": "test",
     }
 
-    with Runner(flow_path, cwd=FLOWS_DIR, environment="local").run(env=env) as running:
+    with Runner(flow_path, cwd=FLOWS_DIR, environment="local", env=env).run() as running:
         return running.run
