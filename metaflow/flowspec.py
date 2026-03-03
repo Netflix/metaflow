@@ -571,7 +571,10 @@ class FlowSpec(metaclass=FlowSpecMeta):
                     and var not in cls._NON_PARAMETERS
                     and var not in returned
                 ):
-                    val = getattr(cls, var)
+                    try:
+                        val = getattr(cls, var)
+                    except Exception:
+                        continue
 
                     if isinstance(val, Parameter):
                         build_list.append(var)
