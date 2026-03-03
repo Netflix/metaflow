@@ -564,8 +564,9 @@ class FlowSpec(metaclass=FlowSpecMeta):
         # This avoids a full reflective scan of the class and is more deterministic.
         # Iterate cls.__mro__ (not reversed) so derived classes are visited first,
         # matching Python's standard attribute resolution order.
+        # Check all classes (not just FlowSpec subclasses) to support mixin-based parameters.
         for base in cls.__mro__:
-            if not issubclass(base, FlowSpec):
+            if base is object:
                 continue
             for var, val in base.__dict__.items():
                 if (
