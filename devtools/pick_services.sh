@@ -20,6 +20,10 @@ SERVICE_OPTIONS=(
     "argo-events"
     "jobset"
     "corral"
+    "ddb-local"
+    "sfn-local"
+    "azurite"
+    "fake-gcs-server"
 )
 
 gum style "$LOGO" \

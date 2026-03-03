@@ -34,6 +34,10 @@ components = {
     "argo-events": ["argo-workflows"],
     "jobset": [],
     "corral": ["minio"],
+    "ddb-local": [],
+    "sfn-local": ["ddb-local"],
+    "azurite": [],
+    "fake-gcs-server": [],
 }
 
 services_env = os.getenv("SERVICES", "all").strip().lower()
@@ -50,6 +54,7 @@ metaflow_config = {}
 metaflow_config["METAFLOW_KUBERNETES_NAMESPACE"] = "default"
 
 aws_config = []
+shell_env = {}   # extra env vars written to .devtools/env_local (e.g. STORAGE_EMULATOR_HOST)
 
 def write_config_files():
     metaflow_json = encode_json(metaflow_config)
@@ -62,6 +67,12 @@ EOF
 %s
 EOF
 ''' % (aws_config.strip())
+    if shell_env:
+        env_lines = "\n".join(["export %s=%s" % (k, v) for k, v in shell_env.items()])
+        cmd += '''cat > .devtools/env_local <<EOF
+%s
+EOF
+''' % (env_lines)
     return cmd
 
 load('ext://helm_resource', 'helm_resource', 'helm_repo')
@@ -748,6 +759,243 @@ if "corral" in enabled_components:
     metaflow_config["METAFLOW_BATCH_CLIENT_PARAMS"] = {"endpoint_url": "http://localhost:8000"}
 
     config_resources.append("corral")
+
+#################################################
+# DDB LOCAL (DynamoDB Local — used by sfn-local for foreach state)
+#################################################
+if "ddb-local" in enabled_components:
+    k8s_yaml(encode_yaml({
+        'apiVersion': 'apps/v1',
+        'kind': 'Deployment',
+        'metadata': {'name': 'ddb-local'},
+        'spec': {
+            'replicas': 1,
+            'selector': {'matchLabels': {'app': 'ddb-local'}},
+            'template': {
+                'metadata': {'labels': {'app': 'ddb-local'}},
+                'spec': {
+                    'containers': [{
+                        'name': 'ddb-local',
+                        'image': 'amazon/dynamodb-local:latest',
+                        'args': ['-jar', 'DynamoDBLocal.jar', '-sharedDb', '-inMemory'],
+                        'ports': [{'containerPort': 8000}],
+                        'resources': {
+                            'requests': {'cpu': '50m', 'memory': '128Mi'},
+                            'limits':   {'cpu': '200m', 'memory': '256Mi'},
+                        },
+                    }],
+                },
+            },
+        },
+    }))
+    k8s_yaml(encode_yaml({
+        'apiVersion': 'v1',
+        'kind': 'Service',
+        'metadata': {'name': 'ddb-local'},
+        'spec': {
+            'selector': {'app': 'ddb-local'},
+            'ports': [{'port': 8000, 'targetPort': 8000}],
+        },
+    }))
+    k8s_resource(
+        'ddb-local',
+        port_forwards=['8765:8000'],
+        links=[link('http://localhost:8765', 'DynamoDB Local')],
+        labels=['ddb-local'],
+    )
+    metaflow_config["METAFLOW_SFN_DYNAMO_DB_CLIENT_PARAMS"] = {"endpoint_url": "http://localhost:8765"}
+    metaflow_config["METAFLOW_SFN_DYNAMO_DB_TABLE"] = "metaflow-sfn"
+    config_resources.append('ddb-local')
+
+#################################################
+# SFN LOCAL (AWS Step Functions Local)
+#################################################
+if "sfn-local" in enabled_components:
+    ddb_svc_url = "http://ddb-local:8000"
+    k8s_yaml(encode_yaml({
+        'apiVersion': 'apps/v1',
+        'kind': 'Deployment',
+        'metadata': {'name': 'sfn-local'},
+        'spec': {
+            'replicas': 1,
+            'selector': {'matchLabels': {'app': 'sfn-local'}},
+            'template': {
+                'metadata': {'labels': {'app': 'sfn-local'}},
+                'spec': {
+                    'containers': [{
+                        'name': 'sfn-local',
+                        'image': 'amazon/aws-stepfunctions-local:latest',
+                        'ports': [{'containerPort': 8083}],
+                        'env': [
+                            {'name': 'AWS_DEFAULT_REGION',      'value': 'us-east-1'},
+                            {'name': 'AWS_ACCESS_KEY_ID',       'value': 'test'},
+                            {'name': 'AWS_SECRET_ACCESS_KEY',   'value': 'test'},
+                            {'name': 'AWS_ENDPOINT_URL_DYNAMODB', 'value': ddb_svc_url},
+                        ],
+                        'resources': {
+                            'requests': {'cpu': '50m', 'memory': '256Mi'},
+                            'limits':   {'cpu': '200m', 'memory': '512Mi'},
+                        },
+                    }],
+                },
+            },
+        },
+    }))
+    k8s_yaml(encode_yaml({
+        'apiVersion': 'v1',
+        'kind': 'Service',
+        'metadata': {'name': 'sfn-local'},
+        'spec': {
+            'selector': {'app': 'sfn-local'},
+            'ports': [{'port': 8083, 'targetPort': 8083}],
+        },
+    }))
+    k8s_resource(
+        'sfn-local',
+        port_forwards=['8082:8083'],
+        links=[link('http://localhost:8082', 'SFN Local')],
+        labels=['sfn-local'],
+        resource_deps=components['sfn-local'],
+    )
+    metaflow_config["METAFLOW_SFN_CLIENT_PARAMS"] = {"endpoint_url": "http://localhost:8082"}
+    metaflow_config["METAFLOW_SFN_IAM_ROLE"] = "arn:aws:iam::123456789012:role/sfn-local-role"
+    config_resources.append('sfn-local')
+
+#################################################
+# AZURITE (Azure Blob / Queue / Table emulator)
+#################################################
+if "azurite" in enabled_components:
+    k8s_yaml(encode_yaml({
+        'apiVersion': 'apps/v1',
+        'kind': 'Deployment',
+        'metadata': {'name': 'azurite'},
+        'spec': {
+            'replicas': 1,
+            'selector': {'matchLabels': {'app': 'azurite'}},
+            'template': {
+                'metadata': {'labels': {'app': 'azurite'}},
+                'spec': {
+                    'containers': [{
+                        'name': 'azurite',
+                        'image': 'mcr.microsoft.com/azure-storage/azurite:latest',
+                        'command': [
+                            'azurite',
+                            '--blobHost',  '0.0.0.0',
+                            '--queueHost', '0.0.0.0',
+                            '--tableHost', '0.0.0.0',
+                        ],
+                        'ports': [
+                            {'containerPort': 10000},
+                            {'containerPort': 10001},
+                            {'containerPort': 10002},
+                        ],
+                        'resources': {
+                            'requests': {'cpu': '50m', 'memory': '128Mi'},
+                            'limits':   {'cpu': '200m', 'memory': '256Mi'},
+                        },
+                    }],
+                },
+            },
+        },
+    }))
+    k8s_yaml(encode_yaml({
+        'apiVersion': 'v1',
+        'kind': 'Service',
+        'metadata': {'name': 'azurite'},
+        'spec': {
+            'selector': {'app': 'azurite'},
+            'ports': [
+                {'name': 'blob',  'port': 10000, 'targetPort': 10000},
+                {'name': 'queue', 'port': 10001, 'targetPort': 10001},
+                {'name': 'table', 'port': 10002, 'targetPort': 10002},
+            ],
+        },
+    }))
+    k8s_resource(
+        'azurite',
+        port_forwards=['10000:10000', '10001:10001', '10002:10002'],
+        links=[
+            link('http://localhost:10000/devstoreaccount1', 'Azurite Blob'),
+        ],
+        labels=['azurite'],
+    )
+    # Azurite well-known dev credentials
+    azurite_account   = "devstoreaccount1"
+    azurite_key       = "Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw=="
+    azurite_conn_str  = (
+        "DefaultEndpointsProtocol=http"
+        ";AccountName=" + azurite_account +
+        ";AccountKey=" + azurite_key +
+        ";BlobEndpoint=http://127.0.0.1:10000/" + azurite_account + ";"
+    )
+    metaflow_config["METAFLOW_AZURE_STORAGE_BLOB_SERVICE_ENDPOINT"] = (
+        "http://127.0.0.1:10000/" + azurite_account
+    )
+    k8s_yaml(encode_yaml({
+        'apiVersion': 'v1',
+        'kind': 'Secret',
+        'metadata': {'name': 'azurite-secret'},
+        'type': 'Opaque',
+        'stringData': {
+            'AZURE_STORAGE_CONNECTION_STRING': azurite_conn_str,
+            'AZURE_STORAGE_ACCOUNT': azurite_account,
+            'AZURE_STORAGE_KEY': azurite_key,
+        },
+    }))
+    config_resources.append('azurite')
+
+#################################################
+# FAKE-GCS-SERVER (GCS emulator)
+#################################################
+if "fake-gcs-server" in enabled_components:
+    k8s_yaml(encode_yaml({
+        'apiVersion': 'apps/v1',
+        'kind': 'Deployment',
+        'metadata': {'name': 'fake-gcs-server'},
+        'spec': {
+            'replicas': 1,
+            'selector': {'matchLabels': {'app': 'fake-gcs-server'}},
+            'template': {
+                'metadata': {'labels': {'app': 'fake-gcs-server'}},
+                'spec': {
+                    'containers': [{
+                        'name': 'fake-gcs-server',
+                        'image': 'fsouza/fake-gcs-server:latest',
+                        'args': [
+                            '-scheme', 'http',
+                            '-host',   '0.0.0.0',
+                            '-port',   '4443',
+                        ],
+                        'ports': [{'containerPort': 4443}],
+                        'resources': {
+                            'requests': {'cpu': '50m', 'memory': '64Mi'},
+                            'limits':   {'cpu': '200m', 'memory': '128Mi'},
+                        },
+                    }],
+                },
+            },
+        },
+    }))
+    k8s_yaml(encode_yaml({
+        'apiVersion': 'v1',
+        'kind': 'Service',
+        'metadata': {'name': 'fake-gcs-server'},
+        'spec': {
+            'selector': {'app': 'fake-gcs-server'},
+            'ports': [{'port': 4443, 'targetPort': 4443}],
+        },
+    }))
+    k8s_resource(
+        'fake-gcs-server',
+        port_forwards=['4443:4443'],
+        links=[link('http://localhost:4443/storage/v1/b', 'fake-gcs-server buckets')],
+        labels=['fake-gcs-server'],
+    )
+    # The Google Cloud Storage SDK respects STORAGE_EMULATOR_HOST automatically.
+    # Written to .devtools/env_local — source it alongside the Metaflow config:
+    #   source .devtools/env_local
+    shell_env["STORAGE_EMULATOR_HOST"] = "http://localhost:4443"
+    config_resources.append('fake-gcs-server')
 
 cmd = '''
 ARCH=$(kubectl get nodes -o jsonpath='{.items[0].status.nodeInfo.architecture}')
