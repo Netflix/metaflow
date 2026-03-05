@@ -139,6 +139,8 @@ class KubernetesDecorator(StepDecorator):
     """
 
     name = "kubernetes"
+    conflicts_with = frozenset({"batch"})
+    depends_on = frozenset({"resources", "timeout"})
     defaults = {
         "cpu": "1",
         "memory": "4096",
@@ -335,11 +337,8 @@ class KubernetesDecorator(StepDecorator):
                 % (self.attributes["qos"], ", ".join(SUPPORTED_KUBERNETES_QOS_CLASSES))
             )
 
-        if any([deco.name == "batch" for deco in decos]):
-            raise MetaflowException(
-                "Step *{step}* is marked for execution both on AWS Batch and "
-                "Kubernetes. Please use one or the other.".format(step=step)
-            )
+        # Note: batch/kubernetes mutual exclusion is now handled declaratively
+        # via conflicts_with = frozenset({"batch"}).
 
         if any([deco.name == "parallel" for deco in decos]) and any(
             [deco.name == "catch" for deco in decos]

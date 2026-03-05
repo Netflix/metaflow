@@ -439,3 +439,172 @@ class TestSystemContextRegistration:
         assert system_context.get_step_decorators("train") == []
         system_context._update(step_name="train")
         assert system_context.get_published("timeout", "seconds") is None
+
+
+# ---------------------------------------------------------------------------
+# Dependency declarations
+# ---------------------------------------------------------------------------
+
+
+class TestDependencyDeclarations:
+    """Tests for depends_on and conflicts_with on StepDecorator."""
+
+    def test_default_empty(self):
+        d = StepDecorator()
+        assert d.depends_on == frozenset()
+        assert d.conflicts_with == frozenset()
+
+    def test_subclass_declares_dependencies(self):
+        class ComputeDeco(StepDecorator):
+            name = "compute"
+            depends_on = frozenset({"resources", "timeout"})
+            conflicts_with = frozenset({"other_compute"})
+
+        d = ComputeDeco()
+        assert "resources" in d.depends_on
+        assert "timeout" in d.depends_on
+        assert "other_compute" in d.conflicts_with
+
+
+# ---------------------------------------------------------------------------
+# Conflict validation
+# ---------------------------------------------------------------------------
+
+
+class TestValidateStepDecoratorConflicts:
+    def test_no_conflict(self):
+        from metaflow.decorators import _validate_step_decorator_conflicts
+
+        class A(StepDecorator):
+            name = "a"
+
+        class B(StepDecorator):
+            name = "b"
+
+        # Should not raise
+        _validate_step_decorator_conflicts("train", [A(), B()])
+
+    def test_conflict_raises(self):
+        from metaflow.decorators import _validate_step_decorator_conflicts
+
+        class A(StepDecorator):
+            name = "a"
+            conflicts_with = frozenset({"b"})
+
+        class B(StepDecorator):
+            name = "b"
+
+        with pytest.raises(Exception, match="conflicts"):
+            _validate_step_decorator_conflicts("train", [A(), B()])
+
+    def test_mutual_conflict(self):
+        from metaflow.decorators import _validate_step_decorator_conflicts
+
+        class A(StepDecorator):
+            name = "a"
+            conflicts_with = frozenset({"b"})
+
+        class B(StepDecorator):
+            name = "b"
+            conflicts_with = frozenset({"a"})
+
+        with pytest.raises(Exception, match="conflicts"):
+            _validate_step_decorator_conflicts("train", [A(), B()])
+
+
+# ---------------------------------------------------------------------------
+# Decorator ordering
+# ---------------------------------------------------------------------------
+
+
+class TestOrderStepDecorators:
+    def test_no_deps_preserves_order(self):
+        from metaflow.decorators import _order_step_decorators
+
+        class A(StepDecorator):
+            name = "a"
+
+        class B(StepDecorator):
+            name = "b"
+
+        class C(StepDecorator):
+            name = "c"
+
+        decos = [A(), B(), C()]
+        result = _order_step_decorators(decos)
+        assert [d.name for d in result] == ["a", "b", "c"]
+
+    def test_dependency_reorders(self):
+        from metaflow.decorators import _order_step_decorators
+
+        class Compute(StepDecorator):
+            name = "compute"
+            depends_on = frozenset({"resources", "timeout"})
+
+        class Resources(StepDecorator):
+            name = "resources"
+
+        class Timeout(StepDecorator):
+            name = "timeout"
+
+        # compute is first but depends on resources and timeout
+        decos = [Compute(), Resources(), Timeout()]
+        result = _order_step_decorators(decos)
+        names = [d.name for d in result]
+        # resources and timeout must come before compute
+        assert names.index("resources") < names.index("compute")
+        assert names.index("timeout") < names.index("compute")
+
+    def test_missing_dependency_ignored(self):
+        from metaflow.decorators import _order_step_decorators
+
+        class A(StepDecorator):
+            name = "a"
+            depends_on = frozenset({"nonexistent"})
+
+        class B(StepDecorator):
+            name = "b"
+
+        # Should not raise — missing deps are ignored
+        result = _order_step_decorators([A(), B()])
+        assert [d.name for d in result] == ["a", "b"]
+
+    def test_circular_dependency_raises(self):
+        from metaflow.decorators import _order_step_decorators
+
+        class A(StepDecorator):
+            name = "a"
+            depends_on = frozenset({"b"})
+
+        class B(StepDecorator):
+            name = "b"
+            depends_on = frozenset({"a"})
+
+        with pytest.raises(Exception, match="Circular"):
+            _order_step_decorators([A(), B()])
+
+    def test_stable_order_for_independent_decos(self):
+        from metaflow.decorators import _order_step_decorators
+
+        class A(StepDecorator):
+            name = "a"
+
+        class B(StepDecorator):
+            name = "b"
+            depends_on = frozenset({"a"})
+
+        class C(StepDecorator):
+            name = "c"
+
+        class D(StepDecorator):
+            name = "d"
+
+        # Original order: D, A, C, B
+        # B depends on A, so A must come before B
+        # D and C are independent — should maintain relative order
+        decos = [D(), A(), C(), B()]
+        result = _order_step_decorators(decos)
+        names = [d.name for d in result]
+        assert names.index("a") < names.index("b")
+        # d should still come before c (original order preserved)
+        assert names.index("d") < names.index("c")

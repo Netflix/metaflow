@@ -104,6 +104,8 @@ class BatchDecorator(StepDecorator):
     """
 
     name = "batch"
+    conflicts_with = frozenset({"kubernetes"})
+    depends_on = frozenset({"resources", "timeout"})
     defaults = {
         "cpu": None,
         "gpu": None,
