@@ -4,8 +4,8 @@ Minimal flow to test @huggingface locally.
 Run from repo root:
   PYTHONPATH=. python -m metaflow.plugins.huggingface.example_flow run
 
-Requires: pip install metaflow[huggingface] or pip install huggingface_hub
-Optional: set HF_TOKEN, HUGGING_FACE_TOKEN, or HUGGING_FACE_HUB_TOKEN for gated models.
+Requires: pip install huggingface_hub
+Optional: set HF_TOKEN or HUGGING_FACE_HUB_TOKEN for gated models.
 """
 
 from metaflow import FlowSpec, step, huggingface
