@@ -169,18 +169,24 @@ class Decorator(object):
         # TODO: Do we really want to allow spaces in the names of attributes?!?
         for a in re.split(r""",(?=[\s\w]+=)""", deco_spec):
             name, val = a.split("=", 1)
-            try:
-                val_parsed = json.loads(val.strip().replace('\\"', '"'))
-            except json.JSONDecodeError:
-                # In this case, we try to convert to either an int or a float or
-                # leave as is. Prefer ints if possible.
+            val_stripped = val.strip()
+            if val_stripped.startswith("__dynamic_var__:"):
+                from metaflow.dynamic_var import DynamicVar
+
+                val_parsed = DynamicVar(val_stripped[len("__dynamic_var__:") :])
+            else:
                 try:
-                    val_parsed = int(val.strip())
-                except ValueError:
+                    val_parsed = json.loads(val_stripped.replace('\\"', '"'))
+                except json.JSONDecodeError:
+                    # In this case, we try to convert to either an int or a float or
+                    # leave as is. Prefer ints if possible.
                     try:
-                        val_parsed = float(val.strip())
+                        val_parsed = int(val_stripped)
                     except ValueError:
-                        val_parsed = val.strip()
+                        try:
+                            val_parsed = float(val_stripped)
+                        except ValueError:
+                            val_parsed = val_stripped
 
             attrs[name.strip()] = val_parsed
 
@@ -199,12 +205,16 @@ class Decorator(object):
         self.external_init()
         attrs = {k: v for k, v in self.attributes.items() if v is not None}
         if attrs:
+            from metaflow.dynamic_var import DynamicVar
+
             attr_list = []
             # We dump simple types directly as string to get around the nightmare quote
             # escaping but for more complex types (typically dictionaries or lists),
             # we dump using JSON.
             for k, v in attrs.items():
-                if isinstance(v, (int, float, str)):
+                if isinstance(v, DynamicVar):
+                    attr_list.append("%s=__dynamic_var__:%s" % (k, v.var_name))
+                elif isinstance(v, (int, float, str)):
                     attr_list.append("%s=%s" % (k, str(v)))
                 else:
                     attr_list.append("%s=%s" % (k, json.dumps(v).replace('"', '\\"')))

@@ -284,6 +284,7 @@ class FlowSpec(metaclass=FlowSpecMeta):
         "_graph",
         "_flow_state",
         "_steps",
+        "_dynamic_var_values",
         "index",
         "input",
     }
