@@ -30,7 +30,7 @@ class Boto3ClientProvider(object):
             import botocore
             from botocore.exceptions import ClientError
             from botocore.config import Config
-        except (NameError, ImportError):
+        except ImportError:
             raise MetaflowException(
                 "Could not import module 'boto3'. Install boto3 first."
             )
