@@ -49,8 +49,8 @@
 #' 
 #' @examples \dontrun{
 #' # This example will generate a large random matrix which takes up roughly 
-#' # 48GB of memory, and sums the entries. The `batch` decorator forces this
-#' # step to run in an environment with 60000MB of memory.
+#' # 48 GiB of memory, and sums the entries. The `batch` decorator forces this
+#' # step to run in an environment with 60,000 MiB of memory.
 #' 
 #' start <- function(self) {
 #'   big_matrix <- matrix(rexp(80000*80000), 80000)
