@@ -235,6 +235,12 @@ class Decorator(object):
         fmt = "%s<%s%s>" % (self.name, mode, attrs)
         return fmt
 
+    @property
+    def system_ctx(self):
+        from .system_context import system_context
+
+        return system_context
+
 
 class FlowDecorator(Decorator):
     options = {}
