@@ -914,7 +914,12 @@ def _init_step_decorators(
     cls._init_graph()
     graph = flow._graph
 
+    from .system_context import system_context
+
     for step in flow:
+        # Update singleton for this step.
+        system_context._update(step_name=step.__name__)
+        system_context.register_step_decorators(step.__name__, list(step.decorators))
         for deco in step.decorators:
             if _should_skip_decorator_for_spin(
                 deco, is_spin, skip_decorators, logger, "Step decorator"
@@ -945,12 +950,17 @@ def _process_late_attached_decorator(
     skip_decorators=False,
 ):
 
+    from .system_context import system_context
+
     for s in flow:
         for deco in s.decorators:
             if deco.name in deco_names:
                 deco.external_init()
 
     for s in flow:
+        system_context._update(step_name=s.__name__)
+        system_context.register_step_decorators(s.__name__, list(s.decorators))
+
         for deco in s.decorators:
             if deco.name in deco_names:
                 if _should_skip_decorator_for_spin(

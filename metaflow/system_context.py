@@ -121,6 +121,9 @@ class SystemContext:
         self._split_index = None
         # Step
         self._step_name = None
+        # Inter-decorator shared state (keyed by step_name)
+        self._shared = {}  # { step_name: { namespace: { key: value } } }
+        self._step_decorators = {}  # { step_name: [StepDecorator, ...] }
 
     # ------------------------------------------------------------------
     # Phase queries
@@ -239,6 +242,106 @@ class SystemContext:
     def split_index(self) -> Optional[int]:
         """Foreach split index (available during task hooks)."""
         return self._split_index
+
+    # ------------------------------------------------------------------
+    # Step decorator registration
+    # ------------------------------------------------------------------
+
+    def register_step_decorators(self, step_name: str, decorators: List[Any]) -> None:
+        """Register the list of decorator instances for a step."""
+        self._step_decorators[step_name] = list(decorators)
+
+    def get_step_decorators(self, step_name: Optional[str] = None) -> List[Any]:
+        """
+        Return the decorator instances for a step.
+
+        If *step_name* is None, uses the current step.
+        """
+        if step_name is None:
+            step_name = self._step_name
+        return list(self._step_decorators.get(step_name, []))
+
+    # ------------------------------------------------------------------
+    # Inter-decorator shared state
+    # ------------------------------------------------------------------
+
+    def publish(self, namespace: str, key: str, value: Any) -> None:
+        """
+        Publish a value for other decorators to read.
+
+        By convention, use the decorator's ``name`` as the namespace to avoid
+        collisions. The value is scoped to the current step.
+
+        Parameters
+        ----------
+        namespace : str
+            Typically the publishing decorator's name.
+        key : str
+            Identifier for the value within the namespace.
+        value : any
+            The value to publish.
+        """
+        step = self._step_name
+        if step not in self._shared:
+            self._shared[step] = {}
+        if namespace not in self._shared[step]:
+            self._shared[step][namespace] = {}
+        self._shared[step][namespace][key] = value
+
+    def get_published(self, namespace: str, key: str, default: Any = None) -> Any:
+        """
+        Read a value published by another decorator.
+
+        Parameters
+        ----------
+        namespace : str
+            The publishing decorator's namespace.
+        key : str
+            The key to look up.
+        default : any
+            Returned if the namespace or key is not found.
+
+        Returns
+        -------
+        any
+        """
+        step = self._step_name
+        return self._shared.get(step, {}).get(namespace, {}).get(key, default)
+
+    def has_published(self, namespace: str, key: Optional[str] = None) -> bool:
+        """
+        Check whether a decorator has published data.
+
+        Parameters
+        ----------
+        namespace : str
+        key : str or None
+            If None, checks whether the namespace exists at all.
+
+        Returns
+        -------
+        bool
+        """
+        step = self._step_name
+        step_shared = self._shared.get(step, {})
+        if key is None:
+            return namespace in step_shared
+        return key in step_shared.get(namespace, {})
+
+    def get_all_published(self, namespace: str) -> Dict[str, Any]:
+        """
+        Return all key-value pairs published under a namespace.
+
+        Parameters
+        ----------
+        namespace : str
+
+        Returns
+        -------
+        dict
+        """
+        step = self._step_name
+        return dict(self._shared.get(step, {}).get(namespace, {}))
 
     # ------------------------------------------------------------------
     # Progressive update (called by the runtime, not by decorators)
