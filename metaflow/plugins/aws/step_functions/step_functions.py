@@ -302,6 +302,10 @@ class StepFunctions(object):
             raise StepFunctionsException(repr(e))
 
     def _compile(self):
+        from metaflow.dynamic_var import check_no_dynamic_vars
+
+        check_no_dynamic_vars(self.graph, "AWS Step Functions")
+
         if self.flow._flow_decorators.get("trigger") or self.flow._flow_decorators.get(
             "trigger_on_finish"
         ):

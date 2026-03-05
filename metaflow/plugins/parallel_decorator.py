@@ -208,6 +208,14 @@ def _local_multinode_control_task_step_func(
     executable = env_to_use.executable(step_name)
     script = sys.argv[0]
 
+    # TODO: var(pertask=True) is not fully supported for @parallel local
+    # workers. The control task's runtime_step_cli resolves var() once (for
+    # node 0) and bakes the result into the subprocess environment / CLI args.
+    # Worker subprocesses inherit those resolved values and there is currently
+    # no mechanism to re-invoke runtime_step_cli with per-worker split indices.
+    # Fixing this requires giving _local_multinode_control_task_step_func a way
+    # to call back into runtime_step_cli for each worker.
+
     # start workers
     # TODO: Logs for worker processes are assigned to control process as of today, which
     #       should be fixed at some point

@@ -1,5 +1,6 @@
 from typing import Dict, Optional, Union, TYPE_CHECKING
 
+from metaflow.dynamic_var import has_dynamic_vars
 from metaflow.exception import MetaflowException
 from metaflow.user_configs.config_parameters import (
     resolve_delayed_evaluator,
@@ -137,6 +138,7 @@ class FlowMutator(metaclass=FlowMutatorMeta):
         # and used in _graph_info
         self._args = args
         self._kwargs = kwargs
+        self._ran_init = False  # For consistency with UserStepDecoratorBase
         if args and isinstance(args[0], (FlowMutator, FlowSpecMeta)):
             # This means the decorator is bare like @MyDecorator
             # and the first argument is the FlowSpec or another decorator (they
@@ -213,6 +215,8 @@ class FlowMutator(metaclass=FlowMutatorMeta):
         pass
 
     def external_init(self):
+        if self._ran_init:
+            return
         # You can use config values in the arguments to a FlowMutator
         # so we resolve those as well
         self._args = [resolve_delayed_evaluator(arg) for arg in self._args]
@@ -220,6 +224,12 @@ class FlowMutator(metaclass=FlowMutatorMeta):
         self._kwargs = {
             k: resolve_delayed_evaluator(v) for k, v in self._kwargs.items()
         }
+        # FlowMutators cannot take DynamicVar values
+        if has_dynamic_vars(self._args) or has_dynamic_vars(self._kwargs):
+            raise MetaflowException(
+                "FlowMutators cannot take `var()` values as they are not available at "
+                "initialization time."
+            )
         if self._args or self._kwargs:
             if "init" not in self.__class__.__dict__:
                 raise MetaflowException(
@@ -227,6 +237,7 @@ class FlowMutator(metaclass=FlowMutatorMeta):
                 )
         if "init" in self.__class__.__dict__:
             self.init(*self._args, **self._kwargs)
+        self._ran_init = True
 
     def pre_mutate(
         self, mutable_flow: "metaflow.user_decorators.mutable_flow.MutableFlow"
