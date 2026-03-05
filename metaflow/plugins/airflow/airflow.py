@@ -650,6 +650,10 @@ class Airflow(object):
         return False
 
     def compile(self):
+        from metaflow.dynamic_var import check_no_dynamic_vars
+
+        check_no_dynamic_vars(self.graph, "Airflow")
+
         if self.flow._flow_decorators.get("trigger") or self.flow._flow_decorators.get(
             "trigger_on_finish"
         ):
