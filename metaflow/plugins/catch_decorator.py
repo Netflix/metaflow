@@ -40,6 +40,7 @@ class CatchDecorator(StepDecorator):
 
     name = "catch"
     defaults = {"var": None, "print_exception": True}
+    allow_var = {"var", "print_exception"}
 
     def step_init(self, flow, graph, step, decos, environment, flow_datastore, logger):
         # handling _foreach_var and _foreach_num_splits requires some

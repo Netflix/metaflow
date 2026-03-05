@@ -6,6 +6,7 @@ import traceback
 
 from metaflow import util
 from metaflow import R
+from metaflow.cli_args import cli_args
 from metaflow.exception import CommandException, METAFLOW_EXIT_DISALLOW_RETRY
 from metaflow.metadata_provider.util import sync_local_metadata_from_datastore
 from metaflow.metaflow_config import DATASTORE_LOCAL_DIR
@@ -249,7 +250,7 @@ def step(
         executable = ctx.obj.environment.executable(step_name, executable)
         entrypoint = "%s -u %s" % (executable, os.path.basename(sys.argv[0]))
 
-    top_args = " ".join(util.dict_to_cli_options(ctx.parent.parent.params))
+    top_args = " ".join(util.dict_to_cli_options(cli_args.top_kwargs))
 
     input_paths = kwargs.get("input_paths")
     split_vars = None

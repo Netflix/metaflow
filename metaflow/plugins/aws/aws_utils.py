@@ -1,5 +1,6 @@
 import re
 
+from metaflow.dynamic_var import DynamicVar
 from metaflow.exception import MetaflowException
 
 
@@ -152,6 +153,19 @@ def compute_resource_attributes(decos, compute_deco, resource_defaults):
                 if my_val is None and v is None:
                     continue
                 if my_val is not None and v is not None:
+                    if isinstance(my_val, DynamicVar) ^ isinstance(v, DynamicVar):
+                        raise MetaflowException(
+                            "Cannot mix var and non-var values for "
+                            "resource attribute '%s'" % k
+                        )
+                    if isinstance(my_val, DynamicVar) and isinstance(v, DynamicVar):
+                        if my_val.var_name != v.var_name:
+                            raise MetaflowException(
+                                "Cannot mix var values for different variables "
+                                "for resource attribute '%s'" % k
+                            )
+                        result[k] = my_val
+                        continue
                     try:
                         # Use Decimals to compare and convert to string here so
                         # that numbers that can't be exactly represented as
@@ -169,6 +183,10 @@ def compute_resource_attributes(decos, compute_deco, resource_defaults):
                                 "values for '%s'. Please use consistent values or "
                                 "specify this resource constraint once" % k
                             )
+                elif isinstance(my_val, DynamicVar):
+                    result[k] = my_val
+                elif isinstance(v, DynamicVar):
+                    result[k] = v
                 elif my_val is not None:
                     result[k] = str(my_val or "0")
                 else:
@@ -178,8 +196,11 @@ def compute_resource_attributes(decos, compute_deco, resource_defaults):
     # If there is no resources decorator, values from compute_deco override
     # the defaults.
     for k in resource_defaults:
-        if compute_deco.attributes.get(k) is not None:
-            result[k] = str(compute_deco.attributes[k] or "0")
+        override_attr = compute_deco.attributes.get(k)
+        if isinstance(override_attr, DynamicVar):
+            result[k] = override_attr
+        elif override_attr is not None:
+            result[k] = str(override_attr or "0")
 
     return result
 

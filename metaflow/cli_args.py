@@ -32,7 +32,10 @@ class CLIArgs(object):
         self._step_kwargs = kwargs
 
     def _set_top_kwargs(self, kwargs):
-        self._top_kwargs = kwargs
+        # dynamic-var-file is *only* used by the runtime to pass dynamic files around.
+        # It should *never* be propagated as part of the command line to sub-processes
+        # so we strip it out.
+        self._top_kwargs = {k: v for k, v in kwargs.items() if k != "dynamic_var_file"}
 
     @property
     def top_kwargs(self):

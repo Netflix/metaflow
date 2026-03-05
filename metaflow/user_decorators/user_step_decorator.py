@@ -3,9 +3,20 @@ import json
 import re
 import types
 
-from typing import Any, Callable, Dict, List, Optional, Tuple, TYPE_CHECKING, Union
+from typing import (
+    Any,
+    Callable,
+    Dict,
+    List,
+    Optional,
+    Tuple,
+    TYPE_CHECKING,
+    Union,
+    cast,
+)
 
 from metaflow.debug import debug
+from metaflow.dynamic_var import has_dynamic_vars, resolve_dynamic_vars
 from metaflow.exception import MetaflowException
 from metaflow.user_configs.config_parameters import (
     resolve_delayed_evaluator,
@@ -135,6 +146,7 @@ class UserStepDecoratorBase(metaclass=UserStepDecoratorMeta):
     _step_field = None
     _allowed_args = False
     _allowed_kwargs = False
+    _allows_dynamic_vars = False
 
     def __init__(self, *args, **kwargs):
         arg = None
@@ -418,7 +430,7 @@ class UserStepDecoratorBase(metaclass=UserStepDecoratorMeta):
     def init(self, *args, **kwargs):
         pass
 
-    def external_init(self):
+    def external_init(self, flow: Optional["metaflow.flowspec.FlowSpec"] = None):
         if self._ran_init:
             return
         # You can use config values in the arguments to a UserStepDecoratorBase
@@ -428,6 +440,24 @@ class UserStepDecoratorBase(metaclass=UserStepDecoratorMeta):
         self._kwargs = {
             k: resolve_delayed_evaluator(v) for k, v in self._kwargs.items()
         }
+
+        # UserStepDecorators don't always take DynamicVar values. When they do, we
+        # need to resolve them. In other words, either they don't accept them (StepMutators)
+        # or they should be transparent to the user (StepDecorators).
+        if self._allows_dynamic_vars:
+            # In this case, flow is not None
+            self._args = resolve_dynamic_vars(
+                self._args, cast("metaflow.flowspec.FlowSpec", flow)
+            )
+            self._kwargs = resolve_dynamic_vars(
+                self._kwargs, cast("metaflow.flowspec.FlowSpec", flow)
+            )
+        else:
+            if has_dynamic_vars(self._args) or has_dynamic_vars(self._kwargs):
+                raise MetaflowException(
+                    "StepMutators cannot take `var()` values as they are not available at "
+                    "initialization time."
+                )
         if self._args or self._kwargs:
             if "init" not in self.__class__.__dict__:
                 raise MetaflowException(
@@ -442,6 +472,7 @@ class UserStepDecorator(UserStepDecoratorBase):
     _step_field = "wrappers"
     _allowed_args = False
     _allowed_kwargs = True
+    _allows_dynamic_vars = True
 
     def init(self, *args, **kwargs):
         """

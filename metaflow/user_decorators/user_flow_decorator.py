@@ -3,6 +3,7 @@ import re
 from typing import Any, Dict, List, Optional, Tuple, Union, TYPE_CHECKING
 
 from metaflow.debug import debug
+from metaflow.dynamic_var import has_dynamic_vars
 from metaflow.exception import MetaflowException
 from metaflow.user_configs.config_parameters import (
     resolve_delayed_evaluator,
@@ -267,6 +268,12 @@ class FlowMutator(metaclass=FlowMutatorMeta):
         self._kwargs = {
             k: resolve_delayed_evaluator(v) for k, v in self._kwargs.items()
         }
+        # FlowMutators cannot take DynamicVar values
+        if has_dynamic_vars(self._args) or has_dynamic_vars(self._kwargs):
+            raise MetaflowException(
+                "FlowMutators cannot take `var()` values as they are not available at "
+                "initialization time."
+            )
         if self._args or self._kwargs:
             if "init" not in self.__class__.__dict__:
                 raise MetaflowException(

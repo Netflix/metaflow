@@ -8,6 +8,7 @@ from metaflow.plugins.kubernetes.kube_utils import (
     parse_kube_keyvalue_list,
 )
 from metaflow.plugins.kubernetes.kubernetes_client import KubernetesClient
+from metaflow.cli_args import cli_args
 import metaflow.tracing as tracing
 from metaflow import JSONTypeClass, util
 from metaflow._vendor import click
@@ -257,7 +258,7 @@ def step(
 
     step_cli = "{entrypoint} {top_args} step {step} {step_args}".format(
         entrypoint="%s -u %s" % (executable, os.path.basename(sys.argv[0])),
-        top_args=" ".join(util.dict_to_cli_options(ctx.parent.parent.params)),
+        top_args=" ".join(util.dict_to_cli_options(cli_args.top_kwargs)),
         step=step_name,
         step_args=" ".join(util.dict_to_cli_options(kwargs)),
     )

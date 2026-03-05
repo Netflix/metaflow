@@ -13,6 +13,7 @@ class EnvironmentDecorator(StepDecorator):
 
     name = "environment"
     defaults = {"vars": {}}
+    allow_var = {"vars"}
 
     def runtime_step_cli(
         self, cli_args, retry_count, max_user_code_retries, ubf_context

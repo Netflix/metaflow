@@ -308,12 +308,22 @@ class FlowSpec(metaclass=FlowSpecMeta):
         self._datastore = None
         self._transition = None
         self._cached_input = {}
+        self._dynamic_var_values = {}
 
         if use_cli:
             with parameters.flow_context(self.__class__) as _:
                 from . import cli
 
                 cli.main(self)
+
+    def _add_dynamic_var(self, name, value):
+        """Register a dynamic var value to be passed to downstream steps.
+
+        This populates the ``_dynamic_var_values`` dict that the runtime
+        persists as a hidden artifact and uses to resolve ``var()`` markers
+        in decorator attributes of subsequent steps.
+        """
+        self._dynamic_var_values[name] = value
 
     @property
     def script_name(self) -> str:
@@ -434,14 +444,35 @@ class FlowSpec(metaclass=FlowSpecMeta):
                     "A non FlowMutator found in flow custom decorators"
                 )
 
+        # Run external_init on all the step mutators first. We keep this as a first loop
+        # to guarantee that all inits are called before all pre_mutate. This is not
+        # currently documented but follows the usual principle of finishing a callback
+        # phase before starting the next one.
         for step in cls._steps:
-            for deco in step.config_decorators:
+            for deco in step.decorators:
                 if isinstance(deco, StepMutator):
                     deco.external_init()
                 else:
                     raise MetaflowInternalError(
                         "A non StepMutator found in step custom decorators"
                     )
+        for step in cls._steps:
+            for deco in step.config_decorators:
+                inserted_by_value = [deco.decorator_name] + (deco.inserted_by or [])
+                debug.userconf_exec(
+                    "Evaluating step level decorator %s for %s (pre-mutate)"
+                    % (deco.__class__.__name__, step.name)
+                )
+                deco.pre_mutate(
+                    MutableStep(
+                        cls,
+                        step,
+                        pre_mutate=True,
+                        statically_defined=deco.statically_defined,
+                        inserted_by=inserted_by_value,
+                    )
+                )
+
         for step in cls._steps:
             for deco in step.config_decorators:
                 inserted_by_value = [deco.decorator_name] + (deco.inserted_by or [])
