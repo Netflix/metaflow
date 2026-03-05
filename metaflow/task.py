@@ -855,6 +855,21 @@ class MetaflowTask(object):
                             }
                         )
                 from_start("MetaflowTask: before pre-step decorators")
+                # Update the system context singleton with task-level information.
+                from .system_context import system_context
+
+                system_context._update(
+                    step_name=step_name,
+                    run_id=run_id,
+                    task_id=task_id,
+                    task_datastore=output,
+                    metadata=self.metadata,
+                    retry_count=retry_count,
+                    max_user_code_retries=max_user_code_retries,
+                    ubf_context=self.ubf_context,
+                    inputs=inputs,
+                    split_index=split_index,
+                )
                 for deco in decorators:
                     if deco.name == "card" and self.orig_flow_datastore:
                         # if spin step and card decorator, pass spin metadata

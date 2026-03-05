@@ -451,6 +451,9 @@ class NativeRuntime(object):
         self._control_num_splits = {}  # control_task -> num_splits mapping
 
         if not self._skip_decorator_hooks:
+            from .system_context import system_context
+
+            system_context._update(package=package, run_id=self._run_id)
             for step in flow:
                 for deco in step.decorators:
                     deco.runtime_init(flow, graph, package, self._run_id)
@@ -1787,6 +1790,13 @@ class Task(object):
         # Open the output datastore only if the task is not being cloned.
         if not self._is_cloned:
             self.new_attempt()
+            from .system_context import system_context
+
+            system_context._update(
+                ubf_context=ubf_context,
+                task_datastore=self._ds,
+                input_paths=input_paths,
+            )
             for deco in decos:
                 deco.runtime_task_created(
                     self._ds,
@@ -2238,6 +2248,12 @@ class Worker(object):
             args.top_level_options["monitor"] = "nullSidecarMonitor"
         else:
             # decorators may modify the CLIArgs object in-place
+            from .system_context import system_context
+
+            system_context._update(
+                retry_count=self.task.retries,
+                max_user_code_retries=self.task.user_code_retries,
+            )
             for deco in self.task.decos:
                 deco.runtime_step_cli(
                     args,

@@ -1,0 +1,193 @@
+import pytest
+
+from metaflow.system_context import (
+    SystemContext,
+    ExecutionPhase,
+    _phase_from_cli_args,
+    _TASK_COMMANDS,
+    _TRAMPOLINE_COMMANDS,
+    system_context,
+)
+from metaflow.decorators import Decorator, StepDecorator, FlowDecorator
+
+
+# ---------------------------------------------------------------------------
+# Fixtures to ensure singleton is reset between tests
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture(autouse=True)
+def reset_singleton():
+    yield
+    system_context._reset()
+
+
+# ---------------------------------------------------------------------------
+# ExecutionPhase
+# ---------------------------------------------------------------------------
+
+
+class TestExecutionPhase:
+    def test_enum_values(self):
+        assert ExecutionPhase.LAUNCH.value == "launch"
+        assert ExecutionPhase.TRAMPOLINE.value == "trampoline"
+        assert ExecutionPhase.TASK.value == "task"
+
+
+# ---------------------------------------------------------------------------
+# _phase_from_cli_args
+# ---------------------------------------------------------------------------
+
+
+class TestPhaseFromCliArgs:
+    def test_none_args(self):
+        assert _phase_from_cli_args(None) == ExecutionPhase.LAUNCH
+
+    def test_empty_args(self):
+        assert _phase_from_cli_args([]) == ExecutionPhase.LAUNCH
+
+    def test_run_is_launch(self):
+        assert _phase_from_cli_args(["run"]) == ExecutionPhase.LAUNCH
+
+    def test_resume_is_launch(self):
+        assert _phase_from_cli_args(["resume"]) == ExecutionPhase.LAUNCH
+
+    def test_step_is_task(self):
+        assert _phase_from_cli_args(["step", "mystep"]) == ExecutionPhase.TASK
+
+    def test_init_is_task(self):
+        assert _phase_from_cli_args(["init"]) == ExecutionPhase.TASK
+
+    def test_spin_step_is_task(self):
+        assert _phase_from_cli_args(["spin-step"]) == ExecutionPhase.TASK
+
+    def test_batch_is_trampoline(self):
+        assert (
+            _phase_from_cli_args(["batch", "step", "train"])
+            == ExecutionPhase.TRAMPOLINE
+        )
+
+    def test_kubernetes_is_trampoline(self):
+        assert (
+            _phase_from_cli_args(["kubernetes", "step", "train"])
+            == ExecutionPhase.TRAMPOLINE
+        )
+
+    def test_deployment_is_launch(self):
+        assert (
+            _phase_from_cli_args(["argo-workflows", "create"]) == ExecutionPhase.LAUNCH
+        )
+        assert (
+            _phase_from_cli_args(["step-functions", "create"]) == ExecutionPhase.LAUNCH
+        )
+
+    def test_unknown_is_launch(self):
+        assert _phase_from_cli_args(["show"]) == ExecutionPhase.LAUNCH
+        assert _phase_from_cli_args(["status"]) == ExecutionPhase.LAUNCH
+
+
+# ---------------------------------------------------------------------------
+# SystemContext — phase queries
+# ---------------------------------------------------------------------------
+
+
+class TestSystemContextPhase:
+    def test_phase_queries(self):
+        system_context._update(phase=ExecutionPhase.LAUNCH)
+        assert system_context.is_launch
+        assert not system_context.is_trampoline
+        assert not system_context.is_task
+        assert system_context.phase == ExecutionPhase.LAUNCH
+
+    def test_trampoline_phase(self):
+        system_context._update(phase=ExecutionPhase.TRAMPOLINE)
+        assert not system_context.is_launch
+        assert system_context.is_trampoline
+        assert not system_context.is_task
+
+    def test_task_phase(self):
+        system_context._update(phase=ExecutionPhase.TASK)
+        assert not system_context.is_launch
+        assert not system_context.is_trampoline
+        assert system_context.is_task
+
+
+# ---------------------------------------------------------------------------
+# SystemContext — progressive update
+# ---------------------------------------------------------------------------
+
+
+class TestSystemContextUpdate:
+    def test_initial_values_are_none(self):
+        assert system_context.flow is None
+        assert system_context.graph is None
+        assert system_context.environment is None
+        assert system_context.run_id is None
+        assert system_context.task_id is None
+        assert system_context.step_name is None
+
+    def test_progressive_update(self):
+        # Flow-level info arrives first
+        system_context._update(flow="my_flow", graph="my_graph")
+        assert system_context.flow == "my_flow"
+        assert system_context.graph == "my_graph"
+
+        # Runtime-level info arrives later
+        system_context._update(run_id="run-123", package="my_package")
+        assert system_context.run_id == "run-123"
+        assert system_context.package == "my_package"
+
+        # Task-level info arrives last
+        system_context._update(task_id="task-456", retry_count=2)
+        assert system_context.task_id == "task-456"
+        assert system_context.retry_count == 2
+
+    def test_update_overwrites(self):
+        system_context._update(run_id="run-1")
+        assert system_context.run_id == "run-1"
+        system_context._update(run_id="run-2")
+        assert system_context.run_id == "run-2"
+
+    def test_update_invalid_key_raises(self):
+        with pytest.raises(AttributeError, match="no_such_field"):
+            system_context._update(no_such_field="value")
+
+    def test_reset(self):
+        system_context._update(phase=ExecutionPhase.TASK, flow="f", run_id="r")
+        system_context._reset()
+        assert system_context.phase is None
+        assert system_context.flow is None
+        assert system_context.run_id is None
+
+
+# ---------------------------------------------------------------------------
+# SystemContext — input_paths
+# ---------------------------------------------------------------------------
+
+
+class TestSystemContextInputPaths:
+    def test_input_paths_initial_none(self):
+        assert system_context.input_paths is None
+
+    def test_input_paths_update(self):
+        system_context._update(input_paths=["run/step/1", "run/step/2"])
+        assert system_context.input_paths == ["run/step/1", "run/step/2"]
+
+
+# ---------------------------------------------------------------------------
+# Decorator base class — system_ctx property
+# ---------------------------------------------------------------------------
+
+
+class TestDecoratorBaseClassProperties:
+    def test_system_ctx_property(self):
+        d = Decorator()
+        assert d.system_ctx is system_context
+
+    def test_step_decorator_has_property(self):
+        d = StepDecorator()
+        assert d.system_ctx is system_context
+
+    def test_flow_decorator_has_property(self):
+        d = FlowDecorator()
+        assert d.system_ctx is system_context
