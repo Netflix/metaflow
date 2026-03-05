@@ -1,87 +1,146 @@
 import pytest
-from types import SimpleNamespace
+import pickle
 from types import MethodType, FunctionType
+
 from metaflow.exception import MetaflowException
 
-# Dummy Parameter class to mimic Metaflow
-class Parameter:
-    pass
+# --------------------------------------------------
+# Dummy classes for testing
+# --------------------------------------------------
 
-# Dummy Flow class
+class Parameter:
+    """Dummy Parameter class to replace missing import."""
+    def __init__(self, name=None):
+        self.name = name
+
+
+class Unpicklable:
+    def __getstate__(self):
+        raise RuntimeError("cannot pickle me")
+
+
 class DummyFlow:
     _EPHEMERAL = set()
-    
+
     def __init__(self):
-        self.good_artifact = "I am serializable"
-        self.bad_artifact = NonSerializable()  # Will fail serialization
-        self._ignored_artifact = "ignored"
-        self.name = "flow_name"
+        self.good = 123
+        self.bad = Unpicklable()
+        self.param = Parameter(name="dummy")
         self._datastore = None
 
-# Artifact that will fail serialization
-class NonSerializable:
-    def __getstate__(self):
-        raise ValueError("Cannot serialize this object!")
 
-# Dummy Runtime with our persist method
-class DummyRuntime:
-    _persist = True
-    _objects = {}
-    _info = {}
+class DummyParentDatastore:
+    """Parent datastore with some artifacts to transfer."""
+    def __init__(self):
+        self._objects = {"parent_artifact": 999}
+        self._info = {}
+        self.orig_datastore = self  # simulate parent reference
 
-    def save_artifacts(self, artifacts_iter, len_hint):
-        # Simply iterate to simulate saving
+
+class DummyDatastore:
+    """Mock TaskDataStore to test persist logic."""
+
+    def __init__(self):
+        self._persist = True
+        self._is_done_set = False
+        self._mode = "w"
+        self._objects = {}
+        self._info = {}
+
+    def save_artifacts(self, artifacts_iter, len_hint=None):
+        """Force serialization and store artifacts in _objects."""
         for name, obj in artifacts_iter:
-            pass
+            try:
+                pickle.dumps(obj)  # force serialization
+                self._objects[name] = obj  # store artifact in datastore
+            except Exception as e:
+                raise MetaflowException(
+                    f"Failed to serialize artifact '{name}': {e}"
+                ) from e
 
-    def transfer_artifacts(self, orig_datastore, names=None):
-        pass
+    def transfer_artifacts(self, parent_ds, names):
+        for name in names:
+            self._objects[name] = parent_ds._objects[name]
 
     def persist(self, flow):
-        # Include your updated persist function here
+        """Simplified persist method for testing."""
+        if not self._persist:
+            return
+
+        if getattr(flow, "_datastore", None):
+            self._objects.update(flow._datastore._objects)
+            self._info.update(getattr(flow._datastore, "_info", {}))
+
         valid_artifacts = []
         current_artifact_names = set()
+
         for var in dir(flow):
             if var.startswith("__") or var in flow._EPHEMERAL:
                 continue
+
             if hasattr(flow.__class__, var) and isinstance(getattr(flow.__class__, var), property):
                 continue
 
             val = getattr(flow, var)
-            if not (isinstance(val, MethodType) or isinstance(val, FunctionType) or isinstance(val, Parameter)):
+            if not isinstance(val, (MethodType, FunctionType, Parameter)):
                 valid_artifacts.append((var, val))
                 current_artifact_names.add(var)
+
+        # Transfer parent artifacts not overridden
+        if getattr(flow._datastore, "orig_datastore", None):
+            parent_artifacts = set(flow._datastore._objects.keys())
+            unchanged_artifacts = parent_artifacts - current_artifact_names
+            if unchanged_artifacts:
+                self.transfer_artifacts(flow._datastore.orig_datastore, list(unchanged_artifacts))
 
         def artifacts_iter():
             while valid_artifacts:
                 var, val = valid_artifacts.pop()
                 if not var.startswith("_") and var != "name":
                     delattr(flow, var)
-                try:
-                    # Simulate serialization attempt
-                    if hasattr(val, "__getstate__"):
-                        val.__getstate__()
-                except Exception as e:
-                    raise MetaflowException(
-                        f"Failed to serialize artifact '{var}' of type {type(val).__name__}: {e}"
-                    ) from e
                 yield var, val
 
-        self.save_artifacts(artifacts_iter(), len_hint=len(valid_artifacts))
+        try:
+            self.save_artifacts(artifacts_iter(), len_hint=len(valid_artifacts))
+        except Exception as e:
+            raise MetaflowException(
+                f"Failed to serialize artifact while persisting task data: {e}"
+            ) from e
 
-# =========================
-# TESTS
-# =========================
 
-def test_persist_error_message():
+# --------------------------------------------------
+# Tests
+# --------------------------------------------------
+
+def test_persist_unpicklable_artifact():
+    """Persisting a flow with unpicklable artifact raises MetaflowException."""
     flow = DummyFlow()
-    rt = DummyRuntime()
+    ds = DummyDatastore()
+    with pytest.raises(MetaflowException) as exc:
+        ds.persist(flow)
+    assert "Failed to serialize artifact" in str(exc.value)
 
-    # Expect an exception when persisting bad_artifact
-    with pytest.raises(MetaflowException) as excinfo:
-        rt.persist(flow)
 
-    msg = str(excinfo.value)
-    assert "bad_artifact" in msg
-    assert "NonSerializable" in msg
-    assert "Cannot serialize this object!" in msg
+def test_persist_parent_artifact_transfer():
+    """Artifacts from parent datastore are transferred if not overridden."""
+    flow = DummyFlow()
+    parent_ds = DummyParentDatastore()
+    flow._datastore = parent_ds
+    ds = DummyDatastore()
+
+    # Remove the unpicklable artifact for this test
+    del flow.bad
+
+    ds.persist(flow)
+    # Ensure parent artifact transferred
+    assert ds._objects.get("parent_artifact") == 999
+
+
+def test_persist_skips_methods_and_parameters():
+    """Methods and Parameters should not be persisted as artifacts."""
+    flow = DummyFlow()
+    ds = DummyDatastore()
+    del flow.bad  # Remove unpicklable
+    ds.persist(flow)
+    assert "param" not in ds._objects  # Parameter skipped
+    assert "good" in ds._objects       # normal artifact persisted

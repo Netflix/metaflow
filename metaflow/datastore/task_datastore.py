@@ -14,6 +14,7 @@ from ..exception import MetaflowInternalError
 from ..metadata_provider import DataArtifact, MetaDatum
 from ..parameters import Parameter
 from ..util import Path, is_stringish, to_fileobj
+from metaflow.exception import MetaflowException
 
 from .exceptions import DataException, UnpicklableArtifactException
 
@@ -745,49 +746,56 @@ class TaskDataStore(object):
         if not self._persist:
             return
 
-        if flow._datastore:
+        # Merge artifacts and info from parent datastore if it exists
+        if getattr(flow, "_datastore", None):
             self._objects.update(flow._datastore._objects)
             self._info.update(flow._datastore._info)
 
-    # Scan flow object FIRST
         valid_artifacts = []
         current_artifact_names = set()
+
+        # Collect valid artifacts
         for var in dir(flow):
-            if var.startswith("__") or var in flow._EPHEMERAL:
-                continue
-        # Skip over class properties (Parameters or class variables)
-            if hasattr(flow.__class__, var) and isinstance(getattr(flow.__class__, var), property):
+            if var.startswith("__") or var in getattr(flow, "_EPHEMERAL", set()):
                 continue
 
-        val = getattr(flow, var)
-        if not (isinstance(val, MethodType) or isinstance(val, FunctionType) or isinstance(val, Parameter)):
-            valid_artifacts.append((var, val))
-            current_artifact_names.add(var)
+            # Skip class properties (Parameters or class variables)
+            attr = getattr(flow.__class__, var, None)
+            if isinstance(attr, property):
+                continue
 
-    # Transfer ONLY artifacts that aren't being overridden
-        if hasattr(flow._datastore, "orig_datastore"):
-            parent_artifacts = set(flow._datastore._objects.keys())
+            val = getattr(flow, var)
+            if not isinstance(val, (MethodType, FunctionType, Parameter)):
+                valid_artifacts.append((var, val))
+                current_artifact_names.add(var)
+
+        # Transfer only parent artifacts that aren't overridden
+        datastore = getattr(flow, "_datastore", None)
+        if datastore and hasattr(datastore, "orig_datastore"):
+            parent_artifacts = set(datastore._objects.keys())
             unchanged_artifacts = parent_artifacts - current_artifact_names
             if unchanged_artifacts:
-                self.transfer_artifacts(flow._datastore.orig_datastore, names=list(unchanged_artifacts))
+                self.transfer_artifacts(
+                    datastore.orig_datastore,
+                    names=list(unchanged_artifacts)
+                )
 
-    # Iterator with error handling
+        # Generator for iterating and cleaning artifacts
         def artifacts_iter():
             while valid_artifacts:
                 var, val = valid_artifacts.pop()
                 if not var.startswith("_") and var != "name":
                     delattr(flow, var)
-                try:
-                # Attempt serialization (inside save_artifacts)
-                    _ = val  # optional: can call self._encode_artifact(val) if exists
-                except Exception as e:
-                    raise MetaflowException(
-                    f"Failed to serialize artifact '{var}' of type {type(val).__name__}: {e}"
-                ) from e
                 yield var, val
 
-    # Persist all artifacts in one call
-        self.save_artifacts(artifacts_iter(), len_hint=len(valid_artifacts))
+        # Save artifacts safely, wrapping errors
+        try:
+            self.save_artifacts(artifacts_iter(), len_hint=len(valid_artifacts))
+        except Exception as e:
+            raise MetaflowException(
+                f"Failed to serialize artifact while persisting task data: {e}"
+            ) from e
+
 
     @only_if_not_done
     @require_mode("w")
