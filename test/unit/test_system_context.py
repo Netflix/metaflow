@@ -191,3 +191,134 @@ class TestDecoratorBaseClassProperties:
     def test_flow_decorator_has_property(self):
         d = FlowDecorator()
         assert d.system_ctx is system_context
+
+
+# ---------------------------------------------------------------------------
+# _ctx variant defaults
+# ---------------------------------------------------------------------------
+
+
+class TestCtxVariantDefaults:
+    """Verify that _ctx variants are None by default on base classes."""
+
+    def test_step_decorator_ctx_variants_are_none(self):
+        d = StepDecorator()
+        assert d.step_init_ctx is None
+        assert d.runtime_init_ctx is None
+        assert d.runtime_task_created_ctx is None
+        assert d.runtime_step_cli_ctx is None
+        assert d.runtime_finished_ctx is None
+        assert d.task_pre_step_ctx is None
+        assert d.task_decorate_ctx is None
+        assert d.task_step_completed is None
+        assert d.task_finished_ctx is None
+
+    def test_flow_decorator_ctx_variant_is_none(self):
+        d = FlowDecorator()
+        assert d.flow_init_ctx is None
+
+
+# ---------------------------------------------------------------------------
+# _ctx variant overrides
+# ---------------------------------------------------------------------------
+
+
+class TestCtxVariantOverride:
+    """Verify that subclasses can override _ctx variants to enable dispatch."""
+
+    def test_step_init_ctx_override(self):
+        class MyDeco(StepDecorator):
+            name = "test_deco"
+            called = False
+
+            def step_init_ctx(self):
+                MyDeco.called = True
+
+        d = MyDeco()
+        assert d.step_init_ctx is not None
+        d.step_init_ctx()
+        assert MyDeco.called
+
+    def test_task_step_completed_override_success(self):
+        class MyDeco(StepDecorator):
+            name = "test_deco"
+            last_exception = "NOT_CALLED"
+
+            def task_step_completed(self, exception=None):
+                MyDeco.last_exception = exception
+
+        d = MyDeco()
+
+        # Success path (no exception)
+        d.task_step_completed()
+        assert MyDeco.last_exception is None
+
+        # Exception path
+        err = ValueError("boom")
+        d.task_step_completed(exception=err)
+        assert MyDeco.last_exception is err
+
+    def test_task_step_completed_handles_exception(self):
+        class CatchDeco(StepDecorator):
+            name = "catch"
+
+            def task_step_completed(self, exception=None):
+                if exception is not None:
+                    return True  # exception handled
+                return None
+
+        d = CatchDeco()
+        assert bool(d.task_step_completed(exception=ValueError("x"))) is True
+        assert not d.task_step_completed()
+
+    def test_task_decorate_ctx_override(self):
+        class WrapDeco(StepDecorator):
+            name = "wrap"
+
+            def task_decorate_ctx(self, step_func):
+                def wrapper(*args, **kwargs):
+                    return step_func(*args, **kwargs)
+
+                return wrapper
+
+        d = WrapDeco()
+        original = lambda: 42
+        wrapped = d.task_decorate_ctx(original)
+        assert wrapped is not original
+        assert wrapped() == 42
+
+    def test_flow_init_ctx_override(self):
+        class MyFlowDeco(FlowDecorator):
+            name = "test_flow_deco"
+            received_options = None
+
+            def flow_init_ctx(self, options):
+                MyFlowDeco.received_options = options
+
+        d = MyFlowDeco()
+        d.flow_init_ctx({"name": "test"})
+        assert MyFlowDeco.received_options == {"name": "test"}
+
+    def test_legacy_hook_still_works(self):
+        """Decorators that don't define _ctx variants still use legacy hooks."""
+
+        class LegacyDeco(StepDecorator):
+            name = "legacy"
+            called_with = None
+
+            def step_init(
+                self,
+                flow,
+                graph,
+                step_name,
+                decorators,
+                environment,
+                flow_datastore,
+                logger,
+            ):
+                LegacyDeco.called_with = step_name
+
+        d = LegacyDeco()
+        assert d.step_init_ctx is None
+        d.step_init("f", "g", "train", [], "env", "ds", "log")
+        assert LegacyDeco.called_with == "train"
