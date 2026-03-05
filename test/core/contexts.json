@@ -24,7 +24,7 @@
                 "--tag=\u523a\u8eab means sashimi",
                 "--tag=multiple tags should be ok"
             ],
-            "checks": [ "python3-cli", "python3-metadata"],
+            "checks": ["python3-cli", "python3-metadata"],
             "disabled_tests": [
                 "LargeArtifactTest",
                 "S3FailureTest",
@@ -57,7 +57,7 @@
                 "--tag=\u523a\u8eab means sashimi",
                 "--tag=multiple tags should be ok"
             ],
-            "checks": [ "python3-cli", "python3-metadata"],
+            "checks": ["python3-cli", "python3-metadata"],
             "enabled_tests": [
                 "CardComponentRefreshTest",
                 "CardWithRefreshTest"
@@ -66,12 +66,16 @@
         },
         {
             "name": "python3-all-local-azure-storage",
-            "disabled": true,
+            "disabled": false,
             "env": {
                 "METAFLOW_USER": "tester",
                 "METAFLOW_RUN_BOOL_PARAM": "False",
                 "METAFLOW_RUN_NO_DEFAULT_PARAM": "test_str",
-                "METAFLOW_DEFAULT_METADATA": "local"
+                "METAFLOW_DEFAULT_METADATA": "local",
+                "METAFLOW_DEFAULT_DATASTORE": "azure",
+                "METAFLOW_DATASTORE_SYSROOT_AZURE": "az://metaflow-test/metaflow/{nonce}",
+                "METAFLOW_AZURE_STORAGE_BLOB_SERVICE_ENDPOINT": "http://127.0.0.1:10000/devstoreaccount1",
+                "AZURE_STORAGE_CONNECTION_STRING": "DefaultEndpointsProtocol=http;AccountName=devstoreaccount1;AccountKey=Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw==;BlobEndpoint=http://127.0.0.1:10000/devstoreaccount1;"
             },
             "python": "python3",
             "top_options": [
@@ -88,10 +92,48 @@
                 "--tag=\u523a\u8eab means sashimi",
                 "--tag=multiple tags should be ok"
             ],
-            "checks": [ "python3-cli", "python3-metadata"],
+            "checks": ["python3-cli", "python3-metadata"],
             "disabled_tests": [
                 "LargeArtifactTest",
-                "S3FailureTest"
+                "S3FailureTest",
+                "CardComponentRefreshTest",
+                "CardWithRefreshTest"
+            ],
+            "executors": ["cli", "api"]
+        },
+        {
+            "name": "python3-all-local-gcs",
+            "disabled": false,
+            "env": {
+                "METAFLOW_USER": "tester",
+                "METAFLOW_RUN_BOOL_PARAM": "False",
+                "METAFLOW_RUN_NO_DEFAULT_PARAM": "test_str",
+                "METAFLOW_DEFAULT_METADATA": "local",
+                "METAFLOW_DEFAULT_DATASTORE": "gs",
+                "METAFLOW_DATASTORE_SYSROOT_GS": "gs://metaflow-test/metaflow/{nonce}",
+                "STORAGE_EMULATOR_HOST": "http://localhost:4443"
+            },
+            "python": "python3",
+            "top_options": [
+                "--metadata=local",
+                "--datastore=gs",
+                "--environment=local",
+                "--event-logger=nullSidecarLogger",
+                "--no-pylint",
+                "--quiet"
+            ],
+            "run_options": [
+                "--max-workers=50",
+                "--max-num-splits=10000",
+                "--tag=\u523a\u8eab means sashimi",
+                "--tag=multiple tags should be ok"
+            ],
+            "checks": ["python3-cli", "python3-metadata"],
+            "disabled_tests": [
+                "LargeArtifactTest",
+                "S3FailureTest",
+                "CardComponentRefreshTest",
+                "CardWithRefreshTest"
             ],
             "executors": ["cli", "api"]
         },
@@ -127,10 +169,11 @@
         },
         {
             "name": "python3-batch",
-            "disabled": true,
+            "disabled": false,
             "disable_parallel": true,
             "python": "python3",
             "top_options": [
+                "--metadata=service",
                 "--event-logger=nullSidecarLogger",
                 "--no-pylint",
                 "--quiet",
@@ -141,7 +184,16 @@
                 "METAFLOW_USER": "tester",
                 "METAFLOW_RUN_BOOL_PARAM": "False",
                 "METAFLOW_RUN_NO_DEFAULT_PARAM": "test_str",
-                "METAFLOW_DEFAULT_METADATA": "service"
+                "METAFLOW_DEFAULT_METADATA": "service",
+                "METAFLOW_SERVICE_URL": "http://localhost:8080",
+                "METAFLOW_DEFAULT_DATASTORE": "s3",
+                "METAFLOW_DATASTORE_SYSROOT_S3": "s3://metaflow-test/metaflow/{nonce}",
+                "METAFLOW_BATCH_JOB_QUEUE": "corral-default",
+                "METAFLOW_BATCH_CLIENT_PARAMS": "{\"endpoint_url\":\"http://localhost:8000\"}",
+                "AWS_ACCESS_KEY_ID": "rootuser",
+                "AWS_SECRET_ACCESS_KEY": "rootpass123",
+                "AWS_ENDPOINT_URL_S3": "http://localhost:9000",
+                "AWS_DEFAULT_REGION": "us-east-1"
             },
             "run_options": [
                 "--max-workers=50",
@@ -165,10 +217,11 @@
         },
         {
             "name": "python3-k8s",
-            "disabled": true,
+            "disabled": false,
             "disable_parallel": true,
             "python": "python3",
             "top_options": [
+                "--metadata=service",
                 "--event-logger=nullSidecarLogger",
                 "--no-pylint",
                 "--quiet",
@@ -179,7 +232,17 @@
                 "METAFLOW_USER": "tester",
                 "METAFLOW_RUN_BOOL_PARAM": "False",
                 "METAFLOW_RUN_NO_DEFAULT_PARAM": "test_str",
-                "METAFLOW_DEFAULT_METADATA": "service"
+                "METAFLOW_DEFAULT_METADATA": "service",
+                "METAFLOW_SERVICE_URL": "http://localhost:8080",
+                "METAFLOW_SERVICE_INTERNAL_URL": "http://metaflow-service.default.svc.cluster.local:8080",
+                "METAFLOW_DEFAULT_DATASTORE": "s3",
+                "METAFLOW_DATASTORE_SYSROOT_S3": "s3://metaflow-test/metaflow/{nonce}",
+                "METAFLOW_KUBERNETES_NAMESPACE": "default",
+                "METAFLOW_KUBERNETES_SECRETS": "minio-secret",
+                "AWS_ACCESS_KEY_ID": "rootuser",
+                "AWS_SECRET_ACCESS_KEY": "rootpass123",
+                "AWS_ENDPOINT_URL_S3": "http://localhost:9000",
+                "AWS_DEFAULT_REGION": "us-east-1"
             },
             "run_options": [
                 "--max-workers=50",
@@ -200,6 +263,102 @@
                 "RunIdFileTest"
             ],
             "executors": ["cli", "api"]
+        },
+        {
+            "name": "python3-argo-workflows",
+            "disabled": false,
+            "disable_parallel": true,
+            "scheduler": "argo-workflows",
+            "scheduler_timeout": 600,
+            "python": "python3",
+            "top_options": [
+                "--metadata=service",
+                "--event-logger=nullSidecarLogger",
+                "--no-pylint",
+                "--quiet",
+                "--datastore=s3"
+            ],
+            "env": {
+                "METAFLOW_USER": "tester",
+                "METAFLOW_RUN_BOOL_PARAM": "False",
+                "METAFLOW_RUN_NO_DEFAULT_PARAM": "test_str",
+                "METAFLOW_DEFAULT_METADATA": "service",
+                "METAFLOW_SERVICE_URL": "http://localhost:8080",
+                "METAFLOW_SERVICE_INTERNAL_URL": "http://metaflow-service.default.svc.cluster.local:8080",
+                "METAFLOW_DEFAULT_DATASTORE": "s3",
+                "METAFLOW_DATASTORE_SYSROOT_S3": "s3://metaflow-test/metaflow/{nonce}",
+                "METAFLOW_KUBERNETES_NAMESPACE": "default",
+                "METAFLOW_KUBERNETES_SECRETS": "minio-secret",
+                "AWS_ACCESS_KEY_ID": "rootuser",
+                "AWS_SECRET_ACCESS_KEY": "rootpass123",
+                "AWS_ENDPOINT_URL_S3": "http://localhost:9000",
+                "AWS_DEFAULT_REGION": "us-east-1"
+            },
+            "run_options": [],
+            "checks": ["python3-cli", "python3-metadata"],
+            "disabled_tests": [
+                "LargeArtifactTest",
+                "WideForeachTest",
+                "TagCatchTest",
+                "BasicUnboundedForeachTest",
+                "NestedUnboundedForeachTest",
+                "DetectSegFaultTest",
+                "TimeoutDecoratorTest",
+                "CardExtensionsImportTest",
+                "CardComponentRefreshTest",
+                "CardWithRefreshTest",
+                "RunIdFileTest"
+            ],
+            "executors": ["scheduler"]
+        },
+        {
+            "name": "python3-sfn",
+            "disabled": false,
+            "disable_parallel": true,
+            "scheduler": "step-functions",
+            "scheduler_timeout": 600,
+            "python": "python3",
+            "top_options": [
+                "--metadata=service",
+                "--event-logger=nullSidecarLogger",
+                "--no-pylint",
+                "--quiet",
+                "--with=batch",
+                "--datastore=s3"
+            ],
+            "env": {
+                "METAFLOW_USER": "tester",
+                "METAFLOW_RUN_BOOL_PARAM": "False",
+                "METAFLOW_RUN_NO_DEFAULT_PARAM": "test_str",
+                "METAFLOW_DEFAULT_METADATA": "service",
+                "METAFLOW_SERVICE_URL": "http://localhost:8080",
+                "METAFLOW_DEFAULT_DATASTORE": "s3",
+                "METAFLOW_DATASTORE_SYSROOT_S3": "s3://metaflow-test/metaflow/{nonce}",
+                "METAFLOW_BATCH_JOB_QUEUE": "corral-default",
+                "METAFLOW_BATCH_CLIENT_PARAMS": "{\"endpoint_url\":\"http://localhost:8000\"}",
+                "METAFLOW_SFN_CLIENT_PARAMS": "{\"endpoint_url\":\"http://localhost:8082\"}",
+                "METAFLOW_SFN_DYNAMO_DB_CLIENT_PARAMS": "{\"endpoint_url\":\"http://localhost:8765\"}",
+                "METAFLOW_SFN_DYNAMO_DB_TABLE": "metaflow-sfn",
+                "METAFLOW_SFN_IAM_ROLE": "arn:aws:iam::123456789012:role/sfn-local-role",
+                "AWS_ACCESS_KEY_ID": "rootuser",
+                "AWS_SECRET_ACCESS_KEY": "rootpass123",
+                "AWS_ENDPOINT_URL_S3": "http://localhost:9000",
+                "AWS_DEFAULT_REGION": "us-east-1"
+            },
+            "run_options": [],
+            "checks": ["python3-cli", "python3-metadata"],
+            "disabled_tests": [
+                "LargeArtifactTest",
+                "WideForeachTest",
+                "TagCatchTest",
+                "BasicUnboundedForeachTest",
+                "NestedUnboundedForeachTest",
+                "DetectSegFaultTest",
+                "TimeoutDecoratorTest",
+                "CardExtensionsImportTest",
+                "RunIdFileTest"
+            ],
+            "executors": ["scheduler"]
         }
     ],
     "checks": {
