@@ -23,6 +23,7 @@ from metaflow.metaflow_config import (
     DEFAULT_SECRETS_BACKEND_TYPE,
     AWS_SECRETS_MANAGER_DEFAULT_REGION,
     S3_SERVER_SIDE_ENCRYPTION,
+    MAX_ATTEMPTS,
 )
 
 from metaflow.metaflow_config_funcs import config_values
@@ -334,6 +335,7 @@ class Batch(object):
             .environment_variable("METAFLOW_CARD_S3ROOT", CARD_S3ROOT)
             .environment_variable("METAFLOW_OTEL_ENDPOINT", OTEL_ENDPOINT)
             .environment_variable("METAFLOW_RUNTIME_ENVIRONMENT", "aws-batch")
+            .environment_variable("METAFLOW_MAX_ATTEMPTS", MAX_ATTEMPTS)
         )
 
         # Temporary passing of *some* environment variables. Do not rely on this
