@@ -322,3 +322,120 @@ class TestCtxVariantOverride:
         assert d.step_init_ctx is None
         d.step_init("f", "g", "train", [], "env", "ds", "log")
         assert LegacyDeco.called_with == "train"
+
+
+# ---------------------------------------------------------------------------
+# SystemContext — shared state (inter-decorator communication)
+# ---------------------------------------------------------------------------
+
+
+class TestSystemContextSharedState:
+    def test_publish_and_get(self):
+        system_context._update(step_name="train")
+        system_context.publish("timeout", "seconds", 300)
+        assert system_context.get_published("timeout", "seconds") == 300
+
+    def test_get_missing_namespace(self):
+        system_context._update(step_name="train")
+        assert system_context.get_published("nonexistent", "key") is None
+
+    def test_get_missing_key(self):
+        system_context._update(step_name="train")
+        system_context.publish("timeout", "seconds", 300)
+        assert system_context.get_published("timeout", "nonexistent") is None
+
+    def test_get_default(self):
+        system_context._update(step_name="train")
+        assert system_context.get_published("timeout", "seconds", 60) == 60
+
+    def test_has_published_namespace(self):
+        system_context._update(step_name="train")
+        assert not system_context.has_published("timeout")
+        system_context.publish("timeout", "seconds", 300)
+        assert system_context.has_published("timeout")
+
+    def test_has_published_key(self):
+        system_context._update(step_name="train")
+        system_context.publish("timeout", "seconds", 300)
+        assert system_context.has_published("timeout", "seconds")
+        assert not system_context.has_published("timeout", "minutes")
+
+    def test_get_all_published(self):
+        system_context._update(step_name="train")
+        system_context.publish("resources", "cpu", "4")
+        system_context.publish("resources", "memory", "8192")
+        system_context.publish("resources", "gpu", "1")
+
+        all_resources = system_context.get_all_published("resources")
+        assert all_resources == {"cpu": "4", "memory": "8192", "gpu": "1"}
+
+    def test_get_all_published_missing(self):
+        system_context._update(step_name="train")
+        assert system_context.get_all_published("nonexistent") == {}
+
+    def test_overwrite_published(self):
+        system_context._update(step_name="train")
+        system_context.publish("resources", "cpu", "4")
+        system_context.publish("resources", "cpu", "8")
+        assert system_context.get_published("resources", "cpu") == "8"
+
+    def test_multiple_namespaces(self):
+        system_context._update(step_name="train")
+        system_context.publish("resources", "cpu", "4")
+        system_context.publish("timeout", "seconds", 300)
+        system_context.publish("batch", "image", "my-image:latest")
+
+        assert system_context.get_published("resources", "cpu") == "4"
+        assert system_context.get_published("timeout", "seconds") == 300
+        assert system_context.get_published("batch", "image") == "my-image:latest"
+
+
+# ---------------------------------------------------------------------------
+# SystemContext — step isolation for shared state
+# ---------------------------------------------------------------------------
+
+
+class TestSystemContextStepIsolation:
+    def test_isolated_shared_state(self):
+        system_context._update(step_name="train")
+        system_context.publish("resources", "cpu", "4")
+
+        system_context._update(step_name="predict")
+        system_context.publish("resources", "cpu", "16")
+
+        # Switch back and verify isolation
+        system_context._update(step_name="train")
+        assert system_context.get_published("resources", "cpu") == "4"
+
+        system_context._update(step_name="predict")
+        assert system_context.get_published("resources", "cpu") == "16"
+
+
+# ---------------------------------------------------------------------------
+# SystemContext — step decorator registration
+# ---------------------------------------------------------------------------
+
+
+class TestSystemContextRegistration:
+    def test_register_and_get_step_decorators(self):
+        decos = ["deco1", "deco2"]
+        system_context.register_step_decorators("train", decos)
+        assert system_context.get_step_decorators("train") == decos
+
+    def test_get_step_decorators_uses_current_step(self):
+        decos = ["deco1"]
+        system_context.register_step_decorators("train", decos)
+        system_context._update(step_name="train")
+        assert system_context.get_step_decorators() == decos
+
+    def test_get_step_decorators_missing_step(self):
+        assert system_context.get_step_decorators("nonexistent") == []
+
+    def test_reset_clears_shared_and_decorators(self):
+        system_context._update(step_name="train")
+        system_context.publish("timeout", "seconds", 300)
+        system_context.register_step_decorators("train", ["d"])
+        system_context._reset()
+        assert system_context.get_step_decorators("train") == []
+        system_context._update(step_name="train")
+        assert system_context.get_published("timeout", "seconds") is None
