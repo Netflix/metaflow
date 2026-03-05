@@ -35,7 +35,7 @@ components = {
     "jobset": [],
     "corral": ["minio"],
     "ddb-local": [],
-    "sfn-local": ["ddb-local"],
+    "sfn-local": ["ddb-local", "corral"],
     "azurite": [],
     "fake-gcs-server": [],
 }
@@ -865,10 +865,14 @@ if "sfn-local" in enabled_components:
                         'image': 'amazon/aws-stepfunctions-local:latest',
                         'ports': [{'containerPort': 8083}],
                         'env': [
-                            {'name': 'AWS_DEFAULT_REGION',      'value': 'us-east-1'},
-                            {'name': 'AWS_ACCESS_KEY_ID',       'value': 'test'},
-                            {'name': 'AWS_SECRET_ACCESS_KEY',   'value': 'test'},
-                            {'name': 'AWS_ENDPOINT_URL_DYNAMODB', 'value': ddb_svc_url},
+                            {'name': 'AWS_DEFAULT_REGION',       'value': 'us-east-1'},
+                            {'name': 'AWS_ACCESS_KEY_ID',        'value': 'test'},
+                            {'name': 'AWS_SECRET_ACCESS_KEY',    'value': 'test'},
+                            {'name': 'AWS_ENDPOINT_URL_DYNAMODB','value': ddb_svc_url},
+                            # corral runs as a local_resource on the host; reach it via
+                            # host.docker.internal so sfn-local (a k8s pod) can submit
+                            # and poll Batch jobs without leaving the cluster.
+                            {'name': 'AWS_ENDPOINT_URL_BATCH',   'value': 'http://host.docker.internal:8000'},
                         ],
                         'resources': {
                             'requests': {'cpu': '50m', 'memory': '256Mi'},
