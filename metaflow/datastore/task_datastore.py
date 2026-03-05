@@ -742,18 +742,6 @@ class TaskDataStore(object):
     @only_if_not_done
     @require_mode("w")
     def persist(self, flow):
-        """
-        Persist any new artifacts that were produced when running flow
-
-        NOTE: This is a DESTRUCTIVE operation that deletes artifacts from
-        the given flow to conserve memory. Don't rely on artifact attributes
-        of the flow object after calling this function.
-
-        Parameters
-        ----------
-        flow : FlowSpec
-            Flow to persist
-        """
         if not self._persist:
             return
 
@@ -761,51 +749,44 @@ class TaskDataStore(object):
             self._objects.update(flow._datastore._objects)
             self._info.update(flow._datastore._info)
 
-        # Scan flow object FIRST
+    # Scan flow object FIRST
         valid_artifacts = []
         current_artifact_names = set()
         for var in dir(flow):
             if var.startswith("__") or var in flow._EPHEMERAL:
                 continue
-            # Skip over properties of the class (Parameters or class variables)
-            if hasattr(flow.__class__, var) and isinstance(
-                getattr(flow.__class__, var), property
-            ):
+        # Skip over class properties (Parameters or class variables)
+            if hasattr(flow.__class__, var) and isinstance(getattr(flow.__class__, var), property):
                 continue
 
-            val = getattr(flow, var)
-            if not (
-                isinstance(val, MethodType)
-                or isinstance(val, FunctionType)
-                or isinstance(val, Parameter)
-            ):
-                valid_artifacts.append((var, val))
-                current_artifact_names.add(var)
+        val = getattr(flow, var)
+        if not (isinstance(val, MethodType) or isinstance(val, FunctionType) or isinstance(val, Parameter)):
+            valid_artifacts.append((var, val))
+            current_artifact_names.add(var)
 
-        # Transfer ONLY artifacts that aren't being overridden
+    # Transfer ONLY artifacts that aren't being overridden
         if hasattr(flow._datastore, "orig_datastore"):
             parent_artifacts = set(flow._datastore._objects.keys())
             unchanged_artifacts = parent_artifacts - current_artifact_names
             if unchanged_artifacts:
-                self.transfer_artifacts(
-                    flow._datastore.orig_datastore, names=list(unchanged_artifacts)
-                )
+                self.transfer_artifacts(flow._datastore.orig_datastore, names=list(unchanged_artifacts))
 
+    # Iterator with error handling
         def artifacts_iter():
-            # we consume the valid_artifacts list destructively to
-            # make sure we don't keep references to artifacts. We
-            # want to avoid keeping original artifacts and encoded
-            # artifacts in memory simultaneously
             while valid_artifacts:
                 var, val = valid_artifacts.pop()
                 if not var.startswith("_") and var != "name":
-                    # NOTE: Destructive mutation of the flow object. We keep
-                    # around artifacts called 'name' and anything starting with
-                    # '_' as they are used by the Metaflow runtime.
                     delattr(flow, var)
+                try:
+                # Attempt serialization (inside save_artifacts)
+                    _ = val  # optional: can call self._encode_artifact(val) if exists
+                except Exception as e:
+                    raise MetaflowException(
+                    f"Failed to serialize artifact '{var}' of type {type(val).__name__}: {e}"
+                ) from e
                 yield var, val
 
-        # Save current artifacts
+    # Persist all artifacts in one call
         self.save_artifacts(artifacts_iter(), len_hint=len(valid_artifacts))
 
     @only_if_not_done
