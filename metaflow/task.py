@@ -854,6 +854,15 @@ class MetaflowTask(object):
                                 "graph_info": self.flow._graph_info,
                             }
                         )
+                # Resolve any DynamicVar markers in decorator attributes
+                # from the parent step's artifacts (now available via flow).
+                from metaflow.dynamic_var import get_dynamic_vars
+
+                for deco in decorators:
+                    dvars = get_dynamic_vars(deco.attributes)
+                    for attr_key, dvar in dvars.items():
+                        deco.attributes[attr_key] = getattr(self.flow, dvar.var_name)
+
                 from_start("MetaflowTask: before pre-step decorators")
                 for deco in decorators:
                     if deco.name == "card" and self.orig_flow_datastore:
@@ -909,6 +918,22 @@ class MetaflowTask(object):
 
                 self.flow._task_ok = True
                 self.flow._success = True
+
+                # Collect dynamic var values for downstream steps.
+                # The set of vars to export is communicated via env var
+                # (set by Argo/Airflow when generating the description of the workflow).
+                dynamic_var_names = os.environ.get("METAFLOW_DYNAMIC_VARS", "")
+                if dynamic_var_names:
+                    self.flow._dynamic_var_values = {}
+                    for var_name in dynamic_var_names.split(","):
+                        if hasattr(self.flow, var_name):
+                            self.flow._dynamic_var_values[var_name] = getattr(
+                                self.flow, var_name
+                            )
+                        else:
+                            raise MetaflowException(
+                                f"Artifact {var_name} is expected by downstream steps"
+                            )
 
             except Exception as ex:
                 with self.monitor.count("metaflow.task.exception"):
