@@ -79,6 +79,11 @@ class ObjectOrder:
 class MetadataProvider(object):
     TYPE = None
 
+    # Optional request tracer.  When set to a MetadataTracer instance every
+    # call to get_object() is recorded.  None by default so there is zero
+    # overhead in normal usage (a single ``is None`` check per call).
+    _tracer = None
+
     @classmethod
     def metadata_str(cls):
         return "%s@%s" % (cls.TYPE, cls.INFO)
@@ -428,6 +433,9 @@ class MetadataProvider(object):
                 raise ValueError("Attempt can only be a positive integer")
         else:
             attempt_int = None
+
+        if cls._tracer is not None:
+            cls._tracer._record(obj_type, sub_type, type_order, attempt_int, args)
 
         pre_filter = cls._get_object_internal(
             obj_type, type_order, sub_type, sub_order, filters, attempt_int, *args
