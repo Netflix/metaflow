@@ -235,9 +235,20 @@ class Decorator(object):
         fmt = "%s<%s%s>" % (self.name, mode, attrs)
         return fmt
 
+    @property
+    def system_ctx(self):
+        from .system_context import system_context
+
+        return system_context
+
 
 class FlowDecorator(Decorator):
     options = {}
+
+    # Simplified hook variant — override in subclasses to use self.system_ctx.
+    # When not None, takes precedence over flow_init.
+    # Signature: flow_init_ctx(self, options)
+    flow_init_ctx = None
 
     def __init__(self, *args, **kwargs):
         super(FlowDecorator, self).__init__(*args, **kwargs)
@@ -330,6 +341,46 @@ class StepDecorator(Decorator):
                   step.__name__ etc., so that we don't have to
                   pass them around with every lifecycle call.
     """
+
+    # ------------------------------------------------------------------
+    # Dependency declarations — set in subclasses to declare ordering
+    # and conflict constraints between decorators on the same step.
+    #
+    # depends_on : frozenset of decorator names (str) that must have their
+    #     step_init called before this decorator's step_init. Missing
+    #     dependencies (decorators not present on the step) are ignored.
+    # conflicts_with : frozenset of decorator names (str) that cannot
+    #     coexist on the same step. Raises an error during init.
+    # ------------------------------------------------------------------
+    depends_on = frozenset()
+    conflicts_with = frozenset()
+
+    # ------------------------------------------------------------------
+    # Simplified hook variants — override in subclasses to use self.system_ctx.
+    # When not None, each takes precedence over the corresponding legacy hook.
+    # All context (flow, graph, step_name, run_id, task_id, etc.) is available
+    # via self.system_ctx instead of positional args.
+    #
+    # Signatures:
+    #   step_init_ctx(self)
+    #   runtime_init_ctx(self)
+    #   runtime_task_created_ctx(self)
+    #   runtime_step_cli_ctx(self, cli_args)
+    #   runtime_finished_ctx(self, exception)
+    #   task_pre_step_ctx(self)
+    #   task_decorate_ctx(self, step_func) -> step_func
+    #   task_step_completed(self, exception=None) -> bool or None
+    #   task_finished_ctx(self, is_task_ok)
+    # ------------------------------------------------------------------
+    step_init_ctx = None
+    runtime_init_ctx = None
+    runtime_task_created_ctx = None
+    runtime_step_cli_ctx = None
+    runtime_finished_ctx = None
+    task_pre_step_ctx = None
+    task_decorate_ctx = None
+    task_step_completed = None  # coalesces task_post_step + task_exception
+    task_finished_ctx = None
 
     def step_init(
         self, flow, graph, step_name, decorators, environment, flow_datastore, logger
@@ -785,16 +836,94 @@ def _init_flow_decorators(
                 deco, is_spin, skip_decorators, logger, "Flow decorator"
             ):
                 continue
-            deco.flow_init(
-                flow,
-                graph,
-                environment,
-                flow_datastore,
-                metadata,
-                logger,
-                echo,
-                deco_flow_init_options,
-            )
+            if deco.flow_init_ctx is not None:
+                deco.flow_init_ctx(deco_flow_init_options)
+            else:
+                deco.flow_init(
+                    flow,
+                    graph,
+                    environment,
+                    flow_datastore,
+                    metadata,
+                    logger,
+                    echo,
+                    deco_flow_init_options,
+                )
+
+
+def _validate_step_decorator_conflicts(step_name, decorators):
+    """
+    Check for conflicting decorators on a step.
+
+    Raises MetaflowException if any decorator's ``conflicts_with`` set
+    contains the name of another decorator present on the same step.
+    """
+    names = {d.name for d in decorators}
+    for deco in decorators:
+        for conflict_name in deco.conflicts_with:
+            if conflict_name in names:
+                raise MetaflowException(
+                    "Step *%s* has conflicting decorators: "
+                    "@%s conflicts with @%s." % (step_name, deco.name, conflict_name)
+                )
+
+
+def _order_step_decorators(decorators):
+    """
+    Reorder decorators so that dependencies are initialized first.
+
+    Uses a stable topological sort: when there are no dependency constraints
+    between two decorators, their original order is preserved.
+
+    Returns a new list. The input list is not modified.
+    """
+    if not decorators:
+        return list(decorators)
+
+    # Fast path: skip sorting if no decorator declares dependencies.
+    if not any(deco.depends_on for deco in decorators):
+        return list(decorators)
+
+    import heapq
+
+    n = len(decorators)
+    names_present = {d.name for d in decorators}
+
+    # Build adjacency and in-degree for Kahn's algorithm.
+    # adj[i] = indices that depend on i (so i must come before them).
+    in_degree = [0] * n
+    adj = [[] for _ in range(n)]
+
+    for i, deco in enumerate(decorators):
+        for dep_name in deco.depends_on:
+            if dep_name not in names_present:
+                continue
+            for j, dep_deco in enumerate(decorators):
+                if j != i and dep_deco.name == dep_name:
+                    # deco i depends on dep j → j must come before i
+                    adj[j].append(i)
+                    in_degree[i] += 1
+
+    # Kahn's algorithm with a min-heap keyed by original index for stability.
+    ready = [i for i in range(n) if in_degree[i] == 0]
+    heapq.heapify(ready)
+
+    result = []
+    while ready:
+        i = heapq.heappop(ready)
+        result.append(decorators[i])
+        for j in adj[i]:
+            in_degree[j] -= 1
+            if in_degree[j] == 0:
+                heapq.heappush(ready, j)
+
+    if len(result) != n:
+        remaining = [decorators[i].name for i in range(n) if in_degree[i] > 0]
+        raise MetaflowException(
+            "Circular dependency among step decorators: %s" % ", ".join(remaining)
+        )
+
+    return result
 
 
 def _init_step_decorators(
@@ -873,21 +1002,33 @@ def _init_step_decorators(
     cls._init_graph()
     graph = flow._graph
 
+    from .system_context import system_context
+
     for step in flow:
+        # Validate conflicts and reorder based on depends_on declarations.
+        _validate_step_decorator_conflicts(step.__name__, step.decorators)
+        step.decorators[:] = _order_step_decorators(step.decorators)
+
+        # Update singleton for this step.
+        system_context._update(step_name=step.__name__)
+        system_context.register_step_decorators(step.__name__, list(step.decorators))
         for deco in step.decorators:
             if _should_skip_decorator_for_spin(
                 deco, is_spin, skip_decorators, logger, "Step decorator"
             ):
                 continue
-            deco.step_init(
-                flow,
-                graph,
-                step.__name__,
-                step.decorators,
-                environment,
-                flow_datastore,
-                logger,
-            )
+            if deco.step_init_ctx is not None:
+                deco.step_init_ctx()
+            else:
+                deco.step_init(
+                    flow,
+                    graph,
+                    step.__name__,
+                    step.decorators,
+                    environment,
+                    flow_datastore,
+                    logger,
+                )
 
 
 def _process_late_attached_decorator(
@@ -901,27 +1042,35 @@ def _process_late_attached_decorator(
     skip_decorators=False,
 ):
 
+    from .system_context import system_context
+
     for s in flow:
         for deco in s.decorators:
             if deco.name in deco_names:
                 deco.external_init()
 
     for s in flow:
+        system_context._update(step_name=s.__name__)
+        system_context.register_step_decorators(s.__name__, list(s.decorators))
+
         for deco in s.decorators:
             if deco.name in deco_names:
                 if _should_skip_decorator_for_spin(
                     deco, is_spin, skip_decorators, logger, "Step decorator"
                 ):
                     continue
-                deco.step_init(
-                    flow,
-                    graph,
-                    s.__name__,
-                    s.decorators,
-                    environment,
-                    flow_datastore,
-                    logger,
-                )
+                if deco.step_init_ctx is not None:
+                    deco.step_init_ctx()
+                else:
+                    deco.step_init(
+                        flow,
+                        graph,
+                        s.__name__,
+                        s.decorators,
+                        environment,
+                        flow_datastore,
+                        logger,
+                    )
 
 
 FlowSpecDerived = TypeVar("FlowSpecDerived", bound=FlowSpec)

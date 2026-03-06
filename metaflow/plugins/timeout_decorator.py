@@ -52,6 +52,9 @@ class TimeoutDecorator(StepDecorator):
         self.logger = logger
         if not self.secs:
             raise MetaflowException("Specify a duration for @timeout.")
+        # Publish timeout for other decorators (e.g. @batch, @kubernetes) to
+        # read via system_ctx instead of iterating the decorator list.
+        self.system_ctx.publish("timeout", "seconds", self.secs)
 
     def task_pre_step(
         self,
@@ -99,6 +102,13 @@ class TimeoutDecorator(StepDecorator):
 
 
 def get_run_time_limit_for_task(step_decos):
+    # Check system_context first — @timeout publishes its value during step_init.
+    from metaflow.system_context import system_context
+
+    timeout = system_context.get_published("timeout", "seconds")
+    if timeout is not None:
+        return timeout
+    # Fall back to decorator iteration for backward compatibility.
     run_time_limit = DEFAULT_RUNTIME_LIMIT
     for deco in step_decos:
         if isinstance(deco, TimeoutDecorator):

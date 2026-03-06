@@ -42,3 +42,12 @@ class ResourcesDecorator(StepDecorator):
         "memory": "4096",
         "shared_memory": None,
     }
+
+    def step_init(
+        self, flow, graph, step_name, decorators, environment, flow_datastore, logger
+    ):
+        # Publish resource values for compute decorators (e.g. @batch,
+        # @kubernetes) to read via system_ctx instead of scanning the decorator list.
+        for k, v in self.attributes.items():
+            if v is not None:
+                self.system_ctx.publish("resources", k, v)
