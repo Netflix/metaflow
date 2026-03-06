@@ -1,0 +1,21 @@
+######################################
+# UX Pytest Configuration (OSS)
+######################################
+
+# Default scheduler configuration.
+# Set type to a valid scheduler to enable deployer-mode tests.
+# Examples: step-functions, argo-workflows
+scheduler:
+  type: null
+  cluster: null  # Argo: k8s namespace; unused for step-functions
+
+# Compute backend configuration.
+# Set backend to enable remote compute via decospecs.
+# Examples: batch, kubernetes, fargate
+compute:
+  backend: null
+  image: null     # Docker image for the compute backend
+  # batch-specific
+  # queue: arn:aws:batch:us-east-1:123456789:job-queue/my-queue
+  # kubernetes-specific
+  # namespace: default
