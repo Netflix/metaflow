@@ -37,7 +37,7 @@ components = {
     "argo-workflows": [],
     "argo-events": ["argo-workflows"],
     "jobset": [],
-    "corral": ["minio"],
+    "localbatch": ["minio"],
     "ddb-local": [],
     "sfn-local": ["ddb-local"],
     "azurite": [],
@@ -726,13 +726,13 @@ if "ui" in enabled_components:
     config_resources.append('metaflow-ui-static')
 
 #################################################
-# CORRAL (local AWS Batch emulator)
+# LOCALBATCH (local AWS Batch emulator)
 #################################################
-if "corral" in enabled_components:
+if "localbatch" in enabled_components:
     # Build the serve command. Inject MinIO credentials so that Docker
-    # containers spawned by corral can reach S3 via host.docker.internal.
-    corral_serve_cmd = (
-        "corral --port 8000 --queue corral-default" +
+    # containers spawned by localbatch can reach S3 via host.docker.internal.
+    localbatch_serve_cmd = (
+        "localbatch --port 8000 --queue localbatch-default" +
         " --inject-env AWS_ACCESS_KEY_ID=rootuser" +
         " --inject-env AWS_SECRET_ACCESS_KEY=rootpass123" +
         " --inject-env AWS_ENDPOINT_URL_S3=http://host.docker.internal:9000" +
@@ -744,31 +744,31 @@ if "corral" in enabled_components:
 
     # Also forward the metadata service URL when it's part of this stack.
     if "metadata-service" in enabled_components:
-        corral_serve_cmd += (
+        localbatch_serve_cmd += (
             " --inject-env METAFLOW_SERVICE_URL=http://host.docker.internal:8080" +
             " --inject-env METAFLOW_SERVICE_INTERNAL_URL=http://host.docker.internal:8080"
         )
 
     local_resource(
-        name="corral",
-        serve_cmd=corral_serve_cmd,
+        name="localbatch",
+        serve_cmd=localbatch_serve_cmd,
         readiness_probe=probe(
             http_get=http_get_action(port=8000, path="/health"),
             period_secs=2,
             initial_delay_secs=1,
         ),
         links=[
-            link("http://localhost:8000/health", "Corral health"),
-            link("http://localhost:8000/docs",   "Corral API docs"),
+            link("http://localhost:8000/health", "localbatch health"),
+            link("http://localhost:8000/docs",   "localbatch API docs"),
         ],
-        labels=["corral"],
-        resource_deps=components["corral"],
+        labels=["localbatch"],
+        resource_deps=components["localbatch"],
     )
 
-    metaflow_config["METAFLOW_BATCH_JOB_QUEUE"] = "corral-default"
+    metaflow_config["METAFLOW_BATCH_JOB_QUEUE"] = "localbatch-default"
     metaflow_config["METAFLOW_BATCH_CLIENT_PARAMS"] = {"endpoint_url": "http://localhost:8000"}
 
-    config_resources.append("corral")
+    config_resources.append("localbatch")
 
 #################################################
 # DDB LOCAL (DynamoDB Local — used by sfn-local for foreach state)

@@ -19,7 +19,7 @@ SERVICE_OPTIONS=(
     "argo-workflows"
     "argo-events"
     "jobset"
-    "corral"
+    "localbatch"
     "ddb-local"
     "sfn-local"
     "azurite"

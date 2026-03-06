@@ -26,7 +26,7 @@ make all-up
 To start a specific subset of services:
 
 ```bash
-SERVICES_OVERRIDE=corral,minio make up
+SERVICES_OVERRIDE=localbatch,minio make up
 ```
 
 ## Services
@@ -40,7 +40,7 @@ SERVICES_OVERRIDE=corral,minio make up
 | `argo-workflows` | Argo Workflows controller + server | — | 2746 |
 | `argo-events` | Argo Events controller + webhook | argo-workflows | 12000 |
 | `jobset` | Kubernetes JobSet controller | — | — |
-| `corral` | Local AWS Batch emulator | minio | 8000 |
+| `localbatch` | Local AWS Batch emulator | minio | 8000 |
 | `ddb-local` | DynamoDB Local | — | 8765 |
 | `sfn-local` | AWS Step Functions Local | ddb-local | 8082 |
 | `azurite` | Azure Blob / Queue / Table emulator | — | 10000–10002 |
@@ -77,7 +77,7 @@ python myflow.py run
 |---|---|
 | MinIO | `rootuser` / `rootpass123` |
 | PostgreSQL | `metaflow` / `metaflow123` / db `metaflow` |
-| DynamoDB Local / SFN Local / corral | any value (no auth) |
+| DynamoDB Local / SFN Local / localbatch | any value (no auth) |
 | Azurite | account `devstoreaccount1`, key in `.devtools/env_local` |
 | fake-gcs-server | no auth required |
 
@@ -134,12 +134,12 @@ SERVICES_OVERRIDE=minio,postgresql,metadata-service,argo-workflows make up
 > `config_local.json`, as it would be embedded in the WorkflowTemplate and cause
 > connectivity failures inside pods.
 
-### SFN + Batch/corral (sfn-batch backend)
+### SFN + Batch/localbatch (sfn-batch backend)
 
-Required services: `minio,postgresql,metadata-service,corral,ddb-local,sfn-local`
+Required services: `minio,postgresql,metadata-service,localbatch,ddb-local,sfn-local`
 
 ```bash
-SERVICES_OVERRIDE=minio,postgresql,metadata-service,corral,ddb-local,sfn-local make up
+SERVICES_OVERRIDE=minio,postgresql,metadata-service,localbatch,ddb-local,sfn-local make up
 ```
 
 Run only sfn-batch tests:
