@@ -241,6 +241,17 @@ class FlowDataStore(object):
             )
             for v in latest_to_fetch
         ]
+        if pathspecs:
+            # Restore the order of pathspecs so that inputs arrive in foreach-index
+            # order at join steps. Without this, set-iteration over done_attempts
+            # produces an arbitrary ordering that doesn't match the original pathspecs.
+            pathspec_order = {
+                tuple(ps.rstrip("/").split("/")[:3]): i
+                for i, ps in enumerate(pathspecs)
+            }
+            latest_to_fetch.sort(
+                key=lambda v: pathspec_order.get((v[0], v[1], v[2]), len(pathspecs))
+            )
         return list(itertools.starmap(self.get_task_datastore, latest_to_fetch))
 
     def get_task_datastore(

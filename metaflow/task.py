@@ -248,6 +248,13 @@ class MetaflowTask(object):
         # (via TaskDataStoreSet) only with more than 4 datastores, because
         # the baseline overhead of using the set is ~1.5s and each datastore
         # init takes ~200-300ms when run sequentially.
+        #
+        # Both code paths guarantee that the returned ds_list preserves the
+        # order of input_paths: the sequential path processes them in order,
+        # and TaskDataStoreSet / get_task_datastores() sorts by pathspec before
+        # returning. This means foreach inputs always arrive at join steps in
+        # the same order as the original foreach list, regardless of which path
+        # is taken.
         if len(input_paths) > 4:
             prefetch_data_artifacts = None
             if join_type and join_type == "foreach":
