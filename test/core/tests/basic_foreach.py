@@ -30,7 +30,7 @@ class BasicForeachTest(MetaflowTest):
 
     @steps(0, ["foreach-join"], required=True)
     def join(self, inputs):
-        got = sorted([inp.my_input for inp in inputs])
+        got = [inp.my_input for inp in inputs]
         assert_equals(list(range(32)), got)
 
     @steps(1, ["all"])
