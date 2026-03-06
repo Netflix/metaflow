@@ -1139,6 +1139,12 @@ class MetaflowData(object):
             raise AttributeError(name)
         return self._artifacts[name].data
 
+    def __dir__(self):
+        return list(super().__dir__()) + list(self._artifacts.keys())
+
+    def _ipython_key_completions_(self) -> list:
+        return list(self._artifacts.keys())
+
     def __contains__(self, var):
         return var in self._artifacts
 
@@ -2626,6 +2632,12 @@ class Metaflow(object):
             if current_metadata is False:
                 default_metadata()
             self.metadata = current_metadata
+
+    def _ipython_key_completions_(self) -> list:
+        try:
+            return [f.id for f in self]
+        except Exception:
+            return []
 
     @property
     def flows(self) -> List[Flow]:
