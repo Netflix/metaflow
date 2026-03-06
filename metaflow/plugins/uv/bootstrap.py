@@ -3,6 +3,7 @@ import shutil
 import subprocess
 import sys
 import time
+from copy import copy
 
 from metaflow.util import which
 from metaflow.meta_files import read_info_file
@@ -13,6 +14,23 @@ from urllib.error import URLError
 
 # TODO: support version/platform/architecture selection.
 UV_URL = "https://github.com/astral-sh/uv/releases/download/0.6.11/uv-x86_64-unknown-linux-gnu.tar.gz"
+
+
+def _extract_uv_binary(tar, install_path, tar_filter):
+    try:
+        tar.extractall(install_path, filter=tar_filter)
+    except TypeError:
+        # Python < 3.12 does not support extractall(filter=...).
+        # Fall back to an explicit members list and sanitize names.
+        uv_members = []
+        for member in tar.getmembers():
+            if os.path.basename(member.name) != "uv":
+                continue
+            sanitized_member = copy(member)
+            sanitized_member.name = os.path.basename(sanitized_member.name)
+            uv_members.append(sanitized_member)
+        tar.extractall(install_path, members=uv_members)
+
 
 if __name__ == "__main__":
 
@@ -62,7 +80,7 @@ if __name__ == "__main__":
                 req = Request(UV_URL, headers=headers)
                 with urlopen(req) as response:
                     with tarfile.open(fileobj=response, mode="r:gz") as tar:
-                        tar.extractall(uv_install_path, filter=_tar_filter)
+                        _extract_uv_binary(tar, uv_install_path, _tar_filter)
                 break
             except (URLError, IOError) as e:
                 if attempt == max_retries - 1:
