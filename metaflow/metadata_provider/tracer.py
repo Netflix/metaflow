@@ -39,12 +39,14 @@ class MetadataTracer:
     calls : list[dict]
         Ordered list of trace records.  Each record contains:
 
-        ``obj_type``   – the object type being fetched  (e.g. ``"run"``)
-        ``sub_type``   – the sub-type / aggregation      (e.g. ``"step"``)
-        ``depth``      – numeric hierarchy depth (root=0 … artifact=5)
-        ``path``       – slash-joined positional path args (e.g. ``"MyFlow/42"``)
-        ``attempt``    – attempt number, or ``None``
-        ``ts``         – wall-clock timestamp (``time.time()``)
+        ``obj_type``    – the object type being fetched  (e.g. ``"run"``)
+        ``sub_type``    – the sub-type / aggregation      (e.g. ``"step"``)
+        ``depth``       – numeric hierarchy depth (root=0 … artifact=5)
+        ``path``        – slash-joined positional path args (e.g. ``"MyFlow/42"``)
+        ``attempt``     – attempt number, or ``None``
+        ``ts``          – wall-clock timestamp at call start (``time.time()``)
+        ``elapsed_ms``  – wall-clock duration of the backend call in milliseconds
+        ``error``       – exception instance if the call failed, else ``None``
     """
 
     def __init__(self):
@@ -54,7 +56,7 @@ class MetadataTracer:
     # ------------------------------------------------------------------
     # Internal
 
-    def _record(self, obj_type, sub_type, depth, attempt, path_args):
+    def _record(self, obj_type, sub_type, depth, attempt, path_args, ts, elapsed_ms, error=None):
         self.calls.append(
             {
                 "obj_type": obj_type,
@@ -62,7 +64,9 @@ class MetadataTracer:
                 "depth": depth,
                 "path": "/".join(str(a) for a in path_args if a is not None),
                 "attempt": attempt,
-                "ts": time.time(),
+                "ts": ts,
+                "elapsed_ms": elapsed_ms,
+                "error": error,
             }
         )
 
@@ -100,17 +104,19 @@ class MetadataTracer:
     def report(self):
         """Print a human-readable breakdown to stdout."""
         s = self.summary()
-        print("=" * 52)
+        print("=" * 68)
         print(f"  MetadataTracer — {s['total']} total get_object calls")
-        print("=" * 52)
-        print(f"  {'obj_type':<12} {'sub_type':<12} {'depth':>5}  path")
-        print("  " + "-" * 48)
+        print("=" * 68)
+        print(f"  {'obj_type':<12} {'sub_type':<12} {'depth':>5}  {'elapsed_ms':>10}  {'status':<8}  path")
+        print("  " + "-" * 64)
         for c in self.calls:
+            status = "ERROR" if c["error"] is not None else "ok"
+            elapsed = f"{c['elapsed_ms']:.1f}" if c["elapsed_ms"] is not None else "?"
             print(
-                f"  {c['obj_type']:<12} {c['sub_type']:<12} {c['depth']:>5}  {c['path']}"
+                f"  {c['obj_type']:<12} {c['sub_type']:<12} {c['depth']:>5}  {elapsed:>10}  {status:<8}  {c['path']}"
             )
-        print("=" * 52)
+        print("=" * 68)
         print("  Calls by type:")
         for typ, cnt in sorted(s["by_type"].items(), key=lambda x: -x[1]):
             print(f"    {typ:<12} {cnt}")
-        print("=" * 52)
+        print("=" * 68)

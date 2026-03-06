@@ -1,7 +1,6 @@
 """Unit tests for MetadataTracer (metaflow/metadata_provider/tracer.py)."""
 
 import pytest
-from unittest.mock import patch
 from metaflow.metadata_provider.tracer import MetadataTracer
 from metaflow.metadata_provider.metadata import MetadataProvider
 
@@ -16,6 +15,15 @@ class _StubProvider(MetadataProvider):
     @classmethod
     def _get_object_internal(cls, obj_type, obj_order, sub_type, sub_order, filters, attempt, *args):
         return []
+
+
+class _FailingProvider(MetadataProvider):
+    """Stub that always raises from _get_object_internal."""
+    TYPE = "local"
+
+    @classmethod
+    def _get_object_internal(cls, obj_type, obj_order, sub_type, sub_order, filters, attempt, *args):
+        raise RuntimeError("backend failure")
 
 
 # ---------------------------------------------------------------------------
@@ -59,7 +67,7 @@ class TestMetadataTracerBasic:
         assert len(tracer.calls) == 2
 
     def test_call_fields_populated(self):
-        """Each recorded call contains the expected keys."""
+        """Each recorded call contains the expected keys with correct types."""
         with MetadataTracer() as tracer:
             _call("flow", "run", None, "MyFlow")
 
@@ -70,6 +78,9 @@ class TestMetadataTracerBasic:
         assert "path" in record
         assert "attempt" in record
         assert "ts" in record
+        assert "elapsed_ms" in record
+        assert record["elapsed_ms"] >= 0
+        assert record["error"] is None
 
     def test_no_recording_after_context_exits(self):
         """Calls made after the context manager exits are not recorded."""
@@ -134,7 +145,58 @@ class TestMetadataTracerNested:
         assert MetadataProvider._tracer is None
 
 
-class TestMetadataTracerSummary:
+class TestMetadataTracerErrors:
+    def setup_method(self):
+        _reset_tracer()
+
+    def teardown_method(self):
+        _reset_tracer()
+
+    def test_failed_call_recorded_with_error_field(self):
+        """When the backend raises, the call is still recorded with error set."""
+        with MetadataTracer() as tracer:
+            with pytest.raises(RuntimeError):
+                _FailingProvider.get_object("flow", "run", {}, None)
+
+        assert len(tracer.calls) == 1
+        assert isinstance(tracer.calls[0]["error"], RuntimeError)
+
+    def test_successful_call_has_no_error(self):
+        """Successful calls have error=None."""
+        with MetadataTracer() as tracer:
+            _call()
+
+        assert tracer.calls[0]["error"] is None
+
+    def test_failed_call_has_elapsed_ms(self):
+        """Even failed calls record a non-negative elapsed_ms."""
+        with MetadataTracer() as tracer:
+            with pytest.raises(RuntimeError):
+                _FailingProvider.get_object("flow", "run", {}, None)
+
+        assert tracer.calls[0]["elapsed_ms"] >= 0
+
+    def test_exception_still_propagates(self):
+        """The original exception must not be swallowed by the tracer."""
+        with MetadataTracer():
+            with pytest.raises(RuntimeError, match="backend failure"):
+                _FailingProvider.get_object("flow", "run", {}, None)
+
+    def test_mixed_calls_recorded_in_order(self):
+        """A mix of successful and failed calls are recorded in call order."""
+        with MetadataTracer() as tracer:
+            _call()  # success
+            with pytest.raises(RuntimeError):
+                _FailingProvider.get_object("flow", "run", {}, None)  # failure
+            _call()  # success
+
+        assert len(tracer.calls) == 3
+        assert tracer.calls[0]["error"] is None
+        assert isinstance(tracer.calls[1]["error"], RuntimeError)
+        assert tracer.calls[2]["error"] is None
+
+
+
     def setup_method(self):
         _reset_tracer()
 

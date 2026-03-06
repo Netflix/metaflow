@@ -435,11 +435,26 @@ class MetadataProvider(object):
             attempt_int = None
 
         if cls._tracer is not None:
-            cls._tracer._record(obj_type, sub_type, type_order, attempt_int, args)
-
-        pre_filter = cls._get_object_internal(
-            obj_type, type_order, sub_type, sub_order, filters, attempt_int, *args
-        )
+            _ts = time.time()
+            try:
+                pre_filter = cls._get_object_internal(
+                    obj_type, type_order, sub_type, sub_order, filters, attempt_int, *args
+                )
+            except Exception as exc:
+                cls._tracer._record(
+                    obj_type, sub_type, type_order, attempt_int, args,
+                    ts=_ts, elapsed_ms=(time.time() - _ts) * 1000, error=exc,
+                )
+                raise
+            else:
+                cls._tracer._record(
+                    obj_type, sub_type, type_order, attempt_int, args,
+                    ts=_ts, elapsed_ms=(time.time() - _ts) * 1000,
+                )
+        else:
+            pre_filter = cls._get_object_internal(
+                obj_type, type_order, sub_type, sub_order, filters, attempt_int, *args
+            )
         if attempt_int is None or sub_type != "metadata":
             # If no attempt or not for metadata, just return as is
             return pre_filter
