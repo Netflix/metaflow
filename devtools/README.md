@@ -45,6 +45,7 @@ SERVICES_OVERRIDE=corral,minio make up
 | `sfn-local` | AWS Step Functions Local | ddb-local | 8082 |
 | `azurite` | Azure Blob / Queue / Table emulator | — | 10000–10002 |
 | `fake-gcs-server` | Google Cloud Storage emulator | — | 4443 |
+| `airflow` | Apache Airflow (LocalExecutor) | — | 8090 (UI / REST API) |
 
 Dependencies are resolved automatically — selecting `sfn-local` in the picker also starts `ddb-local`.
 
@@ -91,6 +92,67 @@ python myflow.py run
 | `make dashboard` | Open Minikube dashboard |
 | `make ui` | Wait for Metaflow UI and open it in a browser |
 | `make tunnel` | Run `minikube tunnel` (called automatically by `up`) |
+
+## Running UX tests
+
+The `test/ux/core/` suite (`test_basic.py`, `test_config.py`) can be run against the devstack
+against any combination of backends defined in `test/ux/ux_test_config.yaml`.
+
+### Python environment
+
+Install Metaflow (dev) and test dependencies once:
+
+```bash
+pip install -e ".[dev]" pytest kubernetes omegaconf
+```
+
+### Common test invocation
+
+Run all backends (uses `ux_test_config.yaml`):
+
+```bash
+AWS_SHARED_CREDENTIALS_FILE= \
+METAFLOW_HOME=$(pwd)/devtools/.devtools \
+METAFLOW_PROFILE=local \
+AWS_CONFIG_FILE=$(pwd)/devtools/.devtools/aws_config \
+PYTHONPATH=$(pwd) \
+python -m pytest test/ux/core/test_basic.py test/ux/core/test_config.py \
+  -v --tb=short -m "not conda"
+```
+
+### Argo Workflows (argo-kubernetes backend)
+
+Required services: `minio,postgresql,metadata-service,argo-workflows`
+
+```bash
+SERVICES_OVERRIDE=minio,postgresql,metadata-service,argo-workflows make up
+```
+
+> **Note:** Inside Argo pods, boto3 uses
+> `AWS_ENDPOINT_URL_S3=http://minio.default.svc.cluster.local:9000` injected from the
+> `minio-secret` Kubernetes secret — **do not** set `METAFLOW_S3_ENDPOINT_URL` in
+> `config_local.json`, as it would be embedded in the WorkflowTemplate and cause
+> connectivity failures inside pods.
+
+### SFN + Batch/corral (sfn-batch backend)
+
+Required services: `minio,postgresql,metadata-service,corral,ddb-local,sfn-local`
+
+```bash
+SERVICES_OVERRIDE=minio,postgresql,metadata-service,corral,ddb-local,sfn-local make up
+```
+
+Run only sfn-batch tests:
+
+```bash
+AWS_SHARED_CREDENTIALS_FILE= \
+METAFLOW_HOME=$(pwd)/devtools/.devtools \
+METAFLOW_PROFILE=local \
+AWS_CONFIG_FILE=$(pwd)/devtools/.devtools/aws_config \
+PYTHONPATH=$(pwd) \
+python -m pytest test/ux/core/test_basic.py test/ux/core/test_config.py \
+  -k "sfn-batch and not conda" -v --tb=short
+```
 
 ## Teardown
 

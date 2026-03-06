@@ -16,12 +16,12 @@ from .test_utils import (
 
 
 def test_config_simple_default(
-    exec_mode, decospecs, compute_env, tag, scheduler_config
+    exec_mode, decospecs, compute_env, tag, scheduler_config, backend_name
 ):
     """Config test with default values."""
     disp_test(exec_mode, decospecs, tag, scheduler_config)
     trigger_param = str(uuid.uuid4())[:8]
-    test_unique_tag = f"test_config_simple_default_{exec_mode}"
+    test_unique_tag = f"test_config_simple_default_{backend_name}_{exec_mode}"
     combined_tags = tag + [test_unique_tag]
 
     tl_args = {
@@ -70,12 +70,12 @@ def test_config_simple_default(
 
 
 def test_config_simple_config_value(
-    exec_mode, decospecs, compute_env, tag, scheduler_config
+    exec_mode, decospecs, compute_env, tag, scheduler_config, backend_name
 ):
     """Config test using config_value override."""
     disp_test(exec_mode, decospecs, tag, scheduler_config)
     trigger_param = str(uuid.uuid4())[:8]
-    test_unique_tag = f"test_config_simple_config_value_{exec_mode}"
+    test_unique_tag = f"test_config_simple_config_value_{backend_name}_{exec_mode}"
     combined_tags = tag + [test_unique_tag]
 
     config_value = [
@@ -126,11 +126,13 @@ def test_config_simple_config_value(
     ), "config_from_env_2 incorrect"
 
 
-def test_config_simple_config(exec_mode, decospecs, compute_env, tag, scheduler_config):
+def test_config_simple_config(
+    exec_mode, decospecs, compute_env, tag, scheduler_config, backend_name
+):
     """Config test using an explicit config file."""
     disp_test(exec_mode, decospecs, tag, scheduler_config)
     trigger_param = str(uuid.uuid4())[:8]
-    test_unique_tag = f"test_config_simple_config_{exec_mode}"
+    test_unique_tag = f"test_config_simple_config_{backend_name}_{exec_mode}"
     combined_tags = tag + [test_unique_tag]
 
     config_files = [
@@ -168,11 +170,13 @@ def test_config_simple_config(exec_mode, decospecs, compute_env, tag, scheduler_
     assert run["end"].task.data.trigger_param == trigger_param
 
 
-def test_mutable_flow_default(exec_mode, decospecs, compute_env, tag, scheduler_config):
+def test_mutable_flow_default(
+    exec_mode, decospecs, compute_env, tag, scheduler_config, backend_name
+):
     """Mutable config test with default values."""
     disp_test(exec_mode, decospecs, tag, scheduler_config)
     trigger_param = str(uuid.uuid4())[:8]
-    test_unique_tag = f"test_mutable_flow_default_{exec_mode}"
+    test_unique_tag = f"test_mutable_flow_default_{backend_name}_{exec_mode}"
     combined_tags = tag + [test_unique_tag]
 
     default_config = {
@@ -252,12 +256,12 @@ def test_mutable_flow_default(exec_mode, decospecs, compute_env, tag, scheduler_
 
 
 def test_mutable_flow_config_value(
-    exec_mode, decospecs, compute_env, tag, scheduler_config
+    exec_mode, decospecs, compute_env, tag, scheduler_config, backend_name
 ):
     """Mutable flow with config_value override."""
     disp_test(exec_mode, decospecs, tag, scheduler_config)
     trigger_param = str(uuid.uuid4())[:8]
-    test_unique_tag = f"test_mutable_flow_config_value_{exec_mode}"
+    test_unique_tag = f"test_mutable_flow_config_value_{backend_name}_{exec_mode}"
     combined_tags = tag + [test_unique_tag]
 
     config_value = [
@@ -343,11 +347,13 @@ def test_mutable_flow_config_value(
     ), "step_level_2 incorrect"
 
 
-def test_config_corner_cases(exec_mode, decospecs, compute_env, tag, scheduler_config):
+def test_config_corner_cases(
+    exec_mode, decospecs, compute_env, tag, scheduler_config, backend_name
+):
     """Config corner cases: env_cfg, config_expr with a function, and extra env vars."""
     disp_test(exec_mode, decospecs, tag, scheduler_config)
     trigger_param = str(uuid.uuid4())[:8]
-    test_unique_tag = f"test_config_corner_cases_{exec_mode}"
+    test_unique_tag = f"test_config_corner_cases_{backend_name}_{exec_mode}"
     combined_tags = tag + [test_unique_tag]
 
     tl_args = {

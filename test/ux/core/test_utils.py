@@ -85,10 +85,17 @@ def deploy_flow_to_scheduler(
 
     filtered_tl_args = prepare_runner_deployer_args(tl_args)
     deployer = Deployer(flow_file=flow_path, **filtered_tl_args)
-    deployed_flow = getattr(deployer, scheduler_type)(**scheduler_args).create(
+    # Normalize scheduler_args: translate the generic 'cluster' key to
+    # the scheduler-specific arg, and drop unsupported keys.
+    normalized_sched_type = scheduler_type.replace("-", "_")
+    norm_sched_args = dict(scheduler_args)
+    # Drop 'cluster' — it's the k8s namespace which comes from METAFLOW_KUBERNETES_NAMESPACE
+    # in the global config, not passed as a create() argument.
+    norm_sched_args.pop("cluster", None)
+    deployed_flow = getattr(deployer, normalized_sched_type)(**norm_sched_args).create(
         **deploy_args
     )
-    print(f"Deployed workflow {deployed_flow.workflow_id}")
+    print(f"Deployed workflow {deployed_flow.name}")
     return deployed_flow
 
 
@@ -139,21 +146,31 @@ def verify_single_run(flow_name: str, tags: List[str], timeout: int = 60) -> Run
     return run
 
 
+def _is_failed_status(status: Optional[str]) -> bool:
+    """Return True if the status string indicates a terminal failure (case-insensitive)."""
+    return status is not None and status.upper() in ("FAILED", "TIMED_OUT", "ABORTED")
+
+
 def wait_for_deployed_run(
     deployed_flow,
     timeout: int = 3600,
     run_kwargs: Optional[Dict[str, Any]] = None,
-    polling_interval: int = 60,
+    polling_interval: int = 15,
 ):
     """Trigger a deployed flow and wait for it to complete."""
-    print(f"Deployed flow {deployed_flow.workflow_id}")
+    print(f"Deployed flow {deployed_flow.name}")
     run_kwargs = run_kwargs or {}
-    triggered_run = deployed_flow.run(**run_kwargs)
+    triggered_run = deployed_flow.trigger(**run_kwargs)
 
     start_time = time.time()
     while triggered_run.run is None:
         if time.time() - start_time > timeout:
             raise RuntimeError(f"Run failed to start within {timeout} seconds")
+        status = triggered_run.status
+        if _is_failed_status(status):
+            raise RuntimeError(
+                f"Deployed run failed before starting (status: {status})"
+            )
         print("Waiting for run to start...")
         time.sleep(polling_interval)
 
@@ -164,8 +181,9 @@ def wait_for_deployed_run(
             raise RuntimeError(
                 f"Run {triggered_run.run.id} failed to complete within {timeout} seconds"
             )
-        if triggered_run.status == "FAILED":
-            raise RuntimeError(f"Run {triggered_run.run.id} failed")
+        status = triggered_run.status
+        if _is_failed_status(status):
+            raise RuntimeError(f"Run {triggered_run.run.id} failed (status: {status})")
         print(f"Waiting for run {triggered_run.run.id} to complete...")
         time.sleep(polling_interval)
 
@@ -198,12 +216,13 @@ def execute_test_flow(
         runner_args.update(run_params)
 
     if exec_mode == "deployer":
+        sched_type = scheduler_config.scheduler_type
         deployed_flow = deploy_flow_to_scheduler(
             flow_name=flow_name,
             tl_args=tl_args,
             scheduler_args={"cluster": scheduler_config.cluster},
             deploy_args={"tags": combined_tags},
-            scheduler_type=scheduler_config.scheduler_type,
+            scheduler_type=sched_type,
         )
         return wait_for_deployed_run(deployed_flow, run_kwargs=run_params)
     else:

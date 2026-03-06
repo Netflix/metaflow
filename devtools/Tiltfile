@@ -21,9 +21,13 @@ JOBSET_VERSION = os.getenv("JOBSET_VERSION", "v0.8.2")
 ARGO_WORKFLOWS_HELM_CHART_VERSION = os.getenv("ARGO_WORKFLOWS_HELM_CHART_VERSION", "0.45.2")  # Helm chart version
 ARGO_WORKFLOWS_IMAGE_TAG = os.getenv("ARGO_WORKFLOWS_IMAGE_TAG", "v3.6.0")  # Argo Workflows application version
 
-# Argo Events versions  
+# Argo Events versions
 ARGO_EVENTS_HELM_CHART_VERSION = os.getenv("ARGO_EVENTS_HELM_CHART_VERSION", "2.4.8")  # Helm chart version
 ARGO_EVENTS_IMAGE_TAG = os.getenv("ARGO_EVENTS_IMAGE_TAG", "v1.9.2")  # Argo Events application version
+
+# Airflow versions
+AIRFLOW_HELM_CHART_VERSION = os.getenv("AIRFLOW_HELM_CHART_VERSION", "1.15.0")  # Apache Airflow Helm chart version
+AIRFLOW_IMAGE_TAG = os.getenv("AIRFLOW_IMAGE_TAG", "2.10.4")  # Apache Airflow application version
 
 components = {
     "metadata-service": ["postgresql"],
@@ -35,9 +39,10 @@ components = {
     "jobset": [],
     "corral": ["minio"],
     "ddb-local": [],
-    "sfn-local": ["ddb-local", "corral"],
+    "sfn-local": ["ddb-local"],
     "azurite": [],
     "fake-gcs-server": [],
+    "airflow": [],
 }
 
 services_env = os.getenv("SERVICES", "all").strip().lower()
@@ -180,6 +185,7 @@ if "minio" in enabled_components:
 aws_access_key_id = rootuser
 aws_secret_access_key = rootpass123
 endpoint_url = http://localhost:9000
+region = us-east-1
 """
     config_resources.append('minio')
 
@@ -726,16 +732,20 @@ if "corral" in enabled_components:
     # Build the serve command. Inject MinIO credentials so that Docker
     # containers spawned by corral can reach S3 via host.docker.internal.
     corral_serve_cmd = (
-        "corral --port 8000 --queue corral-default"
-        " --inject-env AWS_ACCESS_KEY_ID=rootuser"
-        " --inject-env AWS_SECRET_ACCESS_KEY=rootpass123"
-        " --inject-env AWS_ENDPOINT_URL_S3=http://host.docker.internal:9000"
+        "corral --port 8000 --queue corral-default" +
+        " --inject-env AWS_ACCESS_KEY_ID=rootuser" +
+        " --inject-env AWS_SECRET_ACCESS_KEY=rootpass123" +
+        " --inject-env AWS_ENDPOINT_URL_S3=http://host.docker.internal:9000" +
+        # Metaflow reads METAFLOW_S3_ENDPOINT_URL to override the S3 endpoint
+        # in containers (AWS_ENDPOINT_URL_S3 alone is not enough because
+        # Metaflow explicitly calls os.getenv("METAFLOW_S3_ENDPOINT_URL")).
+        " --inject-env METAFLOW_S3_ENDPOINT_URL=http://host.docker.internal:9000"
     )
 
     # Also forward the metadata service URL when it's part of this stack.
     if "metadata-service" in enabled_components:
         corral_serve_cmd += (
-            " --inject-env METAFLOW_SERVICE_URL=http://host.docker.internal:8080"
+            " --inject-env METAFLOW_SERVICE_URL=http://host.docker.internal:8080" +
             " --inject-env METAFLOW_SERVICE_INTERNAL_URL=http://host.docker.internal:8080"
         )
 
@@ -864,15 +874,17 @@ if "sfn-local" in enabled_components:
                         'name': 'sfn-local',
                         'image': 'amazon/aws-stepfunctions-local:latest',
                         'ports': [{'containerPort': 8083}],
+                        # Override Cmd (default: ["-jar", "StepFunctionsLocal.jar"]) to append
+                        # app-level args after the jar spec. Use --batch-endpoint and
+                        # --dynamodb-endpoint CLI args because SFN Local uses the AWS SDK v1
+                        # Java client, which doesn't read AWS_ENDPOINT_URL_* env vars.
+                        'args': ['-jar', 'StepFunctionsLocal.jar',
+                                 '--batch-endpoint', 'http://host.docker.internal:8000',
+                                 '--dynamodb-endpoint', ddb_svc_url],
                         'env': [
                             {'name': 'AWS_DEFAULT_REGION',       'value': 'us-east-1'},
                             {'name': 'AWS_ACCESS_KEY_ID',        'value': 'test'},
                             {'name': 'AWS_SECRET_ACCESS_KEY',    'value': 'test'},
-                            {'name': 'AWS_ENDPOINT_URL_DYNAMODB','value': ddb_svc_url},
-                            # corral runs as a local_resource on the host; reach it via
-                            # host.docker.internal so sfn-local (a k8s pod) can submit
-                            # and poll Batch jobs without leaving the cluster.
-                            {'name': 'AWS_ENDPOINT_URL_BATCH',   'value': 'http://host.docker.internal:8000'},
                         ],
                         'resources': {
                             'requests': {'cpu': '50m', 'memory': '256Mi'},
@@ -966,14 +978,14 @@ if "azurite" in enabled_components:
     azurite_key     = "Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw=="
     # In-cluster connection string — K8s pods reach Azurite via the service DNS name.
     azurite_k8s_conn_str = (
-        "DefaultEndpointsProtocol=http"
+        "DefaultEndpointsProtocol=http" +
         ";AccountName=" + azurite_account +
         ";AccountKey=" + azurite_key +
         ";BlobEndpoint=http://azurite:10000/" + azurite_account + ";"
     )
     # Local connection string — written to .devtools/env_local for local dev processes.
     azurite_local_conn_str = (
-        "DefaultEndpointsProtocol=http"
+        "DefaultEndpointsProtocol=http" +
         ";AccountName=" + azurite_account +
         ";AccountKey=" + azurite_key +
         ";BlobEndpoint=http://127.0.0.1:10000/" + azurite_account + ";"
@@ -1122,6 +1134,92 @@ if "fake-gcs-server" in enabled_components:
     }))
     k8s_resource('gcs-bucket-init', resource_deps=['fake-gcs-server'], labels=['fake-gcs-server'])
     config_resources.append('gcs-bucket-init')
+
+#################################################
+# AIRFLOW
+#################################################
+if "airflow" in enabled_components:
+    # PVC for DAG files (shared between scheduler and workers)
+    k8s_yaml(encode_yaml({
+        'apiVersion': 'v1',
+        'kind': 'PersistentVolumeClaim',
+        'metadata': {'name': 'airflow-dags'},
+        'spec': {
+            'accessModes': ['ReadWriteOnce'],
+            'resources': {'requests': {'storage': '1Gi'}},
+        },
+    }))
+
+    # Airflow requires a Fernet key for encrypting connection passwords.
+    # We use a static dev key here (not secret).
+    AIRFLOW_FERNET_KEY = "81HqDtbqAywKSOumSha3BhWNOdQ26slT6K0YaZeZyPs="
+
+    helm_remote(
+        'airflow',
+        chart='airflow',
+        version=AIRFLOW_HELM_CHART_VERSION,
+        repo_name='apache-airflow',
+        repo_url='https://airflow.apache.org',
+        set=[
+            'airflowVersion=%s' % AIRFLOW_IMAGE_TAG,
+            'defaultAirflowTag=%s' % AIRFLOW_IMAGE_TAG,
+            # Use LocalExecutor (no Redis needed)
+            'executor=LocalExecutor',
+            # Disable PostgreSQL subchart — use a standalone one
+            'postgresql.enabled=true',
+            # Fernet key for encryption (dev only)
+            'fernetKey=%s' % AIRFLOW_FERNET_KEY,
+            # Disable flower (Celery UI, not needed for LocalExecutor)
+            'flower.enabled=false',
+            # Mount the DAGs PVC
+            'dags.persistence.enabled=true',
+            'dags.persistence.existingClaim=airflow-dags',
+            'dags.gitSync.enabled=false',
+            # Resource limits — keep the dev stack light
+            'scheduler.resources.requests.memory=256Mi',
+            'scheduler.resources.requests.cpu=100m',
+            'scheduler.resources.limits.memory=512Mi',
+            'scheduler.resources.limits.cpu=250m',
+            'webserver.resources.requests.memory=256Mi',
+            'webserver.resources.requests.cpu=100m',
+            'webserver.resources.limits.memory=512Mi',
+            'webserver.resources.limits.cpu=250m',
+            # Default admin credentials (dev only)
+            'webserver.defaultUser.enabled=true',
+            'webserver.defaultUser.username=admin',
+            'webserver.defaultUser.password=admin',
+            'webserver.defaultUser.email=admin@example.com',
+            'webserver.defaultUser.firstName=Admin',
+            'webserver.defaultUser.lastName=User',
+            'webserver.defaultUser.role=Admin',
+        ],
+    )
+
+    k8s_resource(
+        workload='airflow-webserver',
+        # Forward host 8090 → container 8080 to avoid conflict with metadata-service (8080)
+        port_forwards=['8090:8080'],
+        links=[
+            link('http://localhost:8090', 'Airflow UI'),
+        ],
+        labels=['airflow'],
+        resource_deps=components['airflow'],
+    )
+
+    k8s_resource(
+        workload='airflow-scheduler',
+        labels=['airflow'],
+        resource_deps=components['airflow'],
+    )
+
+    config_resources.append('airflow-webserver')
+    config_resources.append('airflow-scheduler')
+
+    metaflow_config["METAFLOW_AIRFLOW_REST_API_URL"] = "http://localhost:8090/api/v1"
+    metaflow_config["METAFLOW_AIRFLOW_REST_API_USERNAME"] = "admin"
+    metaflow_config["METAFLOW_AIRFLOW_REST_API_PASSWORD"] = "admin"
+    metaflow_config["METAFLOW_AIRFLOW_KUBERNETES_DAGS_PATH"] = "/opt/airflow/dags"
+    metaflow_config["METAFLOW_AIRFLOW_KUBERNETES_NAMESPACE"] = "default"
 
 cmd = '''
 ARCH=$(kubectl get nodes -o jsonpath='{.items[0].status.nodeInfo.architecture}')
