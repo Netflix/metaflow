@@ -82,6 +82,12 @@ class StepFunctionsClient(object):
             for execution in page["executions"]
         )
 
+    def describe_execution(self, execution_arn):
+        try:
+            return self._client.describe_execution(executionArn=execution_arn)
+        except self._client.exceptions.ExecutionDoesNotExist:
+            return None
+
     def terminate_execution(self, execution_arn):
         try:
             response = self._client.stop_execution(executionArn=execution_arn)

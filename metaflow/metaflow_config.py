@@ -479,6 +479,16 @@ AIRFLOW_KUBERNETES_KUBECONFIG_FILE = from_conf("AIRFLOW_KUBERNETES_KUBECONFIG_FI
 AIRFLOW_KUBERNETES_KUBECONFIG_CONTEXT = from_conf(
     "AIRFLOW_KUBERNETES_KUBECONFIG_CONTEXT"
 )
+# Airflow REST API endpoint, e.g. http://localhost:8090/api/v1
+AIRFLOW_REST_API_URL = from_conf("AIRFLOW_REST_API_URL")
+AIRFLOW_REST_API_USERNAME = from_conf("AIRFLOW_REST_API_USERNAME", "admin")
+AIRFLOW_REST_API_PASSWORD = from_conf("AIRFLOW_REST_API_PASSWORD", "admin")
+# Path inside Airflow pods where DAG files are stored
+AIRFLOW_KUBERNETES_DAGS_PATH = from_conf(
+    "AIRFLOW_KUBERNETES_DAGS_PATH", "/opt/airflow/dags"
+)
+# Kubernetes namespace where Airflow runs (for kubectl cp DAG upload)
+AIRFLOW_KUBERNETES_NAMESPACE = from_conf("AIRFLOW_KUBERNETES_NAMESPACE", "default")
 
 
 ###

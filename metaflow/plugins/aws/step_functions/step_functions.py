@@ -142,6 +142,9 @@ class StepFunctions(object):
 
     def schedule(self):
         # Scheduling is currently enabled via AWS Event Bridge.
+        # If no cron schedule is defined, nothing to do.
+        if not self._cron:
+            return
         if EVENTS_SFN_ACCESS_IAM_ROLE is None:
             raise StepFunctionsSchedulingException(
                 "No IAM role found for AWS "
