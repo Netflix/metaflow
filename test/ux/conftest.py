@@ -1,3 +1,11 @@
+"""
+OSS Metaflow UX test configuration.
+
+Parametrizes tests over the list of backends defined in ux_test_config.yaml.
+Each enabled backend produces its own (scheduler_config, decospecs) combination,
+giving the full cross-product of orchestrator x compute backend.
+"""
+
 import os
 import uuid
 import pytest
@@ -5,19 +13,7 @@ from dataclasses import dataclass
 from enum import Enum
 from typing import List, Optional
 
-try:
-    import yaml
-
-    def _load_yaml(path):
-        with open(path) as f:
-            return yaml.safe_load(f) or {}
-
-except ImportError:
-    import json
-
-    def _load_yaml(path):
-        with open(path) as f:
-            return json.load(f)
+from omegaconf import OmegaConf
 
 
 class ExecMode(Enum):
@@ -30,6 +26,57 @@ class SchedulerConfig:
     scheduler_type: Optional[str]
     cluster: Optional[str]
 
+    def get(self, key, default=None):
+        return getattr(self, key, default)
+
+
+# ---------------------------------------------------------------------------
+# Config loading
+# ---------------------------------------------------------------------------
+
+
+def _load_config(rootdir=None):
+    candidates = []
+    if rootdir:
+        candidates.append(os.path.join(str(rootdir), "ux_test_config.yaml"))
+    candidates.append(os.path.join(os.path.dirname(__file__), "ux_test_config.yaml"))
+    for path in candidates:
+        if os.path.exists(path):
+            return OmegaConf.load(path)
+    return OmegaConf.create({})
+
+
+def _enabled_backends(cfg):
+    """Return the list of enabled backend dicts from config."""
+    backends = cfg.get("backends", None)
+    if not backends:
+        # Legacy single-backend format
+        sched = cfg.get("scheduler", {}) or {}
+        compute = cfg.get("compute", {}) or {}
+        backend_name = compute.get("backend") or None
+        image = compute.get("image") or None
+        decospec = None
+        if backend_name and image:
+            decospec = "%s:image=%s" % (backend_name, image)
+        elif backend_name:
+            decospec = backend_name
+        return [
+            {
+                "name": "default",
+                "scheduler_type": sched.get("type") or None,
+                "cluster": sched.get("cluster") or None,
+                "decospec": decospec,
+                "enabled": True,
+            }
+        ]
+
+    result = []
+    for b in backends:
+        b = OmegaConf.to_container(b, resolve=True)
+        if b.get("enabled", True):
+            result.append(b)
+    return result
+
 
 # ---------------------------------------------------------------------------
 # CLI options
@@ -40,214 +87,180 @@ def pytest_addoption(parser):
     parser.addoption(
         "--decospecs",
         action="append",
-        help="Decospecs for execution. Can be specified multiple times.",
+        help="Decospecs for execution. Overrides config file.",
     )
     parser.addoption(
         "--cluster",
-        help="Cluster / namespace for the scheduler (e.g. Argo k8s namespace).",
+        help="Cluster / namespace for the scheduler. Overrides config file.",
     )
     parser.addoption(
         "--tag",
         action="append",
-        default=[str(uuid.uuid4())[:8]],
-        help="Tag to use for tests. Can be specified multiple times.",
+        default=None,
+        help="Tag to use for tests.",
     )
     parser.addoption(
         "--exec-mode",
-        choices=[mode.value for mode in ExecMode],
-        help="Force a specific execution mode. If not set, tests run in both modes where supported.",
+        choices=[m.value for m in ExecMode],
+        help="Force a specific execution mode.",
     )
     parser.addoption(
         "--scheduler-type",
-        help="Scheduler type for deployer mode (step-functions, argo-workflows, …).",
-    )
-    parser.addoption(
-        "--compute-backend",
-        help="Compute backend (batch, kubernetes, fargate, …). Auto-injects into decospecs.",
-    )
-    parser.addoption(
-        "--compute-image",
-        help="Docker image for the compute backend. Injected into the auto-generated decospec.",
+        help="Scheduler type for deployer mode. Overrides config file.",
     )
 
 
 # ---------------------------------------------------------------------------
-# Config file  (ux_test_config.yaml, analogous to mf-5's ux_test_config.yaml)
+# Session-scoped fixtures
 # ---------------------------------------------------------------------------
 
 
 @pytest.fixture(scope="session")
-def test_config():
-    config_path = os.path.join(os.path.dirname(__file__), "ux_test_config.yaml")
-    if os.path.exists(config_path):
-        return _load_yaml(config_path)
-    return {}
-
-
-# ---------------------------------------------------------------------------
-# Compute fixtures  (OSS equivalent of titus_image / compute_env in mf-5)
-# ---------------------------------------------------------------------------
-
-
-@pytest.fixture(scope="session")
-def compute_backend(request, test_config):
-    """Active compute backend name (batch, kubernetes, fargate, …) or None."""
-    override = request.config.getoption("--compute-backend")
-    if override:
-        return override
-    return (test_config.get("compute") or {}).get("backend") or None
-
-
-@pytest.fixture(scope="session")
-def compute_image(request, test_config):
-    """Docker image for the compute backend, or None."""
-    override = request.config.getoption("--compute-image")
-    if override:
-        return override
-    return (test_config.get("compute") or {}).get("image") or None
-
-
-@pytest.fixture(scope="session")
-def compute_env(compute_backend, compute_image):
-    """
-    Extra environment variables injected into every flow run.
-
-    This is the OSS equivalent of mf-5's compute_env (which carried Titus
-    image vars).  Extend this fixture in a downstream conftest.py when a
-    specific backend needs runtime env vars (e.g. custom S3 endpoint for the
-    devstack, Batch queue ARN, Kubernetes namespace, …).
-    """
-    return {}
-
-
-# ---------------------------------------------------------------------------
-# Decospecs  (auto-injects compute backend decorator, mirrors mf-5 behaviour)
-# ---------------------------------------------------------------------------
-
-
-@pytest.fixture(scope="session")
-def decospecs(request, compute_backend, compute_image):
-    """
-    Decorator specifications passed to Runner / Deployer.
-
-    Mirrors mf-5: if a compute backend is configured but no explicit decospec
-    for it is present in --decospecs, one is auto-injected
-    (e.g. ``batch:image=<image>``).
-    """
-    raw = list(request.config.getoption("--decospecs") or [])
-
-    if not compute_backend:
-        return raw or None
-
-    already_present = any(
-        d == compute_backend or d.startswith(f"{compute_backend}:") for d in raw
-    )
-
-    if not already_present:
-        spec = (
-            f"{compute_backend}:image={compute_image}"
-            if compute_image
-            else compute_backend
-        )
-        raw.append(spec)
-
-    def _enrich(d):
-        if compute_image and d == compute_backend:
-            return f"{compute_backend}:image={compute_image}"
-        if compute_image and d.startswith(f"{compute_backend}:") and "image=" not in d:
-            return f"{d},image={compute_image}"
-        return d
-
-    return [_enrich(d) for d in raw] or None
-
-
-# ---------------------------------------------------------------------------
-# Scheduler / cluster fixtures
-# ---------------------------------------------------------------------------
-
-
-@pytest.fixture(scope="session")
-def scheduler_type(request, test_config):
-    override = request.config.getoption("--scheduler-type")
-    if override:
-        return override
-    return (test_config.get("scheduler") or {}).get("type") or None
-
-
-@pytest.fixture(scope="session")
-def cluster(request, test_config):
-    override = request.config.getoption("--cluster")
-    if override:
-        return override
-    return (test_config.get("scheduler") or {}).get("cluster") or None
-
-
-@pytest.fixture(scope="session")
-def scheduler_config(cluster, scheduler_type) -> SchedulerConfig:
-    return SchedulerConfig(scheduler_type=scheduler_type, cluster=cluster)
-
-
-# ---------------------------------------------------------------------------
-# Tag
-# ---------------------------------------------------------------------------
+def test_config(request):
+    rootdir = getattr(request.config, "rootdir", None)
+    return _load_config(rootdir)
 
 
 @pytest.fixture(scope="session")
 def tag(request) -> List[str]:
-    return request.config.getoption("--tag") or [str(uuid.uuid4())[:8]]
+    t = request.config.getoption("--tag")
+    return t if t else [str(uuid.uuid4())[:8]]
+
+
+@pytest.fixture(scope="session")
+def compute_env():
+    """
+    Extra environment variables for flow execution.
+    Override in a local conftest.py for custom endpoints (e.g. MinIO).
+    """
+    return {}
 
 
 # ---------------------------------------------------------------------------
-# exec_mode parametrization  (mirrors mf-5 logic)
+# Backend parametrization
+#
+# Each test is parametrized over (exec_mode, backend) pairs.
+# backend is a dict: {name, scheduler_type, cluster, decospec}
 # ---------------------------------------------------------------------------
 
 
-def _has_scheduler(metafunc) -> bool:
-    if metafunc.config.getoption("--scheduler-type", default=None):
-        return True
-    config_path = os.path.join(os.path.dirname(__file__), "ux_test_config.yaml")
-    try:
-        cfg = _load_yaml(config_path)
-        return bool((cfg.get("scheduler") or {}).get("type"))
-    except Exception:
-        return False
+def _resolve_backends(
+    config, sched_override=None, cluster_override=None, decospec_override=None
+):
+    backends = _enabled_backends(config)
+    if sched_override:
+        return [
+            {
+                "name": sched_override,
+                "scheduler_type": sched_override,
+                "cluster": cluster_override,
+                "decospec": decospec_override,
+                "enabled": True,
+            }
+        ]
+    if decospec_override:
+        backends = [dict(b, decospec=decospec_override) for b in backends]
+    return backends
 
 
 def pytest_generate_tests(metafunc):
-    """Parametrize exec_mode following the same rules as mf-5.
-
-    - ``--exec-mode`` CLI flag forces a single mode.
-    - ``scheduler_only`` / ``data_ux`` tests: deployer only (skipped when no scheduler).
-    - ``basic`` / ``config`` tests: runner + deployer (deployer only when scheduler configured).
-    - All other tests: deployer only (skipped when no scheduler).
     """
-    if "exec_mode" not in metafunc.fixturenames:
-        return
+    Parametrize (exec_mode, backend) for each test.
+
+    Rules (mirrors mf-5 conftest):
+    - --exec-mode forces a single exec_mode.
+    - scheduler_only / data_ux: deployer only (skipped for backends without scheduler).
+    - basic / config: runner + deployer (deployer only when backend has scheduler).
+    - Other tests: deployer only.
+    """
+    cfg_path = os.path.join(os.path.dirname(__file__), "ux_test_config.yaml")
+    try:
+        cfg = OmegaConf.load(cfg_path)
+    except Exception:
+        cfg = OmegaConf.create({})
+
+    sched_override = metafunc.config.getoption("--scheduler-type", default=None)
+    cluster_override = metafunc.config.getoption("--cluster", default=None)
+    raw_decospecs = list(metafunc.config.getoption("--decospecs") or [])
+    decospec_override = raw_decospecs[0] if raw_decospecs else None
+
+    backends = _resolve_backends(
+        cfg, sched_override, cluster_override, decospec_override
+    )
 
     user_exec_mode = metafunc.config.getoption("--exec-mode", default=None)
-    has_scheduler = _has_scheduler(metafunc)
-
     scheduler_only = metafunc.definition.get_closest_marker("scheduler_only")
-    data_ux_test = metafunc.definition.get_closest_marker("data_ux")
-    basic_test = metafunc.definition.get_closest_marker("basic")
-    config_test = metafunc.definition.get_closest_marker("config")
+    data_ux = metafunc.definition.get_closest_marker("data_ux")
+    basic = metafunc.definition.get_closest_marker("basic")
+    config_mark = metafunc.definition.get_closest_marker("config")
 
-    if user_exec_mode:
-        metafunc.parametrize("exec_mode", [user_exec_mode])
-    elif scheduler_only or data_ux_test:
-        modes = [ExecMode.DEPLOYER.value] if has_scheduler else []
-        metafunc.parametrize("exec_mode", modes)
-    elif basic_test or config_test:
-        modes = [ExecMode.RUNNER.value]
-        if has_scheduler:
-            modes.append(ExecMode.DEPLOYER.value)
-        metafunc.parametrize("exec_mode", modes)
+    needs_exec = "exec_mode" in metafunc.fixturenames
+    needs_backend = "backend" in metafunc.fixturenames
+
+    if not needs_exec and not needs_backend:
+        return
+
+    params = []
+    ids = []
+
+    for b in backends:
+        has_scheduler = bool(b.get("scheduler_type"))
+
+        if user_exec_mode:
+            modes = [user_exec_mode]
+        elif scheduler_only or data_ux:
+            modes = [ExecMode.DEPLOYER.value] if has_scheduler else []
+        elif basic or config_mark:
+            modes = [ExecMode.RUNNER.value]
+            if has_scheduler:
+                modes.append(ExecMode.DEPLOYER.value)
+        else:
+            modes = [ExecMode.DEPLOYER.value] if has_scheduler else []
+
+        for mode in modes:
+            if needs_exec and needs_backend:
+                params.append((mode, b))
+            elif needs_exec:
+                params.append(mode)
+            else:
+                params.append(b)
+            ids.append("%s-%s" % (b["name"], mode))
+
+    if needs_exec and needs_backend:
+        metafunc.parametrize(["exec_mode", "backend"], params, ids=ids)
+    elif needs_exec:
+        metafunc.parametrize("exec_mode", params, ids=ids)
     else:
-        modes = [ExecMode.DEPLOYER.value] if has_scheduler else []
-        metafunc.parametrize("exec_mode", modes)
+        metafunc.parametrize("backend", params, ids=ids)
 
 
 @pytest.fixture
 def exec_mode(request):
-    """Current execution mode from parametrization."""
     return request.param
+
+
+@pytest.fixture
+def backend(request):
+    return request.param
+
+
+@pytest.fixture
+def scheduler_config(backend) -> SchedulerConfig:
+    return SchedulerConfig(
+        scheduler_type=backend.get("scheduler_type"),
+        cluster=backend.get("cluster"),
+    )
+
+
+@pytest.fixture
+def backend_name(backend) -> str:
+    return backend.get("name", "unknown")
+
+
+@pytest.fixture
+def decospecs(request, backend):
+    raw = list(request.config.getoption("--decospecs") or [])
+    if raw:
+        return raw
+    ds = backend.get("decospec")
+    return [ds] if ds else None

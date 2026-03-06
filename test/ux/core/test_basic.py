@@ -1,7 +1,12 @@
+import uuid
 import pytest
 
 pytestmark = pytest.mark.basic
-from .test_utils import execute_test_flow
+from .test_utils import (
+    execute_test_flow,
+    deploy_flow_to_scheduler,
+    wait_for_deployed_run,
+)
 
 
 def test_hello_world(exec_mode, decospecs, compute_env, tag, scheduler_config):
@@ -22,17 +27,53 @@ def test_hello_world(exec_mode, decospecs, compute_env, tag, scheduler_config):
 
 
 def test_hello_project(exec_mode, decospecs, compute_env, tag, scheduler_config):
+    branch = str(uuid.uuid4())[:8]
     run = execute_test_flow(
         flow_name="basic/helloproject.py",
         exec_mode=exec_mode,
         decospecs=decospecs,
-        tag=tag,
+        tag=[branch],
         scheduler_config=scheduler_config,
         test_name="hello_project",
-        tl_args_extra={"env": compute_env},
+        tl_args_extra={"env": compute_env, "branch": branch},
     )
 
     assert run.successful, "Run was not successful"
+    rbranch = run["end"].task.data.branch
+    assert "test." + branch == rbranch, "Branch name does not match expected"
+
+
+@pytest.mark.scheduler_only
+def test_from_deployment(exec_mode, decospecs, compute_env, tag, scheduler_config):
+    """Verify DeployedFlow.from_deployment() works for all schedulers."""
+    from metaflow.runner.deployer import DeployedFlow
+
+    test_unique_tag = "test_from_deployment_%s" % exec_mode
+    combined_tags = tag + [test_unique_tag]
+
+    scheduler_type = scheduler_config.scheduler_type
+    # Normalize to the impl key used by DeployedFlow.from_deployment(impl=...)
+    impl = scheduler_type.replace("-", "_")
+
+    deployed_flow = deploy_flow_to_scheduler(
+        flow_name="basic/hello_from_deployment.py",
+        tl_args={"decospecs": decospecs, "env": compute_env},
+        scheduler_args={"cluster": scheduler_config.cluster},
+        deploy_args={"tags": combined_tags},
+        scheduler_type=scheduler_type,
+    )
+
+    # First run — verify the flow itself works
+    run1 = wait_for_deployed_run(deployed_flow)
+    assert run1.successful, "First run was not successful"
+    assert run1["start"].task.data.message == "Metaflow says: Hi!"
+
+    # Recover the deployment via from_deployment and trigger a second run
+    deployment_id = deployed_flow.deployer.name
+    recovered = DeployedFlow.from_deployment(deployment_id, impl=impl)
+    run2 = wait_for_deployed_run(recovered)
+    assert run2.successful, "Run from recovered deployment was not successful"
+    assert run2["start"].task.data.message == "Metaflow says: Hi!"
 
 
 @pytest.mark.conda

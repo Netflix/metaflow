@@ -2,20 +2,43 @@
 # UX Pytest Configuration (OSS)
 ######################################
 
-# Default scheduler configuration.
-# Set type to a valid scheduler to enable deployer-mode tests.
-# Examples: step-functions, argo-workflows
-scheduler:
-  type: null
-  cluster: null  # Argo: k8s namespace; unused for step-functions
+# List of backends to test against.
+# Each entry defines one (orchestrator, compute) combination.
+# Tests are parametrized over all enabled backends automatically.
+#
+# Fields per backend:
+#   name           - human-readable label shown in pytest output
+#   scheduler_type - null (runner-only), argo-workflows, step-functions, airflow
+#   cluster        - k8s namespace (Argo) or null
+#   decospec        - decorator spec string injected into every run, e.g.
+#                    "kubernetes:image=my/image:latest" or "batch:image=..."
+#                    null = local execution
+#   enabled        - set to false to skip this backend without deleting the entry
 
-# Compute backend configuration.
-# Set backend to enable remote compute via decospecs.
-# Examples: batch, kubernetes, fargate
-compute:
-  backend: null
-  image: null     # Docker image for the compute backend
-  # batch-specific
-  # queue: arn:aws:batch:us-east-1:123456789:job-queue/my-queue
-  # kubernetes-specific
-  # namespace: default
+backends:
+  - name: local
+    scheduler_type: null
+    cluster: null
+    decospec: null
+    enabled: true
+
+  # Argo Workflows + Kubernetes (devstack: minikube + argo-workflows)
+  - name: argo-kubernetes
+    scheduler_type: argo-workflows
+    cluster: default
+    decospec: "kubernetes:image=python:3.9"
+    enabled: true
+
+  # AWS Step Functions Local + Batch/corral (devstack: sfn-local + corral)
+  - name: sfn-batch
+    scheduler_type: step-functions
+    cluster: null
+    decospec: "batch:image=python:3.9"
+    enabled: true
+
+  # Uncomment and fill in to test against Airflow + Kubernetes:
+  # - name: airflow-kubernetes
+  #   scheduler_type: airflow
+  #   cluster: default
+  #   decospec: "kubernetes:image=<your-image>"
+  #   enabled: true
