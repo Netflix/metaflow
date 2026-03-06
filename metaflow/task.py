@@ -248,13 +248,6 @@ class MetaflowTask(object):
         # (via TaskDataStoreSet) only with more than 4 datastores, because
         # the baseline overhead of using the set is ~1.5s and each datastore
         # init takes ~200-300ms when run sequentially.
-        #
-        # Both code paths guarantee that the returned ds_list preserves the
-        # order of input_paths: the sequential path processes them in order,
-        # and TaskDataStoreSet / get_task_datastores() sorts by pathspec before
-        # returning. This means foreach inputs always arrive at join steps in
-        # the same order as the original foreach list, regardless of which path
-        # is taken.
         if len(input_paths) > 4:
             prefetch_data_artifacts = None
             if join_type and join_type == "foreach":
@@ -278,6 +271,13 @@ class MetaflowTask(object):
                 spin_artifacts=self.spin_artifacts,
             )
             ds_list = [ds for ds in datastore_set]
+            if join_type == "foreach":
+                # get_task_datastores() iterates over a set internally, so the
+                # returned order is arbitrary. Sort by foreach index (the ground
+                # truth stored in the task itself) so that inputs always arrive
+                # at join steps in the same order as the original foreach list.
+                # _foreach_stack is already prefetched above, so this is cheap.
+                ds_list.sort(key=lambda ds: ds["_foreach_stack"][-1].index)
             if len(ds_list) != len(input_paths):
                 raise MetaflowDataMissing(
                     "Some input datastores are missing. "
