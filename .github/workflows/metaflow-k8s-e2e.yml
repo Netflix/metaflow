@@ -1,0 +1,224 @@
+name: Metaflow Kubernetes Argo E2E
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+permissions: read-all
+
+jobs:
+  k8s-argo-e2e:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 45
+    env:
+      METAFLOW_DEFAULT_DATASTORE: s3
+      METAFLOW_DATASTORE_SYSROOT_S3: s3://metaflow/metaflow
+      METAFLOW_DEFAULT_METADATA: local
+      METAFLOW_KUBERNETES_NAMESPACE: argo
+      METAFLOW_KUBERNETES_SERVICE_ACCOUNT: default
+      METAFLOW_S3_ENDPOINT_URL: http://127.0.0.1:30900
+      METAFLOW_TEST_IN_CLUSTER_S3_ENDPOINT_URL: http://minio.minio.svc.cluster.local:9000
+      AWS_ACCESS_KEY_ID: minioadmin
+      AWS_SECRET_ACCESS_KEY: minioadmin
+      AWS_DEFAULT_REGION: us-east-1
+
+    steps:
+      - name: Check out source
+        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
+
+      - name: Set up Python
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install . kubernetes boto3
+
+      - name: Install kubectl
+        run: |
+          set -euo pipefail
+          KUBECTL_VERSION="$(curl -fsSL https://dl.k8s.io/release/stable.txt)"
+          curl -fsSL "https://dl.k8s.io/release/${KUBECTL_VERSION}/bin/linux/amd64/kubectl" -o kubectl
+          chmod +x kubectl
+          sudo mv kubectl /usr/local/bin/kubectl
+          kubectl version --client
+
+      - name: Install kind
+        run: |
+          set -euo pipefail
+          KIND_VERSION="v0.23.0"
+          curl -fsSL "https://kind.sigs.k8s.io/dl/${KIND_VERSION}/kind-linux-amd64" -o kind
+          chmod +x kind
+          sudo mv kind /usr/local/bin/kind
+          kind --version
+
+      - name: Install Argo CLI
+        run: |
+          set -euo pipefail
+          ARGO_VERSION="v3.5.8"
+          curl -fsSL "https://github.com/argoproj/argo-workflows/releases/download/${ARGO_VERSION}/argo-linux-amd64.gz" -o argo.gz
+          gunzip argo.gz
+          chmod +x argo
+          sudo mv argo /usr/local/bin/argo
+          argo version --client
+
+      - name: Create KIND cluster
+        run: |
+          set -euo pipefail
+          cat > kind-config.yaml <<'EOF'
+          kind: Cluster
+          apiVersion: kind.x-k8s.io/v1alpha4
+          nodes:
+            - role: control-plane
+              extraPortMappings:
+                - containerPort: 30900
+                  hostPort: 30900
+                  protocol: TCP
+          EOF
+          kind create cluster --name metaflow-e2e --config kind-config.yaml
+          kubectl cluster-info
+          kubectl get nodes -o wide
+
+      - name: Install Argo Workflows
+        run: |
+          set -euo pipefail
+          kubectl create namespace argo --dry-run=client -o yaml | kubectl apply -f -
+          kubectl apply -n argo -f "https://github.com/argoproj/argo-workflows/releases/download/v3.5.8/quick-start-minimal.yaml"
+          kubectl wait -n argo --for=condition=available deploy/workflow-controller --timeout=240s
+          kubectl wait -n argo --for=condition=available deploy/argo-server --timeout=240s
+          kubectl get pods -n argo
+
+      - name: Deploy MinIO for S3-compatible datastore
+        run: |
+          set -euo pipefail
+          kubectl create namespace minio --dry-run=client -o yaml | kubectl apply -f -
+          cat <<'EOF' | kubectl apply -f -
+          apiVersion: apps/v1
+          kind: Deployment
+          metadata:
+            name: minio
+            namespace: minio
+          spec:
+            replicas: 1
+            selector:
+              matchLabels:
+                app: minio
+            template:
+              metadata:
+                labels:
+                  app: minio
+              spec:
+                containers:
+                  - name: minio
+                    image: minio/minio:RELEASE.2024-01-16T16-07-38Z
+                    args: ["server", "/data", "--console-address", ":9001"]
+                    env:
+                      - name: MINIO_ROOT_USER
+                        value: minioadmin
+                      - name: MINIO_ROOT_PASSWORD
+                        value: minioadmin
+                    ports:
+                      - containerPort: 9000
+                        name: api
+                      - containerPort: 9001
+                        name: console
+          ---
+          apiVersion: v1
+          kind: Service
+          metadata:
+            name: minio
+            namespace: minio
+          spec:
+            selector:
+              app: minio
+            ports:
+              - name: api
+                port: 9000
+                targetPort: 9000
+                nodePort: 30900
+            type: NodePort
+          EOF
+          kubectl wait -n minio --for=condition=available deploy/minio --timeout=240s
+          kubectl get pods -n minio
+          kubectl get svc -n minio minio
+
+      - name: Create Metaflow bucket in MinIO
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import boto3
+          import botocore
+
+          s3 = boto3.client(
+              "s3",
+              endpoint_url="http://127.0.0.1:30900",
+              aws_access_key_id="minioadmin",
+              aws_secret_access_key="minioadmin",
+              region_name="us-east-1",
+          )
+          try:
+              s3.create_bucket(Bucket="metaflow")
+          except botocore.exceptions.ClientError as e:
+              code = e.response.get("Error", {}).get("Code")
+              if code not in ("BucketAlreadyOwnedByYou", "BucketAlreadyExists"):
+                  raise
+          print("Bucket ready: metaflow")
+          PY
+
+      - name: Run flow on Kubernetes backend
+        run: |
+          set -euo pipefail
+          python tests/k8s_flow.py run --with kubernetes --datastore=s3
+
+      - name: Deploy and trigger Argo Workflow from Metaflow flow
+        run: |
+          set -euo pipefail
+          python tests/k8s_flow.py --name k8s-flow-e2e --with kubernetes argo-workflows create
+          python tests/k8s_flow.py --name k8s-flow-e2e argo-workflows trigger --run-id-file run_id.txt
+          RUN_ID="$(cat run_id.txt)"
+          WORKFLOW_NAME="${RUN_ID#argo-}"
+          echo "RUN_ID=${RUN_ID}" >> "${GITHUB_ENV}"
+          echo "WORKFLOW_NAME=${WORKFLOW_NAME}" >> "${GITHUB_ENV}"
+          echo "Triggered workflow: ${WORKFLOW_NAME}"
+
+      - name: Wait for Argo workflow and validate success
+        run: |
+          set -euo pipefail
+          echo "Waiting for workflow ${WORKFLOW_NAME} to complete..."
+          ARGO_WAIT_EXIT=0
+          argo wait -n argo "${WORKFLOW_NAME}" --timeout 900s || ARGO_WAIT_EXIT=$?
+          echo "Argo workflow status:"
+          argo get -n argo "${WORKFLOW_NAME}"
+          echo "Argo workflow logs:"
+          argo logs -n argo "${WORKFLOW_NAME}" || true
+          PHASE="$(kubectl get workflow "${WORKFLOW_NAME}" -n argo -o jsonpath='{.status.phase}')"
+          echo "Final workflow phase: ${PHASE}"
+          if [ "${ARGO_WAIT_EXIT}" -ne 0 ] || [ "${PHASE}" != "Succeeded" ]; then
+            echo "Workflow did not succeed. Printing diagnostics..."
+            kubectl describe workflow "${WORKFLOW_NAME}" -n argo || true
+            kubectl get pods -n argo -o wide || true
+            exit 1
+          fi
+
+      - name: Dump workflow and cluster diagnostics
+        if: always()
+        run: |
+          set -euo pipefail
+          echo "Argo workflows:"
+          argo list -n argo || true
+          if [ -n "${WORKFLOW_NAME:-}" ]; then
+            echo "Workflow details:"
+            argo get -n argo "${WORKFLOW_NAME}" || true
+            argo logs -n argo "${WORKFLOW_NAME}" || true
+            kubectl get workflow "${WORKFLOW_NAME}" -n argo -o yaml || true
+          fi
+          echo "Pods in argo namespace:"
+          kubectl get pods -n argo -o wide || true
+          echo "Pods in minio namespace:"
+          kubectl get pods -n minio -o wide || true
