@@ -49,6 +49,7 @@ class MetadataTracer:
 
     def __init__(self):
         self.calls = []
+        self._previous_tracer = None
 
     # ------------------------------------------------------------------
     # Internal
@@ -72,13 +73,14 @@ class MetadataTracer:
         # Import here to avoid a circular import at module load time.
         from metaflow.metadata_provider.metadata import MetadataProvider
 
+        self._previous_tracer = MetadataProvider._tracer
         MetadataProvider._tracer = self
         return self
 
     def __exit__(self, *_):
         from metaflow.metadata_provider.metadata import MetadataProvider
 
-        MetadataProvider._tracer = None
+        MetadataProvider._tracer = self._previous_tracer
 
     # ------------------------------------------------------------------
     # Reporting helpers
