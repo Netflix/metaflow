@@ -384,6 +384,8 @@ def compress_list(lst, separator=",", rangedelim=":", zlibmarker="!", zlibmin=50
 
 def decompress_list(lststr, separator=",", rangedelim=":", zlibmarker="!"):
     # Three input modes:
+    if not lststr:
+        return []
     if lststr[0] == zlibmarker:
         # 3. zlib-compressed, base64-encoded
         lstbytes = base64.b64decode(lststr[1:])
@@ -392,12 +394,21 @@ def decompress_list(lststr, separator=",", rangedelim=":", zlibmarker="!"):
         decoded = lststr
 
     if rangedelim in decoded:
-        prefix, suffixes = decoded.split(rangedelim)
+        # Split on the first delimiter only so that run-ids or suffixes
+        # containing additional colons (e.g. "1::3") don't cause a
+        # "too many values to unpack" ValueError.
+        prefix, suffixes = decoded.split(rangedelim, 1)
         # 2. Prefix and a comma-separated list of suffixes
-        return [prefix + suffix for suffix in suffixes.split(separator)]
+        # Filter out empty tokens that result from extra or trailing delimiters.
+        return [
+            prefix + suffix
+            for suffix in suffixes.split(separator)
+            if suffix or prefix
+        ]
     else:
         # 1. Just a comma-separated list
-        return decoded.split(separator)
+        # Filter out empty tokens from leading/trailing separators.
+        return [x for x in decoded.split(separator) if x]
 
 
 def longest_common_prefix(lst):
