@@ -243,8 +243,10 @@ class AirflowDeployedFlow(DeployedFlow):
         if dag is None:
             raise MetaflowException("No deployed flow found for DAG: %s" % identifier)
 
-        # Extract flow_name from DAG tags (set by `airflow create`)
-        flow_name = identifier  # fallback
+        # Extract flow_name from DAG tags (set by `airflow create`).
+        # The Airflow DAG ID has the form "project.branch.FlowName" (dotted).
+        # The flow class name (CamelCase, no dots) is always the last component.
+        flow_name = identifier.split(".")[-1]  # safe default
         for tag in dag.get("tags", []):
             tag_name = tag.get("name", "")
             if tag_name.startswith("metaflow_flow_name:"):
