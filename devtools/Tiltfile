@@ -1274,8 +1274,12 @@ if "airflow" in enabled_components:
             'scheduler.livenessProbe.command={/bin/true}',
             'webserver.resources.requests.memory=256Mi',
             'webserver.resources.requests.cpu=100m',
-            'webserver.resources.limits.memory=1Gi',
+            'webserver.resources.limits.memory=2Gi',
             'webserver.resources.limits.cpu=500m',
+            # Disable the webserver auto-restart (workerRefreshBatchSize=0 disables
+            # the rolling worker restart that can cause "no response from gunicorn
+            # master" crashes on constrained GHA runners).
+            'config.webserver.worker_refresh_batch_size=0',
             # Give the webserver startup probe a long window.  The HTTP /health
             # endpoint can take several minutes to become available on resource-
             # constrained GHA runners.
