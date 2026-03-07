@@ -94,7 +94,7 @@ jobs:
           tilt wait --for=condition=Ready "uiresource/(Tiltfile)" --timeout=120s
 
           echo "Waiting for all devstack services (generate-configs)..."
-          tilt wait --for=condition=Ready uiresource/generate-configs --timeout=900s
+          tilt wait --for=condition=Ready uiresource/generate-configs --timeout=1800s
 
       - name: Wait for test image to be loaded into minikube
         if: matrix.backend != 'local'
