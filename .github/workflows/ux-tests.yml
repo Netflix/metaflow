@@ -148,6 +148,15 @@ jobs:
             --cov-branch \
             --junit-xml=junit-${{ matrix.backend }}.xml
 
+      - name: Upload coverage to Codecov
+        if: always()
+        uses: codecov/codecov-action@v5
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: coverage.xml
+          flags: ${{ matrix.backend }}
+          name: ux-${{ matrix.backend }}
+
       - name: Upload coverage data
         if: always()
         uses: actions/upload-artifact@v4
