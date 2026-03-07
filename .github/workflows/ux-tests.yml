@@ -57,7 +57,7 @@ jobs:
         with:
           driver: docker
           cpus: 2
-          memory: 4096
+          memory: 6144
 
       - name: Set up Helm
         uses: azure/setup-helm@v4
@@ -94,7 +94,7 @@ jobs:
           tilt wait --for=condition=Ready "uiresource/(Tiltfile)" --timeout=120s
 
           echo "Waiting for all devstack services (generate-configs)..."
-          tilt wait --for=condition=Ready uiresource/generate-configs --timeout=600s
+          tilt wait --for=condition=Ready uiresource/generate-configs --timeout=900s
 
       - name: Wait for test image to be loaded into minikube
         if: matrix.backend != 'local'
