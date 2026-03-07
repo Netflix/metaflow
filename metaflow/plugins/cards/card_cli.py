@@ -11,6 +11,7 @@ import webbrowser
 import re
 from metaflow._vendor import click
 import os
+import sys
 import time
 import json
 import uuid
@@ -18,6 +19,8 @@ import signal
 import random
 from contextlib import contextmanager
 from functools import wraps
+
+_SIGALRM_SUPPORTED = sys.platform != "win32"
 from metaflow.exception import MetaflowNamespaceMismatch
 
 from .card_datastore import CardDatastore, NUM_SHORT_HASH_CHARS
@@ -160,6 +163,11 @@ def resolve_card(
 
 @contextmanager
 def timeout(time):
+    if not _SIGALRM_SUPPORTED:
+        # SIGALRM is not available on Windows; yield without enforcing a timeout.
+        yield
+        return
+
     # Register a function to raise a TimeoutError on the signal.
     signal.signal(signal.SIGALRM, raise_timeout)
     # Schedule the signal to be sent after ``time``.

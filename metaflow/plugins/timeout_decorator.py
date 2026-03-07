@@ -1,10 +1,14 @@
 import signal
+import sys
 import traceback
 
 from metaflow.exception import MetaflowException
 from metaflow.decorators import StepDecorator
 from metaflow.unbounded_foreach import UBF_CONTROL
 from metaflow.metaflow_config import DEFAULT_RUNTIME_LIMIT
+
+# signal.SIGALRM and signal.alarm() are POSIX-only and do not exist on Windows.
+_SIGALRM_SUPPORTED = sys.platform != "win32"
 
 
 class TimeoutException(MetaflowException):
@@ -52,6 +56,15 @@ class TimeoutDecorator(StepDecorator):
         self.logger = logger
         if not self.secs:
             raise MetaflowException("Specify a duration for @timeout.")
+        if not _SIGALRM_SUPPORTED:
+            logger(
+                "[@timeout] WARNING: @timeout is not enforced on Windows because "
+                "it relies on POSIX signals (SIGALRM). The step will run without "
+                "a time limit on this platform. Use a Linux-based compute backend "
+                "(e.g. @kubernetes or @batch) to enforce the timeout.",
+                timestamp=False,
+                bad=True,
+            )
 
     def task_pre_step(
         self,
@@ -70,13 +83,15 @@ class TimeoutDecorator(StepDecorator):
         if ubf_context != UBF_CONTROL and retry_count <= max_user_code_retries:
             # enable timeout only when executing user code
             self.step_name = step_name
-            signal.signal(signal.SIGALRM, self._sigalrm_handler)
-            signal.alarm(self.secs)
+            if _SIGALRM_SUPPORTED:
+                signal.signal(signal.SIGALRM, self._sigalrm_handler)
+                signal.alarm(self.secs)
 
     def task_post_step(
         self, step_name, flow, graph, retry_count, max_user_code_retries
     ):
-        signal.alarm(0)
+        if _SIGALRM_SUPPORTED:
+            signal.alarm(0)
 
     def _sigalrm_handler(self, signum, frame):
         def pretty_print_stack():
