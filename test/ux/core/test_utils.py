@@ -83,6 +83,14 @@ def deploy_flow_to_scheduler(
         f"using metaflow: {metaflow_version.get_version()}"
     )
 
+    # Evict the module cache so that config_value / FlowMutator are always
+    # applied to a freshly loaded class.  Without this, a previous test that
+    # loaded the same flow (with different config) leaves the class in a
+    # _configs_processed=True state, causing _process_config_decorators to
+    # skip mutation and leaving added parameters (e.g. param3) absent from
+    # the WorkflowTemplate.
+    _evict_flow_module_cache(flow_path)
+
     filtered_tl_args = prepare_runner_deployer_args(tl_args)
     deployer = Deployer(flow_file=flow_path, **filtered_tl_args)
     # Normalize scheduler_args: translate the generic 'cluster' key to
