@@ -223,6 +223,10 @@ if "postgresql" in enabled_components:
             'auth.database=metaflow',
             # Known postgres superuser password so db-init jobs can create extra databases.
             'auth.postgresPassword=devstackpostgres123',
+            # Create a separate Airflow database at first boot.  initdb scripts run once
+            # on first initialization (i.e. every GHA run since the cluster is fresh).
+            # The key uses \.sql so helm doesn't split on the dot in the filename.
+            'primary.initdb.scripts.create-airflow-db\.sql=CREATE DATABASE airflow OWNER metaflow;',
             'image.repository=bitnamilegacy/postgresql',
             # Enable persistence so metadata survives pod restarts.
             # minikube's standard storageclass uses hostPath on the node.
@@ -1198,17 +1202,16 @@ if "fake-gcs-server" in enabled_components:
 # AIRFLOW
 #################################################
 if "airflow" in enabled_components:
-    # Create a dedicated database for Airflow in the shared PostgreSQL instance.
-    # This avoids running a second PostgreSQL pod (which Airflow's helm chart does by
-    # default), eliminating resource contention on memory-constrained GHA runners.
+    # Ensure the 'airflow' database exists in the shared PostgreSQL instance before any
+    # Airflow pod tries to connect.  PostgreSQL's initdb.scripts creates it on first boot,
+    # but this local_resource acts as a belt-and-suspenders fallback for local dev where
+    # the data directory may already exist from a previous run.
     local_resource(
         name="airflow-db-init",
         cmd=(
             "kubectl exec postgresql-0 -- " +
-            "sh -c 'PGPASSWORD=devstackpostgres123 psql -U postgres -tc " +
-            "\"SELECT 1 FROM pg_database WHERE datname=\\'airflow\\'\" | grep -q 1 || " +
-            "PGPASSWORD=devstackpostgres123 psql -U postgres -c " +
-            "\"CREATE DATABASE airflow OWNER metaflow;\"'"
+            "sh -c \"PGPASSWORD=devstackpostgres123 psql -h 127.0.0.1 -U postgres " +
+            "-c 'CREATE DATABASE airflow OWNER metaflow' 2>/dev/null; exit 0\""
         ),
         resource_deps=["postgresql"],
         labels=["airflow"],
@@ -1277,6 +1280,27 @@ if "airflow" in enabled_components:
         ],
     )
 
+    _airflow_db_deps = components['airflow'] + ['airflow-db-init']
+
+    # All Airflow workloads must wait for the database to exist before deploying.
+    k8s_resource(
+        workload='airflow-run-migrations',
+        labels=['airflow'],
+        resource_deps=_airflow_db_deps,
+    )
+
+    k8s_resource(
+        workload='airflow-create-user',
+        labels=['airflow'],
+        resource_deps=_airflow_db_deps,
+    )
+
+    k8s_resource(
+        workload='airflow-triggerer',
+        labels=['airflow'],
+        resource_deps=_airflow_db_deps,
+    )
+
     k8s_resource(
         workload='airflow-webserver',
         # Forward host 8090 → container 8080 to avoid conflict with metadata-service (8080)
@@ -1285,13 +1309,13 @@ if "airflow" in enabled_components:
             link('http://localhost:8090', 'Airflow UI'),
         ],
         labels=['airflow'],
-        resource_deps=components['airflow'] + ['airflow-db-init'],
+        resource_deps=_airflow_db_deps,
     )
 
     k8s_resource(
         workload='airflow-scheduler',
         labels=['airflow'],
-        resource_deps=components['airflow'] + ['airflow-db-init'],
+        resource_deps=_airflow_db_deps,
     )
 
     config_resources.append('airflow-webserver')
