@@ -1213,7 +1213,6 @@ if "airflow" in enabled_components:
 
     helm_remote(
         'airflow',
-        chart='airflow',
         version=AIRFLOW_HELM_CHART_VERSION,
         repo_name='apache-airflow',
         repo_url='https://airflow.apache.org',
