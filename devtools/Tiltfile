@@ -1287,6 +1287,11 @@ if "airflow" in enabled_components:
             'webserver.livenessProbe.failureThreshold=10',
             'webserver.livenessProbe.periodSeconds=30',
             'webserver.livenessProbe.timeoutSeconds=30',
+            # Enable Basic Auth for the REST API.
+            # Airflow 2.x defaults to session-only auth; the Metaflow
+            # Airflow client uses HTTP Basic Auth, so we must explicitly
+            # add the basic_auth backend.
+            'config.api.auth_backends=airflow.api.auth.backend.basic_auth',
             # Default admin credentials (dev only)
             'webserver.defaultUser.enabled=true',
             'webserver.defaultUser.username=admin',
