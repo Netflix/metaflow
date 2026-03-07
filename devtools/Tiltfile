@@ -1263,7 +1263,7 @@ if "airflow" in enabled_components:
             # Resource limits — keep the dev stack light
             'scheduler.resources.requests.memory=256Mi',
             'scheduler.resources.requests.cpu=100m',
-            'scheduler.resources.limits.memory=1Gi',
+            'scheduler.resources.limits.memory=2Gi',
             'scheduler.resources.limits.cpu=250m',
             # Override the scheduler startup and liveness probe commands.
             # The default command ('airflow jobs check --job-type SchedulerJob
