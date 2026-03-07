@@ -226,7 +226,7 @@ if "postgresql" in enabled_components:
             # Create a separate Airflow database at first boot.  initdb scripts run once
             # on first initialization (i.e. every GHA run since the cluster is fresh).
             # The key uses \.sql so helm doesn't split on the dot in the filename.
-            'primary.initdb.scripts.create-airflow-db\.sql=CREATE DATABASE airflow OWNER metaflow;',
+            'primary.initdb.scripts.create-airflow-db\\.sql=CREATE DATABASE airflow OWNER metaflow;',
             'image.repository=bitnamilegacy/postgresql',
             # Enable persistence so metadata survives pod restarts.
             # minikube's standard storageclass uses hostPath on the node.
