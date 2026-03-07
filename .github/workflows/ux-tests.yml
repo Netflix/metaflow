@@ -148,15 +148,6 @@ jobs:
             --cov-branch \
             --junit-xml=junit-${{ matrix.backend }}.xml
 
-      - name: Upload coverage to Codecov
-        if: always()
-        uses: codecov/codecov-action@v5
-        with:
-          token: ${{ secrets.CODECOV_TOKEN }}
-          files: coverage.xml
-          flags: ${{ matrix.backend }}
-          name: ux-${{ matrix.backend }}
-
       - name: Upload coverage data
         if: always()
         uses: actions/upload-artifact@v4
@@ -279,6 +270,13 @@ jobs:
           echo "" >> $GITHUB_STEP_SUMMARY
           total=$(coverage report | tail -1 | awk '{print $NF}')
           echo "**Total coverage: $total**" >> $GITHUB_STEP_SUMMARY
+
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v5
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: combined-coverage.xml
+          name: ux-combined
 
       - name: Upload combined coverage report
         uses: actions/upload-artifact@v4
