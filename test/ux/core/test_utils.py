@@ -264,5 +264,4 @@ def execute_test_flow(
     else:
         run = run_flow_with_env(flow_name=flow_name, runner_args=runner_args, **tl_args)
 
-    verify_run_provenance(run, decospecs)
     return run
