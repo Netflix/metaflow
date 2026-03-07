@@ -68,6 +68,12 @@ class CatchDecorator(StepDecorator):
         node = graph[step]
         if node.type != "foreach":
             return None
+        if node.parallel_foreach:
+            raise MetaflowException(
+                "@catch is defined for the step *%s* "
+                "but @catch is not supported in parallel foreach "
+                "steps (num_parallel)." % step
+            )
 
         foreach_var = getattr(flow, "_foreach_var", None) or node.foreach_param
         foreach_values = getattr(flow, "_foreach_values", None)
@@ -94,7 +100,12 @@ class CatchDecorator(StepDecorator):
             foreach_num_splits = 1
 
         flow._foreach_var = foreach_var or "_catch_foreach_fallback"
-        flow._foreach_num_splits = max(1, int(foreach_num_splits))
+        try:
+            flow._foreach_num_splits = max(1, int(foreach_num_splits))
+        except (TypeError, ValueError):
+            flow._foreach_num_splits = 1
+        if foreach_values is not None:
+            flow._foreach_values = foreach_values
         if foreach_values is not None:
             flow._foreach_values = foreach_values
         return flow._foreach_var
