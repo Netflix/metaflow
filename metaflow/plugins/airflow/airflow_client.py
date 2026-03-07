@@ -155,8 +155,8 @@ class AirflowClient:
     def wait_for_dag(
         self,
         dag_id: str,
-        timeout: int = 120,
-        polling_interval: int = 3,
+        timeout: int = 300,
+        polling_interval: int = 5,
     ) -> Dict:
         """
         Poll until the DAG is visible in Airflow (after kubectl-cp / file copy).
@@ -170,7 +170,13 @@ class AirflowClient:
         """
         deadline = time.time() + timeout
         while time.time() < deadline:
-            dag = self.get_dag(dag_id)
+            try:
+                dag = self.get_dag(dag_id)
+            except OSError:
+                # Transient connection error (e.g. RemoteDisconnected) —
+                # the webserver may still be starting up.  Retry silently.
+                time.sleep(polling_interval)
+                continue
             if dag is not None:
                 return dag
             time.sleep(polling_interval)

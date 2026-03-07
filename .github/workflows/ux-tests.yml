@@ -107,6 +107,28 @@ jobs:
           # Give the tunnel a moment to establish routes
           sleep 5
 
+      - name: Wait for Airflow REST API
+        if: matrix.backend == 'airflow-kubernetes'
+        run: |
+          # The webserver startup probe passes on /health before gunicorn workers
+          # are fully ready to serve API requests.  Poll the actual REST API
+          # endpoint (with auth) until it returns 200 or we time out.
+          echo "Waiting for Airflow REST API at http://localhost:8090/api/v1/health ..."
+          for i in $(seq 1 60); do
+            status=$(curl -s -o /dev/null -w "%{http_code}" \
+              -u admin:admin http://localhost:8090/api/v1/health 2>/dev/null || echo "000")
+            echo "  attempt $i: HTTP $status"
+            if [ "$status" = "200" ]; then
+              echo "Airflow REST API is ready."
+              break
+            fi
+            sleep 10
+          done
+          if [ "$status" != "200" ]; then
+            echo "Airflow REST API did not become ready in time (last status: $status)"
+            exit 1
+          fi
+
       - name: Run UX tests — ${{ matrix.backend }}
         run: |
           AWS_SHARED_CREDENTIALS_FILE="" \
