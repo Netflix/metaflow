@@ -168,6 +168,15 @@ jobs:
           path: junit-${{ matrix.backend }}.xml
           if-no-files-found: ignore
 
+      - name: Publish test results
+        if: always()
+        uses: dorny/test-reporter@v1
+        with:
+          name: "Test Results — ${{ matrix.backend }}"
+          path: junit-${{ matrix.backend }}.xml
+          reporter: java-junit
+          fail-on-error: false
+
       - name: Dump Airflow diagnostics on failure
         if: failure() && matrix.backend == 'airflow-kubernetes'
         run: |
