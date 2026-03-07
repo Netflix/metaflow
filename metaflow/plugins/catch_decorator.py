@@ -99,7 +99,12 @@ class CatchDecorator(StepDecorator):
             foreach_num_splits = 1
 
         flow._foreach_var = foreach_var or "_catch_foreach_fallback"
-        flow._foreach_num_splits = max(1, int(foreach_num_splits))
+        try:
+            flow._foreach_num_splits = max(1, int(foreach_num_splits))
+        except (TypeError, ValueError):
+            flow._foreach_num_splits = 1
+        if foreach_values is not None:
+            flow._foreach_values = foreach_values
         if foreach_values is not None:
             flow._foreach_values = foreach_values
         return flow._foreach_var
