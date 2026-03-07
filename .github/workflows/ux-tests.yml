@@ -71,6 +71,10 @@ jobs:
       - name: Start devstack
         working-directory: devtools
         run: |
+          # The Tiltfile writes config files into .devtools/ — create it first.
+          # (make up does this, but we run tilt directly in CI.)
+          mkdir -p .devtools
+
           # --stream replaces the TUI with plain log output, suitable for CI.
           # Tilt detects a headless env and won't try to open a browser.
           SERVICES="${{ matrix.services }}" \
