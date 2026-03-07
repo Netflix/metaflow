@@ -230,12 +230,22 @@ def pytest_generate_tests(metafunc):
             modes = [ExecMode.DEPLOYER.value] if has_scheduler else []
 
         for mode in modes:
-            if needs_exec and needs_backend:
-                params.append((mode, b))
-            elif needs_exec:
-                params.append(mode)
+            # Deployer tests share external scheduler state (WorkflowTemplates,
+            # SFN state machines, etc.) and must not run in parallel within the
+            # same backend, or they will race to create the same resource.
+            # Force all deployer tests for a given backend onto one xdist worker
+            # so they execute sequentially.
+            if mode == ExecMode.DEPLOYER.value:
+                marks = [pytest.mark.xdist_group("deployer-%s" % b["name"])]
             else:
-                params.append(b)
+                marks = []
+
+            if needs_exec and needs_backend:
+                params.append(pytest.param(mode, b, marks=marks))
+            elif needs_exec:
+                params.append(pytest.param(mode, marks=marks))
+            else:
+                params.append(pytest.param(b, marks=marks))
             ids.append("%s-%s" % (b["name"], mode))
 
     if needs_exec and needs_backend:
