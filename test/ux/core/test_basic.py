@@ -53,6 +53,8 @@ def test_from_deployment(exec_mode, decospecs, compute_env, tag, scheduler_confi
     combined_tags = tag + [test_unique_tag]
 
     scheduler_type = scheduler_config.scheduler_type
+    if scheduler_type is None:
+        pytest.skip("No scheduler configured — deployer tests require a scheduler_type")
     # Normalize to the impl key used by DeployedFlow.from_deployment(impl=...)
     impl = scheduler_type.replace("-", "_")
 
