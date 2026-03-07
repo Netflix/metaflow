@@ -1,3 +1,4 @@
+import hashlib
 import json
 import sys
 import time
@@ -184,15 +185,22 @@ class AirflowDeployedFlow(DeployedFlow):
         dag_run_id = dag_run.get("dag_run_id") or dag_run.get("run_id", "")
         flow_name = self.deployer.flow_name
 
-        # Build a fake run_id that Metaflow client can look up later.
-        # Airflow DAG run IDs are strings; we store them in content.
+        # Compute the Metaflow run ID from the Airflow DAG run ID.
+        # This mirrors AIRFLOW_MACROS.RUN_ID in airflow_utils.py:
+        #   run_id_creator([run_id, dag_id]) = md5(run_id + "-" + dag_id)[:12]
+        # prefixed with "airflow-".
+        run_hash = hashlib.md5(
+            ("%s-%s" % (dag_run_id, dag_id)).encode("utf-8")
+        ).hexdigest()[:12]
+        metaflow_run_id = "airflow-%s" % run_hash
+        pathspec = "%s/%s" % (flow_name, metaflow_run_id)
+
         content = json.dumps(
             {
                 "name": dag_run_id,
                 "dag_id": dag_id,
                 "metadata": self.deployer.metadata,
-                # pathspec will be resolved once the Metaflow run object exists
-                "pathspec": flow_name,
+                "pathspec": pathspec,
             }
         )
 
@@ -278,12 +286,17 @@ class AirflowDeployedFlow(DeployedFlow):
         AirflowTriggeredRun
         """
         deployed_flow_obj = cls.from_deployment(identifier, metadata)
+        run_hash = hashlib.md5(
+            ("%s-%s" % (run_id, identifier)).encode("utf-8")
+        ).hexdigest()[:12]
+        metaflow_run_id = "airflow-%s" % run_hash
+        pathspec = "%s/%s" % (deployed_flow_obj.deployer.flow_name, metaflow_run_id)
         content = json.dumps(
             {
                 "name": run_id,
                 "dag_id": identifier,
                 "metadata": deployed_flow_obj.deployer.metadata,
-                "pathspec": deployed_flow_obj.deployer.flow_name,
+                "pathspec": pathspec,
             }
         )
         return AirflowTriggeredRun(
