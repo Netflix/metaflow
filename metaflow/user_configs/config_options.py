@@ -4,7 +4,7 @@ import os
 from collections.abc import Mapping
 from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 
-from metaflow._vendor import click
+from metaflow._vendor import click, yaml
 from metaflow.debug import debug
 
 from .config_parameters import ConfigValue
@@ -382,13 +382,23 @@ class ConfigInput:
                     else:
                         try:
                             read_value = json.loads(val)
-                        except json.JSONDecodeError as e:
-                            msgs.append(
-                                "configuration value for '%s' is not valid JSON: %s"
-                                % (name, e)
-                            )
-                            continue
-                        # TODO: Support YAML
+                        except json.JSONDecodeError:
+                            # JSON parse failed — try YAML (a superset of JSON).
+                            # yaml.safe_load is used intentionally to prevent
+                            # arbitrary code execution from untrusted config files.
+                            try:
+                                read_value = yaml.safe_load(val)
+                                if not isinstance(read_value, Mapping):
+                                    raise ValueError(
+                                        "expected a mapping (got %s)"
+                                        % type(read_value).__name__
+                                    )
+                            except Exception as e:
+                                msgs.append(
+                                    "configuration value for '%s' is not valid "
+                                    "JSON or YAML: %s" % (name, e)
+                                )
+                                continue
                 flow_cls._flow_state.self_data[FlowStateItems.CONFIGS][name] = (
                     read_value,
                     is_plain,
