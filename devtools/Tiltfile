@@ -42,7 +42,7 @@ components = {
     "sfn-local": ["ddb-local"],
     "azurite": [],
     "fake-gcs-server": [],
-    "airflow": [],
+    "airflow": ["postgresql"],
 }
 
 services_env = os.getenv("SERVICES", "all").strip().lower()
@@ -221,6 +221,8 @@ if "postgresql" in enabled_components:
             'auth.username=metaflow',
             'auth.password=metaflow123',
             'auth.database=metaflow',
+            # Known postgres superuser password so db-init jobs can create extra databases.
+            'auth.postgresPassword=devstackpostgres123',
             'image.repository=bitnamilegacy/postgresql',
             # Enable persistence so metadata survives pod restarts.
             # minikube's standard storageclass uses hostPath on the node.
@@ -1196,6 +1198,22 @@ if "fake-gcs-server" in enabled_components:
 # AIRFLOW
 #################################################
 if "airflow" in enabled_components:
+    # Create a dedicated database for Airflow in the shared PostgreSQL instance.
+    # This avoids running a second PostgreSQL pod (which Airflow's helm chart does by
+    # default), eliminating resource contention on memory-constrained GHA runners.
+    local_resource(
+        name="airflow-db-init",
+        cmd=(
+            "kubectl exec postgresql-0 -- " +
+            "sh -c 'PGPASSWORD=devstackpostgres123 psql -U postgres -tc " +
+            "\"SELECT 1 FROM pg_database WHERE datname=\\'airflow\\'\" | grep -q 1 || " +
+            "PGPASSWORD=devstackpostgres123 psql -U postgres -c " +
+            "\"CREATE DATABASE airflow OWNER metaflow;\"'"
+        ),
+        resource_deps=["postgresql"],
+        labels=["airflow"],
+    )
+
     # PVC for DAG files (shared between scheduler and workers)
     k8s_yaml(encode_yaml({
         'apiVersion': 'v1',
@@ -1221,8 +1239,16 @@ if "airflow" in enabled_components:
             'defaultAirflowTag=%s' % AIRFLOW_IMAGE_TAG,
             # Use LocalExecutor (no Redis needed)
             'executor=LocalExecutor',
-            # Disable PostgreSQL subchart — use a standalone one
-            'postgresql.enabled=true',
+            # Disable Airflow's internal PostgreSQL — use the shared standalone instance
+            # to reduce resource usage. The airflow-db-init local_resource creates the
+            # required 'airflow' database in that instance before Airflow starts.
+            'postgresql.enabled=false',
+            'data.metadataConnection.user=metaflow',
+            'data.metadataConnection.pass=metaflow123',
+            'data.metadataConnection.host=postgresql',
+            'data.metadataConnection.port=5432',
+            'data.metadataConnection.db=airflow',
+            'data.metadataConnection.protocol=postgresql',
             # Fernet key for encryption (dev only)
             'fernetKey=%s' % AIRFLOW_FERNET_KEY,
             # Disable flower (Celery UI, not needed for LocalExecutor)
@@ -1259,13 +1285,13 @@ if "airflow" in enabled_components:
             link('http://localhost:8090', 'Airflow UI'),
         ],
         labels=['airflow'],
-        resource_deps=components['airflow'],
+        resource_deps=components['airflow'] + ['airflow-db-init'],
     )
 
     k8s_resource(
         workload='airflow-scheduler',
         labels=['airflow'],
-        resource_deps=components['airflow'],
+        resource_deps=components['airflow'] + ['airflow-db-init'],
     )
 
     config_resources.append('airflow-webserver')
