@@ -134,7 +134,7 @@ jobs:
               spec:
                 containers:
                   - name: minio
-                    image: minio/minio:RELEASE.latest
+                    image: minio/minio:latest
                     imagePullPolicy: Always
                     args: ["server", "/data", "--console-address", ":9001"]
                     env:
