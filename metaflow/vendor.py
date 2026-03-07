@@ -93,7 +93,7 @@ def vendor(vendor_dir):
 
     exclude_subdirs = []
     # Iterate on the vendor*.txt files
-    for vendor_file in glob.glob(f"{vendor_dir.name}/vendor*.txt"):
+    for vendor_file in glob.glob(str(vendor_dir / "vendor*.txt")):
         # We extract the subdirectory we are going to extract into
         subdir = VENDOR_SUBDIR.match(vendor_file).group(1)
         # Includes "any" but it doesn't really matter unless you install "any"
@@ -121,7 +121,7 @@ def vendor(vendor_dir):
                 "-t",
                 str(vendor_subdir),
                 "-r",
-                "_vendor/vendor_%s.txt" % subdir,
+                str(vendor_dir / f"vendor_{subdir}.txt"),
                 "--no-compile",
                 "--no-binary",
                 ":all:",
@@ -170,7 +170,7 @@ def vendor(vendor_dir):
 if __name__ == "__main__":
     here = Path(__file__).resolve().parent
     vendor_tl_dir = here / "_vendor"
-    has_vendor_file = len(glob.glob(f"{vendor_tl_dir.name}/vendor*.txt")) > 0
+    has_vendor_file = len(glob.glob(str(vendor_tl_dir / "vendor*.txt"))) > 0
     assert has_vendor_file, "_vendor/vendor*.txt file not found"
     assert (
         vendor_tl_dir / "__init__.py"
