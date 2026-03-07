@@ -77,13 +77,15 @@ class CatchDecorator(StepDecorator):
 
         if foreach_num_splits is None and foreach_var and hasattr(flow, foreach_var):
             foreach_iter = getattr(flow, foreach_var)
-            if hasattr(foreach_iter, "__len__"):
-                foreach_num_splits = len(foreach_iter)
-            else:
-                # Best-effort fallback in catch path when the split count wasn't
-                # materialized before the exception happened.
-                foreach_values = list(foreach_iter)
-                foreach_num_splits = len(foreach_values)
+            try:
+                if hasattr(foreach_iter, "__len__"):
+                    foreach_num_splits = len(foreach_iter)
+                else:
+                    foreach_values = list(foreach_iter)
+                    foreach_num_splits = len(foreach_values)
+            except Exception:
+                # If iterating raises, fall through to the num_splits = 1 sentinel below
+                pass
 
         # If split cardinality is unavailable, continue with a single fallback branch
         # rather than failing to produce valid foreach metadata.
