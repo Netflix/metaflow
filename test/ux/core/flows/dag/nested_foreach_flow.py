@@ -1,3 +1,5 @@
+import os
+
 from metaflow import FlowSpec, step, project
 
 
@@ -5,6 +7,7 @@ from metaflow import FlowSpec, step, project
 class NestedForeachFlow(FlowSpec):
     @step
     def start(self):
+        self.execution_env = os.environ.get("KUBERNETES_SERVICE_HOST", "")
         self.groups = ["x", "y"]
         self.next(self.outer, foreach="groups")
 

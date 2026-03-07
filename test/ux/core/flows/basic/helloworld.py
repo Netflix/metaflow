@@ -1,3 +1,5 @@
+import os
+
 from metaflow import FlowSpec, step, project
 
 
@@ -9,6 +11,7 @@ class HelloFlow(FlowSpec):
 
         print(f"In start step and using metaflow: {metaflow_version.get_version()}")
         print("HelloFlow is starting.")
+        self.execution_env = os.environ.get("KUBERNETES_SERVICE_HOST", "")
         self.next(self.hello)
 
     @step

@@ -1,3 +1,5 @@
+import os
+
 from metaflow import FlowSpec, step, project
 
 
@@ -5,6 +7,7 @@ from metaflow import FlowSpec, step, project
 class BranchFlow(FlowSpec):
     @step
     def start(self):
+        self.execution_env = os.environ.get("KUBERNETES_SERVICE_HOST", "")
         self.next(self.branch_a, self.branch_b)
 
     @step

@@ -4,6 +4,7 @@ Uses several parameter types so the from_deployment reconstruction
 is exercised with diverse type information.
 """
 
+import os
 import time
 
 from metaflow import FlowSpec, Parameter, JSONType, step, project
@@ -24,6 +25,7 @@ class HelloFromDeploymentFlow(FlowSpec):
     @step
     def start(self):
         self.message = "Metaflow says: Hi!"
+        self.execution_env = os.environ.get("KUBERNETES_SERVICE_HOST", "")
         self.next(self.end)
 
     @step

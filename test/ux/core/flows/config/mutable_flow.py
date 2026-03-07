@@ -169,6 +169,7 @@ class ConfigMutableFlow(FlowSpec):
 
         print(f"In start step and using metaflow: {metaflow_version.get_version()}")
         print("Starting start step...")
+        self.execution_env = os.environ.get("KUBERNETES_SERVICE_HOST", "")
         self._check(step_decorators=True)
         print("All checks are good.")
         self.next(self.end)
