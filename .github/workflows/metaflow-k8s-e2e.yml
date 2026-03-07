@@ -28,10 +28,10 @@ jobs:
 
     steps:
       - name: Check out source
-        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
+        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v4
 
       - name: Set up Python
-        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v5
         with:
           python-version: "3.11"
 
@@ -88,14 +88,17 @@ jobs:
           kubectl cluster-info
           kubectl get nodes -o wide
 
+      - name: Install Argo CLI
+        run: |
+          ARGO_VERSION=$(curl -s https://api.github.com/repos/argoproj/argo-workflows/releases/latest | jq -r .tag_name)
+          echo "ARGO_VERSION=${ARGO_VERSION}" >> "${GITHUB_ENV}"
+
       - name: Install Argo Workflows
         run: |
-          set -euo pipefail
+          set -euo pipefail 
           kubectl create namespace argo --dry-run=client -o yaml | kubectl apply -f -
-          kubectl apply -n argo -f "https://github.com/argoproj/argo-workflows/releases/download/v3.5.8/quick-start-minimal.yaml"
-          kubectl wait -n argo --for=condition=available deploy/workflow-controller --timeout=240s
-          kubectl wait -n argo --for=condition=available deploy/argo-server --timeout=240s
-          kubectl get pods -n argo
+          kubectl apply -n argo -f https://github.com/argoproj/argo-workflows/releases/download/${ARGO_VERSION}/install.yaml
+  
 
       - name: Deploy MinIO for S3-compatible datastore
         run: |
@@ -150,17 +153,27 @@ jobs:
           EOF
           kubectl wait -n minio --for=condition=ready pod -l app=minio --timeout=240
           
-          # Wait until MinIO health endpoint is ready
-          echo "Waiting for MinIO readiness..."
-          for i in {1..60}; do
-            if kubectl exec -n minio deploy/minio -- curl -sf http://localhost:9000/minio/health/ready >/dev/null; then
-              echo "MinIO is ready"
-              break
-            fi
-            echo "MinIO not ready yet..."
-            sleep 2
-          done
-         
+      run: |
+        # Wait until MinIO health endpoint is ready
+        echo "Waiting for MinIO readiness..."
+
+        MINIO_READY=false
+        for i in {1..60}; do
+          if kubectl exec -n minio deploy/minio -- curl -sf http://localhost:9000/minio/health/ready; then
+            echo "MinIO is ready"
+            MINIO_READY=true
+            break
+          fi
+
+          echo "MinIO not ready yet (attempt ${i}/60)..."
+          sleep 2
+        done
+
+        if [ "${MINIO_READY}" != "true" ]; then
+          echo "ERROR: MinIO did not become ready after 120 seconds" >&2
+          exit 1
+        fi
+              
           kubectl get pods -n minio
           kubectl get svc -n minio minio
 
@@ -170,12 +183,14 @@ jobs:
           python - <<'PY'
           import boto3
           import botocore
+          import os
+
 
           s3 = boto3.client(
               "s3",
               endpoint_url="http://127.0.0.1:30900",
-              aws_access_key_id="minioadmin",
-              aws_secret_access_key="minioadmin",
+              aws_access_key_id=os.environ["AWS_ACCESS_KEY_ID"],
+              aws_secret_access_key=os.environ["AWS_SECRET_ACCESS_KEY"],
               region_name="us-east-1",
           )
           try:
