@@ -4,6 +4,9 @@ name: UX Tests
 # the devstack defined in devtools/. Each backend runs in a separate parallel
 # job; pytest-xdist parallelizes individual tests within each job.
 #
+# Coverage is collected from each backend job, then combined in a final job
+# and posted as a workflow summary + downloadable HTML report.
+#
 # sfn-batch is omitted until localbatch is published to PyPI. To enable it,
 # add a matrix entry:
 #   - backend: sfn-batch
@@ -46,7 +49,7 @@ jobs:
       - name: Install Metaflow and test dependencies
         run: |
           pip install --upgrade pip
-          pip install -e ".[dev]" pytest-xdist pytest-timeout
+          pip install -e ".[dev]" pytest-xdist pytest-timeout pytest-cov
 
       - name: Set up minikube
         uses: medyagh/setup-minikube@latest
@@ -93,16 +96,103 @@ jobs:
             -n 6 \
             -v \
             --tb=short \
-            --timeout=600
+            --timeout=600 \
+            --cov=metaflow \
+            --cov-report=term-missing \
+            --cov-report=xml:coverage.xml \
+            --cov-report=html:htmlcov \
+            --cov-branch \
+            --junit-xml=junit-${{ matrix.backend }}.xml
+
+      - name: Upload coverage data
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-${{ matrix.backend }}
+          path: |
+            .coverage
+            coverage.xml
+            htmlcov/
+          if-no-files-found: ignore
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: junit-${{ matrix.backend }}
+          path: junit-${{ matrix.backend }}.xml
+          if-no-files-found: ignore
 
       - name: Show Tilt logs on failure
         if: failure()
         run: cat /tmp/tilt.log | tail -200 || true
 
-      - name: Upload logs
+      - name: Upload Tilt logs
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: logs-${{ matrix.backend }}
+          name: tilt-logs-${{ matrix.backend }}
           path: /tmp/tilt.log
           if-no-files-found: ignore
+
+  coverage-report:
+    name: "Coverage Report"
+    needs: ux-tests
+    if: always()
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python 3.9
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.9"
+
+      - name: Install coverage
+        run: pip install coverage[toml]
+
+      - name: Download coverage data from all backends
+        uses: actions/download-artifact@v4
+        with:
+          pattern: coverage-*
+          path: coverage-artifacts/
+
+      - name: Combine coverage data
+        run: |
+          # Each backend job drops a .coverage file; rename them so coverage
+          # combine can pick them all up from the current directory.
+          for dir in coverage-artifacts/coverage-*/; do
+            backend=$(basename "$dir" | sed 's/^coverage-//')
+            src="$dir/.coverage"
+            if [ -f "$src" ]; then
+              cp "$src" ".coverage.$backend"
+              echo "Copied $src → .coverage.$backend"
+            fi
+          done
+          coverage combine
+          echo "Combined data sources:"
+          coverage debug data
+
+      - name: Generate combined HTML report
+        run: |
+          coverage html -d combined-htmlcov/ --title="Metaflow UX Test Coverage"
+          coverage xml -o combined-coverage.xml
+
+      - name: Post coverage summary
+        run: |
+          echo "## Test Coverage Summary" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          coverage report --sort=miss >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          total=$(coverage report | tail -1 | awk '{print $NF}')
+          echo "**Total coverage: $total**" >> $GITHUB_STEP_SUMMARY
+
+      - name: Upload combined coverage report
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-combined
+          path: |
+            combined-htmlcov/
+            combined-coverage.xml
