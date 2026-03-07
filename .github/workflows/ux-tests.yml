@@ -17,6 +17,7 @@ on:
   push:
     branches:
       - master
+      - "npow/**"  # run on this dev branch during development
   pull_request:
     branches:
       - master
