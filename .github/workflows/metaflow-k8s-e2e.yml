@@ -3,10 +3,10 @@ name: Metaflow Kubernetes Argo E2E
 on:
   push:
     branches:
-      - main
+      - master
   pull_request:
     branches:
-      - main
+      - master
 
 permissions: read-all
 
@@ -37,6 +37,7 @@ jobs:
 
       - name: Install dependencies
         run: |
+          set -euo pipefail
           python -m pip install --upgrade pip
           python -m pip install . kubernetes boto3
 
@@ -45,6 +46,8 @@ jobs:
           set -euo pipefail
           KUBECTL_VERSION="$(curl -fsSL https://dl.k8s.io/release/stable.txt)"
           curl -fsSL "https://dl.k8s.io/release/${KUBECTL_VERSION}/bin/linux/amd64/kubectl" -o kubectl
+          curl -fsSL "https://dl.k8s.io/release/${KUBECTL_VERSION}/bin/linux/amd64/kubectl.sha256" -o kubectl.sha256
+          echo "$(cat kubectl.sha256) kubectl" | sha256sum --check
           chmod +x kubectl
           sudo mv kubectl /usr/local/bin/kubectl
           kubectl version --client
@@ -116,7 +119,8 @@ jobs:
               spec:
                 containers:
                   - name: minio
-                    image: minio/minio:RELEASE.2024-01-16T16-07-38Z
+                    image: minio/minio:RELEASE.latest
+                    imagePullPolicy: Always
                     args: ["server", "/data", "--console-address", ":9001"]
                     env:
                       - name: MINIO_ROOT_USER
@@ -144,7 +148,19 @@ jobs:
                 nodePort: 30900
             type: NodePort
           EOF
-          kubectl wait -n minio --for=condition=available deploy/minio --timeout=240s
+          kubectl wait -n minio --for=condition=ready pod -l app=minio --timeout=240
+          
+          # Wait until MinIO health endpoint is ready
+          echo "Waiting for MinIO readiness..."
+          for i in {1..60}; do
+            if kubectl exec -n minio deploy/minio -- curl -sf http://localhost:9000/minio/health/ready >/dev/null; then
+              echo "MinIO is ready"
+              break
+            fi
+            echo "MinIO not ready yet..."
+            sleep 2
+          done
+         
           kubectl get pods -n minio
           kubectl get svc -n minio minio
 
@@ -182,6 +198,10 @@ jobs:
           python tests/k8s_flow.py --name k8s-flow-e2e --with kubernetes argo-workflows create
           python tests/k8s_flow.py --name k8s-flow-e2e argo-workflows trigger --run-id-file run_id.txt
           RUN_ID="$(cat run_id.txt)"
+          if [[ "${RUN_ID}" != argo-* ]]; then
+            echo "ERROR: Unexpected run ID format: ${RUN_ID}" >&2
+            exit 1
+          fi
           WORKFLOW_NAME="${RUN_ID#argo-}"
           echo "RUN_ID=${RUN_ID}" >> "${GITHUB_ENV}"
           echo "WORKFLOW_NAME=${WORKFLOW_NAME}" >> "${GITHUB_ENV}"
