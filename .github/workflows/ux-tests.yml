@@ -7,11 +7,8 @@ name: UX Tests
 # Coverage is collected from each backend job, then combined in a final job
 # and posted as a workflow summary + downloadable HTML report.
 #
-# sfn-batch is omitted until localbatch is published to PyPI. To enable it,
-# add a matrix entry:
-#   - backend: sfn-batch
-#     services: "minio,postgresql,metadata-service,localbatch,ddb-local,sfn-local"
-# and add `pip install localbatch` to the install step.
+# localbatch is published at https://pypi.org/project/localbatch/ and sfn-batch
+# is enabled in the matrix below.
 
 on:
   push:
@@ -36,6 +33,8 @@ jobs:
             services: "minio,postgresql,metadata-service,argo-workflows"
           - backend: airflow-kubernetes
             services: "minio,postgresql,metadata-service,airflow"
+          - backend: sfn-batch
+            services: "minio,postgresql,metadata-service,localbatch,ddb-local,sfn-local"
 
     runs-on: ubuntu-latest
 
@@ -51,6 +50,7 @@ jobs:
         run: |
           pip install --upgrade pip
           pip install -e ".[dev]" pytest-xdist pytest-timeout pytest-cov
+          pip install localbatch
 
       - name: Set up minikube
         uses: medyagh/setup-minikube@latest
@@ -97,7 +97,7 @@ jobs:
           tilt wait --for=condition=Ready uiresource/generate-configs --timeout=1800s
 
       - name: Wait for test image to be loaded into minikube
-        if: matrix.backend != 'local'
+        if: matrix.backend != 'local' && matrix.backend != 'sfn-batch'
         run: |
           tilt wait --for=condition=Ready uiresource/build-test-image --timeout=300s
 
