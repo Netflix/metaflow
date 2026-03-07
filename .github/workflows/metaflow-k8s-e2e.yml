@@ -152,14 +152,20 @@ jobs:
           
           # Wait until MinIO health endpoint is ready
           echo "Waiting for MinIO readiness..."
-          for i in {1..60}; do
-            if kubectl exec -n minio deploy/minio -- curl -sf http://localhost:9000/minio/health/ready >/dev/null; then
-              echo "MinIO is ready"
-              break
-            fi
-            echo "MinIO not ready yet..."
-            sleep 2
-          done
+MINIO_READY=false
+for i in {1..60}; do
+  if kubectl exec -n minio deploy/minio -- curl -sf http://localhost:9000/minio/health/ready >/dev/null; then
+    echo "MinIO is ready"
+    MINIO_READY=true
+    break
+  fi
+  echo "MinIO not ready yet (attempt ${i}/60)..."
+  sleep 2
+done
+if [ "${MINIO_READY}" != "true" ]; then
+  echo "ERROR: MinIO did not become ready after 120 seconds" >&2
+  exit 1
+fi
          
           kubectl get pods -n minio
           kubectl get svc -n minio minio
