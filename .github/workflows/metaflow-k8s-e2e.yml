@@ -64,12 +64,18 @@ jobs:
       - name: Install Argo CLI
         run: |
           set -euo pipefail
+
           ARGO_VERSION="v3.5.8"
+
           curl -fsSL "https://github.com/argoproj/argo-workflows/releases/download/${ARGO_VERSION}/argo-linux-amd64.gz" -o argo.gz
           gunzip argo.gz
           chmod +x argo
           sudo mv argo /usr/local/bin/argo
+
           argo version --client
+
+          # Export for later steps
+          echo "ARGO_VERSION=${ARGO_VERSION}" >> "$GITHUB_ENV"
 
       - name: Create KIND cluster
         run: |
@@ -88,17 +94,12 @@ jobs:
           kubectl cluster-info
           kubectl get nodes -o wide
 
-      - name: Install Argo CLI
-        run: |
-          ARGO_VERSION=$(curl -s https://api.github.com/repos/argoproj/argo-workflows/releases/latest | jq -r .tag_name)
-          echo "ARGO_VERSION=${ARGO_VERSION}" >> "${GITHUB_ENV}"
-
       - name: Install Argo Workflows
         run: |
-          set -euo pipefail 
           kubectl create namespace argo --dry-run=client -o yaml | kubectl apply -f -
-          kubectl apply -n argo -f https://github.com/argoproj/argo-workflows/releases/download/${ARGO_VERSION}/install.yaml
-  
+
+          kubectl apply -n argo \
+            -f https://github.com/argoproj/argo-workflows/releases/download/${ARGO_VERSION}/install.yaml 
 
       - name: Deploy MinIO for S3-compatible datastore
         run: |
@@ -153,27 +154,24 @@ jobs:
           EOF
           kubectl wait -n minio --for=condition=ready pod -l app=minio --timeout=240
           
-      run: |
-        # Wait until MinIO health endpoint is ready
-        echo "Waiting for MinIO readiness..."
-
-        MINIO_READY=false
-        for i in {1..60}; do
-          if kubectl exec -n minio deploy/minio -- curl -sf http://localhost:9000/minio/health/ready; then
-            echo "MinIO is ready"
-            MINIO_READY=true
-            break
+      - name: Wait for MinIO readiness
+        run: |
+          set -euo pipefail
+          echo "Waiting for MinIO readiness..."
+          MINIO_READY=false
+          for i in {1..60}; do
+            if kubectl exec -n minio deploy/minio -- curl -sf http://localhost:9000/minio/health/ready; then
+              echo "MinIO is ready"
+              MINIO_READY=true
+              break
+            fi
+            echo "MinIO not ready yet (attempt ${i}/60)..."
+            sleep 2
+          done
+          if [ "${MINIO_READY}" != "true" ]; then
+            echo "ERROR: MinIO did not become ready after 120 seconds" >&2
+            exit 1
           fi
-
-          echo "MinIO not ready yet (attempt ${i}/60)..."
-          sleep 2
-        done
-
-        if [ "${MINIO_READY}" != "true" ]; then
-          echo "ERROR: MinIO did not become ready after 120 seconds" >&2
-          exit 1
-        fi
-              
           kubectl get pods -n minio
           kubectl get svc -n minio minio
 
