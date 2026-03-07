@@ -25,6 +25,7 @@ class ExecMode(Enum):
 class SchedulerConfig:
     scheduler_type: Optional[str]
     cluster: Optional[str]
+    deploy_args: Optional[dict] = None
 
     def get(self, key, default=None):
         return getattr(self, key, default)
@@ -272,6 +273,7 @@ def scheduler_config(backend) -> SchedulerConfig:
     return SchedulerConfig(
         scheduler_type=backend.get("scheduler_type"),
         cluster=backend.get("cluster"),
+        deploy_args=backend.get("deploy_args") or {},
     )
 
 

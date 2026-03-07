@@ -225,11 +225,12 @@ def execute_test_flow(
 
     if exec_mode == "deployer":
         sched_type = scheduler_config.scheduler_type
+        extra_deploy_args = getattr(scheduler_config, "deploy_args", None) or {}
         deployed_flow = deploy_flow_to_scheduler(
             flow_name=flow_name,
             tl_args=tl_args,
             scheduler_args={"cluster": scheduler_config.cluster},
-            deploy_args={"tags": combined_tags},
+            deploy_args={"tags": combined_tags, **extra_deploy_args},
             scheduler_type=sched_type,
         )
         return wait_for_deployed_run(deployed_flow, run_kwargs=run_params)

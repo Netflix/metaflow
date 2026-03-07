@@ -1,0 +1,104 @@
+name: Run Metaflow Core UX Tests
+description: >
+  Checks out metaflow, installs it alongside an optional extension, writes the
+  provided ux_test_config.yaml, and runs test/ux/core/ with pytest.
+  Caller is responsible for setting up any external scheduler before invoking
+  this action, and for setting relevant env vars at the job level.
+
+inputs:
+  metaflow-ref:
+    description: metaflow branch, tag, or SHA to check out and test against
+    default: master
+  extra-install:
+    description: >
+      pip install target for the extension (e.g. "." to install from CWD,
+      or a git URL). Leave empty to test metaflow alone.
+    required: false
+    default: ""
+  ux-test-config:
+    description: Full YAML content to write to test/ux/ux_test_config.yaml
+    required: true
+  pytest-args:
+    description: Additional arguments passed verbatim to pytest
+    default: "-n 4 -v --tb=short --timeout=1800"
+  test-files:
+    description: Space-separated test file names (relative to test/ux/core/)
+    default: "test_basic.py test_config.py test_dag.py"
+  use-sudo:
+    description: >
+      Run pytest under sudo -E. Required when the scheduler (e.g. Kestra)
+      creates root-owned artifact files that a non-root test process cannot read.
+    default: "false"
+  codecov-token:
+    description: Codecov upload token. Coverage upload is skipped if not provided.
+    required: false
+    default: ""
+
+runs:
+  using: composite
+  steps:
+    - name: Checkout metaflow
+      uses: actions/checkout@v4
+      with:
+        repository: Netflix/metaflow
+        ref: ${{ inputs.metaflow-ref }}
+        path: _metaflow_src
+
+    - name: Write ux_test_config.yaml
+      shell: bash
+      env:
+        UX_TEST_CONFIG: ${{ inputs.ux-test-config }}
+      run: printf '%s' "$UX_TEST_CONFIG" > _metaflow_src/test/ux/ux_test_config.yaml
+
+    - name: Install metaflow and test dependencies
+      shell: bash
+      run: |
+        pip install -e "_metaflow_src[dev]"
+        pip install pytest-xdist pytest-timeout pytest-cov omegaconf
+        if [ -n "${{ inputs.extra-install }}" ]; then
+          pip install -e "${{ inputs.extra-install }}"
+        fi
+
+    - name: Run UX tests
+      shell: bash
+      env:
+        PYTHONPATH: ${{ github.workspace }}/_metaflow_src
+      run: |
+        files=$(echo "${{ inputs.test-files }}" \
+          | tr ' ' '\n' \
+          | sed "s|^|$GITHUB_WORKSPACE/_metaflow_src/test/ux/core/|" \
+          | tr '\n' ' ')
+
+        pytest_cmd=(
+          python -m pytest $files
+          -m "not conda"
+          ${{ inputs.pytest-args }}
+          --cov=metaflow
+          --cov-report=xml:coverage.xml
+          --cov-report=html:htmlcov
+        )
+
+        if [ "${{ inputs.use-sudo }}" = "true" ]; then
+          sudo -E env "PATH=$PATH" "PYTHONPATH=$PYTHONPATH" "${pytest_cmd[@]}"
+        else
+          "${pytest_cmd[@]}"
+        fi
+
+    - name: Upload coverage artifact
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: coverage-${{ github.job }}
+        path: |
+          .coverage
+          coverage.xml
+          htmlcov/
+        if-no-files-found: ignore
+        include-hidden-files: true
+
+    - name: Upload coverage to Codecov
+      if: ${{ inputs.codecov-token != '' }}
+      uses: codecov/codecov-action@v5
+      with:
+        token: ${{ inputs.codecov-token }}
+        files: coverage.xml
