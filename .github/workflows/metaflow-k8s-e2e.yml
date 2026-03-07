@@ -148,7 +148,7 @@ jobs:
                 nodePort: 30900
             type: NodePort
           EOF
-          kubectl wait -n minio --for=condition=ready pod -l app=minio --timeout=240
+          kubectl wait -n minio --for=condition=ready pod -l app=minio --timeout=240s
           
           # Wait until MinIO health endpoint is ready
           echo "Waiting for MinIO readiness..."
