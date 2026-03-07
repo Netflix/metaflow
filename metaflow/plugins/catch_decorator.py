@@ -42,15 +42,8 @@ class CatchDecorator(StepDecorator):
     defaults = {"var": None, "print_exception": True}
 
     def step_init(self, flow, graph, step, decos, environment, flow_datastore, logger):
-        # handling _foreach_var and _foreach_num_splits requires some
-        # deeper thinking, so let's not support that use case for now
         self.logger = logger
-        if graph[step].type == "foreach":
-            raise MetaflowException(
-                "@catch is defined for the step *%s* "
-                "but @catch is not supported in foreach "
-                "split steps." % step
-            )
+        self._step_is_foreach = graph[step].type == "foreach"
 
         # Do not support catch on switch steps for now.
         # When applying @catch to a switch step, we can not guarantee that the flow attribute used for the switching condition gets properly recorded.
@@ -78,11 +71,25 @@ class CatchDecorator(StepDecorator):
         if retry_count < max_user_code_retries:
             return False
 
+        # For foreach split steps, @catch can only intervene when self.next()
+        # was already reached (i.e., _foreach_num_splits is set and _foreach_var
+        # is known). If the exception fired before self.next() was called, the
+        # split count is unknown and the runtime scheduler cannot fan out child
+        # tasks — in that case we decline to catch and let the task fail normally.
+        if self._step_is_foreach and flow._foreach_num_splits is None:
+            return False
+
         if self.attributes["print_exception"]:
             self._print_exception(step, flow)
 
-        # pretend that self.next() was called as usual
-        flow._transition = (graph[step].out_funcs, None)
+        # pretend that self.next() was called as usual.
+        # For foreach split steps that already set _foreach_var and
+        # _foreach_num_splits via self.next(), preserve the foreach transition
+        # so the runtime fans out correctly despite the caught exception.
+        if self._step_is_foreach:
+            flow._transition = (graph[step].out_funcs, flow._foreach_var)
+        else:
+            flow._transition = (graph[step].out_funcs, None)
 
         # If this task is a UBF control task, it will return itself as the singleton
         # list of tasks.
