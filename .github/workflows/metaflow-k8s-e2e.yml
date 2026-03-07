@@ -1,7 +1,14 @@
 name: Metaflow Kubernetes Argo E2E
 
+name: Metaflow Kubernetes Argo E2E
+
 on:
-on:
+  push:
+    branches:
+      - master
+  pull_request:
+    branches:
+      - master
   push:
     branches:
       - master
