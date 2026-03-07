@@ -46,6 +46,13 @@ jobs:
         with:
           python-version: "3.9"
 
+      - name: Cache pip packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: pip-py3.9-${{ hashFiles('setup.py', 'setup.cfg') }}
+          restore-keys: pip-py3.9-
+
       - name: Install Metaflow and test dependencies
         run: |
           pip install --upgrade pip
@@ -58,6 +65,30 @@ jobs:
           driver: docker
           cpus: 2
           memory: 6144
+
+      - name: Restore minikube image cache
+        id: image-cache
+        uses: actions/cache/restore@v4
+        with:
+          path: /tmp/minikube-image-cache
+          key: minikube-images-${{ matrix.backend }}-${{ hashFiles('devtools/Tiltfile') }}
+          restore-keys: minikube-images-${{ matrix.backend }}-
+
+      - name: Pre-load cached images into minikube
+        if: steps.image-cache.outputs.cache-hit == 'true'
+        run: |
+          for f in /tmp/minikube-image-cache/*.tar; do
+            [ -f "$f" ] || continue
+            echo "Loading $(basename "$f")..."
+            minikube image load "$f" || echo "Warning: failed to load $f (skipping)"
+          done
+
+      - name: Cache Helm repos
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/helm
+          key: helm-${{ hashFiles('devtools/Tiltfile') }}
+          restore-keys: helm-
 
       - name: Set up Helm
         uses: azure/setup-helm@v4
@@ -100,6 +131,28 @@ jobs:
         if: matrix.backend != 'local' && matrix.backend != 'sfn-batch'
         run: |
           tilt wait --for=condition=Ready uiresource/build-test-image --timeout=300s
+
+      - name: Save minikube images to cache
+        if: steps.image-cache.outputs.cache-hit != 'true'
+        run: |
+          mkdir -p /tmp/minikube-image-cache
+          minikube image ls 2>/dev/null \
+            | grep -vE 'registry\.k8s\.io|k8s\.gcr\.io|<none>|pause' \
+            | while read img; do
+                safe=$(echo "$img" | tr '/:@' '---')
+                echo "Saving $img..."
+                minikube image save "$img" "/tmp/minikube-image-cache/${safe}.tar" \
+                  || echo "Warning: skipping $img"
+              done
+          echo "Saved images:"
+          ls -lh /tmp/minikube-image-cache/ | head -30
+
+      - name: Store minikube image cache
+        if: steps.image-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: /tmp/minikube-image-cache
+          key: minikube-images-${{ matrix.backend }}-${{ hashFiles('devtools/Tiltfile') }}
 
       - name: Start minikube tunnel
         run: |
