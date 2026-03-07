@@ -1265,16 +1265,22 @@ if "airflow" in enabled_components:
             'scheduler.resources.requests.cpu=100m',
             'scheduler.resources.limits.memory=512Mi',
             'scheduler.resources.limits.cpu=250m',
-            # Disable startup probes for CI: the exec-based scheduler probe causes
-            # OCI exec errors on minikube/GHA runners, and the HTTP webserver probe
-            # just delays startup with no added safety. Liveness probes handle ongoing
-            # health; startup probes are not needed for a devstack.
-            'scheduler.startupProbe.enabled=false',
+            # Override the scheduler startup probe command.
+            # The default command ('airflow jobs check --job-type SchedulerJob
+            # --local') causes OCI exec errors on GHA minikube runners and also
+            # fails with deprecation warnings that produce non-zero exit codes.
+            # Use '/bin/true' so the exec probe always passes immediately.
+            'scheduler.startupProbe.command={/bin/true}',
             'webserver.resources.requests.memory=256Mi',
             'webserver.resources.requests.cpu=100m',
             'webserver.resources.limits.memory=512Mi',
             'webserver.resources.limits.cpu=250m',
-            'webserver.startupProbe.enabled=false',
+            # Give the webserver startup probe a long window.  The HTTP /health
+            # endpoint can take several minutes to become available on resource-
+            # constrained GHA runners.
+            'webserver.startupProbe.failureThreshold=60',
+            'webserver.startupProbe.periodSeconds=15',
+            'webserver.startupProbe.timeoutSeconds=30',
             # Default admin credentials (dev only)
             'webserver.defaultUser.enabled=true',
             'webserver.defaultUser.username=admin',
