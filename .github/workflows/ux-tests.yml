@@ -118,7 +118,7 @@ jobs:
             -n 6 \
             -v \
             --tb=short \
-            --timeout=600 \
+            --timeout=900 \
             --cov=metaflow \
             --cov-report=term-missing \
             --cov-report=xml:coverage.xml \

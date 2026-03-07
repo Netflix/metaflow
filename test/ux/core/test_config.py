@@ -41,18 +41,20 @@ def test_config_simple_default(
             deploy_args={"tags": combined_tags},
             scheduler_type=scheduler_config.scheduler_type,
         )
-        wait_for_deployed_run(
+        run = wait_for_deployed_run(
             deployed_flow, run_kwargs={"trigger_param": trigger_param}
         )
+        if not run.successful:
+            raise RuntimeError(f"Run {run.id} failed")
     else:
         run_flow_with_env(
             flow_name="config/config_simple.py",
             runner_args={"tags": combined_tags, "trigger_param": trigger_param},
             **tl_args,
         )
+        run = verify_single_run("ConfigSimple", tags=combined_tags)
 
     default_config = {"a": {"b": "41", "project_name": "config_project"}}
-    run = verify_single_run("ConfigSimple", tags=combined_tags)
 
     expected_project_tag = f"project:{default_config['a']['project_name']}"
     assert expected_project_tag in run.tags, "Project name is incorrect"
@@ -100,18 +102,20 @@ def test_config_simple_config_value(
             deploy_args={"tags": combined_tags},
             scheduler_type=scheduler_config.scheduler_type,
         )
-        wait_for_deployed_run(
+        run = wait_for_deployed_run(
             deployed_flow, run_kwargs={"trigger_param": trigger_param}
         )
+        if not run.successful:
+            raise RuntimeError(f"Run {run.id} failed")
     else:
         run_flow_with_env(
             flow_name="config/config_simple.py",
             runner_args={"tags": combined_tags, "trigger_param": trigger_param},
             **tl_args,
         )
+        run = verify_single_run("ConfigSimple", tags=combined_tags)
 
     config = {"a": {"project_name": "config_project_2", "b": "56"}}
-    run = verify_single_run("ConfigSimple", tags=combined_tags)
 
     expected_project_tag = f"project:{config['a']['project_name']}"
     assert expected_project_tag in run.tags, "Project name is incorrect"
@@ -154,17 +158,18 @@ def test_config_simple_config(
             deploy_args={"tags": combined_tags},
             scheduler_type=scheduler_config.scheduler_type,
         )
-        wait_for_deployed_run(
+        run = wait_for_deployed_run(
             deployed_flow, run_kwargs={"trigger_param": trigger_param}
         )
+        if not run.successful:
+            raise RuntimeError(f"Run {run.id} failed")
     else:
         run_flow_with_env(
             flow_name="config/config_simple.py",
             runner_args={"tags": combined_tags, "trigger_param": trigger_param},
             **tl_args,
         )
-
-    run = verify_single_run("ConfigSimple", tags=combined_tags)
+        run = verify_single_run("ConfigSimple", tags=combined_tags)
 
     assert run.successful, "Run was not successful"
     assert run["end"].task.data.trigger_param == trigger_param
@@ -206,10 +211,12 @@ def test_mutable_flow_default(
             deploy_args={"tags": combined_tags},
             scheduler_type=scheduler_config.scheduler_type,
         )
-        wait_for_deployed_run(
+        run = wait_for_deployed_run(
             deployed_flow,
             run_kwargs={"trigger_param": trigger_param, "param2": "48"},
         )
+        if not run.successful:
+            raise RuntimeError(f"Run {run.id} failed")
     else:
         run_flow_with_env(
             flow_name="config/mutable_flow.py",
@@ -220,8 +227,7 @@ def test_mutable_flow_default(
             },
             **tl_args,
         )
-
-    run = verify_single_run("ConfigMutableFlow", tags=combined_tags)
+        run = verify_single_run("ConfigMutableFlow", tags=combined_tags)
 
     assert run.successful, "Run was not successful"
 
@@ -297,10 +303,12 @@ def test_mutable_flow_config_value(
             deploy_args={"tags": combined_tags},
             scheduler_type=scheduler_config.scheduler_type,
         )
-        wait_for_deployed_run(
+        run = wait_for_deployed_run(
             deployed_flow,
             run_kwargs={"trigger_param": trigger_param, "param3": "45"},
         )
+        if not run.successful:
+            raise RuntimeError(f"Run {run.id} failed")
     else:
         run_flow_with_env(
             flow_name="config/mutable_flow.py",
@@ -311,8 +319,7 @@ def test_mutable_flow_config_value(
             },
             **tl_args,
         )
-
-    run = verify_single_run("ConfigMutableFlow", tags=combined_tags)
+        run = verify_single_run("ConfigMutableFlow", tags=combined_tags)
 
     assert run.successful, "Run was not successful"
 
@@ -373,18 +380,20 @@ def test_config_corner_cases(
             deploy_args={"tags": combined_tags},
             scheduler_type=scheduler_config.scheduler_type,
         )
-        wait_for_deployed_run(
+        run = wait_for_deployed_run(
             deployed_flow, run_kwargs={"trigger_param": trigger_param}
         )
+        if not run.successful:
+            raise RuntimeError(f"Run {run.id} failed")
     else:
         run_flow_with_env(
             flow_name="config/config_corner_cases.py",
             runner_args={"tags": combined_tags, "trigger_param": trigger_param},
             **tl_args,
         )
+        run = verify_single_run("ConfigSimple", tags=combined_tags)
 
     default_config = {"a": {"b": "41", "project_name": "config_project"}}
-    run = verify_single_run("ConfigSimple", tags=combined_tags)
 
     assert run.successful, "Run was not successful"
 
