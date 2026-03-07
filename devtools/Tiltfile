@@ -1263,7 +1263,7 @@ if "airflow" in enabled_components:
             # Resource limits — keep the dev stack light
             'scheduler.resources.requests.memory=256Mi',
             'scheduler.resources.requests.cpu=100m',
-            'scheduler.resources.limits.memory=512Mi',
+            'scheduler.resources.limits.memory=1Gi',
             'scheduler.resources.limits.cpu=250m',
             # Override the scheduler startup and liveness probe commands.
             # The default command ('airflow jobs check --job-type SchedulerJob
@@ -1292,6 +1292,11 @@ if "airflow" in enabled_components:
             # Airflow client uses HTTP Basic Auth, so we must explicitly
             # add the basic_auth backend.
             'config.api.auth_backends=airflow.api.auth.backend.basic_auth',
+            # Reduce DAG discovery latency so kubectl-cp'd DAGs are picked
+            # up quickly.  The defaults (300s / 30s) would cause wait_for_dag
+            # to time out before the scheduler even rescans the directory.
+            'config.scheduler.dag_dir_list_interval=10',
+            'config.scheduler.min_file_process_interval=5',
             # Default admin credentials (dev only)
             'webserver.defaultUser.enabled=true',
             'webserver.defaultUser.username=admin',

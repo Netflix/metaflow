@@ -155,7 +155,7 @@ class AirflowClient:
     def wait_for_dag(
         self,
         dag_id: str,
-        timeout: int = 300,
+        timeout: int = 120,
         polling_interval: int = 5,
     ) -> Dict:
         """
