@@ -15,6 +15,7 @@ class HelloProjectFlow(FlowSpec):
         This is the 'start' step. All flows must have a step named 'start' that
         is the first step in the flow.
         """
+        self.execution_env = os.environ.get("KUBERNETES_SERVICE_HOST", "")
         self.next(self.end)
 
     @step

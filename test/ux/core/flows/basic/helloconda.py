@@ -1,3 +1,4 @@
+import os
 import sys
 
 from metaflow import FlowSpec, step, conda, conda_base, pypi, project
@@ -17,6 +18,7 @@ class HelloCondaFlow(FlowSpec):
         is the first step in the flow.
         """
         print("HelloCondaFlow is starting.")
+        self.execution_env = os.environ.get("KUBERNETES_SERVICE_HOST", "")
         self.next(self.v1, self.v2, self.combo)
 
     @conda(libraries={"regex": "2024.11.6"})

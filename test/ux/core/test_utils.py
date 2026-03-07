@@ -199,6 +199,33 @@ def wait_for_deployed_run(
     return triggered_run.run
 
 
+def verify_run_provenance(run: Run, decospecs: Any) -> None:
+    """Verify the run used the expected datastore and execution environment.
+
+    Checks:
+    1. ds-type == "s3": artifacts were stored on the devstack MinIO, not the local
+       filesystem. A local ds-type indicates the Metaflow config didn't point at the
+       devstack S3 endpoint.
+    2. KUBERNETES_SERVICE_HOST was set (for kubernetes decospec backends): proves the
+       task actually ran inside a Kubernetes pod and the decospec took effect.
+    """
+    start_task = run["start"].task
+
+    ds_type = start_task.metadata_dict.get("ds-type")
+    assert ds_type == "s3", (
+        f"Expected datastore type 's3' (MinIO), got {ds_type!r}. "
+        f"Artifacts may be stored locally — check METAFLOW_HOME / METAFLOW_PROFILE."
+    )
+
+    if decospecs and any("kubernetes" in str(d) for d in decospecs):
+        execution_env = start_task.data.execution_env
+        assert execution_env, (
+            "Expected task to run on Kubernetes (KUBERNETES_SERVICE_HOST set), "
+            "but execution_env is empty. "
+            "The kubernetes decospec may not have taken effect."
+        )
+
+
 def execute_test_flow(
     flow_name: str,
     exec_mode: str,
@@ -233,8 +260,9 @@ def execute_test_flow(
             deploy_args={"tags": combined_tags, **extra_deploy_args},
             scheduler_type=sched_type,
         )
-        return wait_for_deployed_run(deployed_flow, run_kwargs=run_params)
+        run = wait_for_deployed_run(deployed_flow, run_kwargs=run_params)
     else:
-        return run_flow_with_env(
-            flow_name=flow_name, runner_args=runner_args, **tl_args
-        )
+        run = run_flow_with_env(flow_name=flow_name, runner_args=runner_args, **tl_args)
+
+    verify_run_provenance(run, decospecs)
+    return run

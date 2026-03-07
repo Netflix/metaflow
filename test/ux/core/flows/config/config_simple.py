@@ -40,6 +40,7 @@ class ConfigSimple(FlowSpec):
         from metaflow import metaflow_version
 
         print(f"In start step and using metaflow: {metaflow_version.get_version()}")
+        self.execution_env = os.environ.get("KUBERNETES_SERVICE_HOST", "")
         self.config_from_env = os.environ.get("TSTVAL")
         self.config_from_env_2 = os.environ.get("TSTVAL2")
         self.config_val = self.cfg.some.value
