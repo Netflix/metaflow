@@ -1,12 +1,13 @@
 name: Metaflow Kubernetes Argo E2E
 
 on:
+on:
   push:
     branches:
-      - main
+      - master
   pull_request:
     branches:
-      - main
+      - master
 
 permissions: read-all
 
