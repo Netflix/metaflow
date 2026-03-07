@@ -180,11 +180,30 @@ if "minio" in enabled_components:
     metaflow_config["METAFLOW_DEFAULT_DATASTORE"] = "s3"
     metaflow_config["METAFLOW_DATASTORE_SYSROOT_S3"] = "s3://metaflow-test/metaflow"
     metaflow_config["METAFLOW_KUBERNETES_SECRETS"] = "minio-secret"
+    # Short timeouts for the S3 datatools client when running against the local
+    # devstack. The default 60s boto3 read_timeout causes ~30s hangs per step
+    # when the Tilt port-forward lets idle connections go stale between steps.
+    # read_timeout=1 + 3 retries means stale connections fail fast and retry.
+    metaflow_config["METAFLOW_DATATOOLS_CLIENT_PARAMS"] = {
+        "endpoint_url": "http://localhost:9000",
+        "config": {
+            "read_timeout": 1,
+            "connect_timeout": 2,
+            "max_pool_connections": 1,
+            "retries": {"max_attempts": 3, "mode": "standard"},
+        },
+    }
+    # NOTE: Do NOT set METAFLOW_S3_ENDPOINT_URL here.
+    # If it were set, kubernetes.py would inject it into every k8s pod, overriding
+    # the correct internal MinIO URL (minio.default.svc.cluster.local:9000) that
+    # pods receive from minio-secret. Instead, the test suite sets AWS_ENDPOINT_URL_S3
+    # in the test process env (via conftest.py) so host-side boto3 clients reach
+    # localhost:9000, while k8s pods rely on minio-secret, and localbatch Docker
+    # containers get host.docker.internal:9000 via --inject-env.
 
     aws_config = """[default]
 aws_access_key_id = rootuser
 aws_secret_access_key = rootpass123
-endpoint_url = http://localhost:9000
 region = us-east-1
 """
     config_resources.append('minio')
@@ -203,26 +222,43 @@ if "postgresql" in enabled_components:
             'auth.password=metaflow123',
             'auth.database=metaflow',
             'image.repository=bitnamilegacy/postgresql',
-            'primary.persistence.enabled=false',
-            'primary.resources.requests.memory=128Mi',
+            # Enable persistence so metadata survives pod restarts.
+            # minikube's standard storageclass uses hostPath on the node.
+            'primary.persistence.enabled=true',
+            'primary.persistence.size=1Gi',
+            'primary.persistence.storageClass=standard',
+            'primary.resources.requests.memory=256Mi',
             'primary.resources.requests.cpu=50m',
-            'primary.resources.limits.memory=256Mi',
-            'primary.resources.limits.cpu=100m',
+            'primary.resources.limits.memory=512Mi',
+            'primary.resources.limits.cpu=200m',
             'primary.terminationGracePeriodSeconds=1',
             'primary.podSecurityContext.enabled=false',
             'primary.containerSecurityContext.enabled=false',
             'volumePermissions.enabled=false',
             'shmVolume.enabled=false',
             'primary.extraVolumes=null',
-            'primary.extraVolumeMounts=null'
+            'primary.extraVolumeMounts=null',
+            # Long tolerations to prevent eviction when node briefly goes NotReady.
+            'primary.tolerations[0].key=node.kubernetes.io/not-ready',
+            'primary.tolerations[0].operator=Exists',
+            'primary.tolerations[0].effect=NoExecute',
+            'primary.tolerations[0].tolerationSeconds=3600',
+            'primary.tolerations[1].key=node.kubernetes.io/unreachable',
+            'primary.tolerations[1].operator=Exists',
+            'primary.tolerations[1].effect=NoExecute',
+            'primary.tolerations[1].tolerationSeconds=3600',
+            # Increase liveness probe failureThreshold so transient PostgreSQL
+            # slowness doesn't trigger unnecessary restarts.
+            'primary.livenessProbe.failureThreshold=20',
+            'primary.readinessProbe.failureThreshold=20'
         ]
     )
 
     k8s_resource(
         'postgresql',
-        port_forwards=['5432:5432'],
+        port_forwards=['5433:5432'],
         links=[
-            link('postgresql://metaflow:metaflow@localhost:5432/metaflow', 'PostgreSQL Connection')
+            link('postgresql://metaflow:metaflow@localhost:5433/metaflow', 'PostgreSQL Connection')
         ],
         labels=['postgresql'],
         resource_deps=components['postgresql'],
@@ -767,6 +803,8 @@ if "localbatch" in enabled_components:
 
     metaflow_config["METAFLOW_BATCH_JOB_QUEUE"] = "localbatch-default"
     metaflow_config["METAFLOW_BATCH_CLIENT_PARAMS"] = {"endpoint_url": "http://localhost:8000"}
+    # Fake IAM role ARN required by the batch decorator (it is ignored by localbatch).
+    metaflow_config["METAFLOW_ECS_S3_ACCESS_IAM_ROLE"] = "arn:aws:iam::123456789012:role/localbatch-task-role"
 
     config_resources.append("localbatch")
 
@@ -913,7 +951,26 @@ if "sfn-local" in enabled_components:
     )
     metaflow_config["METAFLOW_SFN_CLIENT_PARAMS"] = {"endpoint_url": "http://localhost:8082"}
     metaflow_config["METAFLOW_SFN_IAM_ROLE"] = "arn:aws:iam::123456789012:role/sfn-local-role"
+    # Fake EventBridge IAM role required by the step-functions deployer.
+    # The devstack runs a minimal EventBridge stub (port 7777) so that
+    # EventBridgeClient.schedule() succeeds without a real AWS account.
+    metaflow_config["METAFLOW_EVENTS_SFN_ACCESS_IAM_ROLE"] = "arn:aws:iam::123456789012:role/sfn-events-role"
     config_resources.append('sfn-local')
+
+    # Minimal EventBridge stub: accepts EventBridge API calls and returns
+    # ResourceNotFoundException for DisableRule (silently ignored by metaflow).
+    local_resource(
+        name="eventbridge-stub",
+        serve_cmd="python3 devtools/eventbridge_stub.py",
+        readiness_probe=probe(
+            http_get=http_get_action(port=7777, path="/"),
+            period_secs=2,
+            initial_delay_secs=1,
+        ),
+        links=[link("http://localhost:7777", "EventBridge stub")],
+        labels=["sfn-local"],
+    )
+    config_resources.append("eventbridge-stub")
 
 #################################################
 # AZURITE (Azure Blob / Queue / Table emulator)
@@ -1237,4 +1294,25 @@ local_resource(
     name="generate-configs",
     cmd=write_config_files(),
     resource_deps=config_resources,
+)
+
+#################################################
+# TEST IMAGES
+#################################################
+# Pre-baked test image with boto3/requests installed.
+# Eliminates the ~2 min per-container pip install in kubernetes and batch steps.
+# Used by ux_test_config.yaml for the argo-kubernetes and sfn-batch backends.
+local_resource(
+    name="build-test-image",
+    # Build the image in the host Docker, then load it into minikube's Docker
+    # daemon (which is the container runtime used by Kubernetes pods).
+    # Minikube uses its own Docker daemon (Docker-in-Docker), accessible via TLS
+    # at localhost:32784. We must save the image and reload it there because the
+    # host Docker context (OrbStack) and minikube's Docker are separate daemons.
+    cmd=(
+        "docker build -t metaflow-test:python3.9 docker/metaflow-test/ && "
+        "minikube image load metaflow-test:python3.9"
+    ),
+    deps=["docker/metaflow-test/Dockerfile"],
+    labels=["test"],
 )

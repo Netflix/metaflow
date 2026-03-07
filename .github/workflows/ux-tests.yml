@@ -1,0 +1,108 @@
+name: UX Tests
+
+# Runs the cross-backend UX test suite (local, argo-workflows, airflow) using
+# the devstack defined in devtools/. Each backend runs in a separate parallel
+# job; pytest-xdist parallelizes individual tests within each job.
+#
+# sfn-batch is omitted until localbatch is published to PyPI. To enable it,
+# add a matrix entry:
+#   - backend: sfn-batch
+#     services: "minio,postgresql,metadata-service,localbatch,ddb-local,sfn-local"
+# and add `pip install localbatch` to the install step.
+
+on:
+  push:
+    branches:
+      - master
+  pull_request:
+    branches:
+      - master
+  workflow_dispatch:
+
+jobs:
+  ux-tests:
+    name: "${{ matrix.backend }}"
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - backend: local
+            services: "minio,postgresql,metadata-service"
+          - backend: argo-kubernetes
+            services: "minio,postgresql,metadata-service,argo-workflows"
+          - backend: airflow-kubernetes
+            services: "minio,postgresql,metadata-service,airflow"
+
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python 3.9
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.9"
+
+      - name: Install Metaflow and test dependencies
+        run: |
+          pip install --upgrade pip
+          pip install -e ".[dev]" pytest-xdist pytest-timeout
+
+      - name: Set up minikube
+        uses: medyagh/setup-minikube@latest
+        with:
+          driver: docker
+          cpus: 2
+          memory: 4096
+
+      - name: Set up Helm
+        uses: azure/setup-helm@v4
+
+      - name: Install Tilt
+        run: |
+          curl -fsSL https://raw.githubusercontent.com/tilt-dev/tilt/master/scripts/install.sh | bash
+
+      - name: Start devstack
+        working-directory: devtools
+        run: |
+          SERVICES="${{ matrix.services }}" \
+            tilt up --no-browser --hud=false 2>&1 | tee /tmp/tilt.log &
+          echo "Waiting for all devstack services (generate-configs)..."
+          tilt wait --for=condition=Ready uiresource/generate-configs --timeout=600s
+
+      - name: Wait for test image to be loaded into minikube
+        if: matrix.backend != 'local'
+        working-directory: devtools
+        run: |
+          tilt wait --for=condition=Ready uiresource/build-test-image --timeout=300s
+
+      - name: Start minikube tunnel
+        run: |
+          sudo minikube tunnel &
+          # Give the tunnel a moment to establish routes
+          sleep 5
+
+      - name: Run UX tests — ${{ matrix.backend }}
+        run: |
+          AWS_SHARED_CREDENTIALS_FILE="" \
+          PYTHONPATH=$PWD \
+          python -m pytest \
+            test/ux/core/test_basic.py test/ux/core/test_config.py \
+            -m "not conda" \
+            --only-backend "${{ matrix.backend }}" \
+            -n 6 \
+            -v \
+            --tb=short \
+            --timeout=600
+
+      - name: Show Tilt logs on failure
+        if: failure()
+        run: cat /tmp/tilt.log | tail -200 || true
+
+      - name: Upload logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: logs-${{ matrix.backend }}
+          path: /tmp/tilt.log
+          if-no-files-found: ignore

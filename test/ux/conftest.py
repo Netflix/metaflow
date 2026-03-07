@@ -108,6 +108,14 @@ def pytest_addoption(parser):
         "--scheduler-type",
         help="Scheduler type for deployer mode. Overrides config file.",
     )
+    parser.addoption(
+        "--only-backend",
+        help=(
+            "Run tests only for the named backend from ux_test_config.yaml "
+            "(e.g. 'local', 'argo-kubernetes'). "
+            "Useful in CI matrix jobs to isolate one backend per runner."
+        ),
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -187,6 +195,10 @@ def pytest_generate_tests(metafunc):
     backends = _resolve_backends(
         cfg, sched_override, cluster_override, decospec_override
     )
+
+    only_backend = metafunc.config.getoption("--only-backend", default=None)
+    if only_backend:
+        backends = [b for b in backends if b.get("name") == only_backend]
 
     user_exec_mode = metafunc.config.getoption("--exec-mode", default=None)
     scheduler_only = metafunc.definition.get_closest_marker("scheduler_only")

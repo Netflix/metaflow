@@ -23,22 +23,28 @@ backends:
     enabled: true
 
   # Argo Workflows + Kubernetes (devstack: minikube + argo-workflows)
+  # Uses a pre-baked image with boto3/requests to skip pip install in every pod.
+  # Build it once: docker build -t metaflow-test:python3.9 devtools/docker/metaflow-test/
   - name: argo-kubernetes
     scheduler_type: argo-workflows
     cluster: default
-    decospec: "kubernetes:image=python:3.9"
+    decospec: "kubernetes:image=metaflow-test:python3.9,image_pull_policy=Never"
     enabled: true
 
   # AWS Step Functions Local + Batch/corral (devstack: sfn-local + corral)
+  # Uses a pre-baked image with boto3/requests to skip pip install in every container.
+  # Build it once: docker build -t metaflow-test:python3.9 devtools/docker/metaflow-test/
   - name: sfn-batch
     scheduler_type: step-functions
     cluster: null
-    decospec: "batch:image=python:3.9"
+    decospec: "batch:image=metaflow-test:python3.9"
     enabled: true
 
-  # Uncomment and fill in to test against Airflow + Kubernetes:
-  # - name: airflow-kubernetes
-  #   scheduler_type: airflow
-  #   cluster: default
-  #   decospec: "kubernetes:image=<your-image>"
-  #   enabled: true
+  # Apache Airflow + Kubernetes (devstack: minikube + airflow helm chart)
+  # Uses a pre-baked image with boto3/requests to skip pip install in every pod.
+  # Build it once: docker build -t metaflow-test:python3.9 devtools/docker/metaflow-test/
+  - name: airflow-kubernetes
+    scheduler_type: airflow
+    cluster: default
+    decospec: "kubernetes:image=metaflow-test:python3.9,image_pull_policy=Never"
+    enabled: true
