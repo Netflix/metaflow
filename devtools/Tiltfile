@@ -967,7 +967,7 @@ if "sfn-local" in enabled_components:
     # ResourceNotFoundException for DisableRule (silently ignored by metaflow).
     local_resource(
         name="eventbridge-stub",
-        serve_cmd="python3 devtools/eventbridge_stub.py",
+        serve_cmd="python3 eventbridge_stub.py",
         readiness_probe=probe(
             http_get=http_get_action(port=7777, path="/"),
             period_secs=2,
