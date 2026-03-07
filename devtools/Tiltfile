@@ -1265,22 +1265,28 @@ if "airflow" in enabled_components:
             'scheduler.resources.requests.cpu=100m',
             'scheduler.resources.limits.memory=512Mi',
             'scheduler.resources.limits.cpu=250m',
-            # Override the scheduler startup probe command.
+            # Override the scheduler startup and liveness probe commands.
             # The default command ('airflow jobs check --job-type SchedulerJob
             # --local') causes OCI exec errors on GHA minikube runners and also
             # fails with deprecation warnings that produce non-zero exit codes.
-            # Use '/bin/true' so the exec probe always passes immediately.
+            # Use '/bin/true' so both exec probes always pass immediately.
             'scheduler.startupProbe.command={/bin/true}',
+            'scheduler.livenessProbe.command={/bin/true}',
             'webserver.resources.requests.memory=256Mi',
             'webserver.resources.requests.cpu=100m',
-            'webserver.resources.limits.memory=512Mi',
-            'webserver.resources.limits.cpu=250m',
+            'webserver.resources.limits.memory=1Gi',
+            'webserver.resources.limits.cpu=500m',
             # Give the webserver startup probe a long window.  The HTTP /health
             # endpoint can take several minutes to become available on resource-
             # constrained GHA runners.
             'webserver.startupProbe.failureThreshold=60',
             'webserver.startupProbe.periodSeconds=15',
             'webserver.startupProbe.timeoutSeconds=30',
+            # Extend the webserver liveness probe thresholds so transient
+            # slowness on GHA does not cause a premature container restart.
+            'webserver.livenessProbe.failureThreshold=10',
+            'webserver.livenessProbe.periodSeconds=30',
+            'webserver.livenessProbe.timeoutSeconds=30',
             # Default admin credentials (dev only)
             'webserver.defaultUser.enabled=true',
             'webserver.defaultUser.username=admin',
