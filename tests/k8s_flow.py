@@ -22,7 +22,7 @@ class K8sFlow(FlowSpec):
         self.message = "Metaflow Kubernetes + Argo E2E check"
         print("Starting Kubernetes-backed flow execution")
         self.next(self.end)
-
+    FLOW_ENV_VARS = get_flow_env_vars()
     @environment(vars=FLOW_ENV_VARS)
     @step
     def end(self):

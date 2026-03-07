@@ -94,12 +94,23 @@ jobs:
           kubectl cluster-info
           kubectl get nodes -o wide
 
+
+
       - name: Install Argo Workflows
         run: |
+          set -euo pipefail
+
           kubectl create namespace argo --dry-run=client -o yaml | kubectl apply -f -
 
           kubectl apply -n argo \
-            -f https://github.com/argoproj/argo-workflows/releases/download/${ARGO_VERSION}/install.yaml 
+            -f https://github.com/argoproj/argo-workflows/releases/download/${ARGO_VERSION}/install.yaml
+
+          # Wait for Argo controller to be ready
+          kubectl wait -n argo deploy/workflow-controller \
+            --for=condition=available --timeout=120s
+
+          kubectl wait -n argo deploy/argo-server \
+            --for=condition=available --timeout=120s
 
       - name: Deploy MinIO for S3-compatible datastore
         run: |
