@@ -1304,13 +1304,10 @@ local_resource(
 # Used by ux_test_config.yaml for the argo-kubernetes and sfn-batch backends.
 local_resource(
     name="build-test-image",
-    # Build the image in the host Docker, then load it into minikube's Docker
-    # daemon (which is the container runtime used by Kubernetes pods).
-    # Minikube uses its own Docker daemon (Docker-in-Docker), accessible via TLS
-    # at localhost:32784. We must save the image and reload it there because the
-    # host Docker context (OrbStack) and minikube's Docker are separate daemons.
+    # Build the image in the host Docker and load it into minikube's internal
+    # image store so Kubernetes pods can pull it with imagePullPolicy=Never.
     cmd=(
-        "docker build -t metaflow-test:python3.9 docker/metaflow-test/ && "
+        "docker build -t metaflow-test:python3.9 docker/metaflow-test/ && " +
         "minikube image load metaflow-test:python3.9"
     ),
     deps=["docker/metaflow-test/Dockerfile"],

@@ -73,6 +73,15 @@ jobs:
           # Tilt detects a headless env and won't try to open a browser.
           SERVICES="${{ matrix.services }}" \
             tilt up --stream 2>&1 | tee /tmp/tilt.log &
+
+          # Poll until the Tilt API server is ready before calling tilt wait.
+          # tilt up starts asynchronously; the API server takes ~2–3 s to bind.
+          echo "Waiting for Tilt API server..."
+          for i in $(seq 1 30); do
+            tilt get session >/dev/null 2>&1 && break
+            sleep 2
+          done
+
           echo "Waiting for all devstack services (generate-configs)..."
           tilt wait --for=condition=Ready uiresource/generate-configs --timeout=600s
 
