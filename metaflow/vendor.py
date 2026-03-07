@@ -168,7 +168,7 @@ def vendor(vendor_dir):
 
 
 if __name__ == "__main__":
-    here = Path("__file__").resolve().parent
+    here = Path(__file__).resolve().parent
     vendor_tl_dir = here / "_vendor"
     has_vendor_file = len(glob.glob(f"{vendor_tl_dir.name}/vendor*.txt")) > 0
     assert has_vendor_file, "_vendor/vendor*.txt file not found"
