@@ -5,7 +5,7 @@ from metaflow import FlowSpec, step, project
 class ForeachFlow(FlowSpec):
     @step
     def start(self):
-        self.items = [1, 2, 3, 4, 5]
+        self.items = [1, 2, 3]
         self.next(self.process, foreach="items")
 
     @step

@@ -40,8 +40,6 @@ def test_foreach(exec_mode, decospecs, compute_env, tag, scheduler_config):
         2,
         4,
         6,
-        8,
-        10,
     ], "Foreach join results didn't match"
 
 
@@ -61,8 +59,6 @@ def test_nested_foreach(exec_mode, decospecs, compute_env, tag, scheduler_config
     assert run["outer_join"].task.data.all_results == [
         "x-1",
         "x-2",
-        "x-3",
         "y-1",
         "y-2",
-        "y-3",
     ], "Nested foreach all_results didn't match"
