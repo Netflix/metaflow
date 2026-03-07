@@ -42,15 +42,7 @@ class CatchDecorator(StepDecorator):
     defaults = {"var": None, "print_exception": True}
 
     def step_init(self, flow, graph, step, decos, environment, flow_datastore, logger):
-        # handling _foreach_var and _foreach_num_splits requires some
-        # deeper thinking, so let's not support that use case for now
         self.logger = logger
-        if graph[step].type == "foreach":
-            raise MetaflowException(
-                "@catch is defined for the step *%s* "
-                "but @catch is not supported in foreach "
-                "split steps." % step
-            )
 
         # Do not support catch on switch steps for now.
         # When applying @catch to a switch step, we can not guarantee that the flow attribute used for the switching condition gets properly recorded.
@@ -71,6 +63,39 @@ class CatchDecorator(StepDecorator):
         if var:
             setattr(flow, var, val)
 
+    def _populate_foreach_fallback_artifacts(self, step, flow, graph):
+        node = graph[step]
+        if node.type != "foreach":
+            return None
+
+        foreach_var = getattr(flow, "_foreach_var", None) or node.foreach_param
+        foreach_values = getattr(flow, "_foreach_values", None)
+        foreach_num_splits = getattr(flow, "_foreach_num_splits", None)
+
+        if foreach_num_splits is None and foreach_values is not None:
+            foreach_num_splits = len(foreach_values)
+
+        if foreach_num_splits is None and foreach_var and hasattr(flow, foreach_var):
+            foreach_iter = getattr(flow, foreach_var)
+            if hasattr(foreach_iter, "__len__"):
+                foreach_num_splits = len(foreach_iter)
+            else:
+                # Best-effort fallback in catch path when the split count wasn't
+                # materialized before the exception happened.
+                foreach_values = list(foreach_iter)
+                foreach_num_splits = len(foreach_values)
+
+        # If split cardinality is unavailable, continue with a single fallback branch
+        # rather than failing to produce valid foreach metadata.
+        if foreach_num_splits is None:
+            foreach_num_splits = 1
+
+        flow._foreach_var = foreach_var or "_catch_foreach_fallback"
+        flow._foreach_num_splits = max(1, int(foreach_num_splits))
+        if foreach_values is not None:
+            flow._foreach_values = foreach_values
+        return flow._foreach_var
+
     def task_exception(
         self, exception, step, flow, graph, retry_count, max_user_code_retries
     ):
@@ -81,8 +106,9 @@ class CatchDecorator(StepDecorator):
         if self.attributes["print_exception"]:
             self._print_exception(step, flow)
 
-        # pretend that self.next() was called as usual
-        flow._transition = (graph[step].out_funcs, None)
+        foreach_var = self._populate_foreach_fallback_artifacts(step, flow, graph)
+        # Pretend that self.next() was called as usual.
+        flow._transition = (graph[step].out_funcs, foreach_var)
 
         # If this task is a UBF control task, it will return itself as the singleton
         # list of tasks.
