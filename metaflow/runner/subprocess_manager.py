@@ -14,56 +14,67 @@ from metaflow.util import get_metaflow_root
 from .utils import check_process_exited
 
 
-def kill_processes_and_descendants(pids: List[str], termination_timeout: float):
-    # TODO: there's a race condition that new descendants might
-    # spawn b/w the invocations of 'pkill' and 'kill'.
-    # Needs to be fixed in future.
+def _kill_process_group(pid: int, termination_timeout: float):
+    """
+    Kill an entire process group by PID using SIGTERM then SIGKILL.
+
+    Because each subprocess is launched with start_new_session=True, every
+    process in the group (including any grandchildren spawned after launch)
+    shares the same PGID. os.killpg sends the signal to all of them
+    atomically, closing the race window that existed when using sequential
+    pkill + kill calls.
+    """
     try:
-        subprocess.check_call(["pkill", "-TERM", "-P", *pids])
-        subprocess.check_call(["kill", "-TERM", *pids])
-    except subprocess.CalledProcessError:
-        pass
+        pgid = os.getpgid(pid)
+        os.killpg(pgid, signal.SIGTERM)
+    except (ProcessLookupError, OSError):
+        # Process already exited before we could kill it.
+        return
 
     time.sleep(termination_timeout)
 
     try:
-        subprocess.check_call(["pkill", "-KILL", "-P", *pids])
-        subprocess.check_call(["kill", "-KILL", *pids])
-    except subprocess.CalledProcessError:
+        pgid = os.getpgid(pid)
+        os.killpg(pgid, signal.SIGKILL)
+    except (ProcessLookupError, OSError):
+        # Process exited cleanly after SIGTERM — nothing left to SIGKILL.
+        pass
+
+
+def kill_processes_and_descendants(pids: List[str], termination_timeout: float):
+    for pid_str in pids:
+        _kill_process_group(int(pid_str), termination_timeout)
+
+
+async def _async_kill_process_group(pid: int, termination_timeout: float):
+    """
+    Async version of _kill_process_group.
+
+    Sends SIGTERM to the process group, waits termination_timeout seconds,
+    then sends SIGKILL to any survivors — all without spawning external
+    processes (pkill/kill), removing the race condition between enumeration
+    and termination.
+    """
+    try:
+        pgid = os.getpgid(pid)
+        os.killpg(pgid, signal.SIGTERM)
+    except (ProcessLookupError, OSError):
+        return
+
+    await asyncio.sleep(termination_timeout)
+
+    try:
+        pgid = os.getpgid(pid)
+        os.killpg(pgid, signal.SIGKILL)
+    except (ProcessLookupError, OSError):
         pass
 
 
 async def async_kill_processes_and_descendants(
     pids: List[str], termination_timeout: float
 ):
-    # TODO: there's a race condition that new descendants might
-    # spawn b/w the invocations of 'pkill' and 'kill'.
-    # Needs to be fixed in future.
-    try:
-        sub_term = await asyncio.create_subprocess_exec("pkill", "-TERM", "-P", *pids)
-        await sub_term.wait()
-    except Exception:
-        pass
-
-    try:
-        main_term = await asyncio.create_subprocess_exec("kill", "-TERM", *pids)
-        await main_term.wait()
-    except Exception:
-        pass
-
-    await asyncio.sleep(termination_timeout)
-
-    try:
-        sub_kill = await asyncio.create_subprocess_exec("pkill", "-KILL", "-P", *pids)
-        await sub_kill.wait()
-    except Exception:
-        pass
-
-    try:
-        main_kill = await asyncio.create_subprocess_exec("kill", "-KILL", *pids)
-        await main_kill.wait()
-    except Exception:
-        pass
+    for pid_str in pids:
+        await _async_kill_process_group(int(pid_str), termination_timeout)
 
 
 class LogReadTimeoutError(Exception):
@@ -359,6 +370,7 @@ class CommandManager(object):
                     stderr=subprocess.PIPE,
                     bufsize=1,
                     universal_newlines=True,
+                    start_new_session=True,
                 )
 
                 self.log_files["stdout"] = stdout_logfile
@@ -411,6 +423,7 @@ class CommandManager(object):
                     env=self.env,
                     stdout=open(stdout_logfile, "w", encoding="utf-8"),
                     stderr=open(stderr_logfile, "w", encoding="utf-8"),
+                    start_new_session=True,
                 )
 
                 self.log_files["stdout"] = stdout_logfile
