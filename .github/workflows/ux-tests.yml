@@ -137,10 +137,10 @@ jobs:
             test/ux/core/test_basic.py test/ux/core/test_config.py test/ux/core/test_dag.py \
             -m "not conda" \
             --only-backend "${{ matrix.backend }}" \
-            -n 6 \
+            -n 4 \
             -v \
             --tb=short \
-            --timeout=900 \
+            --timeout=1200 \
             --cov=metaflow \
             --cov-report=term-missing \
             --cov-report=xml:coverage.xml \
