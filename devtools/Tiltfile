@@ -1265,10 +1265,18 @@ if "airflow" in enabled_components:
             'scheduler.resources.requests.cpu=100m',
             'scheduler.resources.limits.memory=512Mi',
             'scheduler.resources.limits.cpu=250m',
+            # Extend startup probe timeouts so slow GHA runners don't kill the pods.
+            # The default 20s command timeout is too tight when CPUs are shared.
+            'scheduler.startupProbe.timeoutSeconds=60',
+            'scheduler.startupProbe.failureThreshold=20',
+            'scheduler.startupProbe.periodSeconds=30',
             'webserver.resources.requests.memory=256Mi',
             'webserver.resources.requests.cpu=100m',
             'webserver.resources.limits.memory=512Mi',
             'webserver.resources.limits.cpu=250m',
+            'webserver.startupProbe.timeoutSeconds=60',
+            'webserver.startupProbe.failureThreshold=20',
+            'webserver.startupProbe.periodSeconds=30',
             # Default admin credentials (dev only)
             'webserver.defaultUser.enabled=true',
             'webserver.defaultUser.username=admin',
