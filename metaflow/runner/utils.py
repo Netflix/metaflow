@@ -21,6 +21,17 @@ def get_current_cell(ipython):
     return None
 
 
+def _get_base_name(node):
+    """Extract the class name from an AST base-class node.
+
+    Handles both simple names (``FlowSpec``) and attribute access
+    (``metaflow.FlowSpec``).
+    """
+    if isinstance(node, ast.Attribute):
+        return node.attr
+    return getattr(node, "id", None)
+
+
 def format_flowfile(cell):
     """
     Formats the given cell content to create a valid Python script that can be
@@ -29,7 +40,8 @@ def format_flowfile(cell):
     flowspec = [
         x
         for x in ast.parse(cell).body
-        if isinstance(x, ast.ClassDef) and any(b.id == "FlowSpec" for b in x.bases)
+        if isinstance(x, ast.ClassDef)
+        and any(_get_base_name(b) == "FlowSpec" for b in x.bases)
     ]
 
     if not flowspec:
