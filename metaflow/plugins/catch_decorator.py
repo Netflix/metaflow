@@ -43,6 +43,7 @@ class CatchDecorator(StepDecorator):
 
     def step_init(self, flow, graph, step, decos, environment, flow_datastore, logger):
         self.logger = logger
+        node = graph[step]
 
         # Do not support catch on switch steps for now.
         # When applying @catch to a switch step, we can not guarantee that the flow attribute used for the switching condition gets properly recorded.
