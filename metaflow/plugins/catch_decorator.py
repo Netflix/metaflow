@@ -106,8 +106,7 @@ class CatchDecorator(StepDecorator):
             flow._foreach_num_splits = 1
         if foreach_values is not None:
             flow._foreach_values = foreach_values
-        if foreach_values is not None:
-            flow._foreach_values = foreach_values
+        return flow._foreach_var
         return flow._foreach_var
 
     def task_exception(
