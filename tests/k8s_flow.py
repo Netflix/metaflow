@@ -10,8 +10,13 @@ IN_CLUSTER_S3_ENDPOINT = os.getenv(
 def get_flow_env_vars():
     return {
         "METAFLOW_S3_ENDPOINT_URL": IN_CLUSTER_S3_ENDPOINT,
-        "AWS_ACCESS_KEY_ID": os.getenv("AWS_ACCESS_KEY_ID"),
-        "AWS_SECRET_ACCESS_KEY": os.getenv("AWS_SECRET_ACCESS_KEY"),
+def get_flow_env_vars():
+    return {
+        "METAFLOW_S3_ENDPOINT_URL": IN_CLUSTER_S3_ENDPOINT,
+        "AWS_ACCESS_KEY_ID": os.environ["AWS_ACCESS_KEY_ID"],
+        "AWS_SECRET_ACCESS_KEY": os.environ["AWS_SECRET_ACCESS_KEY"],
+        "AWS_DEFAULT_REGION": os.getenv("AWS_DEFAULT_REGION", "us-east-1"),
+    }
         "AWS_DEFAULT_REGION": os.getenv("AWS_DEFAULT_REGION", "us-east-1"),
     }
 
