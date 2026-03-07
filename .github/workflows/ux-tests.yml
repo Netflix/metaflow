@@ -226,6 +226,20 @@ jobs:
           pattern: coverage-*
           path: coverage-artifacts/
 
+      - name: Download test results from all backends
+        uses: actions/download-artifact@v4
+        with:
+          pattern: junit-*
+          path: junit-artifacts/
+
+      - name: Publish combined test results
+        uses: dorny/test-reporter@v1
+        with:
+          name: "Test Results — All Backends"
+          path: "junit-artifacts/**/*.xml"
+          reporter: java-junit
+          fail-on-error: false
+
       - name: Combine coverage data
         run: |
           # Each backend job drops a .coverage file; rename them so coverage
