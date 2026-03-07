@@ -69,14 +69,15 @@ jobs:
       - name: Start devstack
         working-directory: devtools
         run: |
+          # --stream replaces the TUI with plain log output, suitable for CI.
+          # Tilt detects a headless env and won't try to open a browser.
           SERVICES="${{ matrix.services }}" \
-            tilt up --no-browser --hud=false 2>&1 | tee /tmp/tilt.log &
+            tilt up --stream 2>&1 | tee /tmp/tilt.log &
           echo "Waiting for all devstack services (generate-configs)..."
           tilt wait --for=condition=Ready uiresource/generate-configs --timeout=600s
 
       - name: Wait for test image to be loaded into minikube
         if: matrix.backend != 'local'
-        working-directory: devtools
         run: |
           tilt wait --for=condition=Ready uiresource/build-test-image --timeout=300s
 
