@@ -5,12 +5,12 @@ if sys.version_info < (3, 6):
 
     class Tags:
         __getattr__ = lambda self, name: (_ for _ in ()).throw(
-            Exception("packaging.tags is not avaliable for Python < 3.6")
+            Exception("packaging.tags is not available for Python < 3.6")
         )
 
     tags = Tags()
     parse_wheel_filename = lambda: (_ for _ in ()).throw(
-        RuntimeError("packaging.utils is not avaliable for Python < 3.6")
+        RuntimeError("packaging.utils is not available for Python < 3.6")
     )
 else:
     from metaflow._vendor.packaging import tags

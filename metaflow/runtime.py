@@ -1845,7 +1845,7 @@ class Task(object):
     def resume_done(self):
         assert (
             self.step == "_parameters"
-        ), "Only _parameters step can check wheather resume is complete."
+        ), "Only _parameters step can check whether resume is complete."
         return self._resume_done
 
     def mark_resume_done(self):

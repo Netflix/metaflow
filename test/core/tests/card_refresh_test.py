@@ -12,12 +12,12 @@ class CardWithRefreshTest(MetaflowTest):
     1. In step code:
         1. We create a random array of strings.
         2. We call `current.card.refresh` with the array.
-        3. We check if the card is present given that we have called referesh and the card
+        3. We check if the card is present given that we have called refresh and the card
             should have reached the backend in some short period of time
         4. Keep adding new data to the array and keep calling refresh.
         5. The data-update that got shipped should *atleast* be a subset the actual data present in the runtime code.
     2. In check_results:
-        1. We check if the data that got shipped can be access post task completion
+        1. We check if the data that got shipped can be accessed post task completion
         2. We check if the data that got shipped is a subset of the actual data created during the runtime code.
     """
 
@@ -136,7 +136,7 @@ class CardWithRefreshTest(MetaflowTest):
             meta_check_dict = checker.artifact_dict_if_exists(step.name, "final_data")
             # Which ever steps ran the actual card testing code
             # contains the `final_data` attribute and the `step_name` attribute.
-            # If these exist then we can succesfully validate the card data since it is meant to exist.
+            # If these exist then we can successfully validate the card data since it is meant to exist.
             step_done_check_dict = checker.artifact_dict_if_exists(
                 step.name, "step_name"
             )
@@ -160,6 +160,6 @@ class CardWithRefreshTest(MetaflowTest):
                 )
                 assert_equals(data_has_latest_artifact, True)
                 print(
-                    "Succesfully validated task pathspec %s"
+                    "Successfully validated task pathspec %s"
                     % run[step.name][task_id].pathspec
                 )

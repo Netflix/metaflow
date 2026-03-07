@@ -136,7 +136,7 @@ class CardComponentRefreshTest(MetaflowTest):
             meta_check_dict = checker.artifact_dict_if_exists(step.name, "final_data")
             # Which ever steps ran the actual card testing code
             # contains the `final_data` attribute and the `step_name` attribute.
-            # If these exist then we can succesfully validate the card data since it is meant to exist.
+            # If these exist then we can successfully validate the card data since it is meant to exist.
             step_done_check_dict = checker.artifact_dict_if_exists(
                 step.name, "step_name"
             )
@@ -163,6 +163,6 @@ class CardComponentRefreshTest(MetaflowTest):
                 )
                 assert_equals(data_has_latest_artifact, True)
                 print(
-                    "Succesfully validated task pathspec %s"
+                    "Successfully validated task pathspec %s"
                     % run[step.name][task_id].pathspec
                 )
