@@ -158,6 +158,7 @@ jobs:
             coverage.xml
             htmlcov/
           if-no-files-found: ignore
+          include-hidden-files: true
 
       - name: Upload test results
         if: always()
