@@ -63,6 +63,11 @@ runs:
       shell: bash
       env:
         PYTHONPATH: ${{ github.workspace }}/_metaflow_src
+        # Pre-set these so test/ux/core/conftest.py's setdefault() calls don't
+        # override them with devstack-specific values (devtools/.devtools/ and
+        # profile 'local', which don't exist outside the metaflow devstack).
+        METAFLOW_HOME: /tmp/metaflow-ux-home
+        METAFLOW_PROFILE: ""
       run: |
         files=$(echo "${{ inputs.test-files }}" \
           | tr ' ' '\n' \
