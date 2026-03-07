@@ -74,13 +74,18 @@ jobs:
           SERVICES="${{ matrix.services }}" \
             tilt up --stream 2>&1 | tee /tmp/tilt.log &
 
-          # Poll until the Tilt API server is ready before calling tilt wait.
-          # tilt up starts asynchronously; the API server takes ~2–3 s to bind.
+          # Wait for Tilt API server (takes a few seconds to bind after launch).
           echo "Waiting for Tilt API server..."
-          for i in $(seq 1 30); do
+          for i in $(seq 1 60); do
             tilt get session >/dev/null 2>&1 && break
             sleep 2
           done
+
+          # Wait for the Tiltfile itself to finish loading (helm pulls happen here).
+          # The (Tiltfile) uiresource is created as soon as tilt begins parsing;
+          # waiting for Ready means all local() calls in the Tiltfile completed.
+          echo "Waiting for Tiltfile to load..."
+          tilt wait --for=condition=Ready "uiresource/(Tiltfile)" --timeout=120s
 
           echo "Waiting for all devstack services (generate-configs)..."
           tilt wait --for=condition=Ready uiresource/generate-configs --timeout=600s
