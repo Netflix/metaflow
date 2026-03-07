@@ -46,5 +46,8 @@ backends:
   - name: airflow-kubernetes
     scheduler_type: airflow
     cluster: default
-    decospec: "kubernetes:image=metaflow-test:python3.9,image_pull_policy=Never"
+    # image_pull_policy is not supported by the Airflow deployer; omit it.
+    # The image tag (python3.9) is non-latest so Kubernetes defaults to
+    # IfNotPresent, which works fine since the image is pre-loaded into minikube.
+    decospec: "kubernetes:image=metaflow-test:python3.9"
     enabled: true
