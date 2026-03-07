@@ -1284,7 +1284,7 @@ if "airflow" in enabled_components:
 
     # All Airflow workloads must wait for the database to exist before deploying.
     k8s_resource(
-        workload='airflow-run-migrations',
+        workload='airflow-run-airflow-migrations',
         labels=['airflow'],
         resource_deps=_airflow_db_deps,
     )
