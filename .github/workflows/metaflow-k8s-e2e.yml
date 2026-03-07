@@ -92,7 +92,7 @@ jobs:
         run: |
           set -euo pipefail
           kubectl create namespace argo --dry-run=client -o yaml | kubectl apply -f -
-          kubectl apply -n argo -f "https://github.com/argoproj/argo-workflows/releases/download/v3.5.8/quick-start-minimal.yaml"
+          kubectl apply -n argo -f "https://github.com/argoproj/argo-workflows/releases/download/${ARGO_VERSION}/quick-start-minimal.yaml"
           kubectl wait -n argo --for=condition=available deploy/workflow-controller --timeout=240s
           kubectl wait -n argo --for=condition=available deploy/argo-server --timeout=240s
           kubectl get pods -n argo
