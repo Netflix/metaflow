@@ -205,6 +205,7 @@ def pytest_generate_tests(metafunc):
     data_ux = metafunc.definition.get_closest_marker("data_ux")
     basic = metafunc.definition.get_closest_marker("basic")
     config_mark = metafunc.definition.get_closest_marker("config")
+    dag = metafunc.definition.get_closest_marker("dag")
 
     needs_exec = "exec_mode" in metafunc.fixturenames
     needs_backend = "backend" in metafunc.fixturenames
@@ -222,7 +223,7 @@ def pytest_generate_tests(metafunc):
             modes = [user_exec_mode]
         elif scheduler_only or data_ux:
             modes = [ExecMode.DEPLOYER.value] if has_scheduler else []
-        elif basic or config_mark:
+        elif basic or config_mark or dag:
             modes = [ExecMode.RUNNER.value]
             if has_scheduler:
                 modes.append(ExecMode.DEPLOYER.value)

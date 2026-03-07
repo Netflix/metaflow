@@ -134,7 +134,7 @@ jobs:
           AWS_SHARED_CREDENTIALS_FILE="" \
           PYTHONPATH=$PWD \
           python -m pytest \
-            test/ux/core/test_basic.py test/ux/core/test_config.py \
+            test/ux/core/test_basic.py test/ux/core/test_config.py test/ux/core/test_dag.py \
             -m "not conda" \
             --only-backend "${{ matrix.backend }}" \
             -n 6 \
