@@ -205,17 +205,23 @@ def verify_run_provenance(run: Run, decospecs: Any) -> None:
     Checks:
     1. ds-type == "s3": artifacts were stored on the devstack MinIO, not the local
        filesystem. A local ds-type indicates the Metaflow config didn't point at the
-       devstack S3 endpoint.
+       devstack S3 endpoint. This check is skipped when METAFLOW_DEFAULT_DATASTORE is
+       "local" (e.g. CI environments that don't have MinIO).
     2. KUBERNETES_SERVICE_HOST was set (for kubernetes decospec backends): proves the
        task actually ran inside a Kubernetes pod and the decospec took effect.
     """
+    import os
+
     start_task = run["start"].task
 
     ds_type = start_task.metadata_dict.get("ds-type")
-    assert ds_type == "s3", (
-        f"Expected datastore type 's3' (MinIO), got {ds_type!r}. "
-        f"Artifacts may be stored locally — check METAFLOW_HOME / METAFLOW_PROFILE."
-    )
+    # Only enforce the S3 check when the test environment uses a remote datastore.
+    # Local-only CI environments (METAFLOW_DEFAULT_DATASTORE=local) do not have MinIO.
+    if os.environ.get("METAFLOW_DEFAULT_DATASTORE", "") != "local":
+        assert ds_type == "s3", (
+            f"Expected datastore type 's3' (MinIO), got {ds_type!r}. "
+            f"Artifacts may be stored locally — check METAFLOW_HOME / METAFLOW_PROFILE."
+        )
 
     if decospecs and any("kubernetes" in str(d) for d in decospecs):
         execution_env = start_task.data.execution_env
