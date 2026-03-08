@@ -42,10 +42,12 @@ inputs:
     default: ""
   conda:
     description: >
-      Set to "true" to install Miniconda and run @conda-marked tests.
-      When "false" (default), @conda tests are excluded via -m "not conda".
+      Set to "false" to skip Miniconda installation and exclude @conda tests.
+      Defaults to "true" — all orchestrators should verify conda support.
+      Set to "false" only if the scheduler cannot support conda (e.g. needs
+      conda inside a Docker container with separate setup).
     required: false
-    default: "false"
+    default: "true"
 
 runs:
   using: composite
