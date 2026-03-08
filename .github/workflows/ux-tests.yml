@@ -188,9 +188,13 @@ jobs:
           sudo ufw status 2>&1 | head -3 || echo "ufw not available"
           MINIKUBE_CONTAINER=$(docker ps --filter "name=minikube" --format "{{.ID}}" | head -1)
           echo "minikube container: ${MINIKUBE_CONTAINER}"
+          MINIKUBE_GW=$(docker network inspect minikube --format='{{range .IPAM.Config}}{{.Gateway}}{{end}}' 2>/dev/null || echo "192.168.49.1")
+          echo "minikube gateway: ${MINIKUBE_GW}"
           docker exec "${MINIKUBE_CONTAINER}" bash -c "
             echo 'Trying 172.17.0.1:8000...'
             timeout 3 bash -c 'echo > /dev/tcp/172.17.0.1/8000' 2>&1 && echo 'CONNECT OK to 172.17.0.1:8000' || echo 'CONNECT FAILED to 172.17.0.1:8000'
+            echo 'Trying ${MINIKUBE_GW}:8000...'
+            timeout 3 bash -c 'echo > /dev/tcp/${MINIKUBE_GW}/8000' 2>&1 && echo 'CONNECT OK to ${MINIKUBE_GW}:8000' || echo 'CONNECT FAILED to ${MINIKUBE_GW}:8000'
             echo 'ip route:'
             ip route | head -5
           " || echo "minikube exec failed"

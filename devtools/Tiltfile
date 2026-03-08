@@ -923,12 +923,15 @@ if "sfn-local" in enabled_components:
     # sfn-local then connects to the Docker bridge gateway IP directly.
     _is_linux = str(local("uname -s", quiet=True)).strip() == "Linux"
     if _is_linux:
-        _docker_gw = str(local(
-            "docker network inspect bridge --format '{{range .IPAM.Config}}{{.Gateway}}{{end}}'",
+        # minikube uses its own 192.168.49.0/24 network (not the Docker bridge 172.17.0.0/16).
+        # The GHA host is the gateway of the minikube Docker network, reachable at
+        # the network's gateway IP (typically 192.168.49.1).
+        _minikube_gw = str(local(
+            "docker network inspect minikube --format '{{range .IPAM.Config}}{{.Gateway}}{{end}}'",
             quiet=True,
-        )).strip() or "172.17.0.1"
+        )).strip() or "192.168.49.1"
         _sfn_host_network = True
-        _batch_endpoint = 'http://' + _docker_gw + ':8000'
+        _batch_endpoint = 'http://' + _minikube_gw + ':8000'
     else:
         # macOS: OrbStack routes host.docker.internal from k8s pods correctly.
         _sfn_host_network = False
