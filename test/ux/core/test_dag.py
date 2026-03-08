@@ -25,6 +25,11 @@ def test_branch(exec_mode, decospecs, compute_env, tag, scheduler_config):
 
 def test_foreach(exec_mode, decospecs, compute_env, tag, scheduler_config):
     """Verify foreach fan-out/join executes correctly."""
+    if exec_mode == "deployer" and scheduler_config.scheduler_type == "step-functions":
+        pytest.skip(
+            "Foreach deployer is skipped for step-functions: sfn-local v2 does not "
+            "support the DynamoDB ResultPath integration used for foreach cardinality."
+        )
     run = execute_test_flow(
         flow_name="dag/foreach_flow.py",
         exec_mode=exec_mode,
@@ -60,6 +65,11 @@ def test_nested_foreach(exec_mode, decospecs, compute_env, tag, scheduler_config
             "require per-outer-iteration task IDs that cannot be expressed with "
             "Kestra's static task-ID scheme (each ForEach body runs with a fixed task "
             "ID, so a second-level join cannot address the per-iteration inner tasks)."
+        )
+    if exec_mode == "deployer" and scheduler_config.scheduler_type == "step-functions":
+        pytest.skip(
+            "Nested foreach deployer is skipped for step-functions: sfn-local v2 does "
+            "not support the DynamoDB ResultPath integration used for foreach cardinality."
         )
     run = execute_test_flow(
         flow_name="dag/nested_foreach_flow.py",
