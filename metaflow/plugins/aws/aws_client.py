@@ -17,6 +17,7 @@ class Boto3ClientProvider(object):
             AWS_SANDBOX_STS_CONNECT_TIMEOUT,
             AWS_SANDBOX_STS_READ_TIMEOUT,
         )
+        from metaflow.metaflow_config_funcs import from_conf
 
         if session_vars is None:
             session_vars = {}
@@ -57,8 +58,6 @@ class Boto3ClientProvider(object):
                 # authenticate using STS
                 url = "%s/auth/token" % AWS_SANDBOX_STS_ENDPOINT_URL
                 headers = {"x-api-key": AWS_SANDBOX_API_KEY}
-                AWS_SANDBOX_STS_CONNECT_TIMEOUT = from_conf("AWS_SANDBOX_STS_CONNECT_TIMEOUT", 3)
-                AWS_SANDBOX_STS_READ_TIMEOUT    = from_conf("AWS_SANDBOX_STS_READ_TIMEOUT", 5)
                 connect_timeout = AWS_SANDBOX_STS_CONNECT_TIMEOUT
                 read_timeout = AWS_SANDBOX_STS_READ_TIMEOUT
                 try:
