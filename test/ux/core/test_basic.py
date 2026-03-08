@@ -62,7 +62,7 @@ def test_from_deployment(exec_mode, decospecs, compute_env, tag, scheduler_confi
         flow_name="basic/hello_from_deployment.py",
         tl_args={"decospecs": decospecs, "env": compute_env},
         scheduler_args={"cluster": scheduler_config.cluster},
-        deploy_args={"tags": combined_tags},
+        deploy_args={"tags": combined_tags, **(scheduler_config.deploy_args or {})},
         scheduler_type=scheduler_type,
     )
 

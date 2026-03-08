@@ -38,7 +38,7 @@ def test_config_simple_default(
             flow_name="config/config_simple.py",
             tl_args=tl_args,
             scheduler_args={"cluster": scheduler_config.cluster},
-            deploy_args={"tags": combined_tags},
+            deploy_args={"tags": combined_tags, **(scheduler_config.deploy_args or {})},
             scheduler_type=scheduler_config.scheduler_type,
         )
         run = wait_for_deployed_run(
@@ -99,7 +99,7 @@ def test_config_simple_config_value(
             flow_name="config/config_simple.py",
             tl_args=tl_args,
             scheduler_args={"cluster": scheduler_config.cluster},
-            deploy_args={"tags": combined_tags},
+            deploy_args={"tags": combined_tags, **(scheduler_config.deploy_args or {})},
             scheduler_type=scheduler_config.scheduler_type,
         )
         run = wait_for_deployed_run(
@@ -155,7 +155,7 @@ def test_config_simple_config(
             flow_name="config/config_simple.py",
             tl_args=tl_args,
             scheduler_args={"cluster": scheduler_config.cluster},
-            deploy_args={"tags": combined_tags},
+            deploy_args={"tags": combined_tags, **(scheduler_config.deploy_args or {})},
             scheduler_type=scheduler_config.scheduler_type,
         )
         run = wait_for_deployed_run(
@@ -208,7 +208,7 @@ def test_mutable_flow_default(
             flow_name="config/mutable_flow.py",
             tl_args=tl_args,
             scheduler_args={"cluster": scheduler_config.cluster},
-            deploy_args={"tags": combined_tags},
+            deploy_args={"tags": combined_tags, **(scheduler_config.deploy_args or {})},
             scheduler_type=scheduler_config.scheduler_type,
         )
         run = wait_for_deployed_run(
@@ -300,7 +300,7 @@ def test_mutable_flow_config_value(
             flow_name="config/mutable_flow.py",
             tl_args=tl_args,
             scheduler_args={"cluster": scheduler_config.cluster},
-            deploy_args={"tags": combined_tags},
+            deploy_args={"tags": combined_tags, **(scheduler_config.deploy_args or {})},
             scheduler_type=scheduler_config.scheduler_type,
         )
         run = wait_for_deployed_run(
@@ -377,7 +377,7 @@ def test_config_corner_cases(
             flow_name="config/config_corner_cases.py",
             tl_args=tl_args,
             scheduler_args={"cluster": scheduler_config.cluster},
-            deploy_args={"tags": combined_tags},
+            deploy_args={"tags": combined_tags, **(scheduler_config.deploy_args or {})},
             scheduler_type=scheduler_config.scheduler_type,
         )
         run = wait_for_deployed_run(
