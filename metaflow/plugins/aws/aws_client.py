@@ -18,7 +18,6 @@ class Boto3ClientProvider(object):
             AWS_SANDBOX_STS_CONNECT_TIMEOUT,
             AWS_SANDBOX_STS_READ_TIMEOUT,
         )
-        from metaflow.metaflow_config_funcs import from_conf
 
         if session_vars is None:
             session_vars = {}
