@@ -791,6 +791,17 @@ if "localbatch" in enabled_components:
             " --inject-env METAFLOW_SERVICE_INTERNAL_URL=http://host.docker.internal:8080"
         )
 
+    # Forward the DDB local endpoint for sfn-local foreach flows.
+    # When sfn-local orchestrates a foreach flow, the batch container needs to
+    # write foreach cardinality to DynamoDB (ddb-local).  The container reaches
+    # it via host.docker.internal:8765 (the port-forwarded ddb-local service).
+    if "ddb-local" in enabled_components:
+        _ddb_params = '\'{"endpoint_url":"http://host.docker.internal:8765"}\''
+        localbatch_serve_cmd += (
+            " --inject-env METAFLOW_SFN_DYNAMO_DB_CLIENT_PARAMS=" + _ddb_params +
+            " --inject-env METAFLOW_SFN_DYNAMO_DB_TABLE=metaflow-sfn"
+        )
+
     local_resource(
         name="localbatch",
         serve_cmd=localbatch_serve_cmd,
@@ -951,9 +962,7 @@ if "sfn-local" in enabled_components:
                     'dnsPolicy': 'ClusterFirstWithHostNet' if _sfn_host_network else 'ClusterFirst',
                     'containers': [{
                         'name': 'sfn-local',
-                        # v2.0.0 (latest) validates Batch job defs at StartExecution and
-                        # has issues with MAP states.  v1.14.0 executes without validation.
-                        'image': 'amazon/aws-stepfunctions-local:1.14.0',
+                        'image': 'amazon/aws-stepfunctions-local:latest',
                         'ports': [{'containerPort': 8083}],
                         # Override Cmd (default: ["-jar", "StepFunctionsLocal.jar"]) to append
                         # app-level args after the jar spec. Use --batch-endpoint and

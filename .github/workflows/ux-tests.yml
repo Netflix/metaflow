@@ -198,13 +198,17 @@ jobs:
             echo 'ip route:'
             ip route | head -5
           " || echo "minikube exec failed"
-          # MinIO (S3) and Metaflow metadata service
+          # MinIO (S3), Metaflow metadata service, and DynamoDB local
+          # (ddb-local on 8765 is needed by sfn-local foreach flows to write/read
+          # foreach cardinality via step_functions_internal decorator)
           sudo socat TCP-LISTEN:9000,fork,reuseaddr,bind="${BRIDGE}" \
             TCP:127.0.0.1:9000 &
           sudo socat TCP-LISTEN:8080,fork,reuseaddr,bind="${BRIDGE}" \
             TCP:127.0.0.1:8080 &
+          sudo socat TCP-LISTEN:8765,fork,reuseaddr,bind="${BRIDGE}" \
+            TCP:127.0.0.1:8765 &
           sleep 1
-          echo "Forwarding 9000 and 8080 on ${BRIDGE} → 127.0.0.1"
+          echo "Forwarding 9000, 8080, and 8765 on ${BRIDGE} → 127.0.0.1"
 
       - name: Wait for Airflow REST API
         if: matrix.backend == 'airflow-kubernetes'
