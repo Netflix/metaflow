@@ -57,6 +57,9 @@ else:
 
 metaflow_config = {}
 metaflow_config["METAFLOW_KUBERNETES_NAMESPACE"] = "default"
+# Short TTL so completed k8s Jobs are deleted quickly in the dev environment,
+# preventing pod accumulation that exhausts cluster resources during long test runs.
+metaflow_config["METAFLOW_KUBERNETES_JOB_TTL_SECONDS_AFTER_FINISHED"] = 300  # 5 min
 
 aws_config = []
 shell_env = {}   # extra env vars written to .devtools/env_local (e.g. STORAGE_EMULATOR_HOST)
