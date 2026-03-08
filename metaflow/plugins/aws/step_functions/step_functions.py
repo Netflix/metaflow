@@ -1132,7 +1132,6 @@ class State(object):
                 "ErrorEquals": ["Batch.AWSBatchException"],
                 "BackoffRate": 2,
                 "IntervalSeconds": 2,
-                "MaxDelaySeconds": 60,
                 "MaxAttempts": 10,
             }
         )
