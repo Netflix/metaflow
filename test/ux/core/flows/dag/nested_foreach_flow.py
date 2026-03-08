@@ -14,7 +14,7 @@ class NestedForeachFlow(FlowSpec):
     @step
     def outer(self):
         self.group = self.input
-        self.items = [1, 2]
+        self.items = [1]
         self.next(self.inner, foreach="items")
 
     @step

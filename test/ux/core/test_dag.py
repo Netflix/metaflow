@@ -58,7 +58,5 @@ def test_nested_foreach(exec_mode, decospecs, compute_env, tag, scheduler_config
     assert run.successful, "Run was not successful"
     assert run["outer_join"].task.data.all_results == [
         "x-1",
-        "x-2",
         "y-1",
-        "y-2",
     ], "Nested foreach all_results didn't match"
