@@ -232,6 +232,38 @@ jobs:
             exit 1
           fi
 
+      - name: Verify sfn-local DynamoDB integration (sfn-batch only)
+        if: matrix.backend == 'sfn-batch'
+        run: |
+          # Test that sfn-local can call ddb-local and apply ResultPath.
+          # If this fails, foreach deployer tests will fail too.
+          SFN_URL="http://localhost:8082"
+          DDB_URL="http://localhost:8765"
+          echo "=== Inserting test item into ddb-local ==="
+          AWS_ACCESS_KEY_ID=test AWS_SECRET_ACCESS_KEY=test AWS_DEFAULT_REGION=us-east-1 \
+            aws dynamodb put-item --table-name metaflow-sfn \
+              --item '{"pathspec":{"S":"ci-ddb-test"},"for_each_cardinality":{"NS":["0","1","2"]}}' \
+              --endpoint-url "${DDB_URL}" 2>&1
+          echo "=== Creating test state machine with DynamoDB getItem + ResultPath ==="
+          curl -s "${SFN_URL}" -X POST \
+            -H "X-Amz-Target: AWSStepFunctions.CreateStateMachine" \
+            -H "Content-Type: application/x-amz-json-1.0" \
+            -d "{\"name\":\"ddb-resultpath-test\",\"definition\":\"{\\\"StartAt\\\":\\\"GetItem\\\",\\\"States\\\":{\\\"GetItem\\\":{\\\"Type\\\":\\\"Task\\\",\\\"Resource\\\":\\\"arn:aws:states:::dynamodb:getItem\\\",\\\"Parameters\\\":{\\\"TableName\\\":\\\"metaflow-sfn\\\",\\\"Key\\\":{\\\"pathspec\\\":{\\\"S\\\":\\\"ci-ddb-test\\\"}},\\\"ConsistentRead\\\":true},\\\"ResultPath\\\":\\\"\\$.Result\\\",\\\"End\\\":true}}}\",\"roleArn\":\"arn:aws:iam::123456789012:role/test\"}" | python3 -m json.tool | head -3
+          EXEC=$(curl -s "${SFN_URL}" -X POST \
+            -H "X-Amz-Target: AWSStepFunctions.StartExecution" \
+            -H "Content-Type: application/x-amz-json-1.0" \
+            -d '{"stateMachineArn":"arn:aws:states:us-east-1:123456789012:stateMachine:ddb-resultpath-test","input":"{\"initial\":\"value\"}"}' \
+            | python3 -c "import sys,json; print(json.load(sys.stdin).get('executionArn','ERROR'))")
+          echo "Execution: ${EXEC}"
+          sleep 5
+          OUT=$(curl -s "${SFN_URL}" -X POST \
+            -H "X-Amz-Target: AWSStepFunctions.DescribeExecution" \
+            -H "Content-Type: application/x-amz-json-1.0" \
+            -d "{\"executionArn\":\"${EXEC}\"}" \
+            | python3 -c "import sys,json; d=json.load(sys.stdin); print(d['status'], '|', d.get('output','<no output>')[:200])")
+          echo "DDB ResultPath test: ${OUT}"
+          echo "${OUT}" | grep -q "Result" && echo "✓ DynamoDB ResultPath WORKS" || echo "✗ DynamoDB ResultPath BROKEN - foreach deployer tests will fail"
+
       - name: Run UX tests — ${{ matrix.backend }}
         run: |
           AWS_SHARED_CREDENTIALS_FILE="" \

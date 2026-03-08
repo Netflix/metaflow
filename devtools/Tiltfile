@@ -694,7 +694,7 @@ if "metadata-service" in enabled_components:
             'resources.requests.cpu=25m',
             'resources.requests.memory=256Mi',
             'resources.limits.cpu=200m',
-            'resources.limits.memory=512Mi'
+            'resources.limits.memory=1Gi'
         ]
     )
 
