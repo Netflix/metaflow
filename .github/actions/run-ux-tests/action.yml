@@ -40,6 +40,12 @@ inputs:
       Defaults to empty (artifact name = "coverage-<job>").
     required: false
     default: ""
+  conda:
+    description: >
+      Set to "true" to install Miniconda and run @conda-marked tests.
+      When "false" (default), @conda tests are excluded via -m "not conda".
+    required: false
+    default: "false"
 
 runs:
   using: composite
@@ -56,6 +62,13 @@ runs:
       env:
         UX_TEST_CONFIG: ${{ inputs.ux-test-config }}
       run: printf '%s' "$UX_TEST_CONFIG" > _metaflow_src/test/ux/ux_test_config.yaml
+
+    - name: Install Miniconda
+      if: ${{ inputs.conda == 'true' }}
+      uses: conda-incubator/setup-miniconda@v3
+      with:
+        auto-activate-base: true
+        activate-environment: ""
 
     - name: Install metaflow and test dependencies
       shell: bash
@@ -81,9 +94,15 @@ runs:
           | sed "s|^|$GITHUB_WORKSPACE/_metaflow_src/test/ux/core/|" \
           | tr '\n' ' ')
 
+        if [ "${{ inputs.conda }}" = "true" ]; then
+          mark_filter=""
+        else
+          mark_filter='-m "not conda"'
+        fi
+
         pytest_cmd=(
           python -m pytest $files
-          -m "not conda"
+          $mark_filter
           ${{ inputs.pytest-args }}
           --cov=metaflow
           --cov-report=xml:coverage.xml
