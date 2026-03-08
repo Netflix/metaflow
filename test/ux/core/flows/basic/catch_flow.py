@@ -12,8 +12,11 @@ class CatchFlow(FlowSpec):
     @catch(var="error")
     @step
     def failing(self):
-        raise ValueError("Intentional error for @catch test")
-        self.next(self.end)  # noqa: unreachable — required by Metaflow validator
+        # Wrap in a condition so self.next() is always reachable for the graph
+        # validator, regardless of which version of Metaflow is installed.
+        if True:
+            raise ValueError("Intentional error for @catch test")
+        self.next(self.end)
 
     @step
     def end(self):
