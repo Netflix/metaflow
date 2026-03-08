@@ -20,7 +20,7 @@ inputs:
     required: true
   pytest-args:
     description: Additional arguments passed verbatim to pytest
-    default: "-n 4 -v --tb=short --timeout=1800 --cov-fail-under=0"
+    default: "-n 4 -v --tb=short --timeout=120 --cov-fail-under=0"
   test-files:
     description: Space-separated test file names (relative to test/ux/core/)
     default: "test_basic.py test_config.py test_dag.py"
