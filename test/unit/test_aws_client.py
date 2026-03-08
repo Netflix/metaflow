@@ -69,8 +69,13 @@ def test_sandbox_sts_connect_timeout_fails_fast(monkeypatch):
     msg = str(exc.value)
     assert endpoint in msg
     assert "Timed out while fetching AWS sandbox STS credentials" in msg
-    assert "connect timeout=3s" in msg
-    assert "read timeout=5s" in msg
+    from metaflow.metaflow_config import (
+        AWS_SANDBOX_STS_CONNECT_TIMEOUT,
+        AWS_SANDBOX_STS_READ_TIMEOUT,
+    )
+
+    assert f"connect timeout={AWS_SANDBOX_STS_CONNECT_TIMEOUT}s" in msg
+    assert f"read timeout={AWS_SANDBOX_STS_READ_TIMEOUT}s" in msg
 
 
 def test_sandbox_sts_read_timeout_fails_fast(monkeypatch):
