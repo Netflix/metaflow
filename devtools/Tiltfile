@@ -910,38 +910,28 @@ if "sfn-local" in enabled_components:
     # sfn-local pod to reach it.
     #
     # On macOS (OrbStack): host.docker.internal resolves correctly in k8s pods
-    # via OrbStack's networking, so we use --batch-endpoint http://host.docker.internal:8000.
+    # via OrbStack's networking. Use --batch-endpoint http://host.docker.internal:8000.
     #
-    # On Linux (minikube Docker driver): kube-proxy runs on the minikube node
-    # (the Docker container), which HAS a route to the host via the Docker bridge
-    # gateway.  We create a k8s Service+Endpoints pointing to the host IP so
-    # kube-proxy handles the NAT — more reliable than socat (which had iptables
-    # issues with binding to the bridge IP from the GHA host).
+    # On Linux (minikube Docker driver): k8s pods run nested inside the minikube
+    # container. The host is at 172.17.0.1 (Docker bridge), but connections from
+    # pods to 172.17.0.1:8000 are blocked (iptables/routing issues between nested
+    # k8s pods and the host bridge).
+    #
+    # Solution: run sfn-local with hostNetwork:true so it uses the MINIKUBE NODE's
+    # network namespace directly (instead of the pod network). The minikube node IS
+    # the Docker container on the bridge, so it has a direct route to 172.17.0.1.
+    # sfn-local then connects to the Docker bridge gateway IP directly.
     _is_linux = str(local("uname -s", quiet=True)).strip() == "Linux"
     if _is_linux:
         _docker_gw = str(local(
             "docker network inspect bridge --format '{{range .IPAM.Config}}{{.Gateway}}{{end}}'",
             quiet=True,
         )).strip() or "172.17.0.1"
-        # k8s Endpoints: allows sfn-local pod to reach localbatch via k8s DNS.
-        # kube-proxy on the minikube node routes ClusterIP → _docker_gw:8000.
-        k8s_yaml(encode_yaml({
-            'apiVersion': 'v1',
-            'kind': 'Endpoints',
-            'metadata': {'name': 'localbatch-host'},
-            'subsets': [{'addresses': [{'ip': _docker_gw}], 'ports': [{'port': 8000}]}],
-        }))
-        k8s_yaml(encode_yaml({
-            'apiVersion': 'v1',
-            'kind': 'Service',
-            'metadata': {'name': 'localbatch-host'},
-            'spec': {
-                'ports': [{'port': 8000, 'targetPort': 8000}],
-            },
-        }))
-        _batch_endpoint = 'http://localbatch-host:8000'
+        _sfn_host_network = True
+        _batch_endpoint = 'http://' + _docker_gw + ':8000'
     else:
-        # macOS: OrbStack routes host.docker.internal directly into the pod.
+        # macOS: OrbStack routes host.docker.internal from k8s pods correctly.
+        _sfn_host_network = False
         _batch_endpoint = 'http://host.docker.internal:8000'
 
     k8s_yaml(encode_yaml({
@@ -954,6 +944,8 @@ if "sfn-local" in enabled_components:
             'template': {
                 'metadata': {'labels': {'app': 'sfn-local'}},
                 'spec': {
+                    'hostNetwork': _sfn_host_network,
+                    'dnsPolicy': 'ClusterFirstWithHostNet' if _sfn_host_network else 'ClusterFirst',
                     'containers': [{
                         'name': 'sfn-local',
                         'image': 'amazon/aws-stepfunctions-local:latest',
