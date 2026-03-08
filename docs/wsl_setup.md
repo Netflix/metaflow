@@ -1,6 +1,6 @@
 # Running Metaflow on Windows using WSL
 
-This guide explains how to run Metaflow on Windows using Windows Subsystem for Linux (WSL).
+This guide explains how to install and run Metaflow on Windows using Windows Subsystem for Linux (WSL).
 
 ## 1. Install WSL
 
@@ -34,8 +34,28 @@ pip install metaflow
 
 ## 6. Run a Simple Flow
 
-Create a file called hello_flow.py and run:
+Create a file called hello.py with the following content:
 
-python hello_flow.py run
+from metaflow import FlowSpec, step
 
-If everything works, Metaflow should execute the flow successfully.
+class HelloFlow(FlowSpec):
+
+    @step
+    def start(self):
+        print("Hello from Metaflow!")
+        self.next(self.end)
+
+    @step
+    def end(self):
+        print("Flow complete.")
+
+if __name__ == "__main__":
+    HelloFlow()
+
+Then run:
+
+python hello.py run
+
+If everything works, Metaflow should execute the flow successfully and you should get an output similar to:
+Hello from Metaflow!
+Flow complete.
