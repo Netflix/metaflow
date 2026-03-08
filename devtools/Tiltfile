@@ -912,8 +912,7 @@ if "sfn-local" in enabled_components:
     _is_linux = str(local("uname -s", quiet=True)).strip() == "Linux"
     if _is_linux:
         _docker_gw = str(local(
-            "docker network inspect bridge"
-            " --format '{{range .IPAM.Config}}{{.Gateway}}{{end}}'",
+            "docker network inspect bridge --format '{{range .IPAM.Config}}{{.Gateway}}{{end}}'",
             quiet=True,
         )).strip()
         _sfn_host_aliases = [{'ip': _docker_gw or "172.17.0.1", 'hostnames': ['host.docker.internal']}]
