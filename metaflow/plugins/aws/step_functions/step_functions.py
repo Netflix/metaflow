@@ -1134,7 +1134,6 @@ class State(object):
                 "IntervalSeconds": 2,
                 "MaxDelaySeconds": 60,
                 "MaxAttempts": 10,
-                "JitterStrategy": "FULL",
             }
         )
         return self
