@@ -1,0 +1,156 @@
+name: Kubernetes + Argo Workflows CI
+
+on:
+  pull_request:
+    paths:
+      - 'metaflow/plugins/kubernetes/**'
+      - 'metaflow/plugins/argo/**'
+      - 'test/**'
+      - '.github/workflows/k8s-argo-ci.yml'
+  push:
+    branches:
+      - master
+  workflow_dispatch:  # allows manual trigger
+
+env:
+  ARGO_VERSION: "v3.5.5"
+  KIND_VERSION: "v0.22.0"
+  KUBECTL_VERSION: "v1.29.0"
+
+jobs:
+  k8s-argo-test:
+    name: "K8s + Argo CI (Python ${{ matrix.python-version }})"
+    runs-on: ubuntu-latest
+
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.9", "3.10", "3.11"]
+
+    steps:
+      # ── 1. Checkout ──────────────────────────────────────────────────────────
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # ── 2. Python setup ──────────────────────────────────────────────────────
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: 'pip'
+
+      - name: Install Metaflow and dependencies
+        run: |
+          pip install --upgrade pip
+          pip install .
+          pip install pytest
+
+      # ── 3. Tool installs ─────────────────────────────────────────────────────
+      - name: Install kubectl
+        run: |
+          curl -LO "https://dl.k8s.io/release/${{ env.KUBECTL_VERSION }}/bin/linux/amd64/kubectl"
+          chmod +x kubectl
+          sudo mv kubectl /usr/local/bin/kubectl
+          kubectl version --client
+
+      - name: Install KIND
+        run: |
+          curl -Lo ./kind "https://kind.sigs.k8s.io/dl/${{ env.KIND_VERSION }}/kind-linux-amd64"
+          chmod +x ./kind
+          sudo mv ./kind /usr/local/bin/kind
+          kind version
+
+      - name: Install Argo CLI
+        run: |
+          curl -sLO "https://github.com/argoproj/argo-workflows/releases/download/${{ env.ARGO_VERSION }}/argo-linux-amd64.gz"
+          gunzip argo-linux-amd64.gz
+          chmod +x argo-linux-amd64
+          sudo mv argo-linux-amd64 /usr/local/bin/argo
+          argo version
+
+      # ── 4. Spin up KIND cluster ───────────────────────────────────────────────
+      - name: Create KIND cluster
+        run: |
+          kind create cluster \
+            --name metaflow-ci \
+            --config scripts/kind-config.yaml \
+            --wait 120s
+          kubectl cluster-info --context kind-metaflow-ci
+          kubectl get nodes
+
+      # ── 5. Deploy Argo Workflows ─────────────────────────────────────────────
+      - name: Deploy Argo Workflows
+        run: |
+          kubectl create namespace argo
+          kubectl apply -n argo \
+            -f https://github.com/argoproj/argo-workflows/releases/download/${{ env.ARGO_VERSION }}/install.yaml
+
+          # Patch server auth for CI (no-auth mode)
+          kubectl patch deployment argo-server \
+            -n argo \
+            --type='json' \
+            -p='[{"op":"replace","path":"/spec/template/spec/containers/0/args","value":["server","--auth-mode=server"]}]'
+
+          # Wait until Argo is ready
+          kubectl rollout status deployment/argo-server -n argo --timeout=120s
+          kubectl rollout status deployment/workflow-controller -n argo --timeout=120s
+          echo "✅ Argo Workflows is ready"
+
+      # ── 6. Configure Metaflow for local K8s ──────────────────────────────────
+      - name: Configure Metaflow
+        run: |
+          mkdir -p ~/.metaflowconfig
+          cat > ~/.metaflowconfig/config.json << 'EOF'
+          {
+            "METAFLOW_DEFAULT_DATASTORE": "local",
+            "METAFLOW_DEFAULT_METADATA": "local",
+            "METAFLOW_KUBERNETES_NAMESPACE": "default",
+            "METAFLOW_ARGO_WORKFLOWS_NAMESPACE": "argo"
+          }
+          EOF
+          echo "✅ Metaflow config written"
+
+      # ── 7. Run test flows ─────────────────────────────────────────────────────
+      - name: Run LinearFlow with --with kubernetes
+        run: |
+          cd test_flows
+          python linear_flow.py --environment=local run --with kubernetes
+        timeout-minutes: 10
+
+      - name: Run BranchFlow with --with kubernetes
+        run: |
+          cd test_flows
+          python branch_flow.py --environment=local run --with kubernetes
+        timeout-minutes: 10
+
+      - name: Run ForeachFlow with --with kubernetes
+        run: |
+          cd test_flows
+          python foreach_flow.py --environment=local run --with kubernetes
+        timeout-minutes: 10
+
+      # ── 8. Collect logs & artifacts ───────────────────────────────────────────
+      - name: Collect Argo logs on failure
+        if: failure()
+        run: |
+          echo "=== Argo Workflows ==="
+          argo list -n argo || true
+          echo "=== Argo Pods ==="
+          kubectl get pods -n argo || true
+          echo "=== Recent Argo Events ==="
+          kubectl get events -n argo --sort-by='.lastTimestamp' | tail -30 || true
+
+      - name: Upload test logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-logs-py${{ matrix.python-version }}
+          path: |
+            ~/.metaflow/
+            /tmp/metaflow-logs/
+          retention-days: 7
+
+      # ── 9. Teardown ───────────────────────────────────────────────────────────
+      - name: Delete KIND cluster
+        if: always()
+        run: kind delete cluster --name metaflow-ci

@@ -1,0 +1,21 @@
+kind: Cluster
+apiVersion: kind.x-k8s.io/v1alpha4
+
+# Single control-plane node is enough for CI
+nodes:
+  - role: control-plane
+    # Give it enough resources to run Argo + Metaflow pods
+    kubeadmConfigPatches:
+      - |
+        kind: InitConfiguration
+        nodeRegistration:
+          kubeletExtraArgs:
+            node-labels: "ingress-ready=true"
+    extraPortMappings:
+      - containerPort: 2746   # Argo Server UI (optional, useful for debugging)
+        hostPort: 2746
+        protocol: TCP
+
+# Use containerd image cache to speed up re-runs
+featureGates:
+  "EphemeralContainers": true
