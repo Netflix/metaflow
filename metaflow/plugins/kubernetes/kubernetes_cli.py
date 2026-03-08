@@ -17,11 +17,8 @@ from metaflow.metaflow_config import DATASTORE_LOCAL_DIR
 from metaflow.mflog import TASK_LOG_SOURCE
 from metaflow.unbounded_foreach import UBF_CONTROL, UBF_TASK
 
-from .kubernetes import (
-    Kubernetes,
-    KubernetesException,
-    KubernetesKilledException,
-)
+from .kubernetes import Kubernetes
+from .exceptions import KubernetesException, KubernetesKilledException
 
 
 @click.group()

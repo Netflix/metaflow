@@ -39,7 +39,7 @@ from metaflow.sidecar import Sidecar
 from metaflow.unbounded_foreach import UBF_CONTROL
 
 from ..aws.aws_utils import get_docker_registry, get_ec2_instance_metadata
-from .kubernetes import KubernetesException
+from .exceptions import KubernetesException
 from .kube_utils import validate_kube_labels, parse_kube_keyvalue_list
 
 try:
