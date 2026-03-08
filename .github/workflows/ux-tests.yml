@@ -32,10 +32,10 @@ jobs:
             workers: 4
           - backend: argo-kubernetes
             services: "minio,postgresql,metadata-service,argo-workflows"
-            workers: 4
+            workers: 2
           - backend: airflow-kubernetes
             services: "minio,postgresql,metadata-service,airflow"
-            workers: 4
+            workers: 2
           - backend: sfn-batch
             services: "minio,postgresql,metadata-service,localbatch,ddb-local,sfn-local"
             workers: 4
@@ -231,6 +231,15 @@ jobs:
             echo "Airflow REST API did not become ready in time (last status: $status)"
             exit 1
           fi
+
+      - name: Clean up completed pods (argo/airflow only)
+        if: matrix.backend == 'argo-kubernetes' || matrix.backend == 'airflow-kubernetes'
+        run: |
+          # Delete Completed/Failed pods to prevent etcd/memory bloat during the test run.
+          # Argo and Airflow create many k8s pods; without cleanup the cluster
+          # runs out of memory after ~20 minutes.
+          kubectl delete pods --field-selector=status.phase=Succeeded --all-namespaces 2>/dev/null || true
+          kubectl delete pods --field-selector=status.phase=Failed --all-namespaces 2>/dev/null || true
 
       - name: Run UX tests — ${{ matrix.backend }}
         run: |

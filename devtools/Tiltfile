@@ -297,6 +297,12 @@ if "argo-workflows" in enabled_components:
             'controller.resources.limits.cpu=100m',
             # Image version overrides
             'images.tag=%s' % ARGO_WORKFLOWS_IMAGE_TAG,
+            # Auto-delete completed/failed workflows after 30s to prevent
+            # pod accumulation and etcd memory bloat during long test runs.
+            'controller.workflowDefaults.spec.ttlStrategy.secondsAfterCompletion=30',
+            'controller.workflowDefaults.spec.ttlStrategy.secondsAfterSuccess=30',
+            'controller.workflowDefaults.spec.ttlStrategy.secondsAfterFailure=60',
+            'controller.workflowDefaults.spec.podGC.strategy=OnWorkflowSuccess',
         ]
     )
 
