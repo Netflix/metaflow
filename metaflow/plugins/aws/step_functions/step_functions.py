@@ -373,6 +373,13 @@ class StepFunctions(object):
                             self.graph[n], Workflow(n).start_at(n), node.matching_join
                         )
                     )
+                # Add a ResultSelector that converts the Parallel output array into
+                # a named dict keyed by branch step name.  This avoids array indexing
+                # ($[n].x) in downstream states, which is not supported by
+                # sfn-local v2.0.0.  Instead, branches are accessed as $.step_name.x.
+                branch.result_selector(
+                    {"%s.$" % n: "$[%d]" % i for i, n in enumerate(node.out_funcs)}
+                )
                 workflow.add_state(branch)
                 # Continue the traversal from the matching_join.
                 _visit(self.graph[node.matching_join], workflow, exit_node)
@@ -699,13 +706,18 @@ class StepFunctions(object):
                         "${METAFLOW_PARENT_%s_TASK_ID}" % (idx, idx)
                         for idx, _ in enumerate(node.in_funcs)
                     )
-                    # Inherit the run id from the parent and pass it along to children.
-                    attrs["metaflow.run_id.$"] = "$[0].Parameters['metaflow.run_id']"
-                    for idx, _ in enumerate(node.in_funcs):
-                        env["METAFLOW_PARENT_%s_TASK_ID" % idx] = "$[%s].JobId" % idx
-                        env["METAFLOW_PARENT_%s_STEP" % idx] = (
-                            "$[%s].Parameters.step_name" % idx
+                    # Use the context object reference for the run id.  The Parallel
+                    # state's ResultSelector transforms the output array to a named
+                    # dict ($.step_name.x), so branch outputs are accessed via the
+                    # step name rather than $[n].x array indexing (unsupported by
+                    # sfn-local v2.0.0).
+                    attrs["metaflow.run_id.$"] = "$$.Execution.Name"
+                    for idx, branch_name in enumerate(node.in_funcs):
+                        env["METAFLOW_PARENT_%s_TASK_ID" % idx] = (
+                            "$.%s.JobId" % branch_name
                         )
+                        # Step name is known at compile time (it's the branch name).
+                        env["METAFLOW_PARENT_%s_STEP" % idx] = branch_name
             env["METAFLOW_INPUT_PATHS"] = input_paths
 
             if node.is_inside_foreach:
@@ -1191,6 +1203,10 @@ class Parallel(object):
 
     def result_path(self, result_path):
         self.payload["ResultPath"] = result_path
+        return self
+
+    def result_selector(self, selector):
+        self.payload["ResultSelector"] = selector
         return self
 
 
