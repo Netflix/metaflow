@@ -56,8 +56,17 @@ class Boto3ClientProvider(object):
                 # authenticate using STS
                 url = "%s/auth/token" % AWS_SANDBOX_STS_ENDPOINT_URL
                 headers = {"x-api-key": AWS_SANDBOX_API_KEY}
-                connect_timeout = 3
-                read_timeout = 5
+from metaflow.metaflow_config import (
+    AWS_SANDBOX_ENABLED,
+    AWS_SANDBOX_STS_ENDPOINT_URL,
+    AWS_SANDBOX_API_KEY,
+    S3_CLIENT_RETRY_CONFIG,
+    AWS_SANDBOX_STS_CONNECT_TIMEOUT,
+    AWS_SANDBOX_STS_READ_TIMEOUT,
+)
+...
+connect_timeout = AWS_SANDBOX_STS_CONNECT_TIMEOUT
+read_timeout = AWS_SANDBOX_STS_READ_TIMEOUT
                 try:
                     r = requests.get(
                         url, headers=headers, timeout=(connect_timeout, read_timeout)
