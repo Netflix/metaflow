@@ -1,53 +1,8 @@
-######################################
-# UX Pytest Configuration (OSS)
-######################################
-
-# List of backends to test against.
-# Each entry defines one (orchestrator, compute) combination.
-# Tests are parametrized over all enabled backends automatically.
-#
-# Fields per backend:
-#   name           - human-readable label shown in pytest output
-#   scheduler_type - null (runner-only), argo-workflows, step-functions, airflow
-#   cluster        - k8s namespace (Argo) or null
-#   decospec        - decorator spec string injected into every run, e.g.
-#                    "kubernetes:image=my/image:latest" or "batch:image=..."
-#                    null = local execution
-#   enabled        - set to false to skip this backend without deleting the entry
-
 backends:
-  - name: local
-    scheduler_type: null
+  - name: temporal
+    scheduler_type: temporal
     cluster: null
     decospec: null
-    enabled: true
-
-  # Argo Workflows + Kubernetes (devstack: minikube + argo-workflows)
-  # Uses a pre-baked image with boto3/requests to skip pip install in every pod.
-  # Build it once: docker build -t metaflow-test:python3.9 devtools/docker/metaflow-test/
-  - name: argo-kubernetes
-    scheduler_type: argo-workflows
-    cluster: default
-    decospec: "kubernetes:image=metaflow-test:python3.9,image_pull_policy=Never"
-    enabled: true
-
-  # AWS Step Functions Local + Batch/corral (devstack: sfn-local + corral)
-  # Uses a pre-baked image with boto3/requests to skip pip install in every container.
-  # Build it once: docker build -t metaflow-test:python3.9 devtools/docker/metaflow-test/
-  - name: sfn-batch
-    scheduler_type: step-functions
-    cluster: null
-    decospec: "batch:image=metaflow-test:python3.9"
-    enabled: true
-
-  # Apache Airflow + Kubernetes (devstack: minikube + airflow helm chart)
-  # Uses a pre-baked image with boto3/requests to skip pip install in every pod.
-  # Build it once: docker build -t metaflow-test:python3.9 devtools/docker/metaflow-test/
-  - name: airflow-kubernetes
-    scheduler_type: airflow
-    cluster: default
-    # image_pull_policy is not supported by the Airflow deployer; omit it.
-    # The image tag (python3.9) is non-latest so Kubernetes defaults to
-    # IfNotPresent, which works fine since the image is pre-loaded into minikube.
-    decospec: "kubernetes:image=metaflow-test:python3.9"
+    deploy_args:
+      temporal_host: "localhost:7233"
     enabled: true
