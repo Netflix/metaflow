@@ -1,7 +1,7 @@
 import os
 import sys
 
-from metaflow import FlowSpec, step, conda, conda_base, pypi, project
+from metaflow import FlowSpec, step, conda, conda_base, project
 from metaflow.client.core import Run
 
 
@@ -39,8 +39,7 @@ class HelloCondaFlow(FlowSpec):
         print("Python: %s; library: %s" % (sys.executable, regex.__file__))
         self.next(self.join)
 
-    @conda(libraries={"regex": "2024.11.6"})
-    @pypi(packages={"itsdangerous": "2.2.0"})
+    @conda(libraries={"regex": "2024.11.6", "itsdangerous": "2.2.0"})
     @step
     def combo(self):
         import regex
