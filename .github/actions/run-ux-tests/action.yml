@@ -36,8 +36,8 @@ inputs:
   coverage-artifact-suffix:
     description: >
       Suffix appended to the coverage artifact name to make it unique when
-      called from a matrix job (e.g. "${{ matrix.test }}").  Defaults to
-      empty (artifact name = "coverage-<job>").
+      called from a matrix job. Pass the matrix key (e.g. matrix.test) here.
+      Defaults to empty (artifact name = "coverage-<job>").
     required: false
     default: ""
 
