@@ -81,6 +81,75 @@ def test_from_deployment(exec_mode, decospecs, compute_env, tag, scheduler_confi
     verify_run_provenance(run2, decospecs)
 
 
+def test_retry(exec_mode, decospecs, compute_env, tag, scheduler_config):
+    """Verify @retry retries a failing step and succeeds on the second attempt."""
+    run = execute_test_flow(
+        flow_name="basic/retry_flow.py",
+        exec_mode=exec_mode,
+        decospecs=decospecs,
+        tag=tag,
+        scheduler_config=scheduler_config,
+        test_name="retry",
+        tl_args_extra={"env": compute_env},
+    )
+
+    assert run.successful, "Run was not successful"
+    assert run["flaky"].task.data.attempts == 1, "Expected success on retry attempt 1"
+
+
+def test_resources(exec_mode, decospecs, compute_env, tag, scheduler_config):
+    """Verify @resources decorator does not break execution across backends."""
+    run = execute_test_flow(
+        flow_name="basic/resources_flow.py",
+        exec_mode=exec_mode,
+        decospecs=decospecs,
+        tag=tag,
+        scheduler_config=scheduler_config,
+        test_name="resources",
+        tl_args_extra={"env": compute_env},
+    )
+
+    assert run.successful, "Run was not successful"
+    assert run["join"].task.data.labels == [
+        "medium",
+        "small",
+    ], "Resource branch labels didn't match"
+
+
+def test_catch(exec_mode, decospecs, compute_env, tag, scheduler_config):
+    """Verify @catch stores the exception and allows the flow to continue."""
+    run = execute_test_flow(
+        flow_name="basic/catch_flow.py",
+        exec_mode=exec_mode,
+        decospecs=decospecs,
+        tag=tag,
+        scheduler_config=scheduler_config,
+        test_name="catch",
+        tl_args_extra={"env": compute_env},
+    )
+
+    assert run.successful, "Run was not successful"
+    assert (
+        run["failing"].task.data.error is not None
+    ), "@catch did not store the exception"
+
+
+def test_timeout(exec_mode, decospecs, compute_env, tag, scheduler_config):
+    """Verify @timeout decorator does not break normal execution."""
+    run = execute_test_flow(
+        flow_name="basic/timeout_flow.py",
+        exec_mode=exec_mode,
+        decospecs=decospecs,
+        tag=tag,
+        scheduler_config=scheduler_config,
+        test_name="timeout",
+        tl_args_extra={"env": compute_env},
+    )
+
+    assert run.successful, "Run was not successful"
+    assert run["work"].task.data.done is True, "Timeout step did not complete"
+
+
 @pytest.mark.conda
 def test_hello_conda(exec_mode, decospecs, compute_env, tag, scheduler_config):
     run = execute_test_flow(
