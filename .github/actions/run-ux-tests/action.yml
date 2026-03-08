@@ -97,14 +97,14 @@ runs:
           | tr '\n' ' ')
 
         if [ "${{ inputs.conda }}" = "true" ]; then
-          mark_filter=""
+          mark_args=()
         else
-          mark_filter='-m "not conda"'
+          mark_args=(-m "not conda")
         fi
 
         pytest_cmd=(
           python -m pytest $files
-          $mark_filter
+          "${mark_args[@]}"
           ${{ inputs.pytest-args }}
           --cov=metaflow
           --cov-report=xml:coverage.xml
