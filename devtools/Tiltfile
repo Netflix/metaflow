@@ -937,12 +937,27 @@ if "sfn-local" in enabled_components:
         # minikube uses its own 192.168.49.0/24 network (not the Docker bridge 172.17.0.0/16).
         # The GHA host is the gateway of the minikube Docker network, reachable at
         # the network's gateway IP (typically 192.168.49.1).
+        # Use a k8s Service+Endpoints pointing to this IP so sfn-local can reach
+        # localbatch via kube-proxy WITHOUT needing hostNetwork:true.
+        # (hostNetwork caused sfn-local DynamoDB ResultPath to silently fail.)
         _minikube_gw = str(local(
             "docker network inspect minikube --format '{{range .IPAM.Config}}{{.Gateway}}{{end}}'",
             quiet=True,
         )).strip() or "192.168.49.1"
-        _sfn_host_network = True
-        _batch_endpoint = 'http://' + _minikube_gw + ':8000'
+        _sfn_host_network = False
+        _batch_endpoint = 'http://localbatch-host:8000'
+        # Expose localbatch (on host at _minikube_gw:8000) as a k8s Service so
+        # sfn-local can reach it via cluster DNS without hostNetwork.
+        k8s_yaml(encode_yaml({
+            'apiVersion': 'v1', 'kind': 'Endpoints',
+            'metadata': {'name': 'localbatch-host'},
+            'subsets': [{'addresses': [{'ip': _minikube_gw}], 'ports': [{'port': 8000}]}],
+        }))
+        k8s_yaml(encode_yaml({
+            'apiVersion': 'v1', 'kind': 'Service',
+            'metadata': {'name': 'localbatch-host'},
+            'spec': {'ports': [{'port': 8000, 'targetPort': 8000}]},
+        }))
     else:
         # macOS: OrbStack routes host.docker.internal from k8s pods correctly.
         _sfn_host_network = False
