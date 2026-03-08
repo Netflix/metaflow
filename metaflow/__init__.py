@@ -165,6 +165,11 @@ if sys.version_info >= (3, 7):
     from .runner.deployer import Deployer
     from .runner.deployer import DeployedFlow
     from .runner.nbdeploy import NBDeployer
+    # Jupyter magic commands (%mf_show); IPython is an optional dependency.
+    try:
+        from .plugins.jupyter import mf_magics as _mf_magics  # noqa: F401
+    except ImportError:
+        pass
 
 __ext_tl_modules__ = []
 _ext_debug("Loading top-level modules")
