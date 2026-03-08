@@ -906,9 +906,15 @@ if "sfn-local" in enabled_components:
     ddb_svc_url = "http://ddb-local:8000"
 
     # On Linux (CI), k8s pods do not automatically resolve host.docker.internal
-    # (Docker Desktop adds it on macOS, but not on Linux).  Inject a hostAliases
-    # entry pointing host.docker.internal at the Docker bridge gateway so that
-    # sfn-local can reach localbatch (which listens on 0.0.0.0:8000 on the host).
+    # (Docker Desktop/OrbStack adds it on macOS, but not on Linux k8s pods).
+    # Inject a hostAliases entry pointing host.docker.internal at the Docker
+    # bridge gateway.
+    #
+    # On Linux, localbatch binds 0.0.0.0:8000 but that's not reliably reachable
+    # from minikube k8s pods via 172.17.0.1 (iptables blocking).  CI uses socat
+    # to re-expose localbatch on port 8001 bound to 172.17.0.1, so sfn-local
+    # uses port 8001 on Linux.  On macOS, OrbStack routes host.docker.internal
+    # to the host correctly, so port 8000 works directly.
     _is_linux = str(local("uname -s", quiet=True)).strip() == "Linux"
     if _is_linux:
         _docker_gw = str(local(
@@ -916,8 +922,10 @@ if "sfn-local" in enabled_components:
             quiet=True,
         )).strip()
         _sfn_host_aliases = [{'ip': _docker_gw or "172.17.0.1", 'hostnames': ['host.docker.internal']}]
+        _batch_port = "8001"
     else:
         _sfn_host_aliases = []
+        _batch_port = "8000"
 
     k8s_yaml(encode_yaml({
         'apiVersion': 'apps/v1',
@@ -938,7 +946,7 @@ if "sfn-local" in enabled_components:
                         # --dynamodb-endpoint CLI args because SFN Local uses the AWS SDK v1
                         # Java client, which doesn't read AWS_ENDPOINT_URL_* env vars.
                         'args': ['-jar', 'StepFunctionsLocal.jar',
-                                 '--batch-endpoint', 'http://host.docker.internal:8001',
+                                 '--batch-endpoint', 'http://host.docker.internal:' + _batch_port,
                                  '--dynamodb-endpoint', ddb_svc_url],
                         'env': [
                             {'name': 'AWS_DEFAULT_REGION',       'value': 'us-east-1'},
