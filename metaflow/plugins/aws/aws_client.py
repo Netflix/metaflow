@@ -64,7 +64,6 @@ from metaflow.metaflow_config import (
     AWS_SANDBOX_STS_CONNECT_TIMEOUT,
     AWS_SANDBOX_STS_READ_TIMEOUT,
 )
-...
 connect_timeout = AWS_SANDBOX_STS_CONNECT_TIMEOUT
 read_timeout = AWS_SANDBOX_STS_READ_TIMEOUT
                 try:
