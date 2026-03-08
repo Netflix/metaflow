@@ -164,24 +164,26 @@ jobs:
         if: matrix.backend == 'sfn-batch'
         run: |
           # On Linux, kubectl port-forward binds to 127.0.0.1, not 0.0.0.0.
-          # Docker containers resolve host.docker.internal to the bridge gateway
-          # (172.17.0.1) via extra_hosts=host-gateway, but 127.0.0.1:9000 is not
-          # reachable from that IP.  Use socat to re-expose the ports on the bridge.
+          # Docker containers (launched by localbatch for Metaflow steps) resolve
+          # host.docker.internal to the bridge gateway (172.17.0.1), but
+          # 127.0.0.1:9000/8080 are not reachable from that IP.  Use socat to
+          # re-expose MinIO and the metadata service on the bridge.
+          #
+          # Note: localbatch itself listens on 0.0.0.0:8000 which already covers
+          # the bridge IP, so no socat is needed for port 8000.
+          # sfn-local (a k8s pod) resolves host.docker.internal via hostAliases
+          # injected by the Tiltfile, also pointing at the bridge gateway.
           sudo apt-get install -y -q socat
           BRIDGE=$(docker network inspect bridge \
             --format='{{range .IPAM.Config}}{{.Gateway}}{{end}}')
           echo "Docker bridge gateway: ${BRIDGE}"
-          # MinIO (S3), Metaflow metadata service, and localbatch (Batch emulator)
+          # MinIO (S3) and Metaflow metadata service
           sudo socat TCP-LISTEN:9000,fork,reuseaddr,bind="${BRIDGE}" \
             TCP:127.0.0.1:9000 &
           sudo socat TCP-LISTEN:8080,fork,reuseaddr,bind="${BRIDGE}" \
             TCP:127.0.0.1:8080 &
-          # localbatch runs on port 8000; sfn-local reaches it via
-          # host.docker.internal:8000 to validate job definitions at StartExecution.
-          sudo socat TCP-LISTEN:8000,fork,reuseaddr,bind="${BRIDGE}" \
-            TCP:127.0.0.1:8000 &
           sleep 1
-          echo "Forwarding 9000, 8080, and 8000 on ${BRIDGE} → 127.0.0.1"
+          echo "Forwarding 9000 and 8080 on ${BRIDGE} → 127.0.0.1"
 
       - name: Wait for Airflow REST API
         if: matrix.backend == 'airflow-kubernetes'
