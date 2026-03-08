@@ -190,6 +190,13 @@ jobs:
           # localbatch (port 8000 → 8001 on bridge for sfn-local pod access)
           sudo socat TCP-LISTEN:8001,fork,reuseaddr,bind="${BRIDGE}" \
             TCP:127.0.0.1:8000 &
+          sleep 2
+          echo "=== Listening sockets on 8001 ==="
+          ss -tlnp | grep 8001 || echo "NOTHING on 8001"
+          echo "=== Bridge interface ==="
+          ip addr show docker0 | grep "inet " || echo "No docker0"
+          echo "=== Test connect to 172.17.0.1:8001 ==="
+          timeout 3 bash -c "echo '' >/dev/tcp/${BRIDGE}/8001 && echo 'CONNECT OK'" 2>&1 || echo "CONNECT FAILED"
           sleep 1
           echo "Forwarding 9000, 8080, and 8001→8000 on ${BRIDGE} → 127.0.0.1"
 
