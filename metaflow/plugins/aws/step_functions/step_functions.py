@@ -346,7 +346,7 @@ class StepFunctions(object):
                 State(node.name)
                 .batch(self._batch(node))
                 .output_path(
-                    "$.['JobId', " "'Parameters', " "'Index', " "'SplitParentTaskId']"
+                    "$['JobId', " "'Parameters', " "'Index', " "'SplitParentTaskId']"
                 )
             )
             # End the (sub)workflow if we have reached the end of the flow or
@@ -467,7 +467,7 @@ class StepFunctions(object):
                             .parameter("Bucket.$", "$.Body.DestinationBucket")
                             .parameter("Key.$", "$.Body.ResultFiles.SUCCEEDED[0].Key")
                         )
-                        .output_path("$.[0]")
+                        .output_path("$[0]")
                     )
 
                 # Continue the traversal from the matching_join.
@@ -679,7 +679,7 @@ class StepFunctions(object):
                     "$.Parameters.split_parent_task_id_%s" % node.split_parents[-1]
                 )
                 # Inherit the run id from the parent and pass it along to children.
-                attrs["metaflow.run_id.$"] = "$.Parameters.['metaflow.run_id']"
+                attrs["metaflow.run_id.$"] = "$.Parameters['metaflow.run_id']"
             else:
                 # Set appropriate environment variables for runtime replacement.
                 if len(node.in_funcs) == 1:
@@ -689,7 +689,7 @@ class StepFunctions(object):
                     )
                     env["METAFLOW_PARENT_TASK_ID"] = "$.JobId"
                     # Inherit the run id from the parent and pass it along to children.
-                    attrs["metaflow.run_id.$"] = "$.Parameters.['metaflow.run_id']"
+                    attrs["metaflow.run_id.$"] = "$.Parameters['metaflow.run_id']"
                 else:
                     # Generate the input paths in a quasi-compressed format.
                     # See util.decompress_list for why this is written the way
@@ -700,11 +700,11 @@ class StepFunctions(object):
                         for idx, _ in enumerate(node.in_funcs)
                     )
                     # Inherit the run id from the parent and pass it along to children.
-                    attrs["metaflow.run_id.$"] = "$.[0].Parameters.['metaflow.run_id']"
+                    attrs["metaflow.run_id.$"] = "$[0].Parameters['metaflow.run_id']"
                     for idx, _ in enumerate(node.in_funcs):
-                        env["METAFLOW_PARENT_%s_TASK_ID" % idx] = "$.[%s].JobId" % idx
+                        env["METAFLOW_PARENT_%s_TASK_ID" % idx] = "$[%s].JobId" % idx
                         env["METAFLOW_PARENT_%s_STEP" % idx] = (
-                            "$.[%s].Parameters.step_name" % idx
+                            "$[%s].Parameters.step_name" % idx
                         )
             env["METAFLOW_INPUT_PATHS"] = input_paths
 
@@ -748,7 +748,7 @@ class StepFunctions(object):
                         for parent in node.split_parents:
                             if self.graph[parent].type == "foreach":
                                 attrs["split_parent_task_id_%s.$" % parent] = (
-                                    "$.[0].Parameters.split_parent_task_id_%s" % parent
+                                    "$[0].Parameters.split_parent_task_id_%s" % parent
                                 )
                 else:
                     for parent in node.split_parents:
