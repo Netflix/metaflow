@@ -9,6 +9,7 @@ class Boto3ClientProvider(object):
     def get_client(
         module, with_error=False, role_arn=None, session_vars=None, client_params=None
     ):
+        from metaflow.exception import MetaflowException
         from metaflow.metaflow_config import (
             AWS_SANDBOX_ENABLED,
             AWS_SANDBOX_STS_ENDPOINT_URL,
