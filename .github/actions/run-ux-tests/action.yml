@@ -33,6 +33,13 @@ inputs:
     description: Codecov upload token. Coverage upload is skipped if not provided.
     required: false
     default: ""
+  coverage-artifact-suffix:
+    description: >
+      Suffix appended to the coverage artifact name to make it unique when
+      called from a matrix job (e.g. "${{ matrix.test }}").  Defaults to
+      empty (artifact name = "coverage-<job>").
+    required: false
+    default: ""
 
 runs:
   using: composite
@@ -93,7 +100,7 @@ runs:
       if: always()
       uses: actions/upload-artifact@v4
       with:
-        name: coverage-${{ github.job }}
+        name: coverage-${{ github.job }}${{ inputs.coverage-artifact-suffix != '' && format('-{0}', inputs.coverage-artifact-suffix) || '' }}
         path: |
           .coverage
           coverage.xml
