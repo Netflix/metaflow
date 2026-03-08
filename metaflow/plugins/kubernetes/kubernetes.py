@@ -6,7 +6,6 @@ import time
 from uuid import uuid4
 
 from metaflow import current, util
-from metaflow.exception import MetaflowException
 from metaflow.metaflow_config import (
     ARGO_EVENTS_EVENT,
     ARGO_EVENTS_EVENT_BUS,
@@ -51,6 +50,7 @@ from metaflow.mflog import (
 )
 
 from .kubernetes_client import KubernetesClient
+from .exceptions import KubernetesException, KubernetesKilledException
 
 # Redirect structured logs to $PWD/.logs/
 LOGS_DIR = "$PWD/.logs"
@@ -62,14 +62,6 @@ STDERR_PATH = os.path.join(LOGS_DIR, STDERR_FILE)
 METAFLOW_PARALLEL_STEP_CLI_OPTIONS_TEMPLATE = (
     "{METAFLOW_PARALLEL_STEP_CLI_OPTIONS_TEMPLATE}"
 )
-
-
-class KubernetesException(MetaflowException):
-    headline = "Kubernetes error"
-
-
-class KubernetesKilledException(MetaflowException):
-    headline = "Kubernetes Batch job killed"
 
 
 class Kubernetes(object):

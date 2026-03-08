@@ -1,12 +1,8 @@
 import re
 from typing import Dict, List, Optional
-from metaflow.exception import CommandException, MetaflowException
+from metaflow.exception import CommandException
 from metaflow.util import get_username, get_latest_run_id
-
-
-# avoid circular import by having the exception class contained here
-class KubernetesException(MetaflowException):
-    headline = "Kubernetes error"
+from .exceptions import KubernetesException
 
 
 def parse_cli_options(flow_name, run_id, user, my_runs, echo):
