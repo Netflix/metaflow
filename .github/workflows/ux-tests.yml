@@ -29,12 +29,16 @@ jobs:
         include:
           - backend: local
             services: "minio,postgresql,metadata-service"
+            workers: 8
           - backend: argo-kubernetes
             services: "minio,postgresql,metadata-service,argo-workflows"
+            workers: 4
           - backend: airflow-kubernetes
             services: "minio,postgresql,metadata-service,airflow"
+            workers: 4
           - backend: sfn-batch
             services: "minio,postgresql,metadata-service,localbatch,ddb-local,sfn-local"
+            workers: 8
 
     runs-on: ubuntu-latest
 
@@ -167,12 +171,13 @@ jobs:
           # Docker containers (launched by localbatch for Metaflow steps) resolve
           # host.docker.internal to the bridge gateway (172.17.0.1), but
           # 127.0.0.1:9000/8080 are not reachable from that IP.  Use socat to
-          # re-expose MinIO and the metadata service on the bridge.
+          # re-expose those ports on the bridge.
           #
-          # Note: localbatch itself listens on 0.0.0.0:8000 which already covers
-          # the bridge IP, so no socat is needed for port 8000.
-          # sfn-local (a k8s pod) resolves host.docker.internal via hostAliases
-          # injected by the Tiltfile, also pointing at the bridge gateway.
+          # localbatch listens on 0.0.0.0:8000 but that binding is NOT reliably
+          # reachable from minikube k8s pods via the bridge IP on Linux.  sfn-local
+          # (a k8s pod) needs to reach localbatch; we expose port 8001 on the bridge
+          # and forward it to 127.0.0.1:8000 (localbatch).  The Tiltfile configures
+          # sfn-local to use --batch-endpoint http://host.docker.internal:8001.
           sudo apt-get install -y -q socat
           BRIDGE=$(docker network inspect bridge \
             --format='{{range .IPAM.Config}}{{.Gateway}}{{end}}')
@@ -182,8 +187,11 @@ jobs:
             TCP:127.0.0.1:9000 &
           sudo socat TCP-LISTEN:8080,fork,reuseaddr,bind="${BRIDGE}" \
             TCP:127.0.0.1:8080 &
+          # localbatch (port 8000 → 8001 on bridge for sfn-local pod access)
+          sudo socat TCP-LISTEN:8001,fork,reuseaddr,bind="${BRIDGE}" \
+            TCP:127.0.0.1:8000 &
           sleep 1
-          echo "Forwarding 9000 and 8080 on ${BRIDGE} → 127.0.0.1"
+          echo "Forwarding 9000, 8080, and 8001→8000 on ${BRIDGE} → 127.0.0.1"
 
       - name: Wait for Airflow REST API
         if: matrix.backend == 'airflow-kubernetes'
@@ -215,7 +223,7 @@ jobs:
             test/ux/core/test_basic.py test/ux/core/test_config.py test/ux/core/test_dag.py \
             -m "not conda" \
             --only-backend "${{ matrix.backend }}" \
-            -n 4 \
+            -n ${{ matrix.workers }} \
             -v \
             --tb=short \
             --timeout=1800 \

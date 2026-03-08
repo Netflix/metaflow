@@ -938,7 +938,7 @@ if "sfn-local" in enabled_components:
                         # --dynamodb-endpoint CLI args because SFN Local uses the AWS SDK v1
                         # Java client, which doesn't read AWS_ENDPOINT_URL_* env vars.
                         'args': ['-jar', 'StepFunctionsLocal.jar',
-                                 '--batch-endpoint', 'http://host.docker.internal:8000',
+                                 '--batch-endpoint', 'http://host.docker.internal:8001',
                                  '--dynamodb-endpoint', ddb_svc_url],
                         'env': [
                             {'name': 'AWS_DEFAULT_REGION',       'value': 'us-east-1'},

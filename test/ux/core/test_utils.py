@@ -163,7 +163,7 @@ def wait_for_deployed_run(
     deployed_flow,
     timeout: int = 3600,
     run_kwargs: Optional[Dict[str, Any]] = None,
-    polling_interval: int = 15,
+    polling_interval: int = 3,
 ):
     """Trigger a deployed flow and wait for it to complete."""
     print(f"Deployed flow {deployed_flow.name}")
