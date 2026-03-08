@@ -318,6 +318,8 @@ class CondaEnvironment(MetaflowEnvironment):
 
     def is_disabled(self, step):
         for decorator in step.decorators:
+            if decorator is None:
+                continue
             # @conda decorator is guaranteed to exist thanks to self.decospecs
             if decorator.name in ["conda", "pypi"]:
                 # handle @conda/@pypi(disabled=True)
