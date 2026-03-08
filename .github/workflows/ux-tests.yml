@@ -173,13 +173,20 @@ jobs:
           # 127.0.0.1:9000/8080 are not reachable from that IP.  Use socat to
           # re-expose MinIO and the metadata service on the bridge so containers
           # can reach them via host.docker.internal.
-          #
-          # sfn-local (a k8s pod) uses a k8s Service (localbatch-host) to reach
-          # localbatch — no socat needed for port 8000.
           sudo apt-get install -y -q socat
           BRIDGE=$(docker network inspect bridge \
             --format='{{range .IPAM.Config}}{{.Gateway}}{{end}}')
           echo "Docker bridge gateway: ${BRIDGE}"
+          echo "=== Network diagnostic: can minikube node reach 172.17.0.1:8000? ==="
+          MINIKUBE_CONTAINER=$(docker ps --filter "name=minikube" --format "{{.ID}}" | head -1)
+          echo "minikube container: ${MINIKUBE_CONTAINER}"
+          docker exec "${MINIKUBE_CONTAINER}" bash -c "
+            echo 'Trying 172.17.0.1:8000...'
+            timeout 3 bash -c 'echo > /dev/tcp/172.17.0.1/8000' 2>&1 && echo 'CONNECT OK to 172.17.0.1:8000' || echo 'CONNECT FAILED to 172.17.0.1:8000'
+            echo 'Trying 127.0.0.1:8000...'
+            timeout 3 bash -c 'echo > /dev/tcp/127.0.0.1/8000' 2>&1 && echo 'CONNECT OK to 127.0.0.1:8000' || echo 'CONNECT FAILED to 127.0.0.1:8000'
+            ip route | head -5
+          " || echo "minikube exec failed"
           # MinIO (S3) and Metaflow metadata service
           sudo socat TCP-LISTEN:9000,fork,reuseaddr,bind="${BRIDGE}" \
             TCP:127.0.0.1:9000 &
