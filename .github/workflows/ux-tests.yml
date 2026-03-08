@@ -61,7 +61,7 @@ jobs:
         run: |
           pip install --upgrade pip
           pip install -e ".[dev]" pytest-xdist pytest-timeout pytest-cov
-          pip install localbatch
+          pip install "git+https://github.com/npow/localbatch.git@main#egg=localbatch"
 
       - name: Set up minikube
         uses: medyagh/setup-minikube@latest
