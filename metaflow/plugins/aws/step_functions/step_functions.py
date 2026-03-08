@@ -12,6 +12,7 @@ from metaflow.exception import MetaflowException
 from metaflow.metaflow_config import (
     EVENTS_SFN_ACCESS_IAM_ROLE,
     S3_ENDPOINT_URL,
+    SFN_CLIENT_PARAMS,
     SFN_DYNAMO_DB_TABLE,
     SFN_EXECUTION_LOG_GROUP_ARN,
     SFN_IAM_ROLE,
@@ -81,6 +82,12 @@ class StepFunctions(object):
 
         # https://aws.amazon.com/blogs/aws/step-functions-distributed-map-a-serverless-solution-for-large-scale-parallel-data-processing/
         self.use_distributed_map = use_distributed_map
+
+        # Detect sfn-local (local emulator) by checking if the SFN endpoint is
+        # localhost.  sfn-local v2 does not support ProcessorConfig in Map states,
+        # so we omit it when targeting the local emulator.
+        _sfn_endpoint = (SFN_CLIENT_PARAMS or {}).get("endpoint_url", "")
+        self._is_sfn_local = any(h in _sfn_endpoint for h in ("localhost", "127.0.0.1"))
 
         # S3 command upload configuration
         self.compress_state_machine = compress_state_machine
@@ -411,10 +418,18 @@ class StepFunctions(object):
                     .iterator(
                         _visit(
                             self.graph[node.out_funcs[0]],
-                            Workflow(node.out_funcs[0])
-                            .start_at(node.out_funcs[0])
-                            .mode(
-                                "DISTRIBUTED" if self.use_distributed_map else "INLINE"
+                            (
+                                Workflow(node.out_funcs[0]).start_at(node.out_funcs[0])
+                                # sfn-local v2 does not support ProcessorConfig
+                                # in Map states; omit it for the local emulator.
+                                if self._is_sfn_local
+                                else Workflow(node.out_funcs[0])
+                                .start_at(node.out_funcs[0])
+                                .mode(
+                                    "DISTRIBUTED"
+                                    if self.use_distributed_map
+                                    else "INLINE"
+                                )
                             ),
                             node.matching_join,
                         )
