@@ -96,11 +96,22 @@ runs:
           "${pytest_cmd[@]}"
         fi
 
+    - name: Set coverage artifact name
+      shell: bash
+      id: coverage-name
+      run: |
+        suffix="${{ inputs.coverage-artifact-suffix }}"
+        if [ -n "$suffix" ]; then
+          echo "name=coverage-${{ github.job }}-${suffix}" >> "$GITHUB_OUTPUT"
+        else
+          echo "name=coverage-${{ github.job }}" >> "$GITHUB_OUTPUT"
+        fi
+
     - name: Upload coverage artifact
       if: always()
       uses: actions/upload-artifact@v4
       with:
-        name: coverage-${{ github.job }}${{ inputs.coverage-artifact-suffix != '' && format('-{0}', inputs.coverage-artifact-suffix) || '' }}
+        name: ${{ steps.coverage-name.outputs.name }}
         path: |
           .coverage
           coverage.xml
