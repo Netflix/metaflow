@@ -45,6 +45,8 @@ def test_foreach(exec_mode, decospecs, compute_env, tag, scheduler_config):
 
 def test_nested_foreach(exec_mode, decospecs, compute_env, tag, scheduler_config):
     """Verify nested foreach (foreach inside foreach) executes correctly."""
+    if exec_mode == "deployer" and scheduler_config.scheduler_type == "airflow":
+        pytest.skip("Nested foreach is not supported by the Airflow deployer")
     run = execute_test_flow(
         flow_name="dag/nested_foreach_flow.py",
         exec_mode=exec_mode,

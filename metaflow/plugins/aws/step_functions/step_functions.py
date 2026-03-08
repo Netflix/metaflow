@@ -435,7 +435,7 @@ class StepFunctions(object):
                             else (None, None)
                         )
                     )
-                    .output_path("$" if self.use_distributed_map else "$.[0]")
+                    .output_path("$" if self.use_distributed_map else "$[0]")
                 )
                 if self.use_distributed_map:
                     workflow.add_state(
