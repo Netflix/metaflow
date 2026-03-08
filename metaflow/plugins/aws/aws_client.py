@@ -56,12 +56,35 @@ class Boto3ClientProvider(object):
                 # authenticate using STS
                 url = "%s/auth/token" % AWS_SANDBOX_STS_ENDPOINT_URL
                 headers = {"x-api-key": AWS_SANDBOX_API_KEY}
+                connect_timeout = 3
+                read_timeout = 5
                 try:
-                    r = requests.get(url, headers=headers)
+                    r = requests.get(
+                        url, headers=headers, timeout=(connect_timeout, read_timeout)
+                    )
                     r.raise_for_status()
                     cached_aws_sandbox_creds = r.json()
+                except requests.exceptions.Timeout as e:
+                    raise MetaflowException(
+                        "Timed out while fetching AWS sandbox STS credentials "
+                        "from endpoint '%s' (connect timeout=%ss, read timeout=%ss): %s"
+                        % (url, connect_timeout, read_timeout, repr(e))
+                    )
+                except requests.exceptions.ConnectionError as e:
+                    raise MetaflowException(
+                        "Failed to connect to AWS sandbox STS endpoint '%s': %s"
+                        % (url, repr(e))
+                    )
                 except requests.exceptions.HTTPError as e:
-                    raise MetaflowException(repr(e))
+                    raise MetaflowException(
+                        "Received an invalid response from AWS sandbox STS endpoint "
+                        "'%s': %s" % (url, repr(e))
+                    )
+                except requests.exceptions.RequestException as e:
+                    raise MetaflowException(
+                        "Failed while requesting AWS sandbox STS credentials from "
+                        "endpoint '%s': %s" % (url, repr(e))
+                    )
             if with_error:
                 return (
                     boto3.session.Session(**cached_aws_sandbox_creds).client(
