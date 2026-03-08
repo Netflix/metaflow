@@ -52,13 +52,6 @@ def test_nested_foreach(exec_mode, decospecs, compute_env, tag, scheduler_config
     """Verify nested foreach (foreach inside foreach) executes correctly."""
     if exec_mode == "deployer" and scheduler_config.scheduler_type == "airflow":
         pytest.skip("Nested foreach is not supported by the Airflow deployer")
-    if exec_mode == "deployer" and scheduler_config.scheduler_type == "flyte":
-        pytest.skip(
-            "Nested foreach is not supported by the Flyte deployer: the codegen "
-            "wires foreach-body steps as fixed tasks inside a @dynamic expander and "
-            "cannot recurse to produce a second level of @dynamic fan-out for a body "
-            "step that is itself a foreach."
-        )
     if exec_mode == "deployer" and scheduler_config.scheduler_type == "kestra":
         pytest.skip(
             "Nested foreach is not supported by the Kestra deployer: inner join steps "
