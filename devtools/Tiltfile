@@ -692,9 +692,9 @@ if "metadata-service" in enabled_components:
             'image.repository=public.ecr.aws/outerbounds/metaflow_metadata_service',
             'image.tag=2.5.0',
             'resources.requests.cpu=25m',
-            'resources.requests.memory=64Mi',
-            'resources.limits.cpu=50m',
-            'resources.limits.memory=128Mi'
+            'resources.requests.memory=256Mi',
+            'resources.limits.cpu=200m',
+            'resources.limits.memory=512Mi'
         ]
     )
 
