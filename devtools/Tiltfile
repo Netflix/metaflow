@@ -951,7 +951,9 @@ if "sfn-local" in enabled_components:
                     'dnsPolicy': 'ClusterFirstWithHostNet' if _sfn_host_network else 'ClusterFirst',
                     'containers': [{
                         'name': 'sfn-local',
-                        'image': 'amazon/aws-stepfunctions-local:latest',
+                        # v2.0.0 (latest) validates Batch job defs at StartExecution and
+                        # has issues with MAP states.  v1.14.0 executes without validation.
+                        'image': 'amazon/aws-stepfunctions-local:1.14.0',
                         'ports': [{'containerPort': 8083}],
                         # Override Cmd (default: ["-jar", "StepFunctionsLocal.jar"]) to append
                         # app-level args after the jar spec. Use --batch-endpoint and

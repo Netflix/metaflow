@@ -285,10 +285,11 @@ jobs:
           curl -s -X POST "http://localhost:8000/v1/listjobs" \
             -H "Content-Type: application/json" \
             -d '{"jobQueue":"localbatch-default","jobStatus":"FAILED"}' | python3 -m json.tool || true
-          echo "=== Last Docker container logs ==="
-          for cid in $(docker ps -a --filter "exited=1" --format "{{.ID}}" | head -3); do
-            echo "--- Container $cid ---"
-            docker logs "$cid" 2>&1 | tail -30 || true
+          echo "=== Last Docker container logs (exited=0 or exited=1) ==="
+          for cid in $(docker ps -a --filter "exited=1" --filter "exited=0" --format "{{.ID}}" | head -5); do
+            name=$(docker inspect --format '{{.Name}}' "$cid" 2>/dev/null || echo "unknown")
+            echo "--- Container $cid ($name) ---"
+            docker logs "$cid" 2>&1 | tail -20 || true
           done
 
       - name: Dump Airflow diagnostics on failure
