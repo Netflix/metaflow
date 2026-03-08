@@ -136,12 +136,6 @@ def test_catch(exec_mode, decospecs, compute_env, tag, scheduler_config):
 
 def test_timeout(exec_mode, decospecs, compute_env, tag, scheduler_config):
     """Verify @timeout decorator does not break normal execution."""
-    if exec_mode == "deployer" and scheduler_config.scheduler_type == "step-functions":
-        pytest.skip(
-            "timeout deployer is skipped for step-functions: sfn-local v2 has a "
-            "validation bug that reports DUPLICATE_STATE_NAME for states literally "
-            "named 'start' and 'end' when used with CreateStateMachine."
-        )
     run = execute_test_flow(
         flow_name="basic/timeout_flow.py",
         exec_mode=exec_mode,

@@ -38,7 +38,7 @@ jobs:
             workers: 4
           - backend: sfn-batch
             services: "minio,postgresql,metadata-service,localbatch,ddb-local,sfn-local"
-            workers: 8
+            workers: 4
 
     runs-on: ubuntu-latest
 
