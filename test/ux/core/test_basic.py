@@ -90,6 +90,13 @@ def test_from_deployment(exec_mode, decospecs, compute_env, tag, scheduler_confi
 
 def test_retry(exec_mode, decospecs, compute_env, tag, scheduler_config):
     """Verify @retry retries a failing step and succeeds on the second attempt."""
+    if exec_mode == "deployer" and scheduler_config.scheduler_type == "flyte":
+        pytest.skip(
+            "test_retry not supported for the Flyte deployer in local (pyflyte run) mode: "
+            "pyflyte executes tasks as plain Python function calls and does not invoke "
+            "Flyte's task-level retry mechanism, so the intentional first-attempt failure "
+            "propagates as an unhandled exception instead of triggering a retry."
+        )
     run = execute_test_flow(
         flow_name="basic/retry_flow.py",
         exec_mode=exec_mode,
@@ -159,6 +166,13 @@ def test_timeout(exec_mode, decospecs, compute_env, tag, scheduler_config):
 
 @pytest.mark.conda
 def test_hello_conda(exec_mode, decospecs, compute_env, tag, scheduler_config):
+    if exec_mode == "deployer" and scheduler_config.scheduler_type == "flyte":
+        pytest.skip(
+            "test_hello_conda not supported for the Flyte deployer in local (pyflyte run) mode: "
+            "the @conda decorator requires --environment=conda which is not available when "
+            "pyflyte executes steps as plain Python subprocesses without Conda environment "
+            "activation."
+        )
     run = execute_test_flow(
         flow_name="basic/helloconda.py",
         exec_mode=exec_mode,
