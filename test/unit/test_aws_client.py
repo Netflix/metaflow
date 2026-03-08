@@ -66,56 +66,35 @@ def test_sandbox_sts_connect_timeout_fails_fast(monkeypatch):
 
     with pytest.raises(MetaflowException) as exc:
         Boto3ClientProvider.get_client("s3")
-    msg = str(exc.value)
-def test_sandbox_sts_connect_timeout_fails_fast(monkeypatch):
-    from metaflow.metaflow_config import (
-        AWS_SANDBOX_STS_CONNECT_TIMEOUT,
-        AWS_SANDBOX_STS_READ_TIMEOUT,
-    )
-    endpoint = "http://sandbox-sts-connect-timeout.local"
+def test_sandbox_sts_http_error_raises_metaflow_exception(monkeypatch):
+    endpoint = "http://sandbox-sts-http-error.local"
     _configure_sandbox(monkeypatch, endpoint)
 
-    def raise_connect_timeout(*args, **kwargs):
-        raise requests.exceptions.ConnectTimeout("connect timed out")
+    def raise_http_error(*args, **kwargs):
+        mock_resp = requests.models.Response()
+        mock_resp.status_code = 500
+        raise requests.exceptions.HTTPError(response=mock_resp)
 
-    monkeypatch.setattr(requests, "get", raise_connect_timeout)
+    monkeypatch.setattr(requests, "get", raise_http_error)
 
     with pytest.raises(MetaflowException) as exc:
         Boto3ClientProvider.get_client("s3")
     msg = str(exc.value)
     assert endpoint in msg
-    assert "Timed out while fetching AWS sandbox STS credentials" in msg
-    assert f"connect timeout={AWS_SANDBOX_STS_CONNECT_TIMEOUT}s" in msg
-    assert f"read timeout={AWS_SANDBOX_STS_READ_TIMEOUT}s" in msg
+    assert "Received an invalid response from AWS sandbox STS endpoint" in msg
 
 
-def test_sandbox_sts_read_timeout_fails_fast(monkeypatch):
-    endpoint = "http://sandbox-sts-read-timeout.local"
+def test_sandbox_sts_generic_request_exception_raises_metaflow_exception(monkeypatch):
+    endpoint = "http://sandbox-sts-generic-error.local"
     _configure_sandbox(monkeypatch, endpoint)
 
-    def raise_read_timeout(*args, **kwargs):
-        raise requests.exceptions.ReadTimeout("read timed out")
+    def raise_request_exception(*args, **kwargs):
+        raise requests.exceptions.RequestException("some other error")
 
-    monkeypatch.setattr(requests, "get", raise_read_timeout)
+    monkeypatch.setattr(requests, "get", raise_request_exception)
 
     with pytest.raises(MetaflowException) as exc:
         Boto3ClientProvider.get_client("s3")
     msg = str(exc.value)
     assert endpoint in msg
-    assert "Timed out while fetching AWS sandbox STS credentials" in msg
-
-
-def test_sandbox_sts_unreachable_endpoint_raises_connection_error(monkeypatch):
-    endpoint = "http://sandbox-sts-unreachable.local"
-    _configure_sandbox(monkeypatch, endpoint)
-
-    def raise_connection_error(*args, **kwargs):
-        raise requests.exceptions.ConnectionError("unreachable host")
-
-    monkeypatch.setattr(requests, "get", raise_connection_error)
-
-    with pytest.raises(MetaflowException) as exc:
-        Boto3ClientProvider.get_client("s3")
-    msg = str(exc.value)
-    assert endpoint in msg
-    assert "Failed to connect to AWS sandbox STS endpoint" in msg
+    assert "Failed while requesting AWS sandbox STS credentials from endpoint" in msg
