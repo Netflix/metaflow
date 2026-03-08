@@ -405,7 +405,14 @@ class StepFunctions(object):
                 workflow.add_state(cardinality_state.next(iterator_name))
                 workflow.add_state(
                     Map(iterator_name)
-                    .items_path("$.Result.Item.for_each_cardinality.NS")
+                    # sfn-local serializes DynamoDB Number Set type as "Ns" (camelCase)
+                    # instead of the standard "NS" (uppercase). Use Ns for sfn-local,
+                    # NS for real AWS SFN.
+                    .items_path(
+                        "$.Result.Item.for_each_cardinality.Ns"
+                        if self._is_sfn_local
+                        else "$.Result.Item.for_each_cardinality.NS"
+                    )
                     .parameter("JobId.$", "$.JobId")
                     .parameter("SplitParentTaskId.$", "$.JobId")
                     .parameter("Parameters.$", "$.Parameters")
