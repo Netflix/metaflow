@@ -53,6 +53,9 @@ class CondaStepDecorator(StepDecorator):
             set(attributes.keys()) if attributes is not None else set()
         )
 
+        # Default before step_init is called; step_init overrides based on environment.is_disabled()
+        self.disabled = False
+
         super(CondaStepDecorator, self).__init__(
             attributes, statically_defined, inserted_by
         )
