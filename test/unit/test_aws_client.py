@@ -71,7 +71,13 @@ def test_sandbox_sts_connection_error_raises_metaflow_exception(monkeypatch):
     assert "Failed to connect to AWS sandbox STS endpoint" in msg
     msg = str(exc.value)
     assert endpoint in msg
+    with pytest.raises(MetaflowException) as exc:
+        Boto3ClientProvider.get_client("s3")
+    msg = str(exc.value)
+    assert endpoint in msg
     assert "Timed out while fetching AWS sandbox STS credentials" in msg
+
+
 def test_sandbox_sts_http_error_raises_metaflow_exception(monkeypatch):
     endpoint = "http://sandbox-sts-http-error.local"
     _configure_sandbox(monkeypatch, endpoint)
