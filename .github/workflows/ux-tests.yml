@@ -177,14 +177,21 @@ jobs:
           BRIDGE=$(docker network inspect bridge \
             --format='{{range .IPAM.Config}}{{.Gateway}}{{end}}')
           echo "Docker bridge gateway: ${BRIDGE}"
-          echo "=== Network diagnostic: can minikube node reach 172.17.0.1:8000? ==="
+          echo "=== Network diagnostic: host port 8000 ==="
+          echo "Host 127.0.0.1:8000 test:"
+          timeout 3 bash -c 'echo > /dev/tcp/127.0.0.1/8000' 2>&1 && echo 'HOST: CONNECT OK to 127.0.0.1:8000' || echo 'HOST: CONNECT FAILED to 127.0.0.1:8000'
+          echo "Host ${BRIDGE}:8000 test:"
+          timeout 3 bash -c "echo > /dev/tcp/${BRIDGE}/8000" 2>&1 && echo "HOST: CONNECT OK to ${BRIDGE}:8000" || echo "HOST: CONNECT FAILED to ${BRIDGE}:8000"
+          echo "iptables INPUT on port 8000:"
+          sudo iptables -L INPUT -n | grep "8000\|REJECT\|DROP" | head -5 || echo "no rules"
+          echo "ufw status:"
+          sudo ufw status 2>&1 | head -3 || echo "ufw not available"
           MINIKUBE_CONTAINER=$(docker ps --filter "name=minikube" --format "{{.ID}}" | head -1)
           echo "minikube container: ${MINIKUBE_CONTAINER}"
           docker exec "${MINIKUBE_CONTAINER}" bash -c "
             echo 'Trying 172.17.0.1:8000...'
             timeout 3 bash -c 'echo > /dev/tcp/172.17.0.1/8000' 2>&1 && echo 'CONNECT OK to 172.17.0.1:8000' || echo 'CONNECT FAILED to 172.17.0.1:8000'
-            echo 'Trying 127.0.0.1:8000...'
-            timeout 3 bash -c 'echo > /dev/tcp/127.0.0.1/8000' 2>&1 && echo 'CONNECT OK to 127.0.0.1:8000' || echo 'CONNECT FAILED to 127.0.0.1:8000'
+            echo 'ip route:'
             ip route | head -5
           " || echo "minikube exec failed"
           # MinIO (S3) and Metaflow metadata service
