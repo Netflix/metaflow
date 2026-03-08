@@ -54,6 +54,13 @@ def test_nested_foreach(exec_mode, decospecs, compute_env, tag, scheduler_config
             "cannot recurse to produce a second level of @dynamic fan-out for a body "
             "step that is itself a foreach."
         )
+    if exec_mode == "deployer" and scheduler_config.scheduler_type == "kestra":
+        pytest.skip(
+            "Nested foreach is not supported by the Kestra deployer: inner join steps "
+            "require per-outer-iteration task IDs that cannot be expressed with "
+            "Kestra's static task-ID scheme (each ForEach body runs with a fixed task "
+            "ID, so a second-level join cannot address the per-iteration inner tasks)."
+        )
     run = execute_test_flow(
         flow_name="dag/nested_foreach_flow.py",
         exec_mode=exec_mode,
