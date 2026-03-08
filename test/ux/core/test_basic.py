@@ -55,6 +55,13 @@ def test_from_deployment(exec_mode, decospecs, compute_env, tag, scheduler_confi
     scheduler_type = scheduler_config.scheduler_type
     if scheduler_type is None:
         pytest.skip("No scheduler configured — deployer tests require a scheduler_type")
+    # Temporal workers are local processes: recovering via a plain name identifier
+    # requires the original flow file path, which is unavailable after re-serialisation.
+    # Skip this test for Temporal — it requires a service-based deployer.
+    if scheduler_type == "temporal":
+        pytest.skip(
+            "test_from_deployment not supported for temporal (requires flow file at recovery time)"
+        )
     # Normalize to the impl key used by DeployedFlow.from_deployment(impl=...)
     impl = scheduler_type.replace("-", "_")
 
