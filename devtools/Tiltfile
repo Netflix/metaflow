@@ -699,8 +699,17 @@ if "metadata-service" in enabled_components:
             'image.tag=2.5.0',
             'resources.requests.cpu=25m',
             'resources.requests.memory=256Mi',
-            'resources.limits.cpu=200m',
-            'resources.limits.memory=1Gi'
+            'resources.limits.cpu=500m',
+            'resources.limits.memory=1Gi',
+            # Increase probe tolerance: under heavy load (concurrent argo/airflow
+            # workflows) the metadata service may take >1s to respond to /ping.
+            # Default failureThreshold=3 causes premature restarts.
+            'livenessProbe.failureThreshold=10',
+            'livenessProbe.periodSeconds=10',
+            'livenessProbe.timeoutSeconds=5',
+            'readinessProbe.failureThreshold=10',
+            'readinessProbe.periodSeconds=10',
+            'readinessProbe.timeoutSeconds=5'
         ]
     )
 
