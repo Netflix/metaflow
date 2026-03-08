@@ -55,13 +55,6 @@ def test_from_deployment(exec_mode, decospecs, compute_env, tag, scheduler_confi
     scheduler_type = scheduler_config.scheduler_type
     if scheduler_type is None:
         pytest.skip("No scheduler configured — deployer tests require a scheduler_type")
-    # Temporal workers are local processes: recovering via a plain name identifier
-    # requires the original flow file path, which is unavailable after re-serialisation.
-    # Skip this test for Temporal — it requires a service-based deployer.
-    if scheduler_type == "temporal":
-        pytest.skip(
-            "test_from_deployment not supported for temporal (requires flow file at recovery time)"
-        )
     # Normalize to the impl key used by DeployedFlow.from_deployment(impl=...)
     impl = scheduler_type.replace("-", "_")
 
@@ -165,13 +158,6 @@ def test_timeout(exec_mode, decospecs, compute_env, tag, scheduler_config):
 
 @pytest.mark.conda
 def test_hello_conda(exec_mode, decospecs, compute_env, tag, scheduler_config):
-    if exec_mode == "deployer" and scheduler_config.scheduler_type == "flyte":
-        pytest.skip(
-            "test_hello_conda not supported for the Flyte deployer in local (pyflyte run) mode: "
-            "the @conda decorator requires --environment=conda which is not available when "
-            "pyflyte executes steps as plain Python subprocesses without Conda environment "
-            "activation."
-        )
     run = execute_test_flow(
         flow_name="basic/helloconda.py",
         exec_mode=exec_mode,
