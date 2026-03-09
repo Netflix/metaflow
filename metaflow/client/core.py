@@ -1148,6 +1148,20 @@ class MetaflowData(object):
     def __repr__(self):
         return str(self)
 
+    def __dir__(self):
+        try:
+            artifact_keys = list(self._artifacts.keys())
+        except Exception:
+            artifact_keys = []
+        # Merge normal attributes with artifact names for IPython/Jupyter completion.
+        return sorted(set(super(MetaflowData, self).__dir__() + artifact_keys))
+
+    def _ipython_key_completions_(self):
+        try:
+            return list(self._artifacts.keys())
+        except Exception:
+            return []
+
 
 class Task(MetaflowObject):
     """
@@ -2687,6 +2701,12 @@ class Metaflow(object):
             Flow with the given name.
         """
         return Flow(name, _metaflow=self)
+
+    def _ipython_key_completions_(self):
+        try:
+            return [flow.id for flow in self]
+        except Exception:
+            return []
 
 
 def _metadata(ms: str) -> Tuple[Optional["MetadataProvider"], Optional[str]]:
