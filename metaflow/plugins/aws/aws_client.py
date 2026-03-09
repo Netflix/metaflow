@@ -10,6 +10,7 @@ class Boto3ClientProvider(object):
         module, with_error=False, role_arn=None, session_vars=None, client_params=None
     ):
         from metaflow.exception import MetaflowException
+        from metaflow.metaflow_config_funcs import from_conf
         from metaflow.metaflow_config import (
             AWS_SANDBOX_ENABLED,
             AWS_SANDBOX_STS_ENDPOINT_URL,
@@ -18,7 +19,6 @@ class Boto3ClientProvider(object):
             AWS_SANDBOX_STS_CONNECT_TIMEOUT,
             AWS_SANDBOX_STS_READ_TIMEOUT,
         )
-        from metaflow.metaflow_config_funcs import from_conf
 
         if session_vars is None:
             session_vars = {}
