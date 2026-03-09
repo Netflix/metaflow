@@ -88,6 +88,8 @@ def test_sandbox_sts_read_timeout_fails_fast(monkeypatch):
     monkeypatch.setattr(requests, "get", raise_read_timeout)
 
 def test_sandbox_sts_timeout(monkeypatch):
+    endpoint = "http://sandbox-sts-timeout.local"
+    _configure_sandbox(monkeypatch, endpoint)
 
     def raise_timeout(*args, **kwargs):
         raise requests.exceptions.ConnectTimeout("timed out")
