@@ -1150,7 +1150,7 @@ class MetaflowData(object):
 
     def __dir__(self):
         try:
-            artifact_keys = list(self._artifacts.keys())
+            artifact_keys = list(self.__dict__.get("_artifacts", {}).keys())
         except Exception:
             artifact_keys = []
         # Merge normal attributes with artifact names for IPython/Jupyter completion.
