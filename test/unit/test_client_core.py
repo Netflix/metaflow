@@ -24,6 +24,13 @@ def test_metaflow_data_ipython_key_completions_safe_fallback():
     assert data._ipython_key_completions_() == []
 
 
+def test_metaflow_data_dir_safe_fallback():
+    data = MetaflowData.__new__(MetaflowData)
+    result = dir(data)
+    # Should not raise; artifact names just won't appear
+    assert isinstance(result, list)
+
+
 def test_metaflow_ipython_key_completions_returns_flow_ids():
     class DummyMetaflow(Metaflow):
         def __iter__(self):
