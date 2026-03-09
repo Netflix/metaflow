@@ -1190,6 +1190,27 @@ class ArgoWorkflows(object):
         return node.name in self.conditional_join_nodes
 
     def _many_in_funcs_all_conditional(self, node):
+        # avoid situation where none of the in_funcs are actually conditional,
+        # because this might be a nested static-split inside a conditional branch,
+        # which means all of the in_funcs will execute, not just some.
+        def _same_join(in_func):
+            split_parents = self.graph[in_func].split_parents
+            if not split_parents:
+                return False
+            return self.graph[split_parents[-1]].matching_join == node.name
+
+        def _split_parent(in_func):
+            split_parents = self.graph[in_func].split_parents
+            if not split_parents:
+                return None
+            return self.graph[split_parents[-1]]
+
+        if (
+            all(_same_join(in_func) for in_func in node.in_funcs)
+            and len(set(_split_parent(in_func) for in_func in node.in_funcs)) > 1
+        ):
+            return False
+
         cond_in_funcs = [
             in_func
             for in_func in node.in_funcs
@@ -1411,6 +1432,58 @@ class ArgoWorkflows(object):
                         for in_func in node.in_funcs
                     ]
                     required_deps = []
+
+                # join steps in_funcs need special handling, as there can be disjoint sets of always-executing and conditional branches.
+                # for example
+                #  switch_step -> a, b, shared_join
+                # a --static-split-> a1, a2, a3 -> shared_join
+                # b --static-split-> b1,b2,b3 -> shared_join
+                #
+                # the shared_join needs to handle dependencies (a1&&a2&&a3) || (b1&&b2&&b3) || switch_step
+                if self.graph[node.name].type == "join" and any(
+                    self._is_conditional_node(self.graph[fn]) for fn in node.in_funcs
+                ):
+                    # NOTE: The groupings for the in_funcs are formed by traversing up each funcs
+                    # relative path until we encounter a split-switch.
+                    # when a split is encountered, next we determine if the split is joined **before** we reach the join-node, or if it remains
+                    # conditional.
+
+                    node_groups = {}
+                    for fn in node.in_funcs:
+                        if self.graph[fn].split_branches:
+                            # This is the latest split in the DAG.
+                            last_split = self.graph[fn].split_branches[-1]
+                            new_funcs = node_groups.get(last_split, [])
+                            new_funcs.append(fn)
+                            node_groups[last_split] = new_funcs
+
+                    conditional_deps = []
+                    required_deps = []
+                    for lsplit, in_funcs in node_groups.items():
+                        if (
+                            self.graph[lsplit].type == "split-switch"
+                            and len(in_funcs) > 1
+                        ):
+                            # we have an unresolved conditional split leading to a join.
+                            required_deps.append(
+                                "(%s)"
+                                % "||".join(
+                                    [
+                                        "%s.Succeeded" % self._sanitize(in_func)
+                                        for in_func in in_funcs
+                                    ]
+                                )
+                            )
+                        else:
+                            required_deps.append(
+                                "(%s)"
+                                % "&&".join(
+                                    [
+                                        "%s.Succeeded" % self._sanitize(in_func)
+                                        for in_func in in_funcs
+                                    ]
+                                )
+                            )
 
                 both_conditions = required_deps and conditional_deps
 
