@@ -1161,14 +1161,18 @@ class State(object):
         # set retry strategy for AWS Batch job submission to account for the
         # measily 50 jobs / second queue admission limit which people can
         # run into very quickly.
-        self.retry_strategy(
-            {
-                "ErrorEquals": ["Batch.AWSBatchException"],
-                "BackoffRate": 2,
-                "IntervalSeconds": 2,
-                "MaxAttempts": 10,
-            }
-        )
+        retry = {
+            "ErrorEquals": ["Batch.AWSBatchException"],
+            "BackoffRate": 2,
+            "IntervalSeconds": 2,
+            "MaxAttempts": 10,
+        }
+        # sfn-local v2.0.0 does not support MaxDelaySeconds or JitterStrategy.
+        _sfn_endpoint = (SFN_CLIENT_PARAMS or {}).get("endpoint_url", "")
+        if not any(h in _sfn_endpoint for h in ("localhost", "127.0.0.1")):
+            retry["MaxDelaySeconds"] = 60
+            retry["JitterStrategy"] = "FULL"
+        self.retry_strategy(retry)
         return self
 
     def dynamo_db(self, table_name, primary_key, values):
