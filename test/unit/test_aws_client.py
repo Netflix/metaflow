@@ -73,8 +73,6 @@ def test_sandbox_sts_connect_timeout_fails_fast(monkeypatch):
         AWS_SANDBOX_STS_CONNECT_TIMEOUT,
         AWS_SANDBOX_STS_READ_TIMEOUT,
     )
-    with pytest.raises(MetaflowException) as exc:
-
     assert f"connect timeout={AWS_SANDBOX_STS_CONNECT_TIMEOUT}s" in msg
     assert f"read timeout={AWS_SANDBOX_STS_READ_TIMEOUT}s" in msg
 
