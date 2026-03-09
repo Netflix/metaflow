@@ -349,7 +349,7 @@ class MetadataProvider(object):
             self.sticky_sys_tags.update(sys_tags)
 
     @classmethod
-    def get_object(cls, obj_type, sub_type, filters, attempt, *args):
+    def get_object(cls, obj_type, sub_type, filters, attempt, *args, **kwargs):
         """Returns the requested object depending on obj_type and sub_type
 
         obj_type can be one of 'root', 'flow', 'run', 'step', 'task',
@@ -430,7 +430,14 @@ class MetadataProvider(object):
             attempt_int = None
 
         pre_filter = cls._get_object_internal(
-            obj_type, type_order, sub_type, sub_order, filters, attempt_int, *args
+            obj_type,
+            type_order,
+            sub_type,
+            sub_order,
+            filters,
+            attempt_int,
+            *args,
+            **kwargs
         )
         if attempt_int is None or sub_type != "metadata":
             # If no attempt or not for metadata, just return as is

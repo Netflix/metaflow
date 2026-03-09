@@ -254,7 +254,7 @@ class ServiceMetadataProvider(MetadataProvider):
 
     @classmethod
     def _get_object_internal(
-        cls, obj_type, obj_order, sub_type, sub_order, filters, attempt, *args
+        cls, obj_type, obj_order, sub_type, sub_order, filters, attempt, *args, **kwargs
     ):
         if attempt is not None:
             if cls._supports_attempt_gets is None:
@@ -296,6 +296,30 @@ class ServiceMetadataProvider(MetadataProvider):
             url += "/attempt/%s/artifacts" % attempt
         else:
             url += "/%ss" % sub_type
+
+        # --- NEW OPTIMIZATION LOGIC STARTS HERE ---
+        query_params = {}
+
+        # 1. Handle Pagination constraints
+        limit = kwargs.get("limit")
+        offset = kwargs.get("offset")
+        if limit is not None:
+            query_params["_limit"] = limit
+        if offset is not None:
+            query_params["_offset"] = offset
+
+        # 2. Push supported filters to the backend to avoid O(N) payload sizes
+        if filters:
+            server_supported = ["tags", "any_tags", "status"]
+            for f in server_supported:
+                if f in filters:
+                    query_params[f] = filters[f]
+
+        # Append query string if we have constraints
+        if query_params:
+            url += "?" + urlencode(query_params)
+        # --- NEW OPTIMIZATION LOGIC ENDS HERE ---
+
         try:
             v, _ = cls._request(None, url, "GET")
             return MetadataProvider._apply_filter(v, filters)

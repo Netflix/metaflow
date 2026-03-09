@@ -2534,9 +2534,30 @@ class Flow(MetaflowObject):
         Run, optional
             Latest successful run of this flow
         """
+        try:
+            # THE FIX: Execute an O(1) request by passing the status filter
+            # and a limit of 1 directly to the metadata provider backend.
+            runs = self._metaflow.metadata.get_object(
+                self._NAME,
+                "run",
+                {"status": "completed"},
+                None,
+                *self.path_components,
+                limit=1,
+            )
+            if runs:
+                return Run(_object=runs[0], _metaflow=self._metaflow)
+        except Exception:
+            # Fallback to the O(N) iteration if the backend doesn't
+            # support the status query parameter (e.g. LocalMetadataProvider)
+            pass
+
+        # Legacy O(N) fallback
         for run in self:
             if run.successful:
                 return run
+
+        return None
 
     def runs(self, *tags: str) -> Iterator[Run]:
         """
