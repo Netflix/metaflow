@@ -87,6 +87,12 @@ def test_sandbox_sts_read_timeout_fails_fast(monkeypatch):
 
     monkeypatch.setattr(requests, "get", raise_read_timeout)
 
+    with pytest.raises(MetaflowException) as exc:
+        Boto3ClientProvider.get_client("s3")
+    msg = str(exc.value)
+    assert endpoint in msg
+    assert "Timed out while fetching AWS sandbox STS credentials" in msg
+
 def test_sandbox_sts_timeout(monkeypatch):
     endpoint = "http://sandbox-sts-timeout.local"
     _configure_sandbox(monkeypatch, endpoint)
