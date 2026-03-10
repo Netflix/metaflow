@@ -93,6 +93,71 @@ class StepFunctionsDeployedFlow(DeployedFlow):
 
     TYPE: ClassVar[Optional[str]] = "step-functions"
 
+    def _run_deployer_command(self, method, return_content=False, **kwargs):
+        """Run a deployer CLI command and return the result.
+
+        Parameters
+        ----------
+        method : str
+            CLI subcommand name (e.g. "trigger", "resume", "delete").
+        return_content : bool
+            If True, read content from the attribute FIFO and return a
+            StepFunctionsTriggeredRun on success. If False, return bool.
+        **kwargs
+            Passed to the CLI subcommand.
+        """
+        if return_content:
+            with temporary_fifo() as (attribute_file_path, attribute_file_fd):
+                kwargs["deployer_attribute_file"] = attribute_file_path
+                command = getattr(
+                    get_lower_level_group(
+                        self.deployer.api,
+                        self.deployer.top_level_kwargs,
+                        self.deployer.TYPE,
+                        self.deployer.deployer_kwargs,
+                    ),
+                    method,
+                )(**kwargs)
+
+                pid = self.deployer.spm.run_command(
+                    [sys.executable, *command],
+                    env=self.deployer.env_vars,
+                    cwd=self.deployer.cwd,
+                    show_output=self.deployer.show_output,
+                )
+                command_obj = self.deployer.spm.get(pid)
+                content = handle_timeout(
+                    attribute_file_fd, command_obj, self.deployer.file_read_timeout
+                )
+                command_obj.sync_wait()
+                if command_obj.process.returncode == 0:
+                    return StepFunctionsTriggeredRun(
+                        deployer=self.deployer, content=content
+                    )
+            raise Exception(
+                "Error running %s for %s on %s"
+                % (method, self.deployer.flow_file, self.deployer.TYPE)
+            )
+        else:
+            command = getattr(
+                get_lower_level_group(
+                    self.deployer.api,
+                    self.deployer.top_level_kwargs,
+                    self.deployer.TYPE,
+                    self.deployer.deployer_kwargs,
+                ),
+                method,
+            )(**kwargs)
+            pid = self.deployer.spm.run_command(
+                [sys.executable, *command],
+                env=self.deployer.env_vars,
+                cwd=self.deployer.cwd,
+                show_output=self.deployer.show_output,
+            )
+            command_obj = self.deployer.spm.get(pid)
+            command_obj.sync_wait()
+            return command_obj.process.returncode == 0
+
     @classmethod
     def list_deployed_flows(cls, flow_name: Optional[str] = None):
         """
@@ -299,23 +364,43 @@ class StepFunctionsDeployedFlow(DeployedFlow):
         bool
             True if the command was successful, False otherwise.
         """
-        command = get_lower_level_group(
-            self.deployer.api,
-            self.deployer.top_level_kwargs,
-            self.deployer.TYPE,
-            self.deployer.deployer_kwargs,
-        ).delete(**kwargs)
+        return self._run_deployer_command("delete", **kwargs)
 
-        pid = self.deployer.spm.run_command(
-            [sys.executable, *command],
-            env=self.deployer.env_vars,
-            cwd=self.deployer.cwd,
-            show_output=self.deployer.show_output,
+    def resume(
+        self,
+        origin_run_id: str,
+        step_to_rerun: Optional[str] = None,
+        **kwargs,
+    ) -> StepFunctionsTriggeredRun:
+        """
+        Resume a failed or stopped run on AWS Step Functions.
+
+        Successful steps from the origin run will be cloned rather than
+        re-executed, unless they are downstream of *step_to_rerun*.
+
+        Parameters
+        ----------
+        origin_run_id : str
+            Run ID of the run to resume (e.g., ``"sfn-<execution-name>"``).
+        step_to_rerun : str, optional
+            Name of a specific step from which to rerun. All downstream
+            steps will also be rerun. If not specified, only steps whose
+            origin task was not successful will be rerun.
+        **kwargs : Any
+            Additional arguments to pass to the resume command,
+            `Parameters` in particular.
+
+        Returns
+        -------
+        StepFunctionsTriggeredRun
+            The triggered run instance.
+        """
+        resume_kwargs = dict(origin_run_id=origin_run_id, **kwargs)
+        if step_to_rerun is not None:
+            resume_kwargs["step_to_rerun"] = step_to_rerun
+        return self._run_deployer_command(
+            "resume", return_content=True, **resume_kwargs
         )
-
-        command_obj = self.deployer.spm.get(pid)
-        command_obj.sync_wait()
-        return command_obj.process.returncode == 0
 
     def trigger(self, **kwargs) -> StepFunctionsTriggeredRun:
         """
@@ -331,44 +416,5 @@ class StepFunctionsDeployedFlow(DeployedFlow):
         -------
         StepFunctionsTriggeredRun
             The triggered run instance.
-
-        Raises
-        ------
-        Exception
-            If there is an error during the trigger process.
         """
-        with temporary_fifo() as (attribute_file_path, attribute_file_fd):
-            # every subclass needs to have `self.deployer_kwargs`
-            command = get_lower_level_group(
-                self.deployer.api,
-                self.deployer.top_level_kwargs,
-                self.deployer.TYPE,
-                self.deployer.deployer_kwargs,
-            ).trigger(deployer_attribute_file=attribute_file_path, **kwargs)
-
-            pid = self.deployer.spm.run_command(
-                [sys.executable, *command],
-                env=self.deployer.env_vars,
-                cwd=self.deployer.cwd,
-                show_output=self.deployer.show_output,
-            )
-
-            command_obj = self.deployer.spm.get(pid)
-            content = handle_timeout(
-                attribute_file_fd, command_obj, self.deployer.file_read_timeout
-            )
-
-            command_obj.sync_wait()
-            if command_obj.process.returncode == 0:
-                return StepFunctionsTriggeredRun(
-                    deployer=self.deployer, content=content
-                )
-
-        raise Exception(
-            "Error triggering %s on %s for %s"
-            % (
-                self.deployer.name,
-                self.deployer.TYPE,
-                self.deployer.flow_file,
-            )
-        )
+        return self._run_deployer_command("trigger", return_content=True, **kwargs)

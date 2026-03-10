@@ -80,13 +80,9 @@ class AirflowDeployer(DeployerImpl):
             The Flow deployed to Airflow.
         """
         from metaflow.metaflow_config import (
-            AIRFLOW_REST_API_URL,
-            AIRFLOW_REST_API_USERNAME,
-            AIRFLOW_REST_API_PASSWORD,
             AIRFLOW_KUBERNETES_DAGS_PATH,
             AIRFLOW_KUBERNETES_NAMESPACE,
         )
-        from .airflow_client import AirflowClient
         from .airflow_deployer_objects import AirflowDeployedFlow
 
         # Write the compiled DAG to a temp file; subprocess fills it in.
@@ -109,12 +105,10 @@ class AirflowDeployer(DeployerImpl):
             )
 
             # Wait until Airflow discovers the DAG.
-            if AIRFLOW_REST_API_URL:
-                client = AirflowClient(
-                    AIRFLOW_REST_API_URL,
-                    username=AIRFLOW_REST_API_USERNAME,
-                    password=AIRFLOW_REST_API_PASSWORD,
-                )
+            from .airflow_deployer_objects import _get_airflow_client
+
+            client, _ = _get_airflow_client()
+            if client is not None:
                 client.wait_for_dag(dag_id)
         finally:
             try:
