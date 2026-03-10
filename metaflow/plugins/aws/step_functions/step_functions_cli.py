@@ -20,7 +20,6 @@ from metaflow.util import get_username, to_bytes, to_unicode, version_parse
 
 from .production_token import load_token, new_token, store_token
 from .step_functions import StepFunctions
-from metaflow.tagging_util import validate_tags
 from ..aws_utils import validate_aws_tag
 
 VALID_NAME = re.compile(r"[^a-zA-Z0-9_\-\.]")
