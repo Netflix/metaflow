@@ -707,13 +707,15 @@ def make_flow(
     enable_error_msg_capture,
     workflow_title,
     workflow_description,
+    dump_manifests=False,
 ):
-    # TODO: Make this check less specific to Amazon S3 as we introduce
-    #       support for more cloud object stores.
-    if obj.flow_datastore.TYPE not in ("azure", "gs", "s3"):
-        raise MetaflowException(
-            "Argo Workflows requires --datastore=s3 or --datastore=azure or --datastore=gs"
-        )
+    if not dump_manifests:
+        # TODO: Make this check less specific to Amazon S3 as we introduce
+        #       support for more cloud object stores.
+        if obj.flow_datastore.TYPE not in ("azure", "gs", "s3"):
+            raise MetaflowException(
+                "Argo Workflows requires --datastore=s3 or --datastore=azure or --datastore=gs"
+            )
 
     if (notify_on_error or notify_on_success) and not (
         notify_slack_webhook_url
@@ -754,30 +756,39 @@ def make_flow(
     )
     obj.graph = obj.flow._graph
 
-    # Save the code package in the flow datastore so that both user code and
-    # metaflow package can be retrieved during workflow execution.
-    obj.package = MetaflowPackage(
-        obj.flow,
-        obj.environment,
-        obj.echo,
-        suffixes=obj.package_suffixes,
-        flow_datastore=obj.flow_datastore if FEAT_ALWAYS_UPLOAD_CODE_PACKAGE else None,
-    )
-
-    # This blocks until the package is created
-    if FEAT_ALWAYS_UPLOAD_CODE_PACKAGE:
-        package_url = obj.package.package_url()
-        package_sha = obj.package.package_sha()
+    if dump_manifests:
+        # Skip code package upload; use placeholders for manifest inspection.
+        package_url = "__PLACEHOLDER_CODE_PACKAGE_URL__"
+        package_sha = "__PLACEHOLDER_CODE_PACKAGE_SHA__"
+        package_metadata = json.dumps({"version": 0})
     else:
-        package_url, package_sha = obj.flow_datastore.save_data(
-            [obj.package.blob], len_hint=1
-        )[0]
+        # Save the code package in the flow datastore so that both user code and
+        # metaflow package can be retrieved during workflow execution.
+        obj.package = MetaflowPackage(
+            obj.flow,
+            obj.environment,
+            obj.echo,
+            suffixes=obj.package_suffixes,
+            flow_datastore=(
+                obj.flow_datastore if FEAT_ALWAYS_UPLOAD_CODE_PACKAGE else None
+            ),
+        )
+
+        # This blocks until the package is created
+        if FEAT_ALWAYS_UPLOAD_CODE_PACKAGE:
+            package_url = obj.package.package_url()
+            package_sha = obj.package.package_sha()
+        else:
+            package_url, package_sha = obj.flow_datastore.save_data(
+                [obj.package.blob], len_hint=1
+            )[0]
+        package_metadata = obj.package.package_metadata
 
     return ArgoWorkflows(
         name,
         obj.graph,
         obj.flow,
-        obj.package.package_metadata,
+        package_metadata,
         package_sha,
         package_url,
         token,
