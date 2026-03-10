@@ -1149,6 +1149,7 @@ class MetaflowData(object):
         return str(self)
 
     def __dir__(self):
+        """Includes artifact names so IPython/Jupyter tab-completes `task.data.<TAB>`."""
         try:
             artifact_keys = list(self.__dict__.get("_artifacts", {}).keys())
         except Exception:
