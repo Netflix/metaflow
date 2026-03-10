@@ -10,16 +10,14 @@ spec:
       containers:
         - name: init
           image: curlimages/curl:latest
-          command:
-            - curl
-            - -sf
-            - -X
-            - POST
-            - http://fake-gcs-server:4443/storage/v1/b
-            - -H
-            - "Content-Type: application/json"
-            - -d
-            - '{"name":"metaflow-test"}'
+          command: ["/bin/sh", "-ec"]
+          args:
+            - |
+              curl -sf -X POST \
+                http://fake-gcs-server:4443/storage/v1/b \
+                -H "Content-Type: application/json" \
+                -d '{"name":"metaflow-test"}'
+              echo "Bucket 'metaflow-test' created successfully"
           resources:
             requests:
               cpu: 25m
