@@ -8,6 +8,7 @@ from metaflow._vendor import click
 from metaflow.exception import MetaflowException, MetaflowInternalError
 from metaflow.metaflow_config import (
     FEAT_ALWAYS_UPLOAD_CODE_PACKAGE,
+    SCHEDULE_DISABLED,
     SERVICE_VERSION_CHECK,
     SFN_STATE_MACHINE_PREFIX,
     SFN_COMPRESS_STATE_MACHINE,
@@ -40,6 +41,17 @@ class IncorrectMetadataServiceVersion(MetaflowException):
 
 class StepFunctionsStateMachineNameTooLong(MetaflowException):
     headline = "AWS Step Functions state machine name too long"
+
+
+def _is_schedule_disabled(enable_schedule):
+    """Resolve whether the schedule should be disabled.
+
+    CLI flag (--enable-schedule / --no-enable-schedule) takes precedence.
+    If not specified, falls back to the METAFLOW_SCHEDULE_DISABLED env var / config.
+    """
+    if enable_schedule is not None:
+        return not enable_schedule
+    return SCHEDULE_DISABLED
 
 
 @click.group()
@@ -148,6 +160,14 @@ def step_functions(obj, name=None):
     help="Compress AWS Step Functions state machine to fit within the 8K limit.",
 )
 @click.option(
+    "--enable-schedule/--no-enable-schedule",
+    default=None,
+    show_default=False,
+    help="Deploy the workflow with the schedule enabled or disabled. "
+    "Useful for deploying dev/test branches without activating production schedules. "
+    "Defaults to enabled unless METAFLOW_SCHEDULE_DISABLED is set.",
+)
+@click.option(
     "--deployer-attribute-file",
     default=None,
     show_default=True,
@@ -170,6 +190,7 @@ def create(
     log_execution_history=False,
     use_distributed_map=False,
     compress_state_machine=False,
+    enable_schedule=None,
     deployer_attribute_file=None,
 ):
     for node in obj.graph:
@@ -241,8 +262,17 @@ def create(
                 "due to a length limit on AWS Step Functions. The "
                 "original long name is stored in task metadata.\n"
             )
-        flow.schedule()
+        # Resolve schedule_disabled: CLI flag takes precedence, then env var
+        schedule_disabled = _is_schedule_disabled(enable_schedule)
+
+        flow.schedule(schedule_disabled=schedule_disabled)
         obj.echo("What will trigger execution of the workflow:", bold=True)
+        if schedule_disabled:
+            obj.echo(
+                "The schedule for this workflow has been *disabled* "
+                "(EventBridge rule will not be created).",
+                indent=True,
+            )
         obj.echo(flow.trigger_explanation(), indent=True)
 
 

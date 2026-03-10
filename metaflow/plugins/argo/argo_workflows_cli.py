@@ -17,6 +17,7 @@ from metaflow.metaflow_config import (
     ARGO_WORKFLOWS_UI_URL,
     FEAT_ALWAYS_UPLOAD_CODE_PACKAGE,
     KUBERNETES_NAMESPACE,
+    SCHEDULE_DISABLED,
     SERVICE_VERSION_CHECK,
     UI_URL,
 )
@@ -66,6 +67,17 @@ class ArgoWorkflowsNameTooLong(MetaflowException):
 
 class UnsupportedPythonVersion(MetaflowException):
     headline = "Unsupported version of Python"
+
+
+def _is_schedule_disabled(enable_schedule):
+    """Resolve whether the schedule should be disabled.
+
+    CLI flag (--enable-schedule / --no-enable-schedule) takes precedence.
+    If not specified, falls back to the METAFLOW_SCHEDULE_DISABLED env var / config.
+    """
+    if enable_schedule is not None:
+        return not enable_schedule
+    return SCHEDULE_DISABLED
 
 
 @click.group()
@@ -215,6 +227,14 @@ def argo_workflows(obj, name=None):
     help="Use a daemon container to broadcast heartbeats.",
 )
 @click.option(
+    "--enable-schedule/--no-enable-schedule",
+    default=None,
+    show_default=False,
+    help="Deploy the workflow with the schedule enabled or disabled (suspended). "
+    "Useful for deploying dev/test branches without activating production schedules. "
+    "Defaults to enabled unless METAFLOW_SCHEDULE_DISABLED is set.",
+)
+@click.option(
     "--deployer-attribute-file",
     default=None,
     show_default=True,
@@ -261,6 +281,7 @@ def create(
     incident_io_alert_source_config_id=None,
     incident_io_metadata=None,
     enable_heartbeat_daemon=True,
+    enable_schedule=None,
     workflow_title=None,
     workflow_description=None,
     deployer_attribute_file=None,
@@ -425,8 +446,17 @@ def create(
                 "%s/%s\n\n" % (argo_workflowtemplate_link, obj.workflow_name),
                 indent=True,
             )
-        flow.schedule()
+        # Resolve schedule_disabled: CLI flag takes precedence, then env var
+        schedule_disabled = _is_schedule_disabled(enable_schedule)
+
+        flow.schedule(schedule_disabled=schedule_disabled)
         obj.echo("What will trigger execution of the workflow:", bold=True)
+        if schedule_disabled:
+            obj.echo(
+                "The schedule for this workflow has been *disabled* "
+                "(deployed in suspended state).",
+                indent=True,
+            )
         obj.echo(flow.trigger_explanation(), indent=True)
 
         # TODO: Print events emitted by execution of this flow

@@ -463,12 +463,12 @@ class ArgoWorkflows(object):
             return " ".join(schedule.schedule.split()[:5]), schedule.timezone
         return None, None
 
-    def schedule(self):
+    def schedule(self, schedule_disabled=False):
         try:
+            schedule = None if schedule_disabled else self._schedule
+            timezone = None if schedule_disabled else self._timezone
             argo_client = ArgoClient(namespace=KUBERNETES_NAMESPACE)
-            argo_client.schedule_workflow_template(
-                self.name, self._schedule, self._timezone
-            )
+            argo_client.schedule_workflow_template(self.name, schedule, timezone)
             # Register sensor.
             # Metaflow will overwrite any existing sensor.
             sensor_name = ArgoWorkflows._sensor_name(self.name)
