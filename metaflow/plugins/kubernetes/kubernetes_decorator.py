@@ -374,13 +374,18 @@ class KubernetesDecorator(StepDecorator):
                         if self.defaults[k] is None:
                             # skip if expected value isn't an int/float
                             continue
-                        # We use the larger of @resources and @batch attributes
+                        # We use the larger of @resources and @kubernetes attributes
                         # TODO: Fix https://github.com/Netflix/metaflow/issues/467
                         my_val = self.attributes.get(k)
                         if not (my_val is None and v is None):
-                            self.attributes[k] = str(
-                                max(float(my_val or 0), float(v or 0))
-                            )
+                            # Compare as floats to handle mixed int/float/string
+                            # types (e.g. @resources(cpu=0.5) with @kubernetes(cpu=1)).
+                            # Produce clean string output ("1" not "1.0").
+                            max_val = max(float(my_val or 0), float(v or 0))
+                            if max_val == int(max_val):
+                                self.attributes[k] = str(int(max_val))
+                            else:
+                                self.attributes[k] = str(max_val)
 
         # Check GPU vendor.
         if self.attributes["gpu_vendor"].lower() not in ("amd", "nvidia"):

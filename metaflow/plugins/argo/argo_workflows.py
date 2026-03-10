@@ -246,7 +246,14 @@ class ArgoWorkflows(object):
     def _sensor_name(name):
         # Unfortunately, Argo Events Sensor names don't allow for
         # dots (sensors run into an error) which rules out self.name :(
-        return name.replace(".", "-")
+        sanitized = name.replace(".", "-")
+        # Kubernetes names have a 253-character limit. Long flow names
+        # (especially with @project) can exceed this. Truncate and append
+        # a hash suffix to maintain uniqueness.
+        if len(sanitized) > 253:
+            name_hash = sha1(sanitized.encode("utf-8")).hexdigest()[:12]
+            sanitized = sanitized[:240] + "-" + name_hash
+        return sanitized
 
     @staticmethod
     def list_templates(flow_name, all=False, page_size=100):

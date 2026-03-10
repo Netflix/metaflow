@@ -37,7 +37,7 @@ def test_compute_resource_attributes():
         [MockDeco("resources", {"cpu": "2"})],
         MockDeco("batch", {"cpu": 1}),
         {"cpu": "3"},
-    ) == {"cpu": "2.0"}
+    ) == {"cpu": "2"}
 
     # take largest of @resources and @batch if both are present
     assert compute_resource_attributes(
@@ -45,6 +45,45 @@ def test_compute_resource_attributes():
         MockDeco("batch", {"cpu": "0.5"}),
         {"cpu": "1"},
     ) == {"cpu": "0.83"}
+
+
+def test_compute_resource_attributes_float_int_compat():
+    """Test that float and int resource values are compared correctly (issue #1014)."""
+
+    # @resources(cpu=0.5) with @batch(cpu=1) should pick the larger value
+    assert compute_resource_attributes(
+        [MockDeco("resources", {"cpu": 0.5})],
+        MockDeco("batch", {"cpu": 1}),
+        {"cpu": "1"},
+    ) == {"cpu": "1"}
+
+    # @resources(cpu=0.5) with @batch default — should use 0.5
+    assert compute_resource_attributes(
+        [MockDeco("resources", {"cpu": 0.5})],
+        MockDeco("batch", {"cpu": None}),
+        {"cpu": "1"},
+    ) == {"cpu": "0.5"}
+
+    # Whole-number floats should produce clean integer strings
+    assert compute_resource_attributes(
+        [MockDeco("resources", {"cpu": 2.0})],
+        MockDeco("batch", {"cpu": 1}),
+        {"cpu": "1"},
+    ) == {"cpu": "2"}
+
+    # @resources(memory=8192.0) with @batch(memory=4096)
+    assert compute_resource_attributes(
+        [MockDeco("resources", {"memory": 8192.0})],
+        MockDeco("batch", {"memory": 4096}),
+        {"memory": "4096"},
+    ) == {"memory": "8192"}
+
+    # Both specify same fractional value — should not raise
+    assert compute_resource_attributes(
+        [MockDeco("resources", {"cpu": 0.5})],
+        MockDeco("batch", {"cpu": 0.5}),
+        {"cpu": "1"},
+    ) == {"cpu": "0.5"}
 
 
 def test_compute_resource_attributes_string():
