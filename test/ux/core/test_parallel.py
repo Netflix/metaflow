@@ -20,9 +20,9 @@ from .test_utils import (
 
 def test_parallel_basic(exec_mode, decospecs, compute_env, tag, scheduler_config):
     """Verify @parallel creates multiple tasks with correct node indices."""
-    # @parallel uses Kubernetes JobSets, so it only works on kubernetes backends.
-    if not decospecs or not any("kubernetes" in str(d) for d in decospecs):
-        pytest.skip("@parallel requires a kubernetes backend (JobSet)")
+    # @parallel uses Kubernetes JobSets, which currently only works with Argo Workflows.
+    if scheduler_config.scheduler_type != "argo-workflows":
+        pytest.skip("@parallel requires Argo Workflows (JobSet)")
 
     run = execute_test_flow(
         flow_name="parallel/parallel_flow.py",
