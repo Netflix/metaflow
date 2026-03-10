@@ -36,3 +36,6 @@ stubs/version.py
 # devtools
 .devtools
 
+# claude code
+.claude/
+

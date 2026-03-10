@@ -6,56 +6,64 @@ pytestmark = pytest.mark.config
 
 _FLOWS_DIR = os.path.join(os.path.dirname(__file__), "flows")
 
-from .test_utils import (
-    run_flow_with_env,
-    deploy_flow_to_scheduler,
-    verify_single_run,
-    wait_for_deployed_run,
-    disp_test,
-)
+from .test_utils import execute_test_flow, disp_test
+
+
+def _run_config_flow(
+    flow_name,
+    exec_mode,
+    decospecs,
+    compute_env,
+    tag,
+    scheduler_config,
+    test_name,
+    tl_args_extra=None,
+    run_params=None,
+):
+    """Shared helper: build tl_args with config env and run via execute_test_flow."""
+    disp_test(exec_mode, decospecs, tag, scheduler_config)
+
+    extra = {
+        "env": {
+            "METAFLOW_CLICK_API_PROCESS_CONFIG": "1",
+            **(compute_env or {}),
+        },
+    }
+    if tl_args_extra:
+        extra.update(tl_args_extra)
+
+    return execute_test_flow(
+        flow_name=flow_name,
+        exec_mode=exec_mode,
+        decospecs=decospecs,
+        tag=tag,
+        scheduler_config=scheduler_config,
+        test_name=test_name,
+        run_params=run_params,
+        tl_args_extra=extra,
+    )
 
 
 def test_config_simple_default(
     exec_mode, decospecs, compute_env, tag, scheduler_config, backend_name
 ):
     """Config test with default values."""
-    disp_test(exec_mode, decospecs, tag, scheduler_config)
     trigger_param = str(uuid.uuid4())[:8]
-    test_unique_tag = f"test_config_simple_default_{backend_name}_{exec_mode}"
-    combined_tags = tag + [test_unique_tag]
-
-    tl_args = {
-        "env": {
-            "METAFLOW_CLICK_API_PROCESS_CONFIG": "1",
-            **compute_env,
-        },
-        "package_suffixes": ".py,.json",
-        "decospecs": decospecs,
-    }
-
-    if exec_mode == "deployer":
-        deployed_flow = deploy_flow_to_scheduler(
-            flow_name="config/config_simple.py",
-            tl_args=tl_args,
-            scheduler_args={"cluster": scheduler_config.cluster},
-            deploy_args={"tags": combined_tags, **(scheduler_config.deploy_args or {})},
-            scheduler_type=scheduler_config.scheduler_type,
-        )
-        run = wait_for_deployed_run(
-            deployed_flow, run_kwargs={"trigger_param": trigger_param}
-        )
-        if not run.successful:
-            raise RuntimeError(f"Run {run.id} failed")
-    else:
-        run_flow_with_env(
-            flow_name="config/config_simple.py",
-            runner_args={"tags": combined_tags, "trigger_param": trigger_param},
-            **tl_args,
-        )
-        run = verify_single_run("ConfigSimple", tags=combined_tags)
+    run = _run_config_flow(
+        flow_name="config/config_simple.py",
+        exec_mode=exec_mode,
+        decospecs=decospecs,
+        compute_env=compute_env,
+        tag=tag,
+        scheduler_config=scheduler_config,
+        test_name=f"config_simple_default_{backend_name}",
+        tl_args_extra={"package_suffixes": ".py,.json"},
+        run_params={"trigger_param": trigger_param},
+    )
 
     default_config = {"a": {"b": "41", "project_name": "config_project"}}
 
+    assert run.successful, "Run was not successful"
     expected_project_tag = f"project:{default_config['a']['project_name']}"
     assert expected_project_tag in run.tags, "Project name is incorrect"
 
@@ -75,48 +83,25 @@ def test_config_simple_config_value(
     exec_mode, decospecs, compute_env, tag, scheduler_config, backend_name
 ):
     """Config test using config_value override."""
-    disp_test(exec_mode, decospecs, tag, scheduler_config)
     trigger_param = str(uuid.uuid4())[:8]
-    test_unique_tag = f"test_config_simple_config_value_{backend_name}_{exec_mode}"
-    combined_tags = tag + [test_unique_tag]
-
     config_value = [
         ("cfg_default_value", {"a": {"project_name": "config_project_2", "b": "56"}})
     ]
+    run = _run_config_flow(
+        flow_name="config/config_simple.py",
+        exec_mode=exec_mode,
+        decospecs=decospecs,
+        compute_env=compute_env,
+        tag=tag,
+        scheduler_config=scheduler_config,
+        test_name=f"config_simple_config_value_{backend_name}",
+        tl_args_extra={"package_suffixes": ".py,.json", "config_value": config_value},
+        run_params={"trigger_param": trigger_param},
+    )
 
-    tl_args = {
-        "env": {
-            "METAFLOW_CLICK_API_PROCESS_CONFIG": "1",
-            **compute_env,
-        },
-        "package_suffixes": ".py,.json",
-        "config_value": config_value,
-        "decospecs": decospecs,
-    }
+    config = config_value[0][1]
 
-    if exec_mode == "deployer":
-        deployed_flow = deploy_flow_to_scheduler(
-            flow_name="config/config_simple.py",
-            tl_args=tl_args,
-            scheduler_args={"cluster": scheduler_config.cluster},
-            deploy_args={"tags": combined_tags, **(scheduler_config.deploy_args or {})},
-            scheduler_type=scheduler_config.scheduler_type,
-        )
-        run = wait_for_deployed_run(
-            deployed_flow, run_kwargs={"trigger_param": trigger_param}
-        )
-        if not run.successful:
-            raise RuntimeError(f"Run {run.id} failed")
-    else:
-        run_flow_with_env(
-            flow_name="config/config_simple.py",
-            runner_args={"tags": combined_tags, "trigger_param": trigger_param},
-            **tl_args,
-        )
-        run = verify_single_run("ConfigSimple", tags=combined_tags)
-
-    config = {"a": {"project_name": "config_project_2", "b": "56"}}
-
+    assert run.successful, "Run was not successful"
     expected_project_tag = f"project:{config['a']['project_name']}"
     assert expected_project_tag in run.tags, "Project name is incorrect"
 
@@ -134,42 +119,25 @@ def test_config_simple_config(
     exec_mode, decospecs, compute_env, tag, scheduler_config, backend_name
 ):
     """Config test using an explicit config file."""
-    disp_test(exec_mode, decospecs, tag, scheduler_config)
     trigger_param = str(uuid.uuid4())[:8]
-    test_unique_tag = f"test_config_simple_config_{backend_name}_{exec_mode}"
-    combined_tags = tag + [test_unique_tag]
-
     config_files = [
         ("cfg", os.path.join(_FLOWS_DIR, "config", "config_simple_cmd.json"))
     ]
-
-    tl_args = {
-        "env": compute_env,
-        "package_suffixes": ".py,.json",
-        "config": config_files,
-        "decospecs": decospecs,
-    }
-
-    if exec_mode == "deployer":
-        deployed_flow = deploy_flow_to_scheduler(
-            flow_name="config/config_simple.py",
-            tl_args=tl_args,
-            scheduler_args={"cluster": scheduler_config.cluster},
-            deploy_args={"tags": combined_tags, **(scheduler_config.deploy_args or {})},
-            scheduler_type=scheduler_config.scheduler_type,
-        )
-        run = wait_for_deployed_run(
-            deployed_flow, run_kwargs={"trigger_param": trigger_param}
-        )
-        if not run.successful:
-            raise RuntimeError(f"Run {run.id} failed")
-    else:
-        run_flow_with_env(
-            flow_name="config/config_simple.py",
-            runner_args={"tags": combined_tags, "trigger_param": trigger_param},
-            **tl_args,
-        )
-        run = verify_single_run("ConfigSimple", tags=combined_tags)
+    run = _run_config_flow(
+        flow_name="config/config_simple.py",
+        exec_mode=exec_mode,
+        decospecs=decospecs,
+        compute_env=compute_env,
+        tag=tag,
+        scheduler_config=scheduler_config,
+        test_name=f"config_simple_config_{backend_name}",
+        tl_args_extra={
+            "env": compute_env,  # no PROCESS_CONFIG needed for --config
+            "package_suffixes": ".py,.json",
+            "config": config_files,
+        },
+        run_params={"trigger_param": trigger_param},
+    )
 
     assert run.successful, "Run was not successful"
     assert run["end"].task.data.trigger_param == trigger_param
@@ -179,10 +147,17 @@ def test_mutable_flow_default(
     exec_mode, decospecs, compute_env, tag, scheduler_config, backend_name
 ):
     """Mutable config test with default values."""
-    disp_test(exec_mode, decospecs, tag, scheduler_config)
     trigger_param = str(uuid.uuid4())[:8]
-    test_unique_tag = f"test_mutable_flow_default_{backend_name}_{exec_mode}"
-    combined_tags = tag + [test_unique_tag]
+    run = _run_config_flow(
+        flow_name="config/mutable_flow.py",
+        exec_mode=exec_mode,
+        decospecs=decospecs,
+        compute_env=compute_env,
+        tag=tag,
+        scheduler_config=scheduler_config,
+        test_name=f"mutable_flow_default_{backend_name}",
+        run_params={"trigger_param": trigger_param, "param2": "48"},
+    )
 
     default_config = {
         "parameters": [
@@ -194,40 +169,6 @@ def test_mutable_flow_default(
         "flow_add_environment": {"vars": {"FLOW_LEVEL": "4"}},
         "project_name": "config_project",
     }
-
-    tl_args = {
-        "env": {
-            "METAFLOW_CLICK_API_PROCESS_CONFIG": "1",
-            **compute_env,
-        },
-        "decospecs": decospecs,
-    }
-
-    if exec_mode == "deployer":
-        deployed_flow = deploy_flow_to_scheduler(
-            flow_name="config/mutable_flow.py",
-            tl_args=tl_args,
-            scheduler_args={"cluster": scheduler_config.cluster},
-            deploy_args={"tags": combined_tags, **(scheduler_config.deploy_args or {})},
-            scheduler_type=scheduler_config.scheduler_type,
-        )
-        run = wait_for_deployed_run(
-            deployed_flow,
-            run_kwargs={"trigger_param": trigger_param, "param2": "48"},
-        )
-        if not run.successful:
-            raise RuntimeError(f"Run {run.id} failed")
-    else:
-        run_flow_with_env(
-            flow_name="config/mutable_flow.py",
-            runner_args={
-                "tags": combined_tags,
-                "trigger_param": trigger_param,
-                "param2": "48",
-            },
-            **tl_args,
-        )
-        run = verify_single_run("ConfigMutableFlow", tags=combined_tags)
 
     assert run.successful, "Run was not successful"
 
@@ -265,11 +206,7 @@ def test_mutable_flow_config_value(
     exec_mode, decospecs, compute_env, tag, scheduler_config, backend_name
 ):
     """Mutable flow with config_value override."""
-    disp_test(exec_mode, decospecs, tag, scheduler_config)
     trigger_param = str(uuid.uuid4())[:8]
-    test_unique_tag = f"test_mutable_flow_config_value_{backend_name}_{exec_mode}"
-    combined_tags = tag + [test_unique_tag]
-
     config_value = [
         (
             "config",
@@ -285,45 +222,22 @@ def test_mutable_flow_config_value(
             },
         )
     ]
+    run = _run_config_flow(
+        flow_name="config/mutable_flow.py",
+        exec_mode=exec_mode,
+        decospecs=decospecs,
+        compute_env=compute_env,
+        tag=tag,
+        scheduler_config=scheduler_config,
+        test_name=f"mutable_flow_config_value_{backend_name}",
+        tl_args_extra={"config_value": config_value},
+        run_params={"trigger_param": trigger_param, "param3": "45"},
+    )
 
-    tl_args = {
-        "env": {
-            "METAFLOW_CLICK_API_PROCESS_CONFIG": "1",
-            **compute_env,
-        },
-        "config_value": config_value,
-        "decospecs": decospecs,
-    }
-
-    if exec_mode == "deployer":
-        deployed_flow = deploy_flow_to_scheduler(
-            flow_name="config/mutable_flow.py",
-            tl_args=tl_args,
-            scheduler_args={"cluster": scheduler_config.cluster},
-            deploy_args={"tags": combined_tags, **(scheduler_config.deploy_args or {})},
-            scheduler_type=scheduler_config.scheduler_type,
-        )
-        run = wait_for_deployed_run(
-            deployed_flow,
-            run_kwargs={"trigger_param": trigger_param, "param3": "45"},
-        )
-        if not run.successful:
-            raise RuntimeError(f"Run {run.id} failed")
-    else:
-        run_flow_with_env(
-            flow_name="config/mutable_flow.py",
-            runner_args={
-                "tags": combined_tags,
-                "trigger_param": trigger_param,
-                "param3": "45",
-            },
-            **tl_args,
-        )
-        run = verify_single_run("ConfigMutableFlow", tags=combined_tags)
+    config = config_value[0][1]
 
     assert run.successful, "Run was not successful"
 
-    config = config_value[0][1]
     expected_project_tag = f"project:{config['project_name']}"
     assert expected_project_tag in run.tags, "Project name is incorrect"
 
@@ -358,40 +272,18 @@ def test_config_corner_cases(
     exec_mode, decospecs, compute_env, tag, scheduler_config, backend_name
 ):
     """Config corner cases: env_cfg, config_expr with a function, and extra env vars."""
-    disp_test(exec_mode, decospecs, tag, scheduler_config)
     trigger_param = str(uuid.uuid4())[:8]
-    test_unique_tag = f"test_config_corner_cases_{backend_name}_{exec_mode}"
-    combined_tags = tag + [test_unique_tag]
-
-    tl_args = {
-        "env": {
-            "METAFLOW_CLICK_API_PROCESS_CONFIG": "1",
-            **compute_env,
-        },
-        "package_suffixes": ".json",
-        "decospecs": decospecs,
-    }
-
-    if exec_mode == "deployer":
-        deployed_flow = deploy_flow_to_scheduler(
-            flow_name="config/config_corner_cases.py",
-            tl_args=tl_args,
-            scheduler_args={"cluster": scheduler_config.cluster},
-            deploy_args={"tags": combined_tags, **(scheduler_config.deploy_args or {})},
-            scheduler_type=scheduler_config.scheduler_type,
-        )
-        run = wait_for_deployed_run(
-            deployed_flow, run_kwargs={"trigger_param": trigger_param}
-        )
-        if not run.successful:
-            raise RuntimeError(f"Run {run.id} failed")
-    else:
-        run_flow_with_env(
-            flow_name="config/config_corner_cases.py",
-            runner_args={"tags": combined_tags, "trigger_param": trigger_param},
-            **tl_args,
-        )
-        run = verify_single_run("ConfigSimple", tags=combined_tags)
+    run = _run_config_flow(
+        flow_name="config/config_corner_cases.py",
+        exec_mode=exec_mode,
+        decospecs=decospecs,
+        compute_env=compute_env,
+        tag=tag,
+        scheduler_config=scheduler_config,
+        test_name=f"config_corner_cases_{backend_name}",
+        tl_args_extra={"package_suffixes": ".json"},
+        run_params={"trigger_param": trigger_param},
+    )
 
     default_config = {"a": {"b": "41", "project_name": "config_project"}}
 

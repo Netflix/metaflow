@@ -15,6 +15,38 @@ from metaflow.runner.deployer import (
 from metaflow.runner.utils import get_lower_level_group, handle_timeout, temporary_fifo
 
 
+def _get_airflow_client():
+    """Return an (AirflowClient, url) pair, or (None, None) if unconfigured."""
+    from metaflow.metaflow_config import (
+        AIRFLOW_REST_API_URL,
+        AIRFLOW_REST_API_USERNAME,
+        AIRFLOW_REST_API_PASSWORD,
+    )
+    from .airflow_client import AirflowClient
+
+    if not AIRFLOW_REST_API_URL:
+        return None, None
+    client = AirflowClient(
+        AIRFLOW_REST_API_URL,
+        username=AIRFLOW_REST_API_USERNAME,
+        password=AIRFLOW_REST_API_PASSWORD,
+    )
+    return client, AIRFLOW_REST_API_URL
+
+
+def _compute_metaflow_run_id(dag_run_id, dag_id):
+    """Compute the Metaflow run ID from an Airflow DAG run ID.
+
+    Mirrors AIRFLOW_MACROS.RUN_ID in airflow_utils.py:
+      run_id_creator([run_id, dag_id]) = md5(run_id + "-" + dag_id)[:12]
+    prefixed with "airflow-".
+    """
+    run_hash = hashlib.md5(
+        ("%s-%s" % (dag_run_id, dag_id)).encode("utf-8")
+    ).hexdigest()[:12]
+    return "airflow-%s" % run_hash
+
+
 class AirflowTriggeredRun(TriggeredRun):
     """
     A class representing a triggered Airflow DAG run execution.
@@ -32,21 +64,9 @@ class AirflowTriggeredRun(TriggeredRun):
             ``"failed"``), or None if it could not be retrieved.
         """
         try:
-            from metaflow.metaflow_config import (
-                AIRFLOW_REST_API_URL,
-                AIRFLOW_REST_API_USERNAME,
-                AIRFLOW_REST_API_PASSWORD,
-            )
-            from .airflow_client import AirflowClient
-
-            if not AIRFLOW_REST_API_URL:
+            client, _ = _get_airflow_client()
+            if client is None:
                 return None
-
-            client = AirflowClient(
-                AIRFLOW_REST_API_URL,
-                username=AIRFLOW_REST_API_USERNAME,
-                password=AIRFLOW_REST_API_PASSWORD,
-            )
             content = json.loads(self.content)
             dag_run_id = content.get("name")
             dag_id = content.get("dag_id") or self.deployer.name
@@ -115,21 +135,9 @@ class AirflowDeployedFlow(DeployedFlow):
             True if deletion succeeded, False otherwise.
         """
         try:
-            from metaflow.metaflow_config import (
-                AIRFLOW_REST_API_URL,
-                AIRFLOW_REST_API_USERNAME,
-                AIRFLOW_REST_API_PASSWORD,
-            )
-            from .airflow_client import AirflowClient
-
-            if not AIRFLOW_REST_API_URL:
+            client, _ = _get_airflow_client()
+            if client is None:
                 return False
-
-            client = AirflowClient(
-                AIRFLOW_REST_API_URL,
-                username=AIRFLOW_REST_API_USERNAME,
-                password=AIRFLOW_REST_API_PASSWORD,
-            )
             return client.delete_dag(self.deployer.name)
         except Exception:
             return False
@@ -154,24 +162,14 @@ class AirflowDeployedFlow(DeployedFlow):
         Exception
             If there is an error during the trigger process.
         """
-        from metaflow.metaflow_config import (
-            AIRFLOW_REST_API_URL,
-            AIRFLOW_REST_API_USERNAME,
-            AIRFLOW_REST_API_PASSWORD,
-        )
-        from .airflow_client import AirflowClient, AirflowClientError
+        from .airflow_client import AirflowClientError
 
-        if not AIRFLOW_REST_API_URL:
+        client, _ = _get_airflow_client()
+        if client is None:
             raise MetaflowException(
                 "METAFLOW_AIRFLOW_REST_API_URL is not set. "
                 "Cannot trigger Airflow DAG run."
             )
-
-        client = AirflowClient(
-            AIRFLOW_REST_API_URL,
-            username=AIRFLOW_REST_API_USERNAME,
-            password=AIRFLOW_REST_API_PASSWORD,
-        )
 
         dag_id = self.deployer.name
         # Pass any flow parameters as DAG conf
@@ -184,15 +182,7 @@ class AirflowDeployedFlow(DeployedFlow):
 
         dag_run_id = dag_run.get("dag_run_id") or dag_run.get("run_id", "")
         flow_name = self.deployer.flow_name
-
-        # Compute the Metaflow run ID from the Airflow DAG run ID.
-        # This mirrors AIRFLOW_MACROS.RUN_ID in airflow_utils.py:
-        #   run_id_creator([run_id, dag_id]) = md5(run_id + "-" + dag_id)[:12]
-        # prefixed with "airflow-".
-        run_hash = hashlib.md5(
-            ("%s-%s" % (dag_run_id, dag_id)).encode("utf-8")
-        ).hexdigest()[:12]
-        metaflow_run_id = "airflow-%s" % run_hash
+        metaflow_run_id = _compute_metaflow_run_id(dag_run_id, dag_id)
         pathspec = "%s/%s" % (flow_name, metaflow_run_id)
 
         content = json.dumps(
@@ -223,21 +213,10 @@ class AirflowDeployedFlow(DeployedFlow):
         AirflowDeployedFlow
         """
         from metaflow.runner.deployer import Deployer, generate_fake_flow_file_contents
-        from metaflow.metaflow_config import (
-            AIRFLOW_REST_API_URL,
-            AIRFLOW_REST_API_USERNAME,
-            AIRFLOW_REST_API_PASSWORD,
-        )
-        from .airflow_client import AirflowClient, AirflowClientError
 
-        if not AIRFLOW_REST_API_URL:
+        client, _ = _get_airflow_client()
+        if client is None:
             raise MetaflowException("METAFLOW_AIRFLOW_REST_API_URL is not set.")
-
-        client = AirflowClient(
-            AIRFLOW_REST_API_URL,
-            username=AIRFLOW_REST_API_USERNAME,
-            password=AIRFLOW_REST_API_PASSWORD,
-        )
 
         dag = client.get_dag(identifier)
         if dag is None:
@@ -288,10 +267,7 @@ class AirflowDeployedFlow(DeployedFlow):
         AirflowTriggeredRun
         """
         deployed_flow_obj = cls.from_deployment(identifier, metadata)
-        run_hash = hashlib.md5(
-            ("%s-%s" % (run_id, identifier)).encode("utf-8")
-        ).hexdigest()[:12]
-        metaflow_run_id = "airflow-%s" % run_hash
+        metaflow_run_id = _compute_metaflow_run_id(run_id, identifier)
         pathspec = "%s/%s" % (deployed_flow_obj.deployer.flow_name, metaflow_run_id)
         content = json.dumps(
             {

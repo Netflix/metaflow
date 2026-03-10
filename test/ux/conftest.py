@@ -172,6 +172,23 @@ def _resolve_backends(
     return backends
 
 
+def _compute_exec_modes(
+    user_exec_mode, deployer_only, runner_and_deployer, has_scheduler
+):
+    """Determine which exec modes to test for a given backend."""
+    if user_exec_mode:
+        return [user_exec_mode]
+    if deployer_only:
+        return [ExecMode.DEPLOYER.value] if has_scheduler else []
+    if runner_and_deployer:
+        modes = [ExecMode.RUNNER.value]
+        if has_scheduler:
+            modes.append(ExecMode.DEPLOYER.value)
+        return modes
+    # Default: deployer only if scheduler available
+    return [ExecMode.DEPLOYER.value] if has_scheduler else []
+
+
 def pytest_generate_tests(metafunc):
     """
     Parametrize (exec_mode, backend) for each test.
@@ -217,29 +234,23 @@ def pytest_generate_tests(metafunc):
     params = []
     ids = []
 
+    # Determine which execution modes apply based on test markers.
+    deployer_only = scheduler_only or data_ux
+    runner_and_deployer = basic or config_mark or dag
+
     for b in backends:
         has_scheduler = bool(b.get("scheduler_type"))
-
-        if user_exec_mode:
-            modes = [user_exec_mode]
-        elif scheduler_only or data_ux:
-            modes = [ExecMode.DEPLOYER.value] if has_scheduler else []
-        elif basic or config_mark or dag:
-            modes = [ExecMode.RUNNER.value]
-            if has_scheduler:
-                modes.append(ExecMode.DEPLOYER.value)
-        else:
-            modes = [ExecMode.DEPLOYER.value] if has_scheduler else []
+        modes = _compute_exec_modes(
+            user_exec_mode, deployer_only, runner_and_deployer, has_scheduler
+        )
 
         for mode in modes:
-            marks = []
-
             if needs_exec and needs_backend:
-                params.append(pytest.param(mode, b, marks=marks))
+                params.append(pytest.param(mode, b))
             elif needs_exec:
-                params.append(pytest.param(mode, marks=marks))
+                params.append(pytest.param(mode))
             else:
-                params.append(pytest.param(b, marks=marks))
+                params.append(pytest.param(b))
             ids.append("%s-%s" % (b["name"], mode))
 
     if needs_exec and needs_backend:
