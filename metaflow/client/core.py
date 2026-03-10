@@ -2704,6 +2704,7 @@ class Metaflow(object):
         return Flow(name, _metaflow=self)
 
     def _ipython_key_completions_(self):
+        """Returns flow names for IPython/Jupyter key-based tab completion."""
         try:
             return [flow.id for flow in self]
         except Exception:
