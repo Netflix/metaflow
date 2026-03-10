@@ -2554,6 +2554,7 @@ class ArgoWorkflows(object):
                     shared_memory=shared_memory,
                     port=port,
                     qos=resources["qos"],
+                    priority_class=resources.get("priority_class"),
                     security_context=security_context,
                 )
 
@@ -2709,6 +2710,8 @@ class ArgoWorkflows(object):
                     .node_selectors(resources.get("node_selector"))
                     # Set tolerations
                     .tolerations(resources.get("tolerations"))
+                    # Set priority class
+                    .priority_class_name(resources.get("priority_class"))
                     # Set image pull secrets if present. We need to use pod_spec_patch due to Argo not supporting this on a template level.
                     .pod_spec_patch(
                         {
@@ -4432,6 +4435,11 @@ class Template(object):
 
     def tolerations(self, tolerations):
         self.payload["tolerations"] = tolerations
+        return self
+
+    def priority_class_name(self, priority_class_name):
+        if priority_class_name:
+            self.payload["priorityClassName"] = priority_class_name
         return self
 
     def to_json(self):
