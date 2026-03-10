@@ -1,8 +1,9 @@
 import os
+import sys
 import tempfile
 
 import pytest
-from unittest.mock import MagicMock, patch, PropertyMock
+from unittest.mock import MagicMock, patch
 
 from metaflow._vendor.click.testing import CliRunner
 
@@ -43,6 +44,8 @@ class TestMetaflowResume:
         runner = CliRunner()
         result = runner.invoke(cli, ["resume", "InvalidPathspec"])
         assert result.exit_code != 0
+        # Run should never be instantiated for a bad pathspec
+        mock_run_cls.assert_not_called()
 
     @patch("metaflow.cmd.resume.namespace")
     @patch("metaflow.cmd.resume.Run")
@@ -51,6 +54,7 @@ class TestMetaflowResume:
         runner = CliRunner()
         result = runner.invoke(cli, ["resume", "MyFlow/123"])
         assert result.exit_code == 1
+        mock_run_cls.assert_called_once_with("MyFlow/123", _namespace_check=False)
 
     @patch("metaflow.cmd.resume.namespace")
     @patch("metaflow.cmd.resume.Run")
@@ -61,6 +65,20 @@ class TestMetaflowResume:
         runner = CliRunner()
         result = runner.invoke(cli, ["resume", "MyFlow/123"])
         assert result.exit_code == 1
+
+    @patch("metaflow.cmd.resume.namespace")
+    @patch("metaflow.cmd.resume.Run")
+    def test_code_package_extract_fails(self, mock_run_cls, mock_ns):
+        """When code.extract() raises, exit 1 with error message."""
+        mock_run = MagicMock()
+        mock_run.code.script_name = "myflow.py"
+        mock_run.code.extract.side_effect = Exception("Download failed: 404")
+        mock_run_cls.return_value = mock_run
+
+        runner = CliRunner(mix_stderr=False)
+        result = runner.invoke(cli, ["resume", "MyFlow/999"])
+        assert result.exit_code == 1
+        assert "Failed to download code package" in result.stderr
 
     @patch("metaflow.cmd.resume.subprocess.run")
     @patch("metaflow.cmd.resume.namespace")
@@ -73,13 +91,15 @@ class TestMetaflowResume:
         runner = CliRunner()
         result = runner.invoke(cli, ["resume", "MyFlow/123"])
 
-        # Verify subprocess was called with the right arguments
         mock_subprocess.assert_called_once()
         cmd = mock_subprocess.call_args[0][0]
-        assert "myflow.py" in cmd[1]
-        assert "resume" in cmd
-        assert "--origin-run-id" in cmd
-        assert "123" in cmd
+        # Verify exact command structure: python <script> resume --origin-run-id <id>
+        assert cmd[0] == sys.executable
+        assert cmd[1].endswith("myflow.py")
+        assert cmd[2] == "resume"
+        assert cmd[3] == "--origin-run-id"
+        assert cmd[4] == "123"
+        assert len(cmd) == 5  # no extra args
 
     @patch("metaflow.cmd.resume.subprocess.run")
     @patch("metaflow.cmd.resume.namespace")
@@ -94,7 +114,10 @@ class TestMetaflowResume:
 
         mock_subprocess.assert_called_once()
         cmd = mock_subprocess.call_args[0][0]
-        assert "train" in cmd
+        assert cmd[2] == "resume"
+        assert cmd[3] == "--origin-run-id"
+        assert cmd[4] == "123"
+        assert cmd[5] == "train"
 
     @patch("metaflow.cmd.resume.subprocess.run")
     @patch("metaflow.cmd.resume.namespace")
@@ -119,14 +142,15 @@ class TestMetaflowResume:
     @patch("metaflow.cmd.resume.subprocess.run")
     @patch("metaflow.cmd.resume.namespace")
     @patch("metaflow.cmd.resume.Run")
-    def test_resume_propagates_exit_code(self, mock_run_cls, mock_ns, mock_subprocess):
+    def test_nonzero_exit_prints_error(self, mock_run_cls, mock_ns, mock_subprocess):
         mock_run = self._make_mock_run(script_name="myflow.py")
         mock_run_cls.return_value = mock_run
         mock_subprocess.return_value = MagicMock(returncode=42)
 
-        runner = CliRunner()
+        runner = CliRunner(mix_stderr=False)
         result = runner.invoke(cli, ["resume", "MyFlow/123"])
         assert result.exit_code == 42
+        assert "failed with exit code 42" in result.stderr
 
     @patch("metaflow.cmd.resume.subprocess.run")
     @patch("metaflow.cmd.resume.namespace")
@@ -136,13 +160,11 @@ class TestMetaflowResume:
         mock_run_cls.return_value = mock_run
         mock_subprocess.return_value = MagicMock(returncode=0)
 
-        # Capture the tmp_path used
         tmp_path = mock_run.code.extract.return_value.name
 
         runner = CliRunner()
         result = runner.invoke(cli, ["resume", "MyFlow/123"])
 
-        # Temp directory should be cleaned up
         assert not os.path.exists(tmp_path)
 
     @patch("metaflow.cmd.resume.namespace")

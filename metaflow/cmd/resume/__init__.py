@@ -81,9 +81,15 @@ def resume(ctx, run_pathspec, step_name):
 
     # Extract code to a temporary directory
     _echo("Extracting code package...")
-    tmp_dir = code.extract()
-    tmp_path = tmp_dir.name
+    try:
+        tmp_dir = code.extract()
+    except Exception as e:
+        _echo_error(
+            "Failed to download code package for *%s/%s*: %s" % (flow_name, run_id, e)
+        )
+        raise SystemExit(1)
 
+    tmp_path = tmp_dir.name
     try:
         script_path = os.path.join(tmp_path, script_name)
         if not os.path.isfile(script_path):
@@ -105,6 +111,11 @@ def resume(ctx, run_pathspec, step_name):
         _echo("")
 
         result = subprocess.run(cmd, cwd=tmp_path)
+        if result.returncode != 0:
+            _echo_error(
+                "Resume of *%s/%s* failed with exit code %d."
+                % (flow_name, run_id, result.returncode)
+            )
         raise SystemExit(result.returncode)
     finally:
         # Clean up the temporary directory
