@@ -26,8 +26,8 @@ inputs:
     default: "test_basic.py test_config.py test_dag.py"
   use-sudo:
     description: >
-      Run pytest under sudo -E. Required when the scheduler (e.g. Kestra)
-      creates root-owned artifact files that a non-root test process cannot read.
+      Run pytest under sudo -E. Required when the scheduler creates
+      root-owned artifact files that a non-root test process cannot read.
     default: "false"
   codecov-token:
     description: Codecov upload token. Coverage upload is skipped if not provided.

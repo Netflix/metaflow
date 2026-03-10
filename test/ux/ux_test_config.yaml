@@ -52,10 +52,3 @@ backends:
     decospec: "kubernetes:image=metaflow-test:python3.9"
     enabled: true
 
-  - name: temporal
-    scheduler_type: temporal
-    cluster: null
-    decospec: null
-    deploy_args:
-      temporal_host: "localhost:7233"
-    enabled: true

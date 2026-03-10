@@ -12,11 +12,8 @@ allow_k8s_contexts('minikube')
 # ---------------------------------------------------------------------------
 # Version configuration
 # ---------------------------------------------------------------------------
-JOBSET_VERSION = os.getenv("JOBSET_VERSION", "v0.8.2")
 ARGO_WORKFLOWS_HELM_CHART_VERSION = os.getenv("ARGO_WORKFLOWS_HELM_CHART_VERSION", "0.45.2")
 ARGO_WORKFLOWS_IMAGE_TAG = os.getenv("ARGO_WORKFLOWS_IMAGE_TAG", "v3.6.0")
-ARGO_EVENTS_HELM_CHART_VERSION = os.getenv("ARGO_EVENTS_HELM_CHART_VERSION", "2.4.8")
-ARGO_EVENTS_IMAGE_TAG = os.getenv("ARGO_EVENTS_IMAGE_TAG", "v1.9.2")
 AIRFLOW_HELM_CHART_VERSION = os.getenv("AIRFLOW_HELM_CHART_VERSION", "1.15.0")
 AIRFLOW_IMAGE_TAG = os.getenv("AIRFLOW_IMAGE_TAG", "2.10.4")
 
@@ -29,13 +26,9 @@ components = {
     "minio": [],
     "postgresql": [],
     "argo-workflows": [],
-    "argo-events": ["argo-workflows"],
-    "jobset": [],
     "localbatch": ["minio"],
     "ddb-local": [],
     "sfn-local": ["ddb-local"],
-    "azurite": [],
-    "fake-gcs-server": [],
     "airflow": ["postgresql"],
 }
 
@@ -94,30 +87,22 @@ load('./tilt/_result.tiltfile', 'new_result')
 load('./tilt/minio.tiltfile', 'setup_minio')
 load('./tilt/postgresql.tiltfile', 'setup_postgresql')
 load('./tilt/argo_workflows.tiltfile', 'setup_argo_workflows')
-load('./tilt/argo_events.tiltfile', 'setup_argo_events')
-load('./tilt/jobset.tiltfile', 'setup_jobset')
 load('./tilt/metadata_service.tiltfile', 'setup_metadata_service')
 load('./tilt/ui.tiltfile', 'setup_ui')
 load('./tilt/localbatch.tiltfile', 'setup_localbatch')
 load('./tilt/ddb_local.tiltfile', 'setup_ddb_local')
 load('./tilt/sfn_local.tiltfile', 'setup_sfn_local')
-load('./tilt/azurite.tiltfile', 'setup_azurite')
-load('./tilt/fake_gcs_server.tiltfile', 'setup_fake_gcs_server')
 load('./tilt/airflow.tiltfile', 'setup_airflow')
 
 _SETUP = {
     "minio": setup_minio,
     "postgresql": setup_postgresql,
     "argo-workflows": setup_argo_workflows,
-    "argo-events": setup_argo_events,
-    "jobset": setup_jobset,
     "metadata-service": setup_metadata_service,
     "ui": setup_ui,
     "localbatch": setup_localbatch,
     "ddb-local": setup_ddb_local,
     "sfn-local": setup_sfn_local,
-    "azurite": setup_azurite,
-    "fake-gcs-server": setup_fake_gcs_server,
     "airflow": setup_airflow,
 }
 
@@ -128,11 +113,8 @@ ctx = struct(
     enabled_components=enabled_components,
     components=components,
     versions=struct(
-        jobset=JOBSET_VERSION,
         argo_workflows_chart=ARGO_WORKFLOWS_HELM_CHART_VERSION,
         argo_workflows_image=ARGO_WORKFLOWS_IMAGE_TAG,
-        argo_events_chart=ARGO_EVENTS_HELM_CHART_VERSION,
-        argo_events_image=ARGO_EVENTS_IMAGE_TAG,
         airflow_chart=AIRFLOW_HELM_CHART_VERSION,
         airflow_image=AIRFLOW_IMAGE_TAG,
     ),
