@@ -36,9 +36,3 @@ stubs/version.py
 # devtools
 .devtools
 
-# Generated orchestrator workflow files (compiler output, regenerated on deploy)
-*_flyte.py
-*_prefect.py
-*_dagster.py
-*_temporal_worker.py
-.claude/

@@ -154,6 +154,72 @@ python -m pytest test/ux/core/test_basic.py test/ux/core/test_config.py \
   -k "sfn-batch and not conda" -v --tb=short
 ```
 
+### Airflow (airflow-kubernetes backend)
+
+Required services: `minio,postgresql,metadata-service,airflow`
+
+```bash
+SERVICES_OVERRIDE=minio,postgresql,metadata-service,airflow make up
+```
+
+Wait for the Airflow REST API before running tests:
+
+```bash
+devtools/ci/wait-airflow-api.sh
+```
+
+Run only airflow tests:
+
+```bash
+AWS_SHARED_CREDENTIALS_FILE= \
+METAFLOW_HOME=$(pwd)/devtools/.devtools \
+METAFLOW_PROFILE=local \
+AWS_CONFIG_FILE=$(pwd)/devtools/.devtools/aws_config \
+PYTHONPATH=$(pwd) \
+python -m pytest test/ux/core/test_basic.py test/ux/core/test_config.py \
+  -k "airflow-kubernetes and not conda" -v --tb=short
+```
+
+## CI scripts
+
+The `devtools/ci/` directory contains bash scripts extracted from the GitHub Actions
+workflow (`.github/workflows/ux-tests.yml`). They are used in CI **and** can be run
+locally for debugging.
+
+| Script | Purpose | Key env vars |
+|---|---|---|
+| `start-devstack.sh` | Launch Tilt, wait for API + services | `SERVICES` |
+| `load-minikube-images.sh` | Load cached tar images into minikube | `CACHE_DIR` |
+| `save-minikube-images.sh` | Save minikube images to tar cache | `CACHE_DIR` |
+| `forward-bridge-ports.sh` | socat port forwarding for sfn-batch | `--verbose` flag |
+| `wait-airflow-api.sh` | Poll Airflow REST API until ready | `AIRFLOW_URL`, `MAX_ATTEMPTS` |
+| `dump-sfn-diagnostics.sh` | sfn-local logs, failed jobs, container logs | — |
+| `dump-airflow-diagnostics.sh` | Airflow scheduler DAGs, config, import errors | — |
+| `combine-coverage.sh` | Rename + combine per-backend coverage data | `ARTIFACTS_DIR` |
+
+### Running CI scripts locally
+
+The scripts work in both CI and local contexts. For example, to start the devstack
+using the same script CI uses:
+
+```bash
+cd devtools
+SERVICES=minio,postgresql,metadata-service ci/start-devstack.sh
+```
+
+To debug port forwarding issues with verbose diagnostics:
+
+```bash
+devtools/ci/forward-bridge-ports.sh --verbose
+```
+
+To dump diagnostics after a failed test run:
+
+```bash
+devtools/ci/dump-sfn-diagnostics.sh
+devtools/ci/dump-airflow-diagnostics.sh
+```
+
 ## Teardown
 
 ```bash

@@ -80,12 +80,7 @@ jobs:
 
       - name: Pre-load cached images into minikube
         if: steps.image-cache.outputs.cache-hit == 'true'
-        run: |
-          for f in /tmp/minikube-image-cache/*.tar; do
-            [ -f "$f" ] || continue
-            echo "Loading $(basename "$f")..."
-            minikube image load "$f" || echo "Warning: failed to load $f (skipping)"
-          done
+        run: devtools/ci/load-minikube-images.sh
 
       - name: Cache Helm repos
         uses: actions/cache@v4
@@ -105,31 +100,9 @@ jobs:
 
       - name: Start devstack
         working-directory: devtools
-        run: |
-          # The Tiltfile writes config files into .devtools/ — create it first.
-          # (make up does this, but we run tilt directly in CI.)
-          mkdir -p .devtools
-
-          # --stream replaces the TUI with plain log output, suitable for CI.
-          # Tilt detects a headless env and won't try to open a browser.
-          SERVICES="${{ matrix.services }}" \
-            tilt up --stream 2>&1 | tee /tmp/tilt.log &
-
-          # Wait for Tilt API server (takes a few seconds to bind after launch).
-          echo "Waiting for Tilt API server..."
-          for i in $(seq 1 60); do
-            tilt get session >/dev/null 2>&1 && break
-            sleep 2
-          done
-
-          # Wait for the Tiltfile itself to finish loading (helm pulls happen here).
-          # The (Tiltfile) uiresource is created as soon as tilt begins parsing;
-          # waiting for Ready means all local() calls in the Tiltfile completed.
-          echo "Waiting for Tiltfile to load..."
-          tilt wait --for=condition=Ready "uiresource/(Tiltfile)" --timeout=120s
-
-          echo "Waiting for all devstack services (generate-configs)..."
-          tilt wait --for=condition=Ready uiresource/generate-configs --timeout=1800s
+        run: ci/start-devstack.sh
+        env:
+          SERVICES: ${{ matrix.services }}
 
       - name: Wait for test image to be loaded into minikube
         if: matrix.backend != 'local' && matrix.backend != 'sfn-batch'
@@ -138,18 +111,7 @@ jobs:
 
       - name: Save minikube images to cache
         if: steps.image-cache.outputs.cache-hit != 'true'
-        run: |
-          mkdir -p /tmp/minikube-image-cache
-          minikube image ls 2>/dev/null \
-            | grep -vE 'registry\.k8s\.io|k8s\.gcr\.io|<none>|pause' \
-            | while read img; do
-                safe=$(echo "$img" | tr '/:@' '---')
-                echo "Saving $img..."
-                minikube image save "$img" "/tmp/minikube-image-cache/${safe}.tar" \
-                  || echo "Warning: skipping $img"
-              done
-          echo "Saved images:"
-          ls -lh /tmp/minikube-image-cache/ | head -30
+        run: devtools/ci/save-minikube-images.sh
 
       - name: Store minikube image cache
         if: steps.image-cache.outputs.cache-hit != 'true'
@@ -161,83 +123,19 @@ jobs:
       - name: Start minikube tunnel
         run: |
           sudo minikube tunnel &
-          # Give the tunnel a moment to establish routes
           sleep 5
 
       - name: Forward devstack ports to Docker bridge (sfn-batch only)
         if: matrix.backend == 'sfn-batch'
-        run: |
-          # On Linux, kubectl port-forward binds to 127.0.0.1, not 0.0.0.0.
-          # Docker containers (launched by localbatch for Metaflow steps) resolve
-          # host.docker.internal to the bridge gateway (172.17.0.1), but
-          # 127.0.0.1:9000/8080 are not reachable from that IP.  Use socat to
-          # re-expose MinIO and the metadata service on the bridge so containers
-          # can reach them via host.docker.internal.
-          sudo apt-get install -y -q socat
-          BRIDGE=$(docker network inspect bridge \
-            --format='{{range .IPAM.Config}}{{.Gateway}}{{end}}')
-          echo "Docker bridge gateway: ${BRIDGE}"
-          echo "=== Network diagnostic: host port 8000 ==="
-          echo "Host 127.0.0.1:8000 test:"
-          timeout 3 bash -c 'echo > /dev/tcp/127.0.0.1/8000' 2>&1 && echo 'HOST: CONNECT OK to 127.0.0.1:8000' || echo 'HOST: CONNECT FAILED to 127.0.0.1:8000'
-          echo "Host ${BRIDGE}:8000 test:"
-          timeout 3 bash -c "echo > /dev/tcp/${BRIDGE}/8000" 2>&1 && echo "HOST: CONNECT OK to ${BRIDGE}:8000" || echo "HOST: CONNECT FAILED to ${BRIDGE}:8000"
-          echo "iptables INPUT on port 8000:"
-          sudo iptables -L INPUT -n | grep "8000\|REJECT\|DROP" | head -5 || echo "no rules"
-          echo "ufw status:"
-          sudo ufw status 2>&1 | head -3 || echo "ufw not available"
-          MINIKUBE_CONTAINER=$(docker ps --filter "name=minikube" --format "{{.ID}}" | head -1)
-          echo "minikube container: ${MINIKUBE_CONTAINER}"
-          MINIKUBE_GW=$(docker network inspect minikube --format='{{range .IPAM.Config}}{{.Gateway}}{{end}}' 2>/dev/null || echo "192.168.49.1")
-          echo "minikube gateway: ${MINIKUBE_GW}"
-          docker exec "${MINIKUBE_CONTAINER}" bash -c "
-            echo 'Trying 172.17.0.1:8000...'
-            timeout 3 bash -c 'echo > /dev/tcp/172.17.0.1/8000' 2>&1 && echo 'CONNECT OK to 172.17.0.1:8000' || echo 'CONNECT FAILED to 172.17.0.1:8000'
-            echo 'Trying ${MINIKUBE_GW}:8000...'
-            timeout 3 bash -c 'echo > /dev/tcp/${MINIKUBE_GW}/8000' 2>&1 && echo 'CONNECT OK to ${MINIKUBE_GW}:8000' || echo 'CONNECT FAILED to ${MINIKUBE_GW}:8000'
-            echo 'ip route:'
-            ip route | head -5
-          " || echo "minikube exec failed"
-          # MinIO (S3), Metaflow metadata service, and DynamoDB local
-          # (ddb-local on 8765 is needed by sfn-local foreach flows to write/read
-          # foreach cardinality via step_functions_internal decorator)
-          sudo socat TCP-LISTEN:9000,fork,reuseaddr,bind="${BRIDGE}" \
-            TCP:127.0.0.1:9000 &
-          sudo socat TCP-LISTEN:8080,fork,reuseaddr,bind="${BRIDGE}" \
-            TCP:127.0.0.1:8080 &
-          sudo socat TCP-LISTEN:8765,fork,reuseaddr,bind="${BRIDGE}" \
-            TCP:127.0.0.1:8765 &
-          sleep 1
-          echo "Forwarding 9000, 8080, and 8765 on ${BRIDGE} → 127.0.0.1"
+        run: devtools/ci/forward-bridge-ports.sh
 
       - name: Wait for Airflow REST API
         if: matrix.backend == 'airflow-kubernetes'
-        run: |
-          # The webserver startup probe passes on /health before gunicorn workers
-          # are fully ready to serve API requests.  Poll the actual REST API
-          # endpoint (with auth) until it returns 200 or we time out.
-          echo "Waiting for Airflow REST API at http://localhost:8090/api/v1/health ..."
-          for i in $(seq 1 60); do
-            status=$(curl -s -o /dev/null -w "%{http_code}" \
-              -u admin:admin http://localhost:8090/api/v1/health 2>/dev/null || echo "000")
-            echo "  attempt $i: HTTP $status"
-            if [ "$status" = "200" ]; then
-              echo "Airflow REST API is ready."
-              break
-            fi
-            sleep 10
-          done
-          if [ "$status" != "200" ]; then
-            echo "Airflow REST API did not become ready in time (last status: $status)"
-            exit 1
-          fi
+        run: devtools/ci/wait-airflow-api.sh
 
       - name: Clean up completed pods (argo/airflow only)
         if: matrix.backend == 'argo-kubernetes' || matrix.backend == 'airflow-kubernetes'
         run: |
-          # Delete Completed/Failed pods to prevent etcd/memory bloat during the test run.
-          # Argo and Airflow create many k8s pods; without cleanup the cluster
-          # runs out of memory after ~20 minutes.
           kubectl delete pods --field-selector=status.phase=Succeeded --all-namespaces 2>/dev/null || true
           kubectl delete pods --field-selector=status.phase=Failed --all-namespaces 2>/dev/null || true
 
@@ -291,33 +189,11 @@ jobs:
 
       - name: Dump sfn-batch diagnostics on failure
         if: failure() && matrix.backend == 'sfn-batch'
-        run: |
-          echo "=== sfn-local pod logs ==="
-          kubectl logs deployment/sfn-local --tail=50 2>&1 | grep -v "^\s*{" || true
-          echo "=== Failed localbatch jobs ==="
-          curl -s -X POST "http://localhost:8000/v1/listjobs" \
-            -H "Content-Type: application/json" \
-            -d '{"jobQueue":"localbatch-default","jobStatus":"FAILED"}' | python3 -m json.tool || true
-          echo "=== Last Docker container logs (exited=0 or exited=1) ==="
-          for cid in $(docker ps -a --filter "exited=1" --filter "exited=0" --format "{{.ID}}" | head -5); do
-            name=$(docker inspect --format '{{.Name}}' "$cid" 2>/dev/null || echo "unknown")
-            echo "--- Container $cid ($name) ---"
-            docker logs "$cid" 2>&1 | tail -20 || true
-          done
+        run: devtools/ci/dump-sfn-diagnostics.sh
 
       - name: Dump Airflow diagnostics on failure
         if: failure() && matrix.backend == 'airflow-kubernetes'
-        run: |
-          echo "=== Scheduler pod DAGs directory ==="
-          kubectl exec -n default airflow-scheduler-0 -- ls -la /opt/airflow/dags/ 2>&1 || true
-          echo "=== Airflow scheduler config: dag_dir_list_interval ==="
-          kubectl exec -n default airflow-scheduler-0 -- \
-            airflow config get-value scheduler dag_dir_list_interval 2>&1 || true
-          echo "=== Airflow import errors (via API) ==="
-          curl -s -u admin:admin http://localhost:8090/api/v1/importErrors 2>&1 || true
-          echo "=== DagFileProcessorManager log (last 50 lines) ==="
-          kubectl exec -n default airflow-scheduler-0 -- \
-            tail -50 /opt/airflow/logs/dag_processor_manager/dag_processor_manager.log 2>&1 || true
+        run: devtools/ci/dump-airflow-diagnostics.sh
 
       - name: Show Tilt logs on failure
         if: failure()
@@ -369,20 +245,7 @@ jobs:
           fail-on-error: false
 
       - name: Combine coverage data
-        run: |
-          # Each backend job drops a .coverage file; rename them so coverage
-          # combine can pick them all up from the current directory.
-          for dir in coverage-artifacts/coverage-*/; do
-            backend=$(basename "$dir" | sed 's/^coverage-//')
-            src="$dir/.coverage"
-            if [ -f "$src" ]; then
-              cp "$src" ".coverage.$backend"
-              echo "Copied $src → .coverage.$backend"
-            fi
-          done
-          coverage combine
-          echo "Combined data sources:"
-          coverage debug data
+        run: devtools/ci/combine-coverage.sh
 
       - name: Generate combined HTML report
         run: |
