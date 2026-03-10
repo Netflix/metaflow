@@ -87,6 +87,7 @@ def _get_sensor_json(name, namespace="default"):
 
 def _wait_for_event_triggered_run(
     deployed_flow,
+    flow_name,
     not_before,
     timeout=EVENT_TRIGGERED_RUN_TIMEOUT,
     polling_interval=EVENT_TRIGGERED_RUN_POLL_INTERVAL,
@@ -101,6 +102,10 @@ def _wait_for_event_triggered_run(
     ----------
     deployed_flow : ArgoWorkflowsDeployedFlow
         The deployed flow object.
+    flow_name : str
+        The Metaflow flow name (e.g. "TriggerFlow") for constructing the Run
+        pathspec.  Sensor-created workflows do not carry the metaflow/flow_name
+        annotation, so we pass it explicitly.
     not_before : float
         Unix timestamp; only consider workflows created after this time.
     timeout : int
@@ -166,14 +171,6 @@ def _wait_for_event_triggered_run(
 
             # Found a matching succeeded workflow - get the Metaflow run
             run_id = "argo-%s" % wf_name
-            flow_name = (
-                wf.get("metadata", {})
-                .get("annotations", {})
-                .get("metaflow/flow_name", "")
-            )
-            if not flow_name:
-                continue
-
             print("Found event-triggered workflow: %s (run_id: %s)" % (wf_name, run_id))
             namespace(None)
             run = Run("%s/%s" % (flow_name, run_id), _namespace_check=False)
@@ -272,8 +269,9 @@ def test_trigger_event_triggers_run(
     # Give the sensor a moment to become fully operational
     time.sleep(SENSOR_POLL_INTERVAL)
 
-    # Record time just before publishing so we can filter out stale workflows
-    publish_time = time.time()
+    # Record time before publishing so we can filter out stale workflows.
+    # Subtract a small buffer for potential clock skew between CI and k8s.
+    publish_time = time.time() - 30
 
     # Publish an event to trigger the flow
     from metaflow.plugins.argo.argo_events import ArgoEvent
@@ -288,7 +286,9 @@ def test_trigger_event_triggers_run(
     # Wait for the sensor-triggered run to complete.
     # We must NOT use deployed_flow.trigger() here -- that would bypass the
     # sensor/event path and create a direct run without the event payload.
-    run = _wait_for_event_triggered_run(deployed_flow, not_before=publish_time)
+    run = _wait_for_event_triggered_run(
+        deployed_flow, flow_name="TriggerFlow", not_before=publish_time
+    )
     assert run.successful, "Triggered run was not successful"
     assert run["start"].task.data.message == (
         "TriggerFlow received: %s" % greeting_value
