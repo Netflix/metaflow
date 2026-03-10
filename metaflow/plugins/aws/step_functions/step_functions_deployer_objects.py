@@ -317,6 +317,83 @@ class StepFunctionsDeployedFlow(DeployedFlow):
         command_obj.sync_wait()
         return command_obj.process.returncode == 0
 
+    def resume(
+        self,
+        origin_run_id: str,
+        step_to_rerun: Optional[str] = None,
+        **kwargs,
+    ) -> StepFunctionsTriggeredRun:
+        """
+        Resume a failed or stopped run on AWS Step Functions.
+
+        Successful steps from the origin run will be cloned rather than
+        re-executed, unless they are downstream of *step_to_rerun*.
+
+        Parameters
+        ----------
+        origin_run_id : str
+            Run ID of the run to resume (e.g., ``"sfn-<execution-name>"``).
+        step_to_rerun : str, optional
+            Name of a specific step from which to rerun. All downstream
+            steps will also be rerun. If not specified, only steps whose
+            origin task was not successful will be rerun.
+        **kwargs : Any
+            Additional arguments to pass to the resume command,
+            `Parameters` in particular.
+
+        Returns
+        -------
+        StepFunctionsTriggeredRun
+            The triggered run instance.
+
+        Raises
+        ------
+        Exception
+            If there is an error during the resume process.
+        """
+        with temporary_fifo() as (attribute_file_path, attribute_file_fd):
+            resume_kwargs = dict(
+                origin_run_id=origin_run_id,
+                deployer_attribute_file=attribute_file_path,
+                **kwargs,
+            )
+            if step_to_rerun is not None:
+                resume_kwargs["step_to_rerun"] = step_to_rerun
+
+            command = get_lower_level_group(
+                self.deployer.api,
+                self.deployer.top_level_kwargs,
+                self.deployer.TYPE,
+                self.deployer.deployer_kwargs,
+            ).resume(**resume_kwargs)
+
+            pid = self.deployer.spm.run_command(
+                [sys.executable, *command],
+                env=self.deployer.env_vars,
+                cwd=self.deployer.cwd,
+                show_output=self.deployer.show_output,
+            )
+
+            command_obj = self.deployer.spm.get(pid)
+            content = handle_timeout(
+                attribute_file_fd, command_obj, self.deployer.file_read_timeout
+            )
+
+            command_obj.sync_wait()
+            if command_obj.process.returncode == 0:
+                return StepFunctionsTriggeredRun(
+                    deployer=self.deployer, content=content
+                )
+
+        raise Exception(
+            "Error resuming %s on %s for %s"
+            % (
+                self.deployer.name,
+                self.deployer.TYPE,
+                self.deployer.flow_file,
+            )
+        )
+
     def trigger(self, **kwargs) -> StepFunctionsTriggeredRun:
         """
         Trigger a new run for the deployed flow.
