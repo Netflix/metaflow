@@ -1,14 +1,17 @@
-name: UX Tests
+name: Tests
 
-# Runs the cross-backend UX test suite (local, argo-workflows, airflow) using
-# the devstack defined in devtools/. Each backend runs in a separate parallel
-# job; pytest-xdist parallelizes individual tests within each job.
+# Two test tiers:
 #
-# Coverage is collected from each backend job, then combined in a final job
-# and posted as a workflow summary + downloadable HTML report.
+# 1. unit-tests — Fast (~30s), no infrastructure. Runs test/unit/ and test/cmd/
+#    on every push. Catches logic bugs in decorators, CLI, parsers, etc.
 #
-# localbatch is published at https://pypi.org/project/localbatch/ and sfn-batch
-# is enabled in the matrix below.
+# 2. ux-tests — Full integration across 4 backends (local, argo, airflow, sfn).
+#    Needs devstack (minikube + tilt). Catches orchestrator/deployer bugs.
+#
+# Both tiers auto-discover tests by directory — new test files are picked up
+# automatically without editing this workflow.
+#
+# Coverage is collected from each job, then combined in a final report.
 
 on:
   push:
@@ -21,6 +24,71 @@ on:
   workflow_dispatch:
 
 jobs:
+  unit-tests:
+    name: "Unit Tests"
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python 3.9
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.9"
+
+      - name: Cache pip packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: pip-py3.9-${{ hashFiles('setup.py', 'setup.cfg') }}
+          restore-keys: pip-py3.9-
+
+      - name: Install Metaflow and test dependencies
+        run: |
+          pip install --upgrade pip
+          pip install -e ".[dev]" pytest-timeout pytest-cov
+
+      - name: Run unit and command tests
+        run: |
+          python -m pytest \
+            test/unit/ test/cmd/ \
+            -v \
+            --tb=short \
+            --timeout=120 \
+            --cov=metaflow \
+            --cov-report=term-missing \
+            --cov-report=xml:coverage.xml \
+            --cov-branch \
+            --junit-xml=junit-unit.xml
+
+      - name: Upload coverage data
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-unit
+          path: |
+            .coverage
+            coverage.xml
+          if-no-files-found: ignore
+          include-hidden-files: true
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: junit-unit
+          path: junit-unit.xml
+          if-no-files-found: ignore
+
+      - name: Publish test results
+        if: always()
+        uses: dorny/test-reporter@v1
+        with:
+          name: "Test Results — Unit"
+          path: junit-unit.xml
+          reporter: java-junit
+          fail-on-error: false
+
   ux-tests:
     name: "${{ matrix.backend }}"
     strategy:
@@ -144,7 +212,7 @@ jobs:
           AWS_SHARED_CREDENTIALS_FILE="" \
           PYTHONPATH=$PWD \
           python -m pytest \
-            test/ux/core/test_basic.py test/ux/core/test_config.py test/ux/core/test_dag.py \
+            test/ux/core/ \
             -m "not conda" \
             --only-backend "${{ matrix.backend }}" \
             -n ${{ matrix.workers }} \
@@ -209,7 +277,7 @@ jobs:
 
   coverage-report:
     name: "Coverage Report"
-    needs: ux-tests
+    needs: [unit-tests, ux-tests]
     if: always()
     runs-on: ubuntu-latest
 
