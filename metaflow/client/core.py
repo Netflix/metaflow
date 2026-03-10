@@ -1157,6 +1157,7 @@ class MetaflowData(object):
         return sorted(set(super(MetaflowData, self).__dir__() + artifact_keys))
 
     def _ipython_key_completions_(self):
+        """Returns artifact names for IPython/Jupyter key-based tab completion."""
         try:
             return list(self._artifacts.keys())
         except Exception:
