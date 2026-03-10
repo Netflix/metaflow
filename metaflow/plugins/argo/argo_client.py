@@ -325,7 +325,7 @@ class ArgoClient(object):
             "metadata": {"name": name},
             "spec": {
                 "suspend": schedule is None,
-                "schedules": [schedule] if schedule is not None else [],
+                "schedule": schedule,
                 "timezone": timezone,
                 "failedJobsHistoryLimit": 10000,  # default is unfortunately 1
                 "successfulJobsHistoryLimit": 10000,  # default is unfortunately 3
