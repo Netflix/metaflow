@@ -209,17 +209,55 @@ class StepFunctionsDeployedFlow(DeployedFlow):
 
         # Extract flow metadata stored in the start state's Parameters.
         try:
-            start = json.loads(workflow["definition"])["States"]["start"]
-            parameters = start["Parameters"]["Parameters"]
-            flow_name = parameters.get("metaflow.flow_name", "")
-            username = parameters.get("metaflow.owner", "")
+            definition = json.loads(workflow["definition"])
+            start = definition["States"]["start"]
+            batch_params = start["Parameters"]["Parameters"]
+            flow_name = batch_params.get("metaflow.flow_name", "")
+            username = batch_params.get("metaflow.owner", "")
         except (KeyError, json.JSONDecodeError):
             raise MetaflowException(
                 "Could not extract flow metadata from state machine: %s" % identifier
             )
 
+        # Extract parameter info from the start state's environment variables.
+        # METAFLOW_DEFAULT_PARAMETERS is a JSON dict of {param_name: default_value}.
+        param_info = {}
+        try:
+            env_vars = (
+                start.get("Parameters", {})
+                .get("ContainerOverrides", {})
+                .get("Environment", [])
+            )
+            env_dict = {item.get("Name"): item.get("Value") for item in env_vars}
+            default_params_str = env_dict.get("METAFLOW_DEFAULT_PARAMETERS")
+            if default_params_str:
+                default_params = json.loads(default_params_str)
+                for pname, pvalue in default_params.items():
+                    # Infer type from the default value
+                    if isinstance(pvalue, bool):
+                        ptype = "bool"
+                    elif isinstance(pvalue, int):
+                        ptype = "int"
+                    elif isinstance(pvalue, float):
+                        ptype = "float"
+                    else:
+                        ptype = "str"
+                    param_info[pname] = {
+                        "name": pname,
+                        "python_var_name": pname,
+                        "type": ptype,
+                        "description": "",
+                        "is_required": False,
+                    }
+            # If METAFLOW_PARAMETERS env var is present, there are parameters
+            # even if they don't have defaults.  We already captured those with
+            # defaults above; required params without defaults would not appear
+            # in METAFLOW_DEFAULT_PARAMETERS but the flow still has them.
+        except (KeyError, json.JSONDecodeError, TypeError):
+            pass  # best-effort extraction; proceed with empty param_info
+
         fake_flow_file_contents = generate_fake_flow_file_contents(
-            flow_name=flow_name, param_info={}, project_name=None
+            flow_name=flow_name, param_info=param_info, project_name=None
         )
 
         with tempfile.NamedTemporaryFile(suffix=".py", delete=False) as fake_flow_file:
