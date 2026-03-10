@@ -224,7 +224,7 @@ jobs:
           {
             echo "METAFLOW_DEFAULT_DATASTORE=azure"
             echo "METAFLOW_AZURE_STORAGE_BLOB_SERVICE_ENDPOINT=http://127.0.0.1:10000/${AZURITE_ACCOUNT}"
-            echo "METAFLOW_DATASTORE_SYSROOT_AZURE=az://metaflow-test/metaflow"
+            echo "METAFLOW_DATASTORE_SYSROOT_AZURE=metaflow-test/metaflow"
             echo "AZURE_STORAGE_CONNECTION_STRING=${AZURITE_CONN_STR}"
             echo "AZURE_STORAGE_KEY=${AZURITE_KEY}"
           } >> "$GITHUB_ENV"
