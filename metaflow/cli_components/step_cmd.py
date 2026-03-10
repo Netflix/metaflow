@@ -1,3 +1,6 @@
+import json
+import os
+
 from metaflow._vendor import click
 
 from .. import namespace
@@ -143,6 +146,19 @@ def step(
     cli_args._set_step_kwargs(step_kwargs)
 
     ctx.obj.metadata.add_sticky_tags(tags=opt_tag)
+
+    # Support trigger-time tags passed via environment variable.
+    # This allows tags to be specified at trigger time (e.g. via CLI or Deployer API)
+    # rather than only at deploy time.
+    trigger_tags_env = os.environ.get("METAFLOW_TRIGGER_TAGS")
+    if trigger_tags_env:
+        try:
+            trigger_tags = json.loads(trigger_tags_env)
+            if isinstance(trigger_tags, list) and trigger_tags:
+                ctx.obj.metadata.add_sticky_tags(tags=trigger_tags)
+        except (json.JSONDecodeError, TypeError):
+            pass
+
     if not input_paths and input_paths_filename:
         with open(input_paths_filename, mode="r", encoding="utf-8") as f:
             input_paths = f.read().strip(" \n\"'")
