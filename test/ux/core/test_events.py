@@ -17,7 +17,7 @@ import json
 import subprocess
 import time
 import uuid
-from datetime import datetime, timezone
+from datetime import datetime
 
 import pytest
 
@@ -26,6 +26,13 @@ from metaflow import Run, namespace
 from .test_utils import deploy_flow_to_scheduler
 
 pytestmark = pytest.mark.events
+
+# Timeout constants (seconds)
+SENSOR_READY_TIMEOUT = 60
+SENSOR_POLL_INTERVAL = 5
+EVENT_TRIGGERED_RUN_TIMEOUT = 600
+EVENT_TRIGGERED_RUN_POLL_INTERVAL = 10
+KUBECTL_TIMEOUT = 60
 
 
 def _skip_unless_argo_events(scheduler_config):
@@ -79,7 +86,10 @@ def _get_sensor_json(name, namespace="default"):
 
 
 def _wait_for_event_triggered_run(
-    deployed_flow, not_before, timeout=600, polling_interval=10
+    deployed_flow,
+    not_before,
+    timeout=EVENT_TRIGGERED_RUN_TIMEOUT,
+    polling_interval=EVENT_TRIGGERED_RUN_POLL_INTERVAL,
 ):
     """Wait for a run triggered by an Argo Events sensor (not a direct trigger).
 
@@ -117,7 +127,7 @@ def _wait_for_event_triggered_run(
                 ],
                 capture_output=True,
                 text=True,
-                timeout=60,
+                timeout=KUBECTL_TIMEOUT,
             )
         except Exception:
             time.sleep(polling_interval)
@@ -201,11 +211,11 @@ def test_trigger_deploy_creates_sensor(
     print("Checking for sensor: %s" % sensor_name)
 
     # Wait for sensor to appear (Argo Events controller needs to process it)
-    deadline = time.time() + 60
+    deadline = time.time() + SENSOR_READY_TIMEOUT
     while time.time() < deadline:
         if _sensor_exists(sensor_name):
             break
-        time.sleep(5)
+        time.sleep(SENSOR_POLL_INTERVAL)
 
     assert _sensor_exists(sensor_name), (
         "Sensor '%s' was not created after deploying @trigger flow" % sensor_name
@@ -252,15 +262,15 @@ def test_trigger_event_triggers_run(
 
     # Wait for the sensor to be ready before publishing the event
     sensor_name = deployed_flow.name.replace(".", "-")
-    deadline = time.time() + 60
+    deadline = time.time() + SENSOR_READY_TIMEOUT
     while time.time() < deadline:
         if _sensor_exists(sensor_name):
             break
-        time.sleep(5)
+        time.sleep(SENSOR_POLL_INTERVAL)
     assert _sensor_exists(sensor_name), "Sensor not ready"
 
     # Give the sensor a moment to become fully operational
-    time.sleep(5)
+    time.sleep(SENSOR_POLL_INTERVAL)
 
     # Record time just before publishing so we can filter out stale workflows
     publish_time = time.time()
@@ -278,9 +288,7 @@ def test_trigger_event_triggers_run(
     # Wait for the sensor-triggered run to complete.
     # We must NOT use deployed_flow.trigger() here -- that would bypass the
     # sensor/event path and create a direct run without the event payload.
-    run = _wait_for_event_triggered_run(
-        deployed_flow, not_before=publish_time, timeout=600
-    )
+    run = _wait_for_event_triggered_run(deployed_flow, not_before=publish_time)
     assert run.successful, "Triggered run was not successful"
     assert run["start"].task.data.message == (
         "TriggerFlow received: %s" % greeting_value
@@ -308,11 +316,11 @@ def test_trigger_on_finish_creates_sensor(
     sensor_name = deployed_flow.name.replace(".", "-")
     print("Checking for sensor: %s" % sensor_name)
 
-    deadline = time.time() + 60
+    deadline = time.time() + SENSOR_READY_TIMEOUT
     while time.time() < deadline:
         if _sensor_exists(sensor_name):
             break
-        time.sleep(5)
+        time.sleep(SENSOR_POLL_INTERVAL)
 
     assert _sensor_exists(sensor_name), (
         "Sensor '%s' was not created after deploying @trigger_on_finish flow"
