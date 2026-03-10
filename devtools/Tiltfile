@@ -16,6 +16,7 @@ ARGO_WORKFLOWS_HELM_CHART_VERSION = os.getenv("ARGO_WORKFLOWS_HELM_CHART_VERSION
 ARGO_WORKFLOWS_IMAGE_TAG = os.getenv("ARGO_WORKFLOWS_IMAGE_TAG", "v3.6.0")
 AIRFLOW_HELM_CHART_VERSION = os.getenv("AIRFLOW_HELM_CHART_VERSION", "1.15.0")
 AIRFLOW_IMAGE_TAG = os.getenv("AIRFLOW_IMAGE_TAG", "2.10.4")
+JOBSET_VERSION = os.getenv("JOBSET_VERSION", "v0.8.2")
 
 # ---------------------------------------------------------------------------
 # Component dependency graph
@@ -30,6 +31,7 @@ components = {
     "ddb-local": [],
     "sfn-local": ["ddb-local"],
     "airflow": ["postgresql"],
+    "jobset": [],
 }
 
 # ---------------------------------------------------------------------------
@@ -93,6 +95,7 @@ load('./tilt/localbatch.tiltfile', 'setup_localbatch')
 load('./tilt/ddb_local.tiltfile', 'setup_ddb_local')
 load('./tilt/sfn_local.tiltfile', 'setup_sfn_local')
 load('./tilt/airflow.tiltfile', 'setup_airflow')
+load('./tilt/jobset.tiltfile', 'setup_jobset')
 
 _SETUP = {
     "minio": setup_minio,
@@ -104,6 +107,7 @@ _SETUP = {
     "ddb-local": setup_ddb_local,
     "sfn-local": setup_sfn_local,
     "airflow": setup_airflow,
+    "jobset": setup_jobset,
 }
 
 # ---------------------------------------------------------------------------
@@ -117,6 +121,7 @@ ctx = struct(
         argo_workflows_image=ARGO_WORKFLOWS_IMAGE_TAG,
         airflow_chart=AIRFLOW_HELM_CHART_VERSION,
         airflow_image=AIRFLOW_IMAGE_TAG,
+        jobset=JOBSET_VERSION,
     ),
 )
 

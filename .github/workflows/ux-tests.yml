@@ -100,7 +100,7 @@ jobs:
             services: "minio,postgresql,metadata-service"
             workers: 4
           - backend: argo-kubernetes
-            services: "minio,postgresql,metadata-service,argo-workflows"
+            services: "minio,postgresql,metadata-service,argo-workflows,jobset"
             workers: 2
           - backend: airflow-kubernetes
             services: "minio,postgresql,metadata-service,airflow"
