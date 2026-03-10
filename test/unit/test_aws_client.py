@@ -73,10 +73,23 @@ def test_sandbox_sts_connect_timeout_fails_fast(monkeypatch):
         AWS_SANDBOX_STS_CONNECT_TIMEOUT,
         AWS_SANDBOX_STS_READ_TIMEOUT,
     )
+<<<<<<< Updated upstream
+=======
+    with pytest.raises(MetaflowException) as exc:
+
+>>>>>>> Stashed changes
     assert f"connect timeout={AWS_SANDBOX_STS_CONNECT_TIMEOUT}s" in msg
     assert f"read timeout={AWS_SANDBOX_STS_READ_TIMEOUT}s" in msg
 
 
+<<<<<<< Updated upstream
+=======
+from metaflow.metaflow_config import (
+    AWS_SANDBOX_STS_CONNECT_TIMEOUT,
+    AWS_SANDBOX_STS_READ_TIMEOUT,
+)
+
+>>>>>>> Stashed changes
 def test_sandbox_sts_read_timeout_fails_fast(monkeypatch):
     endpoint = "http://sandbox-sts-read-timeout.local"
     _configure_sandbox(monkeypatch, endpoint)
@@ -88,9 +101,21 @@ def test_sandbox_sts_read_timeout_fails_fast(monkeypatch):
 
     with pytest.raises(MetaflowException) as exc:
         Boto3ClientProvider.get_client("s3")
+<<<<<<< Updated upstream
     msg = str(exc.value)
     assert endpoint in msg
     assert "Timed out while fetching AWS sandbox STS credentials" in msg
+=======
+
+    msg = str(exc.value)
+
+    assert endpoint in msg
+    assert "Timed out while fetching AWS sandbox STS credentials" in msg
+    assert f"connect timeout={AWS_SANDBOX_STS_CONNECT_TIMEOUT}" in msg
+    assert f"read timeout={AWS_SANDBOX_STS_READ_TIMEOUT}" in msg
+
+
+>>>>>>> Stashed changes
 
 
 def test_sandbox_sts_unreachable_endpoint_raises_connection_error(monkeypatch):
