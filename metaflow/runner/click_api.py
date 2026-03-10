@@ -460,7 +460,7 @@ class MetaflowAPI(object):
         self._cached_computed_parameters = []
 
         config_options = None
-        if CLICK_API_PROCESS_CONFIG:
+        if CLICK_API_PROCESS_CONFIG and self._config_input:
             with flow_context(self._flow_cls) as _:
                 # We are going to resolve the configs first and then get the parameters.
                 # Note that configs may update/add parameters so the order is important
