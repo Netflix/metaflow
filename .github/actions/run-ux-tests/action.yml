@@ -126,6 +126,7 @@ runs:
         fi
 
     - name: Set coverage artifact name
+      if: always()
       shell: bash
       id: coverage-name
       run: |
@@ -151,7 +152,7 @@ runs:
     - name: Set JUnit artifact name
       if: always()
       shell: bash
-      id: junit-name
+      id: junit_name
       run: |
         suffix="${{ inputs.coverage-artifact-suffix }}"
         if [ -n "$suffix" ]; then
@@ -166,8 +167,8 @@ runs:
       if: always()
       uses: actions/upload-artifact@v4
       with:
-        name: ${{ steps.junit-name.outputs.name }}
-        path: ${{ steps.junit-name.outputs.file }}
+        name: ${{ steps.junit_name.outputs.name }}
+        path: ${{ steps.junit_name.outputs.file }}
         if-no-files-found: ignore
 
     - name: Upload coverage to Codecov
