@@ -78,6 +78,10 @@ class StepFunctionsDeployer(DeployerImpl):
             tasks in Amazon State Language.
         compress_state_machine : bool, optional, default False
             Compress AWS Step Functions state machine to fit within the 8K limit.
+        enable_schedule : bool, optional, default None
+            Deploy the workflow with the schedule enabled or disabled.
+            Useful for deploying dev/test branches without activating production schedules.
+            Defaults to enabled unless METAFLOW_SCHEDULE_DISABLED is set.
 
         deployer_attribute_file : str, optional, default None
             Write the workflow name to the specified file. Used internally for Metaflow's Deployer API.
