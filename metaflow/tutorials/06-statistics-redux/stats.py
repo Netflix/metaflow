@@ -1,36 +1,41 @@
-from metaflow import FlowSpec, step, Parameter
+from metaflow import FlowSpec, step, IncludeFile
 import csv
 
 class MovieStatsFlow(FlowSpec):
-    movies_file = Parameter('movies', default='movies.csv', help="The CSV file to process")
+    movie_data = IncludeFile(
+        'movie_data',
+        help='The path to a movie metadata file.',
+        default='movies.csv',
+    )
 
     @step
     def start(self):
-        # Read data from the CSV file
-        with open(self.movies_file, newline='', encoding='utf-8') as f:
-            reader = csv.DictReader(f)
-            self.data = [row for row in reader]
+        lines = [line for line in self.movie_data.split('\n') if line]
+        reader = csv.DictReader(lines)
+        self.data = [row for row in reader]
         
-        # Get unique genres for the foreach
-        self.genres = list(set(row['genre'] for row in self.data))
+        self.genres = list({
+            genre for row in self.data
+            for genre in row['genres'].split('|')
+        })
         self.next(self.compute_stats, foreach='genres')
 
     @step
     def compute_stats(self):
         self.genre = self.input
-        # Filter data for the specific genre
-        genre_data = [row for row in self.data if row['genre'] == self.genre]
+        genre_data = [
+            row for row in self.data 
+            if self.genre in row['genres'].split('|')
+        ]
         
-        # Calculate real statistics (Quartiles of the movie scores)
-        # Assuming the CSV has a 'score' or 'rating' column
-        scores = sorted([int(row['score']) for row in genre_data if row['score'].isdigit()])
+        scores = sorted([int(row['gross']) for row in genre_data if row['gross'].isdigit()])
         
         if scores:
             n = len(scores)
             self.quartiles = [
-                scores[n // 4],    # Q1
-                scores[n // 2],    # Median
-                scores[3 * n // 4] # Q3
+                scores[n // 4],
+                scores[n // 2],
+                scores[3 * n // 4]
             ]
         else:
             self.quartiles = [0, 0, 0]
@@ -40,8 +45,7 @@ class MovieStatsFlow(FlowSpec):
 
     @step
     def join(self, inputs):
-        # Merge results into a single dictionary
-        self.stats = {
+        self.genre_stats = {
             inp.genre: {'count': inp.count, 'quartiles': inp.quartiles}
             for inp in inputs
         }
