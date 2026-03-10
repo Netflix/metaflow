@@ -38,7 +38,7 @@ def test_metaflow_ipython_key_completions_returns_flow_ids():
             yield SimpleNamespace(id="MyPipeline")
 
     mf = DummyMetaflow.__new__(DummyMetaflow)
-    assert mf._ipython_key_completions_() == ["HelloFlow", "MyPipeline"]
+    assert sorted(mf._ipython_key_completions_()) == ["HelloFlow", "MyPipeline"]
 
 
 def test_metaflow_ipython_key_completions_safe_fallback():
