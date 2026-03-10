@@ -93,8 +93,6 @@ def test_sandbox_sts_read_timeout_fails_fast(monkeypatch):
     assert "Timed out while fetching AWS sandbox STS credentials" in msg
 
 
-
-
 def test_sandbox_sts_unreachable_endpoint_raises_connection_error(monkeypatch):
     endpoint = "http://sandbox-sts-unreachable.local"
     _configure_sandbox(monkeypatch, endpoint)
