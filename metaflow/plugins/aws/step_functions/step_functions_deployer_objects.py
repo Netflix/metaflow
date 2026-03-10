@@ -410,7 +410,8 @@ class StepFunctionsDeployedFlow(DeployedFlow):
         ----------
         **kwargs : Any
             Additional arguments to pass to the trigger command,
-            `Parameters` in particular
+            `Parameters` in particular. Use ``tag=["my_tag"]`` to
+            attach tags to the triggered run.
 
         Returns
         -------
