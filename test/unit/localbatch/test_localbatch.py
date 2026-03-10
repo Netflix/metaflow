@@ -1,5 +1,5 @@
 """
-Integration tests for corral — the local AWS Batch emulator.
+Integration tests for localbatch — the local AWS Batch emulator.
 
 Test layout mirrors the spin tests:
   - TestBatchAPI  : validates every Batch REST endpoint using boto3.
@@ -11,10 +11,10 @@ Test layout mirrors the spin tests:
                     Requires Docker.
 
 Run only the API tests (no Docker needed):
-    pytest test/unit/corral/ -m "not docker"
+    pytest test/unit/localbatch/ -m "not docker"
 
 Run everything:
-    pytest test/unit/corral/
+    pytest test/unit/localbatch/
 """
 
 import time
@@ -22,7 +22,7 @@ import time
 import pytest
 import requests
 
-pytest.importorskip("corral", reason="corral package not installed")
+pytest.importorskip("localbatch", reason="localbatch package not installed")
 
 
 # ---------------------------------------------------------------------------
@@ -64,8 +64,8 @@ def _register(batch_client, name, command=None):
 
 
 class TestBatchAPI:
-    def test_health(self, corral_server):
-        resp = requests.get(f"{corral_server.base_url}/health")
+    def test_health(self, localbatch_server):
+        resp = requests.get(f"{localbatch_server.base_url}/health")
         assert resp.status_code == 200
         assert resp.json()["status"] == "ok"
 
@@ -74,10 +74,10 @@ class TestBatchAPI:
         queues = resp["jobQueues"]
         assert len(queues) >= 1
         names = [q["jobQueueName"] for q in queues]
-        assert "corral-default" in names
+        assert "localbatch-default" in names
 
     def test_default_queue_is_healthy(self, batch_client):
-        resp = batch_client.describe_job_queues(jobQueues=["corral-default"])
+        resp = batch_client.describe_job_queues(jobQueues=["localbatch-default"])
         q = resp["jobQueues"][0]
         assert q["state"] == "ENABLED"
         assert q["status"] == "VALID"
@@ -136,7 +136,7 @@ class TestBatchAPI:
         arn = _register(batch_client, "submit-test-job")
         resp = batch_client.submit_job(
             jobName="submit-test-run",
-            jobQueue="corral-default",
+            jobQueue="localbatch-default",
             jobDefinition=arn,
         )
         assert resp["jobId"]
@@ -147,19 +147,19 @@ class TestBatchAPI:
         arn = _register(batch_client, "terminal-test-job")
         resp = batch_client.submit_job(
             jobName="terminal-run",
-            jobQueue="corral-default",
+            jobQueue="localbatch-default",
             jobDefinition=arn,
         )
         job = _poll_job(batch_client, resp["jobId"])
         assert job["status"] in ("SUCCEEDED", "FAILED")
         assert job["jobName"] == "terminal-run"
-        assert job["jobQueue"] == "corral-default"
+        assert job["jobQueue"] == "localbatch-default"
 
     def test_describe_jobs_returns_correct_shape(self, batch_client):
         arn = _register(batch_client, "describe-shape-job")
         job_id = batch_client.submit_job(
             jobName="describe-shape-run",
-            jobQueue="corral-default",
+            jobQueue="localbatch-default",
             jobDefinition=arn,
         )["jobId"]
 
@@ -167,14 +167,21 @@ class TestBatchAPI:
 
         resp = batch_client.describe_jobs(jobs=[job_id])
         job = resp["jobs"][0]
-        for field in ("jobId", "jobName", "jobQueue", "jobDefinition", "status", "createdAt"):
+        for field in (
+            "jobId",
+            "jobName",
+            "jobQueue",
+            "jobDefinition",
+            "status",
+            "createdAt",
+        ):
             assert field in job, f"Missing field: {field}"
 
     def test_terminate_job_transitions_to_failed(self, batch_client):
         arn = _register(batch_client, "terminate-test-job", command=["sleep", "999"])
         job_id = batch_client.submit_job(
             jobName="terminate-run",
-            jobQueue="corral-default",
+            jobQueue="localbatch-default",
             jobDefinition=arn,
         )["jobId"]
 
@@ -185,20 +192,20 @@ class TestBatchAPI:
         assert "cancelled by test" in job.get("statusReason", "")
 
     def test_list_jobs_returns_summary_list(self, batch_client):
-        resp = batch_client.list_jobs(jobQueue="corral-default", jobStatus="FAILED")
+        resp = batch_client.list_jobs(jobQueue="localbatch-default", jobStatus="FAILED")
         assert "jobSummaryList" in resp
         for entry in resp["jobSummaryList"]:
             assert "jobId" in entry
             assert "status" in entry
 
-    def test_ecs_metadata_endpoint(self, corral_server):
+    def test_ecs_metadata_endpoint(self, localbatch_server):
         job_id = "deadbeef-1234-5678-abcd-000000000000"
-        resp = requests.get(f"{corral_server.base_url}/metadata/{job_id}/task")
+        resp = requests.get(f"{localbatch_server.base_url}/metadata/{job_id}/task")
         assert resp.status_code == 200
         data = resp.json()
         container = data["Containers"][0]
         opts = container["LogOptions"]
-        assert opts["awslogs-group"] == "/corral/batch/job"
+        assert opts["awslogs-group"] == "/localbatch/batch/job"
         assert job_id in opts["awslogs-stream"]
         assert container["LogDriver"] == "awslogs"
 
@@ -227,7 +234,7 @@ class TestDockerExecution:
         )
         job_id = batch_client.submit_job(
             jobName="docker-success-run",
-            jobQueue="corral-default",
+            jobQueue="localbatch-default",
             jobDefinition=arn,
         )["jobId"]
 
@@ -240,7 +247,7 @@ class TestDockerExecution:
         )
         job_id = batch_client.submit_job(
             jobName="docker-fail-run",
-            jobQueue="corral-default",
+            jobQueue="localbatch-default",
             jobDefinition=arn,
         )["jobId"]
 
@@ -250,16 +257,16 @@ class TestDockerExecution:
 
     def test_inject_env_is_visible_inside_container(self):
         """
-        Spin up a separate corral instance with inject_env set and confirm
+        Spin up a separate localbatch instance with inject_env set and confirm
         the container can see the injected variable.
         """
         import threading
 
         import boto3
         import uvicorn
-        from corral.runner import DockerRunner
-        from corral.server import create_app
-        from corral.store import Store
+        from localbatch.runner import DockerRunner
+        from localbatch.server import create_app
+        from localbatch.store import Store
 
         port = 18766
         store = Store(queue_name="inject-queue")
@@ -267,7 +274,7 @@ class TestDockerExecution:
             store,
             host_addr="host.docker.internal",
             port=port,
-            inject_env={"CORRAL_CANARY": "canary-value"},
+            inject_env={"LOCALBATCH_CANARY": "canary-value"},
         )
         app = create_app(store, runner)
         server = uvicorn.Server(
@@ -298,7 +305,7 @@ class TestDockerExecution:
                 "command": [
                     "sh",
                     "-c",
-                    'test "$CORRAL_CANARY" = "canary-value"',
+                    'test "$LOCALBATCH_CANARY" = "canary-value"',
                 ],
                 "resourceRequirements": [
                     {"type": "VCPU", "value": "1"},
@@ -313,9 +320,9 @@ class TestDockerExecution:
         )["jobId"]
 
         job = _poll_job(client, job_id, timeout=60)
-        assert job["status"] == "SUCCEEDED", (
-            "CORRAL_CANARY was not visible or had wrong value inside container"
-        )
+        assert (
+            job["status"] == "SUCCEEDED"
+        ), "LOCALBATCH_CANARY was not visible or had wrong value inside container"
 
         server.should_exit = True
         t.join(timeout=5)
@@ -329,7 +336,7 @@ class TestDockerExecution:
 @pytest.mark.docker
 class TestMetaflowE2E:
     """
-    Runs a real Metaflow flow against corral and verifies that artifacts
+    Runs a real Metaflow flow against localbatch and verifies that artifacts
     produced inside the @batch step are correctly persisted and readable
     from the client side — the same contract the spin tests enforce.
     """
@@ -345,11 +352,11 @@ class TestMetaflowE2E:
 
     def test_batch_step_artifacts_are_persisted(self, simple_batch_run):
         """
-        The @batch step writes message='hello from corral' and value=42.
+        The @batch step writes message='hello from localbatch' and value=42.
         Both must be readable via the Metaflow client after the run finishes.
         """
         task = simple_batch_run["start"].task
-        assert task["message"].data == "hello from corral"
+        assert task["message"].data == "hello from localbatch"
         assert task["value"].data == 42
 
     def test_run_succeeds(self, simple_batch_run):
