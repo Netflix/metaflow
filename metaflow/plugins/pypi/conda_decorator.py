@@ -43,6 +43,7 @@ class CondaStepDecorator(StepDecorator):
 
     _metaflow_home = None
     _addl_env_vars = None
+    disabled = False
 
     # To define conda channels for the whole solve, users can specify
     # CONDA_CHANNELS in their environment. For pinning specific packages to specific
