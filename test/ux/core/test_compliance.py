@@ -256,10 +256,12 @@ def test_config_value_propagated(
 # test_nested_foreach_or_skip
 #
 # WHY: Nested foreach (foreach inside foreach) is not universally supported.
-# Orchestrators that do not support it MUST call pytest.skip() with a clear
-# reason string rather than silently producing a wrong or partial result.
-# This test verifies that if the scheduler runs nested foreach, the result is
-# correct; if it does not support it, it must say so explicitly.
+# Orchestrators that do not support it MUST raise an exception containing
+# "not supported" during .create() rather than silently producing a wrong or
+# partial result.  This test attempts to deploy and:
+#   - if .create() raises with "not supported", skips (the orchestrator is
+#     self-aware about its limitation — no hardcoded list needed here).
+#   - if .create() succeeds, verifies the nested foreach result is correct.
 # ---------------------------------------------------------------------------
 
 
@@ -268,28 +270,11 @@ def test_config_value_propagated(
 def test_nested_foreach_or_skip(
     exec_mode, decospecs, compute_env, tag, scheduler_config
 ):
-    """Nested foreach must either work correctly or skip with a clear reason string containing 'not supported'."""
+    """Nested foreach must either work correctly or be rejected at deploy time with 'not supported'."""
     if exec_mode != "deployer":
         pytest.skip("compliance test requires deployer mode")
 
-    scheduler_type = scheduler_config.scheduler_type
-
-    # Known schedulers that do not support nested foreach must skip here.
-    # New orchestrators should add themselves to this list or implement support.
-    unsupported = {
-        "airflow": (
-            "Nested foreach is not supported by the Airflow deployer: the DAG codegen "
-            "cannot represent dynamic fan-out inside a foreach body step."
-        ),
-        "flyte": (
-            "Nested foreach is not supported by the Flyte deployer: the codegen wires "
-            "foreach-body steps as fixed tasks inside a @dynamic expander and cannot "
-            "recurse to produce a second level of @dynamic fan-out."
-        ),
-    }
-
-    if scheduler_type in unsupported:
-        pytest.skip(unsupported[scheduler_type])
+    from metaflow.exception import MetaflowException
 
     test_unique_tag = f"test_compliance_nested_foreach_{exec_mode}"
     combined_tags = tag + [test_unique_tag]
@@ -299,13 +284,24 @@ def test_nested_foreach_or_skip(
         "decospecs": decospecs,
     }
 
-    deployed_flow = deploy_flow_to_scheduler(
-        flow_name="dag/nested_foreach_flow.py",
-        tl_args=tl_args,
-        scheduler_args={"cluster": scheduler_config.cluster},
-        deploy_args={"tags": combined_tags, **(scheduler_config.deploy_args or {})},
-        scheduler_type=scheduler_config.scheduler_type,
-    )
+    # Let the orchestrator tell us whether it supports nested foreach.
+    # If .create() raises with "not supported", skip — the orchestrator
+    # correctly rejects the unsupported graph.  No hardcoded dict needed.
+    try:
+        deployed_flow = deploy_flow_to_scheduler(
+            flow_name="dag/nested_foreach_flow.py",
+            tl_args=tl_args,
+            scheduler_args={"cluster": scheduler_config.cluster},
+            deploy_args={"tags": combined_tags, **(scheduler_config.deploy_args or {})},
+            scheduler_type=scheduler_config.scheduler_type,
+        )
+    except (MetaflowException, Exception) as e:
+        msg = str(e).lower()
+        if "not supported" in msg or "not yet supported" in msg:
+            pytest.skip(
+                f"{scheduler_config.scheduler_type} does not support nested foreach: {e}"
+            )
+        raise  # unexpected error — let the test fail normally
 
     run = wait_for_deployed_run(deployed_flow)
 
