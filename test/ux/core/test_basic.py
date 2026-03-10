@@ -70,7 +70,7 @@ def test_from_deployment(exec_mode, decospecs, compute_env, tag, scheduler_confi
     run1 = wait_for_deployed_run(deployed_flow)
     assert run1.successful, "First run was not successful"
     assert run1["start"].task.data.message == "Metaflow says: Hi!"
-    verify_run_provenance(run1, decospecs)
+    verify_run_provenance(run1, decospecs, scheduler_config)
 
     # Recover the deployment via from_deployment and trigger a second run
     deployment_id = deployed_flow.deployer.name
@@ -78,7 +78,7 @@ def test_from_deployment(exec_mode, decospecs, compute_env, tag, scheduler_confi
     run2 = wait_for_deployed_run(recovered)
     assert run2.successful, "Run from recovered deployment was not successful"
     assert run2["start"].task.data.message == "Metaflow says: Hi!"
-    verify_run_provenance(run2, decospecs)
+    verify_run_provenance(run2, decospecs, scheduler_config)
 
 
 def test_retry(exec_mode, decospecs, compute_env, tag, scheduler_config):

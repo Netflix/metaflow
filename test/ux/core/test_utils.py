@@ -199,7 +199,12 @@ def wait_for_deployed_run(
     return triggered_run.run
 
 
-def verify_run_provenance(run: Run, decospecs: Any) -> None:
+_KUBERNETES_SCHEDULER_TYPES = {"argo-workflows", "airflow"}
+
+
+def verify_run_provenance(
+    run: Run, decospecs: Any, scheduler_config: Any = None
+) -> None:
     """Verify the run used the expected datastore and execution environment.
 
     Checks:
@@ -207,7 +212,7 @@ def verify_run_provenance(run: Run, decospecs: Any) -> None:
        filesystem. A local ds-type indicates the Metaflow config didn't point at the
        devstack S3 endpoint. This check is skipped when METAFLOW_DEFAULT_DATASTORE is
        "local" (e.g. CI environments that don't have MinIO).
-    2. KUBERNETES_SERVICE_HOST was set (for kubernetes decospec backends): proves the
+    2. KUBERNETES_SERVICE_HOST was set (for kubernetes-based schedulers): proves the
        task actually ran inside a Kubernetes pod and the decospec took effect.
     """
     import os
@@ -223,7 +228,10 @@ def verify_run_provenance(run: Run, decospecs: Any) -> None:
             f"Artifacts may be stored locally — check METAFLOW_HOME / METAFLOW_PROFILE."
         )
 
-    if decospecs and any("kubernetes" in str(d) for d in decospecs):
+    sched_type = (
+        getattr(scheduler_config, "scheduler_type", None) if scheduler_config else None
+    )
+    if sched_type and sched_type in _KUBERNETES_SCHEDULER_TYPES:
         execution_env = start_task.data.execution_env
         assert execution_env, (
             "Expected task to run on Kubernetes (KUBERNETES_SERVICE_HOST set), "
