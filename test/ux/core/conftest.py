@@ -47,9 +47,48 @@ def _set_devstack_env():
     os.environ.setdefault("AWS_ENDPOINT_URL_EVENTBRIDGE", "http://localhost:7777")
 
 
+def _set_azurite_env():
+    """Set Azurite (Azure emulator) env vars when using the azure datastore.
+
+    The well-known Azurite account key is used as AZURE_STORAGE_KEY so that
+    Metaflow's AzureDefaultClientProvider can authenticate without
+    DefaultAzureCredential (which doesn't support Azurite).
+    """
+    azurite_account = "devstoreaccount1"
+    azurite_key = (
+        "Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq"
+        "/K1SZFPTOtr/KBHBeksoGMGw=="
+    )
+    os.environ.setdefault("AZURE_STORAGE_KEY", azurite_key)
+    os.environ.setdefault(
+        "METAFLOW_AZURE_STORAGE_BLOB_SERVICE_ENDPOINT",
+        "http://127.0.0.1:10000/" + azurite_account,
+    )
+    os.environ.setdefault(
+        "METAFLOW_DATASTORE_SYSROOT_AZURE",
+        "az://metaflow-test/metaflow",
+    )
+    conn_str = (
+        "DefaultEndpointsProtocol=http"
+        ";AccountName="
+        + azurite_account
+        + ";AccountKey="
+        + azurite_key
+        + ";BlobEndpoint=http://127.0.0.1:10000/"
+        + azurite_account
+        + ";"
+    )
+    os.environ.setdefault("AZURE_STORAGE_CONNECTION_STRING", conn_str)
+
+
 def pytest_configure(config):
     """
     Called early by pytest (before collection) so env vars are set before
     metaflow is imported at module level by the test files.
     """
     _set_devstack_env()
+
+    # If the azure datastore is requested (via env var or --only-backend
+    # azure-local), set Azurite credentials.
+    if os.environ.get("METAFLOW_DEFAULT_DATASTORE") == "azure":
+        _set_azurite_env()

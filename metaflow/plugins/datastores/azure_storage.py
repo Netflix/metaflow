@@ -288,10 +288,20 @@ class AzureStorage(DataStoreStorage):
         Speed up applies mainly to the "no access key" path.
         """
         if self._root_client is None:
-            self._root_client = _AzureRootClient(
-                datastore_root=self.datastore_root,
-                token=self._get_default_token(),
-            )
+            # If AZURE_STORAGE_KEY is set (e.g. for Azurite), use the account
+            # key directly via the shared_access_signature path which passes
+            # the string credential to BlobServiceClient.
+            account_key = os.environ.get("AZURE_STORAGE_KEY")
+            if account_key:
+                self._root_client = _AzureRootClient(
+                    datastore_root=self.datastore_root,
+                    shared_access_signature=account_key,
+                )
+            else:
+                self._root_client = _AzureRootClient(
+                    datastore_root=self.datastore_root,
+                    token=self._get_default_token(),
+                )
         return self._root_client
 
     @classmethod
