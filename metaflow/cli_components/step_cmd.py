@@ -96,18 +96,6 @@ import metaflow.tracing as tracing
     type=int,
     help="Number of parallel instances of a step. Ignored in local mode (see parallel decorator code).",
 )
-@click.option(
-    "--resume-origin-run-id",
-    default=None,
-    help="Run ID of the origin run to resume from. Used by scheduler deployers "
-    "(Argo/SFN) to enable in-step clone-or-run decisions.",
-)
-@click.option(
-    "--resume-steps-to-rerun",
-    default=None,
-    help="Comma-separated list of step names that must be re-executed "
-    "during resume. All other steps will be cloned if possible.",
-)
 @click.pass_context
 def step(
     ctx,
@@ -125,8 +113,6 @@ def step(
     clone_run_id=None,
     ubf_context="none",
     num_parallel=None,
-    resume_origin_run_id=None,
-    resume_steps_to_rerun=None,
 ):
     if ctx.obj.is_quiet:
         echo = echo_dev_null
@@ -181,59 +167,6 @@ def step(
             clone_only,
             retry_count,
         )
-    elif resume_origin_run_id:
-        # Scheduler-based resume: decide at runtime whether to clone or run.
-        from ..plugins.resume_util import find_origin_task, parse_steps_to_rerun
-
-        steps_to_rerun = parse_steps_to_rerun(resume_steps_to_rerun or "")
-        origin_pathspec = None
-        if step_name not in steps_to_rerun:
-            try:
-                origin_pathspec = find_origin_task(
-                    ctx.obj.flow_datastore,
-                    ctx.obj.graph,
-                    resume_origin_run_id,
-                    step_name,
-                    run_id,
-                    paths,
-                    split_index,
-                )
-            except Exception as ex:
-                echo(
-                    "Resume: could not find origin task for step *%s*, "
-                    "running normally: %s" % (step_name, str(ex)),
-                    fg="yellow",
-                    bold=False,
-                )
-        if origin_pathspec:
-            echo(
-                "Resume: cloning step *%s* from %s" % (step_name, origin_pathspec),
-                fg="cyan",
-                bold=False,
-            )
-            task.clone_only(
-                step_name,
-                run_id,
-                task_id,
-                origin_pathspec,
-                retry_count,
-            )
-        else:
-            echo(
-                "Resume: running step *%s* (not cloned)" % step_name,
-                fg="cyan",
-                bold=False,
-            )
-            task.run_step(
-                step_name,
-                run_id,
-                task_id,
-                resume_origin_run_id,
-                paths,
-                split_index,
-                retry_count,
-                max_user_code_retries,
-            )
     else:
         task.run_step(
             step_name,

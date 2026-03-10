@@ -199,9 +199,7 @@ class StepFunctions(object):
         return response
 
     @classmethod
-    def trigger(
-        cls, name, parameters, resume_origin_run_id="", resume_steps_to_rerun=""
-    ):
+    def trigger(cls, name, parameters):
         try:
             state_machine = StepFunctionsClient().get(name)
         except Exception as e:
@@ -214,14 +212,7 @@ class StepFunctions(object):
             )
 
         # Dump parameters into `Parameters` input field.
-        # Include resume fields (empty string when not resuming).
-        input = json.dumps(
-            {
-                "Parameters": json.dumps(parameters),
-                "ResumeOriginRunId": resume_origin_run_id or "",
-                "ResumeStepsToRerun": resume_steps_to_rerun or "",
-            }
-        )
+        input = json.dumps({"Parameters": json.dumps(parameters)})
         # AWS Step Functions limits input to be 32KiB, but AWS Batch
         # has its own limitation of 30KiB for job specification length.
         # Reserving 10KiB for rest of the job specification leaves 20KiB
@@ -658,11 +649,6 @@ class StepFunctions(object):
             # start step to all subsequent tasks.
             attrs["metaflow.run_id.$"] = "$$.Execution.Name"
 
-            # Propagate resume fields from execution input.  These are empty
-            # strings for non-resume runs and populated by the resume command.
-            attrs["resume.origin_run_id.$"] = "$.ResumeOriginRunId"
-            attrs["resume.steps_to_rerun.$"] = "$.ResumeStepsToRerun"
-
             # Initialize parameters for the flow in the `start` step.
             parameters = self._process_parameters()
             if parameters:
@@ -723,11 +709,6 @@ class StepFunctions(object):
                 )
                 # Inherit the run id from the parent and pass it along to children.
                 attrs["metaflow.run_id.$"] = "$.Parameters['metaflow.run_id']"
-                # Propagate resume fields from parent.
-                attrs["resume.origin_run_id.$"] = "$.Parameters['resume.origin_run_id']"
-                attrs["resume.steps_to_rerun.$"] = (
-                    "$.Parameters['resume.steps_to_rerun']"
-                )
             else:
                 # Set appropriate environment variables for runtime replacement.
                 if len(node.in_funcs) == 1:
@@ -738,13 +719,6 @@ class StepFunctions(object):
                     env["METAFLOW_PARENT_TASK_ID"] = "$.JobId"
                     # Inherit the run id from the parent and pass it along to children.
                     attrs["metaflow.run_id.$"] = "$.Parameters['metaflow.run_id']"
-                    # Propagate resume fields from parent.
-                    attrs["resume.origin_run_id.$"] = (
-                        "$.Parameters['resume.origin_run_id']"
-                    )
-                    attrs["resume.steps_to_rerun.$"] = (
-                        "$.Parameters['resume.steps_to_rerun']"
-                    )
                 else:
                     # Generate the input paths in a quasi-compressed format.
                     # See util.decompress_list for why this is written the way
@@ -766,14 +740,6 @@ class StepFunctions(object):
                         )
                         # Step name is known at compile time (it's the branch name).
                         env["METAFLOW_PARENT_%s_STEP" % idx] = branch_name
-                    # For branch joins, resume fields are read from the first
-                    # branch's output (all branches carry the same values).
-                    attrs["resume.origin_run_id.$"] = (
-                        "$.%s.Parameters['resume.origin_run_id']" % node.in_funcs[0]
-                    )
-                    attrs["resume.steps_to_rerun.$"] = (
-                        "$.%s.Parameters['resume.steps_to_rerun']" % node.in_funcs[0]
-                    )
             env["METAFLOW_INPUT_PATHS"] = input_paths
 
             if node.is_inside_foreach:
@@ -852,8 +818,6 @@ class StepFunctions(object):
         env["METAFLOW_FLOW_NAME"] = attrs["metaflow.flow_name"]
         env["METAFLOW_STEP_NAME"] = attrs["metaflow.step_name"]
         env["METAFLOW_RUN_ID"] = attrs["metaflow.run_id.$"]
-        env["METAFLOW_RESUME_ORIGIN_RUN_ID"] = attrs["resume.origin_run_id.$"]
-        env["METAFLOW_RESUME_STEPS_TO_RERUN"] = attrs["resume.steps_to_rerun.$"]
         env["METAFLOW_PRODUCTION_TOKEN"] = self.production_token
         env["SFN_STATE_MACHINE"] = self.name
         env["METAFLOW_OWNER"] = attrs["metaflow.owner"]
@@ -1100,18 +1064,7 @@ class StepFunctions(object):
             step.extend("--tag %s" % tag for tag in self.tags)
         if self.namespace is not None:
             step.append("--namespace=%s" % self.namespace)
-        # Build the step command, then wrap with resume options that are only
-        # included when the env vars are non-empty (normal triggers set them
-        # to empty strings).
-        step_cmd = " ".join(entrypoint + top_level + step)
-        resume_opts = (
-            '$(if [ -n "$METAFLOW_RESUME_ORIGIN_RUN_ID" ]; then '
-            "echo "
-            '"--resume-origin-run-id $METAFLOW_RESUME_ORIGIN_RUN_ID '
-            '--resume-steps-to-rerun $METAFLOW_RESUME_STEPS_TO_RERUN"; '
-            "fi)"
-        )
-        cmds.append("%s %s" % (step_cmd, resume_opts))
+        cmds.append(" ".join(entrypoint + top_level + step))
         return " && ".join(cmds)
 
 

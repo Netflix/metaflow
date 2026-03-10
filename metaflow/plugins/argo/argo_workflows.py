@@ -965,21 +965,6 @@ class ArgoWorkflows(object):
                             .description("auto-set by metaflow. safe to ignore.")
                             for event in self.triggers
                         ]
-                        + [
-                            # Resume support: these parameters are set at trigger
-                            # time by the `resume` CLI command and are empty by
-                            # default (meaning: no resume).
-                            Parameter("metaflow-resume-origin-run-id")
-                            .value("")
-                            .description(
-                                "auto-set by metaflow resume. safe to ignore."
-                            ),
-                            Parameter("metaflow-resume-steps-to-rerun")
-                            .value("")
-                            .description(
-                                "auto-set by metaflow resume. safe to ignore."
-                            ),
-                        ]
                     )
                 )
                 # Set common pod metadata.
@@ -2205,18 +2190,6 @@ class ArgoWorkflows(object):
             if self.namespace is not None:
                 step.append("--namespace=%s" % self.namespace)
 
-            # Resume support: conditionally pass resume CLI options from
-            # env vars (set via workflow parameters). When empty, the step
-            # command ignores them.
-            step.append(
-                "${METAFLOW_RESUME_ORIGIN_RUN_ID:+"
-                "--resume-origin-run-id $METAFLOW_RESUME_ORIGIN_RUN_ID}"
-            )
-            step.append(
-                "${METAFLOW_RESUME_STEPS_TO_RERUN:+"
-                "--resume-steps-to-rerun $METAFLOW_RESUME_STEPS_TO_RERUN}"
-            )
-
             step_cmds.extend([" ".join(entrypoint + top_level + step)])
 
             cmd_str = "%s; c=$?; %s; exit $c" % (
@@ -2318,15 +2291,6 @@ class ArgoWorkflows(object):
                     **self.metadata.get_runtime_environment("argo-workflows"),
                 }
             )
-            # Resume support: pass workflow parameters as env vars so the
-            # step command can use them for clone-or-run decisions.
-            env["METAFLOW_RESUME_ORIGIN_RUN_ID"] = (
-                "{{workflow.parameters.metaflow-resume-origin-run-id}}"
-            )
-            env["METAFLOW_RESUME_STEPS_TO_RERUN"] = (
-                "{{workflow.parameters.metaflow-resume-steps-to-rerun}}"
-            )
-
             # add METAFLOW_S3_ENDPOINT_URL
             env["METAFLOW_S3_ENDPOINT_URL"] = S3_ENDPOINT_URL
 
