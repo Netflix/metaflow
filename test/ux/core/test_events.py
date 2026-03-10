@@ -17,10 +17,13 @@ import json
 import subprocess
 import time
 import uuid
+from datetime import datetime, timezone
 
 import pytest
 
-from .test_utils import deploy_flow_to_scheduler, wait_for_deployed_run
+from metaflow import Run, namespace
+
+from .test_utils import deploy_flow_to_scheduler
 
 pytestmark = pytest.mark.events
 
@@ -73,6 +76,106 @@ def _get_sensor_json(name, namespace="default"):
     except Exception:
         pass
     return None
+
+
+def _wait_for_event_triggered_run(
+    deployed_flow, not_before, timeout=600, polling_interval=10
+):
+    """Wait for a run triggered by an Argo Events sensor (not a direct trigger).
+
+    Polls for Argo Workflow objects matching the deployed flow's name prefix
+    and waits for one to reach a Succeeded phase, then returns the
+    corresponding Metaflow Run object.
+
+    Parameters
+    ----------
+    deployed_flow : ArgoWorkflowsDeployedFlow
+        The deployed flow object.
+    not_before : float
+        Unix timestamp; only consider workflows created after this time.
+    timeout : int
+        Maximum time in seconds to wait.
+    polling_interval : int
+        Seconds between polling attempts.
+    """
+    wf_name_prefix = deployed_flow.name + "-"
+    k8s_namespace = "default"
+    deadline = time.time() + timeout
+
+    while time.time() < deadline:
+        # List workflows whose name starts with the deployed flow's prefix
+        try:
+            result = subprocess.run(
+                [
+                    "kubectl",
+                    "get",
+                    "workflows",
+                    "-n",
+                    k8s_namespace,
+                    "-o",
+                    "json",
+                ],
+                capture_output=True,
+                text=True,
+                timeout=60,
+            )
+        except Exception:
+            time.sleep(polling_interval)
+            continue
+
+        if result.returncode != 0:
+            time.sleep(polling_interval)
+            continue
+
+        wf_list = json.loads(result.stdout)
+        for wf in wf_list.get("items", []):
+            wf_name = wf.get("metadata", {}).get("name", "")
+            if not wf_name.startswith(wf_name_prefix):
+                continue
+
+            # Skip workflows created before our event was published
+            creation_ts = wf.get("metadata", {}).get("creationTimestamp", "")
+            if creation_ts:
+                try:
+                    created_at = datetime.fromisoformat(
+                        creation_ts.replace("Z", "+00:00")
+                    ).timestamp()
+                    if created_at < not_before:
+                        continue
+                except (ValueError, TypeError):
+                    pass
+
+            # Check if the workflow has completed successfully
+            phase = wf.get("status", {}).get("phase", "")
+            if phase != "Succeeded":
+                print(
+                    "Found workflow %s in phase %s, waiting for Succeeded..."
+                    % (wf_name, phase)
+                )
+                continue
+
+            # Found a matching succeeded workflow - get the Metaflow run
+            run_id = "argo-%s" % wf_name
+            flow_name = (
+                wf.get("metadata", {})
+                .get("annotations", {})
+                .get("metaflow/flow_name", "")
+            )
+            if not flow_name:
+                continue
+
+            print("Found event-triggered workflow: %s (run_id: %s)" % (wf_name, run_id))
+            namespace(None)
+            run = Run("%s/%s" % (flow_name, run_id), _namespace_check=False)
+            return run
+
+        print("No event-triggered workflow found yet, waiting...")
+        time.sleep(polling_interval)
+
+    raise RuntimeError(
+        "Timed out waiting for event-triggered workflow with prefix '%s'"
+        % wf_name_prefix
+    )
 
 
 @pytest.mark.scheduler_only
@@ -159,6 +262,9 @@ def test_trigger_event_triggers_run(
     # Give the sensor a moment to become fully operational
     time.sleep(5)
 
+    # Record time just before publishing so we can filter out stale workflows
+    publish_time = time.time()
+
     # Publish an event to trigger the flow
     from metaflow.plugins.argo.argo_events import ArgoEvent
 
@@ -169,8 +275,12 @@ def test_trigger_event_triggers_run(
     assert event_id is not None, "ArgoEvent.publish() returned None"
     print("Published event with id: %s" % event_id)
 
-    # Wait for the triggered run to complete
-    run = wait_for_deployed_run(deployed_flow, timeout=600)
+    # Wait for the sensor-triggered run to complete.
+    # We must NOT use deployed_flow.trigger() here -- that would bypass the
+    # sensor/event path and create a direct run without the event payload.
+    run = _wait_for_event_triggered_run(
+        deployed_flow, not_before=publish_time, timeout=600
+    )
     assert run.successful, "Triggered run was not successful"
     assert run["start"].task.data.message == (
         "TriggerFlow received: %s" % greeting_value
