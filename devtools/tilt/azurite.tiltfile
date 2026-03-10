@@ -67,7 +67,7 @@ def setup_azurite(ctx):
     return new_result(
         config={
             "METAFLOW_AZURE_STORAGE_BLOB_SERVICE_ENDPOINT": "http://127.0.0.1:10000/" + azurite_account,
-            "METAFLOW_DATASTORE_SYSROOT_AZURE": "az://metaflow-test/metaflow",
+            "METAFLOW_DATASTORE_SYSROOT_AZURE": "metaflow-test/metaflow",
         },
         shell_env={"AZURE_STORAGE_CONNECTION_STRING": azurite_local_conn_str},
         config_resources=['azurite-init'],
