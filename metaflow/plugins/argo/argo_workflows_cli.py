@@ -240,6 +240,15 @@ def argo_workflows(obj, name=None):
     type=str,
     help="Custom description for the workflow displayed in Argo Workflows UI. Defaults to the flow's docstring if available. Supports markdown formatting and multi-line text.",
 )
+@click.option(
+    "--label",
+    "labels",
+    multiple=True,
+    default=None,
+    help="Add custom Kubernetes labels to the Argo workflow template in the format "
+    "key=value. You can specify this option multiple times to attach multiple "
+    "labels. These are merged with labels from METAFLOW_ARGO_WORKFLOWS_LABELS.",
+)
 @click.pass_obj
 def create(
     obj,
@@ -265,6 +274,7 @@ def create(
     workflow_description=None,
     deployer_attribute_file=None,
     enable_error_msg_capture=False,
+    labels=None,
 ):
     # check if we are supposed to block deploying the flow due to name length constraints.
     if obj._exception_on_create is not None:
@@ -361,6 +371,7 @@ def create(
         enable_error_msg_capture,
         workflow_title,
         workflow_description,
+        labels,
     )
 
     if only_json:
@@ -708,6 +719,7 @@ def make_flow(
     enable_error_msg_capture,
     workflow_title,
     workflow_description,
+    labels=None,
 ):
     # TODO: Make this check less specific to Amazon S3 as we introduce
     #       support for more cloud object stores.
@@ -805,6 +817,7 @@ def make_flow(
         enable_error_msg_capture=enable_error_msg_capture,
         workflow_title=workflow_title,
         workflow_description=workflow_description,
+        labels=labels,
     )
 
 

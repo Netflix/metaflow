@@ -374,13 +374,29 @@ class KubernetesDecorator(StepDecorator):
                         if self.defaults[k] is None:
                             # skip if expected value isn't an int/float
                             continue
-                        # We use the larger of @resources and @batch attributes
-                        # TODO: Fix https://github.com/Netflix/metaflow/issues/467
                         my_val = self.attributes.get(k)
                         if not (my_val is None and v is None):
-                            self.attributes[k] = str(
-                                max(float(my_val or 0), float(v or 0))
+                            # Check if the user explicitly set the @kubernetes
+                            # attribute to a non-default value. If they did, use
+                            # the max of @kubernetes and @resources. If the
+                            # @kubernetes value is still the default, let
+                            # @resources override it — this fixes the case where
+                            # @resources(memory=256) should be respected even
+                            # when it is lower than the @kubernetes default.
+                            k8s_is_default = str(my_val) == str(self.defaults[k])
+                            resources_is_default = (
+                                k in ResourcesDecorator.defaults
+                                and str(v) == str(ResourcesDecorator.defaults[k])
                             )
+                            if k8s_is_default and not resources_is_default:
+                                # @kubernetes is at its default and @resources
+                                # explicitly set a value — use the @resources value.
+                                self.attributes[k] = str(float(v or 0))
+                            else:
+                                # Both explicitly set or both default — take max.
+                                self.attributes[k] = str(
+                                    max(float(my_val or 0), float(v or 0))
+                                )
 
         # Check GPU vendor.
         if self.attributes["gpu_vendor"].lower() not in ("amd", "nvidia"):

@@ -25,6 +25,7 @@ from metaflow.metaflow_config import (
     ARGO_WORKFLOWS_CAPTURE_ERROR_SCRIPT,
     ARGO_WORKFLOWS_ENV_VARS_TO_SKIP,
     ARGO_WORKFLOWS_KUBERNETES_SECRETS,
+    ARGO_WORKFLOWS_LABELS,
     ARGO_WORKFLOWS_UI_URL,
     AWS_SECRETS_MANAGER_DEFAULT_REGION,
     AZURE_KEY_VAULT_PREFIX,
@@ -123,6 +124,7 @@ class ArgoWorkflows(object):
         enable_error_msg_capture=False,
         workflow_title=None,
         workflow_description=None,
+        labels=None,
     ):
         # Some high-level notes -
         #
@@ -181,6 +183,7 @@ class ArgoWorkflows(object):
         self.enable_error_msg_capture = enable_error_msg_capture
         self.workflow_title = workflow_title
         self.workflow_description = workflow_description
+        self.cli_labels = labels
         self.parameters = self._process_parameters()
         self.config_parameters = self._process_config_parameters()
         self.triggers, self.trigger_options = self._process_triggers()
@@ -402,9 +405,45 @@ class ArgoWorkflows(object):
     def _base_kubernetes_labels(self):
         """
         Get shared Kubernetes labels for Argo resources.
+
+        Labels are merged from three sources (in increasing precedence):
+        1. METAFLOW_ARGO_WORKFLOWS_LABELS env var / config (JSON dict)
+        2. CLI --label options (key=value pairs)
+        3. System labels (always present)
         """
-        # TODO: Add configuration through an environment variable or Metaflow config in the future if required.
-        labels = {"app.kubernetes.io/part-of": "metaflow"}
+        # User-specified labels from config / env var
+        env_labels = {}
+        if ARGO_WORKFLOWS_LABELS:
+            try:
+                env_labels = json.loads(ARGO_WORKFLOWS_LABELS)
+            except (json.JSONDecodeError, TypeError):
+                raise ArgoWorkflowsException(
+                    "METAFLOW_ARGO_WORKFLOWS_LABELS must be a valid JSON object, "
+                    "got: %s" % ARGO_WORKFLOWS_LABELS
+                )
+            if not isinstance(env_labels, dict):
+                raise ArgoWorkflowsException(
+                    "METAFLOW_ARGO_WORKFLOWS_LABELS must be a JSON object (dict), "
+                    "got: %s" % type(env_labels).__name__
+                )
+
+        # User-specified labels from CLI --label options
+        cli_labels = {}
+        if self.cli_labels:
+            for label in self.cli_labels:
+                if "=" not in label:
+                    raise ArgoWorkflowsException(
+                        "--label must be in the format key=value, got: %s" % label
+                    )
+                k, v = label.split("=", 1)
+                cli_labels[k.strip()] = v.strip()
+
+        # System labels always take precedence
+        labels = {
+            **env_labels,
+            **cli_labels,
+            "app.kubernetes.io/part-of": "metaflow",
+        }
 
         return labels
 
