@@ -383,10 +383,13 @@ class KubernetesDecorator(StepDecorator):
                             # @resources override it — this fixes the case where
                             # @resources(memory=256) should be respected even
                             # when it is lower than the @kubernetes default.
-                            k8s_is_default = str(my_val) == str(self.defaults[k])
+                            k8s_is_default = float(my_val or 0) == float(
+                                self.defaults[k] or 0
+                            )
                             resources_is_default = (
                                 k in ResourcesDecorator.defaults
-                                and str(v) == str(ResourcesDecorator.defaults[k])
+                                and float(v or 0)
+                                == float(ResourcesDecorator.defaults[k] or 0)
                             )
                             if k8s_is_default and not resources_is_default:
                                 # @kubernetes is at its default and @resources
