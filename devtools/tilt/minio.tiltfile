@@ -1,0 +1,60 @@
+load('ext://helm_remote', 'helm_remote')
+load('./_result.tiltfile', 'new_result')
+
+def setup_minio(ctx):
+    helm_remote(
+        'minio',
+        repo_name='minio-s3',
+        repo_url='https://charts.min.io/',
+        set=[
+            'rootUser=rootuser',
+            'rootPassword=rootpass123',
+            'buckets[0].name=metaflow-test',
+            'buckets[0].policy=none',
+            'buckets[0].purge=false',
+            'mode=standalone',
+            'replicas=1',
+            'persistence.enabled=false',
+            'resources.requests.memory=128Mi',
+            'resources.requests.cpu=50m',
+            'resources.limits.memory=256Mi',
+            'resources.limits.cpu=100m',
+        ]
+    )
+
+    k8s_resource(
+        'minio',
+        port_forwards=['9000:9000', '9001:9001'],
+        links=[
+            link('http://localhost:9000', 'MinIO API'),
+            link('http://localhost:9001/login', 'MinIO Console (rootuser/rootpass123)')
+        ],
+        labels=['minio'],
+    )
+
+    k8s_resource("minio-post-job", labels=['minio'])
+
+    k8s_yaml(read_file('./tilt/k8s/minio-secret.yaml'))
+
+    return new_result(
+        config={
+            "METAFLOW_DEFAULT_DATASTORE": "s3",
+            "METAFLOW_DATASTORE_SYSROOT_S3": "s3://metaflow-test/metaflow",
+            "METAFLOW_DATATOOLS_CLIENT_PARAMS": {
+                "endpoint_url": "http://localhost:9000",
+                "config": {
+                    "read_timeout": 1,
+                    "connect_timeout": 2,
+                    "max_pool_connections": 1,
+                    "retries": {"max_attempts": 3, "mode": "standard"},
+                },
+            },
+        },
+        config_resources=['minio'],
+        aws_config="""[default]
+aws_access_key_id = rootuser
+aws_secret_access_key = rootpass123
+region = us-east-1
+""",
+        k8s_secrets=["minio-secret"],
+    )

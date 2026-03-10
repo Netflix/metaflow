@@ -1,0 +1,48 @@
+load('./_result.tiltfile', 'new_result')
+
+def setup_localbatch(ctx):
+    localbatch_serve_cmd = (
+        "localbatch --port 8000 --queue localbatch-default" +
+        " --inject-env AWS_ACCESS_KEY_ID=rootuser" +
+        " --inject-env AWS_SECRET_ACCESS_KEY=rootpass123" +
+        " --inject-env AWS_ENDPOINT_URL_S3=http://host.docker.internal:9000" +
+        " --inject-env METAFLOW_S3_ENDPOINT_URL=http://host.docker.internal:9000"
+    )
+
+    if "metadata-service" in ctx.enabled_components:
+        localbatch_serve_cmd += (
+            " --inject-env METAFLOW_SERVICE_URL=http://host.docker.internal:8080" +
+            " --inject-env METAFLOW_SERVICE_INTERNAL_URL=http://host.docker.internal:8080"
+        )
+
+    if "ddb-local" in ctx.enabled_components:
+        _ddb_params = '\'{"endpoint_url":"http://host.docker.internal:8765"}\''
+        localbatch_serve_cmd += (
+            " --inject-env METAFLOW_SFN_DYNAMO_DB_CLIENT_PARAMS=" + _ddb_params +
+            " --inject-env METAFLOW_SFN_DYNAMO_DB_TABLE=metaflow-sfn"
+        )
+
+    local_resource(
+        name="localbatch",
+        serve_cmd=localbatch_serve_cmd,
+        readiness_probe=probe(
+            http_get=http_get_action(port=8000, path="/health"),
+            period_secs=2,
+            initial_delay_secs=1,
+        ),
+        links=[
+            link("http://localhost:8000/health", "localbatch health"),
+            link("http://localhost:8000/docs",   "localbatch API docs"),
+        ],
+        labels=["localbatch"],
+        resource_deps=ctx.components["localbatch"],
+    )
+
+    return new_result(
+        config={
+            "METAFLOW_BATCH_JOB_QUEUE": "localbatch-default",
+            "METAFLOW_BATCH_CLIENT_PARAMS": {"endpoint_url": "http://localhost:8000"},
+            "METAFLOW_ECS_S3_ACCESS_IAM_ROLE": "arn:aws:iam::123456789012:role/localbatch-task-role",
+        },
+        config_resources=["localbatch"],
+    )

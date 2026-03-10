@@ -6,29 +6,23 @@
 #   Stop and clean up:
 #     $ tilt down
 
-# TODO:
-# 1. move away from temporary images
-# 2. introduce kueue and jobsets
-# 3. lock versions
-
 version_settings(constraint='>=0.22.2')
 allow_k8s_contexts('minikube')
 
-# Version configuration for components
+# ---------------------------------------------------------------------------
+# Version configuration
+# ---------------------------------------------------------------------------
 JOBSET_VERSION = os.getenv("JOBSET_VERSION", "v0.8.2")
+ARGO_WORKFLOWS_HELM_CHART_VERSION = os.getenv("ARGO_WORKFLOWS_HELM_CHART_VERSION", "0.45.2")
+ARGO_WORKFLOWS_IMAGE_TAG = os.getenv("ARGO_WORKFLOWS_IMAGE_TAG", "v3.6.0")
+ARGO_EVENTS_HELM_CHART_VERSION = os.getenv("ARGO_EVENTS_HELM_CHART_VERSION", "2.4.8")
+ARGO_EVENTS_IMAGE_TAG = os.getenv("ARGO_EVENTS_IMAGE_TAG", "v1.9.2")
+AIRFLOW_HELM_CHART_VERSION = os.getenv("AIRFLOW_HELM_CHART_VERSION", "1.15.0")
+AIRFLOW_IMAGE_TAG = os.getenv("AIRFLOW_IMAGE_TAG", "2.10.4")
 
-# Argo Workflows versions
-ARGO_WORKFLOWS_HELM_CHART_VERSION = os.getenv("ARGO_WORKFLOWS_HELM_CHART_VERSION", "0.45.2")  # Helm chart version
-ARGO_WORKFLOWS_IMAGE_TAG = os.getenv("ARGO_WORKFLOWS_IMAGE_TAG", "v3.6.0")  # Argo Workflows application version
-
-# Argo Events versions
-ARGO_EVENTS_HELM_CHART_VERSION = os.getenv("ARGO_EVENTS_HELM_CHART_VERSION", "2.4.8")  # Helm chart version
-ARGO_EVENTS_IMAGE_TAG = os.getenv("ARGO_EVENTS_IMAGE_TAG", "v1.9.2")  # Argo Events application version
-
-# Airflow versions
-AIRFLOW_HELM_CHART_VERSION = os.getenv("AIRFLOW_HELM_CHART_VERSION", "1.15.0")  # Apache Airflow Helm chart version
-AIRFLOW_IMAGE_TAG = os.getenv("AIRFLOW_IMAGE_TAG", "2.10.4")  # Apache Airflow application version
-
+# ---------------------------------------------------------------------------
+# Component dependency graph
+# ---------------------------------------------------------------------------
 components = {
     "metadata-service": ["postgresql"],
     "ui": ["postgresql", "minio"],
@@ -45,47 +39,18 @@ components = {
     "airflow": ["postgresql"],
 }
 
+# ---------------------------------------------------------------------------
+# Resolve requested components with dependencies
+# ---------------------------------------------------------------------------
 services_env = os.getenv("SERVICES", "all").strip().lower()
 
-if services_env:
-    if services_env == "all":
-        requested_components = list(components.keys())
-    else:
-        requested_components = services_env.split(",")
+if services_env and services_env != "all":
+    requested_components = services_env.split(",")
 else:
     requested_components = list(components.keys())
 
-metaflow_config = {}
-metaflow_config["METAFLOW_KUBERNETES_NAMESPACE"] = "default"
-# Short TTL so completed k8s Jobs are deleted quickly in the dev environment,
-# preventing pod accumulation that exhausts cluster resources during long test runs.
-metaflow_config["METAFLOW_KUBERNETES_JOB_TTL_SECONDS_AFTER_FINISHED"] = 300  # 5 min
-
-aws_config = []
-shell_env = {}   # extra env vars written to .devtools/env_local (e.g. STORAGE_EMULATOR_HOST)
-
-def write_config_files():
-    metaflow_json = encode_json(metaflow_config)
-    cmd = '''cat > .devtools/config_local.json <<EOF
-%s
-EOF
-''' % (metaflow_json)
-    if aws_config and aws_config.strip():
-        cmd += '''cat > .devtools/aws_config <<EOF
-%s
-EOF
-''' % (aws_config.strip())
-    if shell_env:
-        env_lines = "\n".join(['export %s="%s"' % (k, v) for k, v in shell_env.items()])
-        cmd += '''cat > .devtools/env_local <<EOF
-%s
-EOF
-''' % (env_lines)
-    return cmd
-
 load('ext://helm_resource', 'helm_resource', 'helm_repo')
 load('ext://helm_remote', 'helm_remote')
-
 
 def resolve(component, resolved=None):
     if resolved == None:
@@ -115,7 +80,6 @@ for component in requested_components:
         if result not in enabled_components:
             enabled_components.append(result)
 
-# Print a friendly summary when running `tilt up`.
 if config.tilt_subcommand == 'up':
     print("\n📦 Components to install:")
     for component in enabled_components:
@@ -123,1321 +87,102 @@ if config.tilt_subcommand == 'up':
         if component in components and components[component]:
             print("  ↳ requires: " + ", ".join(components[component]))
 
+# ---------------------------------------------------------------------------
+# Load component setup functions
+# ---------------------------------------------------------------------------
+load('./tilt/_result.tiltfile', 'new_result')
+load('./tilt/minio.tiltfile', 'setup_minio')
+load('./tilt/postgresql.tiltfile', 'setup_postgresql')
+load('./tilt/argo_workflows.tiltfile', 'setup_argo_workflows')
+load('./tilt/argo_events.tiltfile', 'setup_argo_events')
+load('./tilt/jobset.tiltfile', 'setup_jobset')
+load('./tilt/metadata_service.tiltfile', 'setup_metadata_service')
+load('./tilt/ui.tiltfile', 'setup_ui')
+load('./tilt/localbatch.tiltfile', 'setup_localbatch')
+load('./tilt/ddb_local.tiltfile', 'setup_ddb_local')
+load('./tilt/sfn_local.tiltfile', 'setup_sfn_local')
+load('./tilt/azurite.tiltfile', 'setup_azurite')
+load('./tilt/fake_gcs_server.tiltfile', 'setup_fake_gcs_server')
+load('./tilt/airflow.tiltfile', 'setup_airflow')
+
+_SETUP = {
+    "minio": setup_minio,
+    "postgresql": setup_postgresql,
+    "argo-workflows": setup_argo_workflows,
+    "argo-events": setup_argo_events,
+    "jobset": setup_jobset,
+    "metadata-service": setup_metadata_service,
+    "ui": setup_ui,
+    "localbatch": setup_localbatch,
+    "ddb-local": setup_ddb_local,
+    "sfn-local": setup_sfn_local,
+    "azurite": setup_azurite,
+    "fake-gcs-server": setup_fake_gcs_server,
+    "airflow": setup_airflow,
+}
+
+# ---------------------------------------------------------------------------
+# Build context and run each enabled component
+# ---------------------------------------------------------------------------
+ctx = struct(
+    enabled_components=enabled_components,
+    components=components,
+    versions=struct(
+        jobset=JOBSET_VERSION,
+        argo_workflows_chart=ARGO_WORKFLOWS_HELM_CHART_VERSION,
+        argo_workflows_image=ARGO_WORKFLOWS_IMAGE_TAG,
+        argo_events_chart=ARGO_EVENTS_HELM_CHART_VERSION,
+        argo_events_image=ARGO_EVENTS_IMAGE_TAG,
+        airflow_chart=AIRFLOW_HELM_CHART_VERSION,
+        airflow_image=AIRFLOW_IMAGE_TAG,
+    ),
+)
+
+metaflow_config = {
+    "METAFLOW_KUBERNETES_NAMESPACE": "default",
+    "METAFLOW_KUBERNETES_JOB_TTL_SECONDS_AFTER_FINISHED": 300,
+}
+aws_config = ""
+shell_env = {}
 config_resources = []
-
-#################################################
-# MINIO
-#################################################
-if "minio" in enabled_components:
-    helm_remote(
-        'minio',
-        repo_name='minio-s3',
-        repo_url='https://charts.min.io/',
-        set=[
-            'rootUser=rootuser',
-            'rootPassword=rootpass123',
-            # TODO: perturb the bucket name to avoid conflicts
-            'buckets[0].name=metaflow-test',
-            'buckets[0].policy=none',
-            'buckets[0].purge=false',
-            'mode=standalone',
-            'replicas=1',
-            'persistence.enabled=false',
-            'resources.requests.memory=128Mi',
-            'resources.requests.cpu=50m',
-            'resources.limits.memory=256Mi',
-            'resources.limits.cpu=100m',
-        ]
-    )
-
-    k8s_resource(
-        'minio',
-        port_forwards=[
-            '9000:9000',
-            '9001:9001'
-        ],
-        links=[
-            link('http://localhost:9000', 'MinIO API'),
-            link('http://localhost:9001/login', 'MinIO Console (rootuser/rootpass123)')
-        ],
-        labels=['minio'],
-    )
-
-    k8s_resource(
-        "minio-post-job",
-        labels=['minio'],
-    )
-
-    k8s_yaml(encode_yaml({
-        'apiVersion': 'v1',
-        'kind': 'Secret',
-        'metadata': {'name': 'minio-secret'},
-        'type': 'Opaque',
-        'stringData': {
-            'AWS_ACCESS_KEY_ID': 'rootuser',
-            'AWS_SECRET_ACCESS_KEY': 'rootpass123',
-            'AWS_ENDPOINT_URL_S3': 'http://minio.default.svc.cluster.local:9000',
-        }
-    }))
-
-    metaflow_config["METAFLOW_DEFAULT_DATASTORE"] = "s3"
-    metaflow_config["METAFLOW_DATASTORE_SYSROOT_S3"] = "s3://metaflow-test/metaflow"
-    metaflow_config["METAFLOW_KUBERNETES_SECRETS"] = "minio-secret"
-    # Short timeouts for the S3 datatools client when running against the local
-    # devstack. The default 60s boto3 read_timeout causes ~30s hangs per step
-    # when the Tilt port-forward lets idle connections go stale between steps.
-    # read_timeout=1 + 3 retries means stale connections fail fast and retry.
-    metaflow_config["METAFLOW_DATATOOLS_CLIENT_PARAMS"] = {
-        "endpoint_url": "http://localhost:9000",
-        "config": {
-            "read_timeout": 1,
-            "connect_timeout": 2,
-            "max_pool_connections": 1,
-            "retries": {"max_attempts": 3, "mode": "standard"},
-        },
-    }
-    # NOTE: Do NOT set METAFLOW_S3_ENDPOINT_URL here.
-    # If it were set, kubernetes.py would inject it into every k8s pod, overriding
-    # the correct internal MinIO URL (minio.default.svc.cluster.local:9000) that
-    # pods receive from minio-secret. Instead, the test suite sets AWS_ENDPOINT_URL_S3
-    # in the test process env (via conftest.py) so host-side boto3 clients reach
-    # localhost:9000, while k8s pods rely on minio-secret, and localbatch Docker
-    # containers get host.docker.internal:9000 via --inject-env.
-
-    aws_config = """[default]
-aws_access_key_id = rootuser
-aws_secret_access_key = rootpass123
-region = us-east-1
-"""
-    config_resources.append('minio')
-
-#################################################
-# POSTGRESQL
-#################################################
-if "postgresql" in enabled_components:
-    helm_remote(
-        'postgresql',
-        version='12.5.6',
-        repo_name='postgresql',
-        repo_url='https://charts.bitnami.com/bitnami',
-        set=[
-            'auth.username=metaflow',
-            'auth.password=metaflow123',
-            'auth.database=metaflow',
-            # Known postgres superuser password so db-init jobs can create extra databases.
-            'auth.postgresPassword=devstackpostgres123',
-            # Create a separate Airflow database at first boot.  initdb scripts run once
-            # on first initialization (i.e. every GHA run since the cluster is fresh).
-            # The key uses \.sql so helm doesn't split on the dot in the filename.
-            'primary.initdb.scripts.create-airflow-db\\.sql=CREATE DATABASE airflow OWNER metaflow;',
-            'image.repository=bitnamilegacy/postgresql',
-            # Enable persistence so metadata survives pod restarts.
-            # minikube's standard storageclass uses hostPath on the node.
-            'primary.persistence.enabled=true',
-            'primary.persistence.size=1Gi',
-            'primary.persistence.storageClass=standard',
-            'primary.resources.requests.memory=256Mi',
-            'primary.resources.requests.cpu=50m',
-            'primary.resources.limits.memory=512Mi',
-            'primary.resources.limits.cpu=200m',
-            'primary.terminationGracePeriodSeconds=1',
-            'primary.podSecurityContext.enabled=false',
-            'primary.containerSecurityContext.enabled=false',
-            'volumePermissions.enabled=false',
-            'shmVolume.enabled=false',
-            'primary.extraVolumes=null',
-            'primary.extraVolumeMounts=null',
-            # Long tolerations to prevent eviction when node briefly goes NotReady.
-            'primary.tolerations[0].key=node.kubernetes.io/not-ready',
-            'primary.tolerations[0].operator=Exists',
-            'primary.tolerations[0].effect=NoExecute',
-            'primary.tolerations[0].tolerationSeconds=3600',
-            'primary.tolerations[1].key=node.kubernetes.io/unreachable',
-            'primary.tolerations[1].operator=Exists',
-            'primary.tolerations[1].effect=NoExecute',
-            'primary.tolerations[1].tolerationSeconds=3600',
-            # Increase liveness probe failureThreshold so transient PostgreSQL
-            # slowness doesn't trigger unnecessary restarts.
-            'primary.livenessProbe.failureThreshold=20',
-            'primary.readinessProbe.failureThreshold=20'
-        ]
-    )
-
-    k8s_resource(
-        'postgresql',
-        port_forwards=['5433:5432'],
-        links=[
-            link('postgresql://metaflow:metaflow@localhost:5433/metaflow', 'PostgreSQL Connection')
-        ],
-        labels=['postgresql'],
-        resource_deps=components['postgresql'],
-    )
-
-    config_resources.append('postgresql')
-
-#################################################
-# ARGO WORKFLOWS
-#################################################
-if "argo-workflows" in enabled_components:
-    helm_remote(
-        'argo-workflows',
-        version=ARGO_WORKFLOWS_HELM_CHART_VERSION,
-        repo_name='argo',
-        repo_url='https://argoproj.github.io/argo-helm',
-        set=[
-            'server.extraArgs[0]=--auth-mode=server',
-            'workflow.serviceAccount.create=true',
-            'workflow.rbac.create=true',
-            'server.livenessProbe.initialDelaySeconds=1',
-            'server.readinessProbe.initialDelaySeconds=1',
-            'server.resources.requests.memory=128Mi',
-            'server.resources.requests.cpu=50m',
-            'server.resources.limits.memory=256Mi',
-            'server.resources.limits.cpu=100m',
-            'controller.resources.requests.memory=128Mi',
-            'controller.resources.requests.cpu=50m',
-            'controller.resources.limits.memory=256Mi',
-            'controller.resources.limits.cpu=100m',
-            # Image version overrides
-            'images.tag=%s' % ARGO_WORKFLOWS_IMAGE_TAG,
-            # Auto-delete completed/failed workflows after 30s to prevent
-            # pod accumulation and etcd memory bloat during long test runs.
-            'controller.workflowDefaults.spec.ttlStrategy.secondsAfterCompletion=30',
-            'controller.workflowDefaults.spec.ttlStrategy.secondsAfterSuccess=30',
-            'controller.workflowDefaults.spec.ttlStrategy.secondsAfterFailure=60',
-            'controller.workflowDefaults.spec.podGC.strategy=OnWorkflowSuccess',
-        ]
-    )
-
-    # This fixes issue described in: https://github.com/argoproj/argo-workflows/issues/10340
-    k8s_yaml(encode_yaml({
-        'apiVersion': 'v1',
-        'kind': 'Secret',
-        'metadata': {
-            'name': 'default.service-account-token',
-            'annotations': {
-                'kubernetes.io/service-account.name': 'default'
-            }
-        },
-        'type': 'kubernetes.io/service-account-token'
-    }))
-
-    k8s_yaml(encode_yaml({
-        'apiVersion': 'rbac.authorization.k8s.io/v1',
-        'kind': 'Role',
-        'metadata': {
-            'name': 'argo-workflowtaskresults-role',
-            'namespace': 'default'
-        },
-        'rules': [
-            {
-            'apiGroups': ['argoproj.io'],
-            'resources': ['workflowtaskresults'],
-            'verbs': ['create', 'patch', 'get', 'list']
-            },
-            {
-            'apiGroups': ['argoproj.io'],
-            'resources': ['workflowtasksets'],
-            'verbs': ['watch', 'list']
-            },
-            {
-            'apiGroups': ['argoproj.io'],
-            'resources': ['workflowtasksets/status'],
-            'verbs': ['patch']
-            },
-        ]
-    }))
-
-    k8s_yaml(encode_yaml({
-        'apiVersion': 'rbac.authorization.k8s.io/v1',
-        'kind': 'RoleBinding',
-        'metadata': {
-            'name': 'default-argo-workflowtaskresults-binding',
-            'namespace': 'default'
-        },
-        'subjects': [{
-            'kind': 'ServiceAccount',
-            'name': 'default',
-            'namespace': 'default'
-        }],
-        'roleRef': {
-            'kind': 'Role',
-            'name': 'argo-workflowtaskresults-role',
-            'apiGroup': 'rbac.authorization.k8s.io'
-        }
-    }))
-
-    k8s_resource(
-        workload='argo-workflows-server',
-        port_forwards=['2746:2746'],
-        links=[
-            link('http://localhost:2746', 'Argo Workflows UI')
-        ],
-        labels=['argo-workflows'],
-        resource_deps=components['argo-workflows']
-    )
-
-    k8s_resource(
-        workload='argo-workflows-workflow-controller',
-        labels=['argo-workflows'],
-        resource_deps=components['argo-workflows']
-    )
-
-    config_resources.append('argo-workflows-workflow-controller')
-    config_resources.append('argo-workflows-server')
-
-#################################################
-# ARGO EVENTS
-#################################################
-if "argo-events" in enabled_components:
-    helm_remote(
-        'argo-events',
-        version=ARGO_EVENTS_HELM_CHART_VERSION,
-        repo_name='argo',
-        repo_url='https://argoproj.github.io/argo-helm',
-        set=[
-            'crds.install=true',
-            'controller.metrics.enabled=true',
-            'controller.livenessProbe.initialDelaySeconds=1',
-            'controller.readinessProbe.initialDelaySeconds=1',
-            'controller.resources.requests.memory=64Mi',
-            'controller.resources.requests.cpu=25m',
-            'controller.resources.limits.memory=128Mi',
-            'controller.resources.limits.cpu=50m',
-            'configs.jetstream.streamConfig.maxAge=72h',
-            'configs.jetstream.streamConfig.replicas=1',
-            'controller.rbac.enabled=true',
-            'controller.rbac.namespaced=false',
-            'controller.serviceAccount.create=true',
-            'controller.serviceAccount.name=argo-events-events-controller-sa',
-            'configs.jetstream.versions[0].configReloaderImage=natsio/nats-server-config-reloader:latest',
-            'configs.jetstream.versions[0].metricsExporterImage=natsio/prometheus-nats-exporter:latest',
-            'configs.jetstream.versions[0].natsImage=nats:latest',
-            'configs.jetstream.versions[0].startCommand=/nats-server',
-            'configs.jetstream.versions[0].version=latest',
-            'configs.jetstream.versions[1].configReloaderImage=natsio/nats-server-config-reloader:latest',
-            'configs.jetstream.versions[1].metricsExporterImage=natsio/prometheus-nats-exporter:latest',
-            'configs.jetstream.versions[1].natsImage=nats:2.9.15',
-            'configs.jetstream.versions[1].startCommand=/nats-server',
-            'configs.jetstream.versions[1].version=2.9.15',
-            # Image version overrides
-            'global.image.tag=%s' % ARGO_EVENTS_IMAGE_TAG,
-        ]
-    )
-
-    k8s_yaml(encode_yaml({
-        'apiVersion': 'v1',
-        'kind': 'ServiceAccount',
-        'metadata': {
-            'name': 'operate-workflow-sa',
-            'namespace': 'default'
-        }
-    }))
-
-    k8s_yaml(encode_yaml({
-        'apiVersion': 'rbac.authorization.k8s.io/v1',
-        'kind': 'Role',
-        'metadata': {
-            'name': 'operate-workflow-role',
-            'namespace': 'default'
-        },
-        'rules': [{
-            'apiGroups': ['argoproj.io'],
-            'resources': [
-                'workflows',
-                'workflowtemplates',
-                'cronworkflows',
-                'clusterworkflowtemplates'
-            ],
-            'verbs': ['*']
-        }]
-    }))
-
-    k8s_yaml(encode_yaml({
-        'apiVersion': 'rbac.authorization.k8s.io/v1',
-        'kind': 'RoleBinding',
-        'metadata': {
-            'name': 'operate-workflow-role-binding',
-            'namespace': 'default'
-        },
-        'roleRef': {
-            'apiGroup': 'rbac.authorization.k8s.io',
-            'kind': 'Role',
-            'name': 'operate-workflow-role'
-        },
-        'subjects': [{
-            'kind': 'ServiceAccount',
-            'name': 'operate-workflow-sa'
-        }]
-    }))
-
-    k8s_yaml(encode_yaml({
-        'apiVersion': 'rbac.authorization.k8s.io/v1',
-        'kind': 'Role',
-        'metadata': {
-            'name': 'view-events-role',
-            'namespace': 'default'
-        },
-        'rules': [{
-            'apiGroups': ['argoproj.io'],
-            'resources': [
-                'eventsources',
-                'eventbuses',
-                'sensors'
-            ],
-            'verbs': [
-                'get',
-                'list',
-                'watch'
-            ]
-        }]
-    }))
-
-    k8s_yaml(encode_yaml({
-        'apiVersion': 'rbac.authorization.k8s.io/v1',
-        'kind': 'RoleBinding',
-        'metadata': {
-            'name': 'view-events-role-binding',
-            'namespace': 'default'
-        },
-        'roleRef': {
-            'apiGroup': 'rbac.authorization.k8s.io',
-            'kind': 'Role',
-            'name': 'view-events-role'
-        },
-        'subjects': [{
-            'kind': 'ServiceAccount',
-            'name': 'argo-workflows',
-            'namespace': 'default'
-        }]
-    }))
-
-    k8s_yaml(encode_yaml({
-        'apiVersion': 'argoproj.io/v1alpha1',
-        'kind': 'EventBus',
-        'metadata': {
-            'name': 'default',
-            'namespace': 'default'
-        },
-        'spec': {
-            'jetstream': {
-                'version': '2.9.15',
-                'replicas': 3,
-                'containerTemplate': {
-                    'resources': {
-                        'limits': {
-                            'cpu': '100m',
-                            'memory': '128Mi'
-                        },
-                        'requests': {
-                            'cpu': '100m',
-                            'memory': '128Mi'
-                        }
-                    }
-                }
-            }
-        }
-    }))
-
-    k8s_yaml(encode_yaml({
-        'apiVersion': 'argoproj.io/v1alpha1',
-        'kind': 'EventSource',
-        'metadata': {
-            'name': 'argo-events-webhook',
-            'namespace': 'default'
-        },
-        'spec': {
-            'template': {
-                'container': {
-                    'resources': {
-                        'requests': {
-                            'cpu': '25m',
-                            'memory': '50Mi'
-                        },
-                        'limits': {
-                            'cpu': '25m',
-                            'memory': '50Mi'
-                        }
-                    }
-                }
-            },
-            'service': {
-                'ports': [
-                    {
-                        'port': 12000,
-                        'targetPort': 12000
-                    }
-                ]
-            },
-            'webhook': {
-                'metaflow-event': {
-                    'port': '12000',
-                    'endpoint': '/metaflow-event',
-                    'method': 'POST'
-                }
-            }
-        }
-    }))
-
-    # Create a custom service and port-forward it because tilt :/
-    k8s_yaml(encode_yaml(
-        {
-        'apiVersion': 'v1',
-        'kind': 'Service',
-        'metadata': {
-            'name': 'argo-events-webhook-eventsource-svc-tilt',
-            'namespace': 'default',
-        },
-        'spec': {
-            'ports': [{
-                'port': 12000,
-                'protocol': 'TCP',
-                'targetPort': 12000
-            }],
-            'selector': {
-                'controller': 'eventsource-controller',
-                'eventsource-name': 'argo-events-webhook',
-                'owner-name': 'argo-events-webhook'
-            },
-                'type': 'ClusterIP'
-            }
-        }
-    ))
-
-    local_resource(
-        name='argo-events-webhook-eventsource-svc',
-        serve_cmd='while ! kubectl get service/argo-events-webhook-eventsource-svc-tilt >/dev/null 2>&1 || ! kubectl get pods -l eventsource-name=argo-events-webhook -o jsonpath="{.items[*].status.phase}" | grep -q "Running"; do sleep 5; done && kubectl port-forward service/argo-events-webhook-eventsource-svc-tilt 12000:12000',
-        links=[
-            link('http://localhost:12000/metaflow-event', 'Argo Events Webhook'),
-        ],
-        labels=['argo-events']
-    )
-
-    k8s_resource(
-        'argo-events-controller-manager',
-        labels=['argo-events'],
-    )
-
-    metaflow_config["METAFLOW_ARGO_EVENTS_EVENT"] = "metaflow-event"
-    metaflow_config["METAFLOW_ARGO_EVENTS_EVENT_BUS"] = "default"
-    metaflow_config["METAFLOW_ARGO_EVENTS_EVENT_SOURCE"] = "argo-events-webhook"
-    metaflow_config["METAFLOW_ARGO_EVENTS_SERVICE_ACCOUNT"] = "operate-workflow-sa"
-    metaflow_config["METAFLOW_ARGO_EVENTS_WEBHOOK_AUTH"] = "service"
-    metaflow_config["METAFLOW_ARGO_EVENTS_INTERNAL_WEBHOOK_URL"] = "http://argo-events-webhook-eventsource-svc:12000/metaflow-event"
-    metaflow_config["METAFLOW_ARGO_EVENTS_WEBHOOK_URL"] = "http://localhost:12000/metaflow-event"
-
-    config_resources.append('argo-events-controller-manager')
-    config_resources.append('argo-events-webhook-eventsource-svc')
-
-#################################################
-# JOBSET
-#################################################
-if "jobset" in enabled_components:
-    # Apply JobSet manifests directly from GitHub releases
-    jobset_manifest_url = "https://github.com/kubernetes-sigs/jobset/releases/download/%s/manifests.yaml" % JOBSET_VERSION
-
-    cmd = "curl -sSL %s" % (jobset_manifest_url)
-    k8s_yaml(
-        local(
-            cmd,
-        )
-    )
-
-    k8s_resource(
-        'jobset-controller-manager',
-        labels=['jobset'],
-    )
-
-    metaflow_config["METAFLOW_KUBERNETES_JOBSET_ENABLED"] = "true"
-    
-    config_resources.append('jobset-controller-manager')
-
-    # ClusterRole for jobset operations
-    k8s_yaml(encode_yaml({
-        'apiVersion': 'rbac.authorization.k8s.io/v1',
-        'kind': 'ClusterRole',
-        'metadata': {
-            'name': 'jobset-full-access'
-        },
-        'rules': [{
-            'apiGroups': ['jobset.x-k8s.io'],
-            'resources': ['jobsets'],
-            'verbs': ['*']
-        }]
-    }))
-
-    # ClusterRoleBinding for default service account to access jobsets
-    k8s_yaml(encode_yaml({
-        'apiVersion': 'rbac.authorization.k8s.io/v1',
-        'kind': 'ClusterRoleBinding',
-        'metadata': {
-            'name': 'default-jobset-binding'
-        },
-        'subjects': [{
-            'kind': 'ServiceAccount',
-            'name': 'default',
-            'namespace': 'default'
-        }],
-        'roleRef': {
-            'kind': 'ClusterRole',
-            'name': 'jobset-full-access',
-            'apiGroup': 'rbac.authorization.k8s.io'
-        }
-    }))
-
-#################################################
-# METADATA SERVICE
-#################################################
-if "metadata-service" in enabled_components:
-    helm_remote(
-        'metaflow-service',
-        repo_name='metaflow-tools',
-        repo_url='https://outerbounds.github.io/metaflow-tools',
-        set=[
-            'metadatadb.user=metaflow',
-            'metadatadb.password=metaflow123',
-            'metadatadb.database=metaflow',
-            'metadatadb.host=postgresql',
-            'image.repository=public.ecr.aws/outerbounds/metaflow_metadata_service',
-            'image.tag=2.5.0',
-            'resources.requests.cpu=25m',
-            'resources.requests.memory=256Mi',
-            'resources.limits.cpu=500m',
-            'resources.limits.memory=1Gi',
-            # Increase probe tolerance: under heavy load (concurrent argo/airflow
-            # workflows) the metadata service may take >1s to respond to /ping.
-            # Default failureThreshold=3 causes premature restarts.
-            'livenessProbe.failureThreshold=10',
-            'livenessProbe.periodSeconds=10',
-            'livenessProbe.timeoutSeconds=5',
-            'readinessProbe.failureThreshold=10',
-            'readinessProbe.periodSeconds=10',
-            'readinessProbe.timeoutSeconds=5'
-        ]
-    )
-
-    k8s_resource(
-        'metaflow-service',
-        port_forwards=['8080:8080'],
-        links=[link('http://localhost:8080/ping', 'Ping Metaflow Service')],
-        labels=['metadata-service'],
-        resource_deps=components['metadata-service']
-    )
-
-    metaflow_config["METAFLOW_DEFAULT_METADATA"] = "service"
-    metaflow_config["METAFLOW_SERVICE_URL"] = "http://localhost:8080"
-    metaflow_config["METAFLOW_SERVICE_INTERNAL_URL"] = "http://metaflow-service.default.svc.cluster.local:8080"
-
-    config_resources.append('metaflow-service')
-
-#################################################
-# METAFLOW UI
-#################################################
-if "ui" in enabled_components:
-    helm_remote(
-        'metaflow-ui',
-        repo_name='metaflow-tools',
-        repo_url='https://outerbounds.github.io/metaflow-tools',
-        set=[
-            'uiBackend.metadatadb.user=metaflow',
-            'uiBackend.metadatadb.password=metaflow123',
-            'uiBackend.metadatadb.name=metaflow',
-            'uiBackend.metadatadb.host=postgresql',
-            'uiBackend.metaflowDatastoreSysRootS3=s3://metaflow-test',
-            'uiBackend.metaflowS3EndpointURL=http://minio.default.svc.cluster.local:9000',
-            'uiBackend.image.name=public.ecr.aws/outerbounds/metaflow_metadata_service',
-            'uiBackend.image.tag=2.5.0',
-            'uiBackend.env[0].name=AWS_ACCESS_KEY_ID',
-            'uiBackend.env[0].value=rootuser',
-            'uiBackend.env[1].name=AWS_SECRET_ACCESS_KEY',
-            'uiBackend.env[1].value=rootpass123',
-            # TODO: configure lower cache limits
-            'uiBackend.resources.requests.cpu=100m',
-            'uiBackend.resources.requests.memory=256Mi',
-            'uiStatic.metaflowUIBackendURL=http://localhost:8083/api',
-            'uiStatic.image.name=public.ecr.aws/outerbounds/metaflow_ui',
-            'uiStatic.image.tag=v1.3.14',
-            'uiStatic.resources.requests.cpu=25m',
-            'uiStatic.resources.requests.memory=64Mi',
-            'uiStatic.resources.limits.cpu=50m',
-            'uiStatic.resources.limits.memory=128Mi',
-        ]
-    )
-
-    k8s_resource(
-        'metaflow-ui-static',
-        port_forwards=['3000:3000'],
-        links=[link('http://localhost:3000', 'Metaflow UI')],
-        labels=['metaflow-ui'],
-        resource_deps=components['ui']
-    )
-
-    k8s_resource(
-        'metaflow-ui',
-        port_forwards=['8083:8083'],
-        links=[link('http://localhost:3000', 'Metaflow UI')],
-        labels=['metaflow-ui'],
-        resource_deps=components['ui']
-    )
-
-    metaflow_config["METAFLOW_UI_URL"] = "http://localhost:3000"
-
-    config_resources.append('metaflow-ui')
-    config_resources.append('metaflow-ui-static')
-
-#################################################
-# LOCALBATCH (local AWS Batch emulator)
-#################################################
-if "localbatch" in enabled_components:
-    # Build the serve command. Inject MinIO credentials so that Docker
-    # containers spawned by localbatch can reach S3 via host.docker.internal.
-    localbatch_serve_cmd = (
-        "localbatch --port 8000 --queue localbatch-default" +
-        " --inject-env AWS_ACCESS_KEY_ID=rootuser" +
-        " --inject-env AWS_SECRET_ACCESS_KEY=rootpass123" +
-        " --inject-env AWS_ENDPOINT_URL_S3=http://host.docker.internal:9000" +
-        # Metaflow reads METAFLOW_S3_ENDPOINT_URL to override the S3 endpoint
-        # in containers (AWS_ENDPOINT_URL_S3 alone is not enough because
-        # Metaflow explicitly calls os.getenv("METAFLOW_S3_ENDPOINT_URL")).
-        " --inject-env METAFLOW_S3_ENDPOINT_URL=http://host.docker.internal:9000"
-    )
-
-    # Also forward the metadata service URL when it's part of this stack.
-    if "metadata-service" in enabled_components:
-        localbatch_serve_cmd += (
-            " --inject-env METAFLOW_SERVICE_URL=http://host.docker.internal:8080" +
-            " --inject-env METAFLOW_SERVICE_INTERNAL_URL=http://host.docker.internal:8080"
-        )
-
-    # Forward the DDB local endpoint for sfn-local foreach flows.
-    # When sfn-local orchestrates a foreach flow, the batch container needs to
-    # write foreach cardinality to DynamoDB (ddb-local).  The container reaches
-    # it via host.docker.internal:8765 (the port-forwarded ddb-local service).
-    if "ddb-local" in enabled_components:
-        _ddb_params = '\'{"endpoint_url":"http://host.docker.internal:8765"}\''
-        localbatch_serve_cmd += (
-            " --inject-env METAFLOW_SFN_DYNAMO_DB_CLIENT_PARAMS=" + _ddb_params +
-            " --inject-env METAFLOW_SFN_DYNAMO_DB_TABLE=metaflow-sfn"
-        )
-
-    local_resource(
-        name="localbatch",
-        serve_cmd=localbatch_serve_cmd,
-        readiness_probe=probe(
-            http_get=http_get_action(port=8000, path="/health"),
-            period_secs=2,
-            initial_delay_secs=1,
-        ),
-        links=[
-            link("http://localhost:8000/health", "localbatch health"),
-            link("http://localhost:8000/docs",   "localbatch API docs"),
-        ],
-        labels=["localbatch"],
-        resource_deps=components["localbatch"],
-    )
-
-    metaflow_config["METAFLOW_BATCH_JOB_QUEUE"] = "localbatch-default"
-    metaflow_config["METAFLOW_BATCH_CLIENT_PARAMS"] = {"endpoint_url": "http://localhost:8000"}
-    # Fake IAM role ARN required by the batch decorator (it is ignored by localbatch).
-    metaflow_config["METAFLOW_ECS_S3_ACCESS_IAM_ROLE"] = "arn:aws:iam::123456789012:role/localbatch-task-role"
-
-    config_resources.append("localbatch")
-
-#################################################
-# DDB LOCAL (DynamoDB Local — used by sfn-local for foreach state)
-#################################################
-if "ddb-local" in enabled_components:
-    k8s_yaml(encode_yaml({
-        'apiVersion': 'apps/v1',
-        'kind': 'Deployment',
-        'metadata': {'name': 'ddb-local'},
-        'spec': {
-            'replicas': 1,
-            'selector': {'matchLabels': {'app': 'ddb-local'}},
-            'template': {
-                'metadata': {'labels': {'app': 'ddb-local'}},
-                'spec': {
-                    'containers': [{
-                        'name': 'ddb-local',
-                        'image': 'amazon/dynamodb-local:latest',
-                        'args': ['-jar', 'DynamoDBLocal.jar', '-sharedDb', '-inMemory'],
-                        'ports': [{'containerPort': 8000}],
-                        'resources': {
-                            'requests': {'cpu': '50m', 'memory': '128Mi'},
-                            'limits':   {'cpu': '200m', 'memory': '256Mi'},
-                        },
-                    }],
-                },
-            },
-        },
-    }))
-    k8s_yaml(encode_yaml({
-        'apiVersion': 'v1',
-        'kind': 'Service',
-        'metadata': {'name': 'ddb-local'},
-        'spec': {
-            'selector': {'app': 'ddb-local'},
-            'ports': [{'port': 8000, 'targetPort': 8000}],
-        },
-    }))
-    k8s_resource(
-        'ddb-local',
-        port_forwards=['8765:8000'],
-        links=[link('http://localhost:8765', 'DynamoDB Local')],
-        labels=['ddb-local'],
-    )
-    # Init job: create the metaflow-sfn table — DDB Local starts empty.
-    k8s_yaml(encode_yaml({
-        'apiVersion': 'batch/v1',
-        'kind': 'Job',
-        'metadata': {'name': 'ddb-table-init'},
-        'spec': {
-            'ttlSecondsAfterFinished': 120,
-            'template': {
-                'spec': {
-                    'restartPolicy': 'OnFailure',
-                    'containers': [{
-                        'name': 'init',
-                        'image': 'amazon/aws-cli:latest',
-                        'command': [
-                            'aws', 'dynamodb', 'create-table',
-                            '--endpoint-url', 'http://ddb-local:8000',
-                            '--region', 'us-east-1',
-                            '--table-name', 'metaflow-sfn',
-                            '--attribute-definitions', 'AttributeName=pathspec,AttributeType=S',
-                            '--key-schema', 'AttributeName=pathspec,KeyType=HASH',
-                            '--billing-mode', 'PAY_PER_REQUEST',
-                        ],
-                        'env': [
-                            {'name': 'AWS_DEFAULT_REGION',    'value': 'us-east-1'},
-                            {'name': 'AWS_ACCESS_KEY_ID',     'value': 'test'},
-                            {'name': 'AWS_SECRET_ACCESS_KEY', 'value': 'test'},
-                        ],
-                        'resources': {
-                            'requests': {'cpu': '25m', 'memory': '64Mi'},
-                            'limits':   {'cpu': '100m', 'memory': '128Mi'},
-                        },
-                    }],
-                },
-            },
-        },
-    }))
-    k8s_resource('ddb-table-init', resource_deps=['ddb-local'], labels=['ddb-local'])
-
-    metaflow_config["METAFLOW_SFN_DYNAMO_DB_CLIENT_PARAMS"] = {"endpoint_url": "http://localhost:8765"}
-    metaflow_config["METAFLOW_SFN_DYNAMO_DB_TABLE"] = "metaflow-sfn"
-    config_resources.append('ddb-table-init')
-
-#################################################
-# SFN LOCAL (AWS Step Functions Local)
-#################################################
-if "sfn-local" in enabled_components:
-    ddb_svc_url = "http://ddb-local:8000"
-
-    # sfn-local needs to call the Batch API (localbatch) to validate/submit jobs.
-    # Localbatch runs on the host (not in k8s), so we need a way for the
-    # sfn-local pod to reach it.
-    #
-    # On macOS (OrbStack): host.docker.internal resolves correctly in k8s pods
-    # via OrbStack's networking. Use --batch-endpoint http://host.docker.internal:8000.
-    #
-    # On Linux (minikube Docker driver): k8s pods run nested inside the minikube
-    # container. The host is at 172.17.0.1 (Docker bridge), but connections from
-    # pods to 172.17.0.1:8000 are blocked (iptables/routing issues between nested
-    # k8s pods and the host bridge).
-    #
-    # Solution: run sfn-local with hostNetwork:true so it uses the MINIKUBE NODE's
-    # network namespace directly (instead of the pod network). The minikube node IS
-    # the Docker container on the bridge, so it has a direct route to 172.17.0.1.
-    # sfn-local then connects to the Docker bridge gateway IP directly.
-    _is_linux = str(local("uname -s", quiet=True)).strip() == "Linux"
-    if _is_linux:
-        # minikube uses its own 192.168.49.0/24 network (not the Docker bridge 172.17.0.0/16).
-        # The GHA host is the gateway of the minikube Docker network, reachable at
-        # the network's gateway IP (typically 192.168.49.1).
-        # Use a k8s Service+Endpoints pointing to this IP so sfn-local can reach
-        # localbatch via kube-proxy WITHOUT needing hostNetwork:true.
-        # (hostNetwork caused sfn-local DynamoDB ResultPath to silently fail.)
-        _minikube_gw = str(local(
-            "docker network inspect minikube --format '{{range .IPAM.Config}}{{.Gateway}}{{end}}'",
-            quiet=True,
-        )).strip() or "192.168.49.1"
-        _sfn_host_network = False
-        _batch_endpoint = 'http://localbatch-host:8000'
-        # Expose localbatch (on host at _minikube_gw:8000) as a k8s Service so
-        # sfn-local can reach it via cluster DNS without hostNetwork.
-        k8s_yaml(encode_yaml({
-            'apiVersion': 'v1', 'kind': 'Endpoints',
-            'metadata': {'name': 'localbatch-host'},
-            'subsets': [{'addresses': [{'ip': _minikube_gw}], 'ports': [{'port': 8000}]}],
-        }))
-        k8s_yaml(encode_yaml({
-            'apiVersion': 'v1', 'kind': 'Service',
-            'metadata': {'name': 'localbatch-host'},
-            'spec': {'ports': [{'port': 8000, 'targetPort': 8000}]},
-        }))
-    else:
-        # macOS: OrbStack routes host.docker.internal from k8s pods correctly.
-        _sfn_host_network = False
-        _batch_endpoint = 'http://host.docker.internal:8000'
-
-    k8s_yaml(encode_yaml({
-        'apiVersion': 'apps/v1',
-        'kind': 'Deployment',
-        'metadata': {'name': 'sfn-local'},
-        'spec': {
-            'replicas': 1,
-            'selector': {'matchLabels': {'app': 'sfn-local'}},
-            'template': {
-                'metadata': {'labels': {'app': 'sfn-local'}},
-                'spec': {
-                    'hostNetwork': _sfn_host_network,
-                    'dnsPolicy': 'ClusterFirstWithHostNet' if _sfn_host_network else 'ClusterFirst',
-                    'containers': [{
-                        'name': 'sfn-local',
-                        'image': 'amazon/aws-stepfunctions-local:latest',
-                        'ports': [{'containerPort': 8083}],
-                        # Override Cmd (default: ["-jar", "StepFunctionsLocal.jar"]) to append
-                        # app-level args after the jar spec. Use --batch-endpoint and
-                        # --dynamodb-endpoint CLI args because SFN Local uses the AWS SDK v1
-                        # Java client, which doesn't read AWS_ENDPOINT_URL_* env vars.
-                        'args': ['-jar', 'StepFunctionsLocal.jar',
-                                 '--batch-endpoint', _batch_endpoint,
-                                 '--dynamodb-endpoint', ddb_svc_url],
-                        'env': [
-                            {'name': 'AWS_DEFAULT_REGION',       'value': 'us-east-1'},
-                            {'name': 'AWS_ACCESS_KEY_ID',        'value': 'test'},
-                            {'name': 'AWS_SECRET_ACCESS_KEY',    'value': 'test'},
-                        ],
-                        'resources': {
-                            'requests': {'cpu': '50m', 'memory': '256Mi'},
-                            'limits':   {'cpu': '200m', 'memory': '512Mi'},
-                        },
-                    }],
-                },
-            },
-        },
-    }))
-    k8s_yaml(encode_yaml({
-        'apiVersion': 'v1',
-        'kind': 'Service',
-        'metadata': {'name': 'sfn-local'},
-        'spec': {
-            'selector': {'app': 'sfn-local'},
-            'ports': [{'port': 8083, 'targetPort': 8083}],
-        },
-    }))
-    k8s_resource(
-        'sfn-local',
-        port_forwards=['8082:8083'],
-        links=[link('http://localhost:8082', 'SFN Local')],
-        labels=['sfn-local'],
-        resource_deps=components['sfn-local'],
-    )
-    metaflow_config["METAFLOW_SFN_CLIENT_PARAMS"] = {"endpoint_url": "http://localhost:8082"}
-    metaflow_config["METAFLOW_SFN_IAM_ROLE"] = "arn:aws:iam::123456789012:role/sfn-local-role"
-    # Fake EventBridge IAM role required by the step-functions deployer.
-    # The devstack runs a minimal EventBridge stub (port 7777) so that
-    # EventBridgeClient.schedule() succeeds without a real AWS account.
-    metaflow_config["METAFLOW_EVENTS_SFN_ACCESS_IAM_ROLE"] = "arn:aws:iam::123456789012:role/sfn-events-role"
-    config_resources.append('sfn-local')
-
-    # Minimal EventBridge stub: accepts EventBridge API calls and returns
-    # ResourceNotFoundException for DisableRule (silently ignored by metaflow).
-    local_resource(
-        name="eventbridge-stub",
-        serve_cmd="python3 eventbridge_stub.py",
-        readiness_probe=probe(
-            http_get=http_get_action(port=7777, path="/"),
-            period_secs=2,
-            initial_delay_secs=1,
-        ),
-        links=[link("http://localhost:7777", "EventBridge stub")],
-        labels=["sfn-local"],
-    )
-    config_resources.append("eventbridge-stub")
-
-#################################################
-# AZURITE (Azure Blob / Queue / Table emulator)
-#################################################
-if "azurite" in enabled_components:
-    k8s_yaml(encode_yaml({
-        'apiVersion': 'apps/v1',
-        'kind': 'Deployment',
-        'metadata': {'name': 'azurite'},
-        'spec': {
-            'replicas': 1,
-            'selector': {'matchLabels': {'app': 'azurite'}},
-            'template': {
-                'metadata': {'labels': {'app': 'azurite'}},
-                'spec': {
-                    'containers': [{
-                        'name': 'azurite',
-                        'image': 'mcr.microsoft.com/azure-storage/azurite:latest',
-                        'command': [
-                            'azurite',
-                            '--blobHost',  '0.0.0.0',
-                            '--queueHost', '0.0.0.0',
-                            '--tableHost', '0.0.0.0',
-                        ],
-                        'ports': [
-                            {'containerPort': 10000},
-                            {'containerPort': 10001},
-                            {'containerPort': 10002},
-                        ],
-                        'resources': {
-                            'requests': {'cpu': '50m', 'memory': '128Mi'},
-                            'limits':   {'cpu': '200m', 'memory': '256Mi'},
-                        },
-                    }],
-                },
-            },
-        },
-    }))
-    k8s_yaml(encode_yaml({
-        'apiVersion': 'v1',
-        'kind': 'Service',
-        'metadata': {'name': 'azurite'},
-        'spec': {
-            'selector': {'app': 'azurite'},
-            'ports': [
-                {'name': 'blob',  'port': 10000, 'targetPort': 10000},
-                {'name': 'queue', 'port': 10001, 'targetPort': 10001},
-                {'name': 'table', 'port': 10002, 'targetPort': 10002},
-            ],
-        },
-    }))
-    k8s_resource(
-        'azurite',
-        port_forwards=['10000:10000', '10001:10001', '10002:10002'],
-        links=[
-            link('http://localhost:10000/devstoreaccount1', 'Azurite Blob'),
-        ],
-        labels=['azurite'],
-    )
-    # Azurite well-known dev credentials
-    azurite_account = "devstoreaccount1"
-    azurite_key     = "Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw=="
-    # In-cluster connection string — K8s pods reach Azurite via the service DNS name.
-    azurite_k8s_conn_str = (
-        "DefaultEndpointsProtocol=http" +
-        ";AccountName=" + azurite_account +
-        ";AccountKey=" + azurite_key +
-        ";BlobEndpoint=http://azurite:10000/" + azurite_account + ";"
-    )
-    # Local connection string — written to .devtools/env_local for local dev processes.
-    azurite_local_conn_str = (
-        "DefaultEndpointsProtocol=http" +
-        ";AccountName=" + azurite_account +
-        ";AccountKey=" + azurite_key +
-        ";BlobEndpoint=http://127.0.0.1:10000/" + azurite_account + ";"
-    )
-    metaflow_config["METAFLOW_AZURE_STORAGE_BLOB_SERVICE_ENDPOINT"] = (
-        "http://127.0.0.1:10000/" + azurite_account
-    )
-    metaflow_config["METAFLOW_DATASTORE_SYSROOT_AZURE"] = "az://metaflow-test/metaflow"
-    shell_env["AZURE_STORAGE_CONNECTION_STRING"] = azurite_local_conn_str
-    if "METAFLOW_KUBERNETES_SECRETS" in metaflow_config:
-        metaflow_config["METAFLOW_KUBERNETES_SECRETS"] += ",azurite-secret"
-    else:
-        metaflow_config["METAFLOW_KUBERNETES_SECRETS"] = "azurite-secret"
-    k8s_yaml(encode_yaml({
-        'apiVersion': 'v1',
-        'kind': 'Secret',
-        'metadata': {'name': 'azurite-secret'},
-        'type': 'Opaque',
-        'stringData': {
-            'AZURE_STORAGE_CONNECTION_STRING': azurite_k8s_conn_str,
-            'AZURE_STORAGE_ACCOUNT': azurite_account,
-            'AZURE_STORAGE_KEY': azurite_key,
-        },
-    }))
-    # Init job: create the metaflow-test blob container — Azurite starts empty.
-    k8s_yaml(encode_yaml({
-        'apiVersion': 'batch/v1',
-        'kind': 'Job',
-        'metadata': {'name': 'azurite-init'},
-        'spec': {
-            'ttlSecondsAfterFinished': 120,
-            'template': {
-                'spec': {
-                    'restartPolicy': 'OnFailure',
-                    'containers': [{
-                        'name': 'init',
-                        'image': 'mcr.microsoft.com/azure-cli:latest',
-                        'command': [
-                            'az', 'storage', 'container', 'create',
-                            '--name', 'metaflow-test',
-                            '--connection-string', azurite_k8s_conn_str,
-                        ],
-                        'resources': {
-                            'requests': {'cpu': '25m', 'memory': '64Mi'},
-                            'limits':   {'cpu': '100m', 'memory': '128Mi'},
-                        },
-                    }],
-                },
-            },
-        },
-    }))
-    k8s_resource('azurite-init', resource_deps=['azurite'], labels=['azurite'])
-    config_resources.append('azurite-init')
-
-#################################################
-# FAKE-GCS-SERVER (GCS emulator)
-#################################################
-if "fake-gcs-server" in enabled_components:
-    k8s_yaml(encode_yaml({
-        'apiVersion': 'apps/v1',
-        'kind': 'Deployment',
-        'metadata': {'name': 'fake-gcs-server'},
-        'spec': {
-            'replicas': 1,
-            'selector': {'matchLabels': {'app': 'fake-gcs-server'}},
-            'template': {
-                'metadata': {'labels': {'app': 'fake-gcs-server'}},
-                'spec': {
-                    'containers': [{
-                        'name': 'fake-gcs-server',
-                        'image': 'fsouza/fake-gcs-server:latest',
-                        'args': [
-                            '-scheme', 'http',
-                            '-host',   '0.0.0.0',
-                            '-port',   '4443',
-                        ],
-                        'ports': [{'containerPort': 4443}],
-                        'resources': {
-                            'requests': {'cpu': '50m', 'memory': '64Mi'},
-                            'limits':   {'cpu': '200m', 'memory': '128Mi'},
-                        },
-                    }],
-                },
-            },
-        },
-    }))
-    k8s_yaml(encode_yaml({
-        'apiVersion': 'v1',
-        'kind': 'Service',
-        'metadata': {'name': 'fake-gcs-server'},
-        'spec': {
-            'selector': {'app': 'fake-gcs-server'},
-            'ports': [{'port': 4443, 'targetPort': 4443}],
-        },
-    }))
-    k8s_resource(
-        'fake-gcs-server',
-        port_forwards=['4443:4443'],
-        links=[link('http://localhost:4443/storage/v1/b', 'fake-gcs-server buckets')],
-        labels=['fake-gcs-server'],
-    )
-    # The Google Cloud Storage SDK respects STORAGE_EMULATOR_HOST automatically.
-    # Written to .devtools/env_local for local dev; K8s pods get it from fake-gcs-secret.
-    shell_env["STORAGE_EMULATOR_HOST"] = "http://localhost:4443"
-    k8s_yaml(encode_yaml({
-        'apiVersion': 'v1',
-        'kind': 'Secret',
-        'metadata': {'name': 'fake-gcs-secret'},
-        'type': 'Opaque',
-        'stringData': {
-            'STORAGE_EMULATOR_HOST': 'http://fake-gcs-server:4443',
-        },
-    }))
-    if "METAFLOW_KUBERNETES_SECRETS" in metaflow_config:
-        metaflow_config["METAFLOW_KUBERNETES_SECRETS"] += ",fake-gcs-secret"
-    else:
-        metaflow_config["METAFLOW_KUBERNETES_SECRETS"] = "fake-gcs-secret"
-    metaflow_config["METAFLOW_DATASTORE_SYSROOT_GS"] = "gs://metaflow-test/metaflow"
-    # Init job: create the metaflow-test GCS bucket — fake-gcs-server starts empty.
-    k8s_yaml(encode_yaml({
-        'apiVersion': 'batch/v1',
-        'kind': 'Job',
-        'metadata': {'name': 'gcs-bucket-init'},
-        'spec': {
-            'ttlSecondsAfterFinished': 120,
-            'template': {
-                'spec': {
-                    'restartPolicy': 'OnFailure',
-                    'containers': [{
-                        'name': 'init',
-                        'image': 'curlimages/curl:latest',
-                        'command': [
-                            'curl', '-sf', '-X', 'POST',
-                            'http://fake-gcs-server:4443/storage/v1/b',
-                            '-H', 'Content-Type: application/json',
-                            '-d', '{"name":"metaflow-test"}',
-                        ],
-                        'resources': {
-                            'requests': {'cpu': '25m', 'memory': '32Mi'},
-                            'limits':   {'cpu': '100m', 'memory': '64Mi'},
-                        },
-                    }],
-                },
-            },
-        },
-    }))
-    k8s_resource('gcs-bucket-init', resource_deps=['fake-gcs-server'], labels=['fake-gcs-server'])
-    config_resources.append('gcs-bucket-init')
-
-#################################################
-# AIRFLOW
-#################################################
-if "airflow" in enabled_components:
-    # Ensure the 'airflow' database exists in the shared PostgreSQL instance before any
-    # Airflow pod tries to connect.  PostgreSQL's initdb.scripts creates it on first boot,
-    # but this local_resource acts as a belt-and-suspenders fallback for local dev where
-    # the data directory may already exist from a previous run.
-    local_resource(
-        name="airflow-db-init",
-        cmd=(
-            "kubectl exec postgresql-0 -- " +
-            "sh -c \"PGPASSWORD=devstackpostgres123 psql -h 127.0.0.1 -U postgres " +
-            "-c 'CREATE DATABASE airflow OWNER metaflow' 2>/dev/null; exit 0\""
-        ),
-        resource_deps=["postgresql"],
-        labels=["airflow"],
-    )
-
-    # PVC for DAG files (shared between scheduler and workers)
-    k8s_yaml(encode_yaml({
-        'apiVersion': 'v1',
-        'kind': 'PersistentVolumeClaim',
-        'metadata': {'name': 'airflow-dags'},
-        'spec': {
-            'accessModes': ['ReadWriteOnce'],
-            'resources': {'requests': {'storage': '1Gi'}},
-        },
-    }))
-
-    # Airflow requires a Fernet key for encrypting connection passwords.
-    # We use a static dev key here (not secret).
-    AIRFLOW_FERNET_KEY = "81HqDtbqAywKSOumSha3BhWNOdQ26slT6K0YaZeZyPs="
-
-    helm_remote(
-        'airflow',
-        version=AIRFLOW_HELM_CHART_VERSION,
-        repo_name='apache-airflow',
-        repo_url='https://airflow.apache.org',
-        set=[
-            'airflowVersion=%s' % AIRFLOW_IMAGE_TAG,
-            'defaultAirflowTag=%s' % AIRFLOW_IMAGE_TAG,
-            # Use LocalExecutor (no Redis needed)
-            'executor=LocalExecutor',
-            # Disable Airflow's internal PostgreSQL — use the shared standalone instance
-            # to reduce resource usage. The airflow-db-init local_resource creates the
-            # required 'airflow' database in that instance before Airflow starts.
-            'postgresql.enabled=false',
-            'data.metadataConnection.user=metaflow',
-            'data.metadataConnection.pass=metaflow123',
-            'data.metadataConnection.host=postgresql',
-            'data.metadataConnection.port=5432',
-            'data.metadataConnection.db=airflow',
-            'data.metadataConnection.protocol=postgresql',
-            # Fernet key for encryption (dev only)
-            'fernetKey=%s' % AIRFLOW_FERNET_KEY,
-            # Disable flower (Celery UI, not needed for LocalExecutor)
-            'flower.enabled=false',
-            # Mount the DAGs PVC
-            'dags.persistence.enabled=true',
-            'dags.persistence.existingClaim=airflow-dags',
-            'dags.gitSync.enabled=false',
-            # Resource limits — keep the dev stack light
-            'scheduler.resources.requests.memory=256Mi',
-            'scheduler.resources.requests.cpu=100m',
-            'scheduler.resources.limits.memory=2Gi',
-            'scheduler.resources.limits.cpu=250m',
-            # Override the scheduler startup and liveness probe commands.
-            # The default command ('airflow jobs check --job-type SchedulerJob
-            # --local') causes OCI exec errors on GHA minikube runners and also
-            # fails with deprecation warnings that produce non-zero exit codes.
-            # Use '/bin/true' so both exec probes always pass immediately.
-            'scheduler.startupProbe.command={/bin/true}',
-            'scheduler.livenessProbe.command={/bin/true}',
-            'webserver.resources.requests.memory=256Mi',
-            'webserver.resources.requests.cpu=100m',
-            'webserver.resources.limits.memory=2Gi',
-            'webserver.resources.limits.cpu=500m',
-            # Disable the webserver auto-restart (workerRefreshBatchSize=0 disables
-            # the rolling worker restart that can cause "no response from gunicorn
-            # master" crashes on constrained GHA runners).
-            'config.webserver.worker_refresh_batch_size=0',
-            # Give the webserver startup probe a long window.  The HTTP /health
-            # endpoint can take several minutes to become available on resource-
-            # constrained GHA runners.
-            'webserver.startupProbe.failureThreshold=60',
-            'webserver.startupProbe.periodSeconds=15',
-            'webserver.startupProbe.timeoutSeconds=30',
-            # Extend the webserver liveness probe thresholds so transient
-            # slowness on GHA does not cause a premature container restart.
-            'webserver.livenessProbe.failureThreshold=10',
-            'webserver.livenessProbe.periodSeconds=30',
-            'webserver.livenessProbe.timeoutSeconds=30',
-            # Enable Basic Auth for the REST API.
-            # Airflow 2.x defaults to session-only auth; the Metaflow
-            # Airflow client uses HTTP Basic Auth, so we must explicitly
-            # add the basic_auth backend.
-            'config.api.auth_backends=airflow.api.auth.backend.basic_auth',
-            # Reduce DAG discovery latency so kubectl-cp'd DAGs are picked
-            # up quickly.  The defaults (300s / 30s) would cause wait_for_dag
-            # to time out before the scheduler even rescans the directory.
-            'config.scheduler.dag_dir_list_interval=10',
-            'config.scheduler.min_file_process_interval=5',
-            # Default admin credentials (dev only)
-            'webserver.defaultUser.enabled=true',
-            'webserver.defaultUser.username=admin',
-            'webserver.defaultUser.password=admin',
-            'webserver.defaultUser.email=admin@example.com',
-            'webserver.defaultUser.firstName=Admin',
-            'webserver.defaultUser.lastName=User',
-            'webserver.defaultUser.role=Admin',
-        ],
-    )
-
-    _airflow_db_deps = components['airflow'] + ['airflow-db-init']
-
-    # All Airflow workloads must wait for the database to exist before deploying.
-    k8s_resource(
-        workload='airflow-run-airflow-migrations',
-        labels=['airflow'],
-        resource_deps=_airflow_db_deps,
-    )
-
-    k8s_resource(
-        workload='airflow-create-user',
-        labels=['airflow'],
-        resource_deps=_airflow_db_deps,
-    )
-
-    k8s_resource(
-        workload='airflow-triggerer',
-        labels=['airflow'],
-        resource_deps=_airflow_db_deps,
-    )
-
-    k8s_resource(
-        workload='airflow-webserver',
-        # Forward host 8090 → container 8080 to avoid conflict with metadata-service (8080)
-        port_forwards=['8090:8080'],
-        links=[
-            link('http://localhost:8090', 'Airflow UI'),
-        ],
-        labels=['airflow'],
-        resource_deps=_airflow_db_deps,
-    )
-
-    k8s_resource(
-        workload='airflow-scheduler',
-        labels=['airflow'],
-        resource_deps=_airflow_db_deps,
-    )
-
-    config_resources.append('airflow-webserver')
-    config_resources.append('airflow-scheduler')
-
-    metaflow_config["METAFLOW_AIRFLOW_REST_API_URL"] = "http://localhost:8090/api/v1"
-    metaflow_config["METAFLOW_AIRFLOW_REST_API_USERNAME"] = "admin"
-    metaflow_config["METAFLOW_AIRFLOW_REST_API_PASSWORD"] = "admin"
-    metaflow_config["METAFLOW_AIRFLOW_KUBERNETES_DAGS_PATH"] = "/opt/airflow/dags"
-    metaflow_config["METAFLOW_AIRFLOW_KUBERNETES_NAMESPACE"] = "default"
-
+k8s_secrets = []
+
+for name in enabled_components:
+    if name in _SETUP:
+        r = _SETUP[name](ctx)
+        metaflow_config.update(r["config"])
+        config_resources.extend(r["config_resources"])
+        if r["aws_config"]:
+            aws_config = r["aws_config"]
+        shell_env.update(r["shell_env"])
+        k8s_secrets.extend(r["k8s_secrets"])
+
+if k8s_secrets:
+    metaflow_config["METAFLOW_KUBERNETES_SECRETS"] = ",".join(k8s_secrets)
+
+# ---------------------------------------------------------------------------
+# Write config files
+# ---------------------------------------------------------------------------
+def write_config_files():
+    metaflow_json = encode_json(metaflow_config)
+    cmd = '''cat > .devtools/config_local.json <<EOF
+%s
+EOF
+''' % (metaflow_json)
+    if aws_config and aws_config.strip():
+        cmd += '''cat > .devtools/aws_config <<EOF
+%s
+EOF
+''' % (aws_config.strip())
+    if shell_env:
+        env_lines = "\n".join(['export %s="%s"' % (k, v) for k, v in shell_env.items()])
+        cmd += '''cat > .devtools/env_local <<EOF
+%s
+EOF
+''' % (env_lines)
+    return cmd
+
+# Detect node architecture for @conda/@pypi emulation
 cmd = '''
 ARCH=$(kubectl get nodes -o jsonpath='{.items[0].status.nodeInfo.architecture}')
 case "$ARCH" in
@@ -1446,8 +191,6 @@ case "$ARCH" in
   *)       echo linux-64 ;;
 esac
 '''
-
-# For @conda/@pypi emulation
 metaflow_config["METAFLOW_KUBERNETES_CONDA_ARCH"] = str(local(cmd)).strip()
 
 local_resource(
@@ -1456,16 +199,11 @@ local_resource(
     resource_deps=config_resources,
 )
 
-#################################################
-# TEST IMAGES
-#################################################
-# Pre-baked test image with boto3/requests installed.
-# Eliminates the ~2 min per-container pip install in kubernetes and batch steps.
-# Used by ux_test_config.yaml for the argo-kubernetes and sfn-batch backends.
+# ---------------------------------------------------------------------------
+# Test image
+# ---------------------------------------------------------------------------
 local_resource(
     name="build-test-image",
-    # Build the image in the host Docker and load it into minikube's internal
-    # image store so Kubernetes pods can pull it with imagePullPolicy=Never.
     cmd=(
         "docker build -t metaflow-test:python3.9 docker/metaflow-test/ && " +
         "minikube image load metaflow-test:python3.9"
