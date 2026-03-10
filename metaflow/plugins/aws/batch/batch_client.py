@@ -184,19 +184,17 @@ class BatchJob(object):
             platform = response["computeEnvironments"][0]["computeResources"]["type"]
 
         # compose job definition
-        container_props = {
-            "image": image,
-            "command": ["echo", "hello world"],
-            "resourceRequirements": [
-                {"value": "1", "type": "VCPU"},
-                {"value": "4096", "type": "MEMORY"},
-            ],
-        }
-        if job_role is not None:
-            container_props["jobRoleArn"] = job_role
         job_definition = {
             "type": "container",
-            "containerProperties": container_props,
+            "containerProperties": {
+                "image": image,
+                "jobRoleArn": job_role,
+                "command": ["echo", "hello world"],
+                "resourceRequirements": [
+                    {"value": "1", "type": "VCPU"},
+                    {"value": "4096", "type": "MEMORY"},
+                ],
+            },
             # This propagates the AWS Batch resource tags to the underlying
             # ECS tasks.
             "propagateTags": True,
