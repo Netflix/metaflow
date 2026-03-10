@@ -569,6 +569,13 @@ class JobSetSpec(object):
             _security_context = {
                 "security_context": client.V1SecurityContext(**security_context)
             }
+
+        pod_security_context = self._kwargs.get("pod_security_context", {})
+        _pod_security_context = {}
+        if pod_security_context is not None and len(pod_security_context) > 0:
+            _pod_security_context = {
+                "security_context": client.V1PodSecurityContext(**pod_security_context)
+            }
         return dict(
             name=self.name,
             template=client.api_client.ApiClient().sanitize_for_serialization(
@@ -784,6 +791,7 @@ class JobSetSpec(object):
                                     is not None
                                     else []
                                 ),
+                                **_pod_security_context,
                             ),
                         ),
                     ),
