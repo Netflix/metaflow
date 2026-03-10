@@ -1035,7 +1035,8 @@ class StepFunctions(object):
         step_cmd = " ".join(entrypoint + top_level + step)
         resume_opts = (
             "${METAFLOW_RESUME_ORIGIN_RUN_ID:+"
-            "--resume-origin-run-id $METAFLOW_RESUME_ORIGIN_RUN_ID "
+            "--resume-origin-run-id $METAFLOW_RESUME_ORIGIN_RUN_ID}"
+            " ${METAFLOW_RESUME_STEPS_TO_RERUN:+"
             "--resume-steps-to-rerun $METAFLOW_RESUME_STEPS_TO_RERUN}"
         )
         cmds.append("%s %s" % (step_cmd, resume_opts))
