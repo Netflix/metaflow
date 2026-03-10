@@ -249,6 +249,8 @@ class CondaStepDecorator(StepDecorator):
     ):
         if self.disabled:
             return
+        if self.__class__._metaflow_home is None:
+            return
         # Ensure local installation of Metaflow is visible to user code
         python_path = self.__class__._metaflow_home.name
         addl_env_vars = {}
