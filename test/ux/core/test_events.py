@@ -85,6 +85,90 @@ def _get_sensor_json(name, namespace="default"):
     return None
 
 
+def _wait_for_sensor_pod_ready(sensor_name, timeout=120, namespace="default"):
+    """Wait for the sensor pod to be Running and the eventbus connected."""
+    deadline = time.time() + timeout
+    while time.time() < deadline:
+        try:
+            # Check sensor pod status
+            result = subprocess.run(
+                [
+                    "kubectl",
+                    "get",
+                    "pods",
+                    "-n",
+                    namespace,
+                    "-l",
+                    "sensor-name=%s" % sensor_name,
+                    "-o",
+                    "jsonpath={.items[0].status.phase}",
+                ],
+                capture_output=True,
+                text=True,
+                timeout=30,
+            )
+            pod_phase = result.stdout.strip()
+            if pod_phase == "Running":
+                print("Sensor pod for %s is Running" % sensor_name)
+                # Also check eventbus pods
+                eb_result = subprocess.run(
+                    [
+                        "kubectl",
+                        "get",
+                        "pods",
+                        "-n",
+                        namespace,
+                        "-l",
+                        "controller=eventbus-controller",
+                        "-o",
+                        "jsonpath={.items[*].status.phase}",
+                    ],
+                    capture_output=True,
+                    text=True,
+                    timeout=30,
+                )
+                print("Eventbus pod phases: %s" % eb_result.stdout.strip())
+                # Give a few seconds for the sensor to connect to eventbus
+                time.sleep(10)
+                return
+            print(
+                "Sensor pod for %s in phase %s, waiting..." % (sensor_name, pod_phase)
+            )
+        except Exception as e:
+            print("Error checking sensor pod: %s" % e)
+        time.sleep(SENSOR_POLL_INTERVAL)
+    print(
+        "WARNING: Sensor pod for %s did not become Running within %ds"
+        % (sensor_name, timeout)
+    )
+    # Dump diagnostics
+    try:
+        diag = subprocess.run(
+            ["kubectl", "get", "pods", "-n", namespace, "-o", "wide"],
+            capture_output=True,
+            text=True,
+            timeout=30,
+        )
+        print("All pods:\n%s" % diag.stdout)
+        sensor_logs = subprocess.run(
+            [
+                "kubectl",
+                "logs",
+                "-n",
+                namespace,
+                "-l",
+                "sensor-name=%s" % sensor_name,
+                "--tail=50",
+            ],
+            capture_output=True,
+            text=True,
+            timeout=30,
+        )
+        print("Sensor logs:\n%s" % sensor_logs.stdout)
+    except Exception:
+        pass
+
+
 def _wait_for_event_triggered_run(
     deployed_flow,
     flow_name,
@@ -179,6 +263,37 @@ def _wait_for_event_triggered_run(
         print("No event-triggered workflow found yet, waiting...")
         time.sleep(polling_interval)
 
+    # Dump diagnostics before failing
+    try:
+        diag = subprocess.run(
+            ["kubectl", "get", "workflows", "-n", k8s_namespace, "-o", "wide"],
+            capture_output=True,
+            text=True,
+            timeout=30,
+        )
+        print("All workflows:\n%s" % diag.stdout)
+        # Check sensor logs for errors
+        sensor_name = deployed_flow.name.replace(".", "-")
+        sensor_logs = subprocess.run(
+            [
+                "kubectl",
+                "logs",
+                "-n",
+                k8s_namespace,
+                "-l",
+                "sensor-name=%s" % sensor_name,
+                "--tail=100",
+            ],
+            capture_output=True,
+            text=True,
+            timeout=30,
+        )
+        print("Sensor logs:\n%s" % sensor_logs.stdout)
+        if sensor_logs.stderr:
+            print("Sensor logs stderr:\n%s" % sensor_logs.stderr)
+    except Exception:
+        pass
+
     raise RuntimeError(
         "Timed out waiting for event-triggered workflow with prefix '%s'"
         % wf_name_prefix
@@ -266,8 +381,8 @@ def test_trigger_event_triggers_run(
         time.sleep(SENSOR_POLL_INTERVAL)
     assert _sensor_exists(sensor_name), "Sensor not ready"
 
-    # Give the sensor a moment to become fully operational
-    time.sleep(SENSOR_POLL_INTERVAL)
+    # Wait for the sensor pod to become ready, not just the CRD
+    _wait_for_sensor_pod_ready(sensor_name, timeout=120)
 
     # Record time before publishing so we can filter out stale workflows.
     # Subtract a small buffer for potential clock skew between CI and k8s.
