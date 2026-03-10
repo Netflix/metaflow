@@ -80,10 +80,88 @@ class StepFunctionsDeployedFlow(DeployedFlow):
         NotImplementedError
             This method is not implemented for Step Functions.
         """
-        raise NotImplementedError(
-            "from_deployment is not implemented for StepFunctions"
+        import tempfile
+        from metaflow.exception import MetaflowException
+        from metaflow.runner.deployer import Deployer, generate_fake_flow_file_contents
+        from metaflow.client.core import get_metadata
+        from metaflow.plugins.aws.step_functions.step_functions_client import (
+            StepFunctionsClient,
         )
 
+        workflow = StepFunctionsClient().get(identifier)
+        if workflow is None:
+            raise MetaflowException("No deployed flow found for: %s" % identifier)
+
+        # Extract flow metadata stored in the start state's Parameters.
+        try:
+            definition = json.loads(workflow["definition"])
+            start = definition["States"]["start"]
+            batch_params = start["Parameters"]["Parameters"]
+            flow_name = batch_params.get("metaflow.flow_name", "")
+            username = batch_params.get("metaflow.owner", "")
+        except (KeyError, json.JSONDecodeError):
+            raise MetaflowException(
+                "Could not extract flow metadata from state machine: %s" % identifier
+            )
+
+        # Extract parameter info from the start state's environment variables.
+        # METAFLOW_DEFAULT_PARAMETERS is a JSON dict of {param_name: default_value}.
+        param_info = {}
+        try:
+            env_vars = (
+                start.get("Parameters", {})
+                .get("ContainerOverrides", {})
+                .get("Environment", [])
+            )
+            env_dict = {item.get("Name"): item.get("Value") for item in env_vars}
+            default_params_str = env_dict.get("METAFLOW_DEFAULT_PARAMETERS")
+            if default_params_str:
+                default_params = json.loads(default_params_str)
+                for pname, pvalue in default_params.items():
+                    # Infer type from the default value
+                    if isinstance(pvalue, bool):
+                        ptype = "bool"
+                    elif isinstance(pvalue, int):
+                        ptype = "int"
+                    elif isinstance(pvalue, float):
+                        ptype = "float"
+                    else:
+                        ptype = "str"
+                    param_info[pname] = {
+                        "name": pname,
+                        "python_var_name": pname,
+                        "type": ptype,
+                        "description": "",
+                        "is_required": False,
+                    }
+            # If METAFLOW_PARAMETERS env var is present, there are parameters
+            # even if they don't have defaults.  We already captured those with
+            # defaults above; required params without defaults would not appear
+            # in METAFLOW_DEFAULT_PARAMETERS but the flow still has them.
+        except (KeyError, json.JSONDecodeError, TypeError):
+            pass  # best-effort extraction; proceed with empty param_info
+
+        fake_flow_file_contents = generate_fake_flow_file_contents(
+            flow_name=flow_name, param_info=param_info, project_name=None
+        )
+
+        with tempfile.NamedTemporaryFile(suffix=".py", delete=False) as fake_flow_file:
+            with open(fake_flow_file.name, "w") as fp:
+                fp.write(fake_flow_file_contents)
+
+            d = Deployer(
+                fake_flow_file.name,
+                env={"METAFLOW_USER": username},
+            ).step_functions(name=identifier)
+
+            d.name = identifier
+            d.flow_name = flow_name
+            if metadata is None:
+                d.metadata = get_metadata()
+            else:
+                d.metadata = metadata
+
+        return cls(deployer=d)
     @classmethod
     def get_triggered_run(
         cls, identifier: str, run_id: str, metadata: Optional[str] = None
