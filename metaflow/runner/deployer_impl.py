@@ -3,7 +3,7 @@ import json
 import os
 import sys
 
-from typing import Any, ClassVar, Dict, Optional, Tuple, TYPE_CHECKING, Type, List
+from typing import Any, ClassVar, Dict, Optional, TYPE_CHECKING, Type, List
 
 from metaflow.metaflow_config import CLICK_API_PROCESS_CONFIG
 
@@ -199,34 +199,3 @@ class DeployerImpl(object):
         Cleanup resources.
         """
         self.spm.cleanup()
-
-    @classmethod
-    def _assert_run_params_type(cls, run_params: Optional[List[str]]) -> None:
-        """
-        Raise TypeError if run_params is a tuple with 2 or more elements.
-
-        WHY: Click's multi-value options return tuples.  Passing a tuple with
-        multiple elements to trigger() fails deep inside the subprocess command
-        builder with a confusing TypeError.  This guard surfaces the mistake
-        immediately with an actionable message.
-
-        Callers should convert with:
-            run_params = list(run_params) if run_params else []
-
-        Parameters
-        ----------
-        run_params : list of str or None
-            The run_params argument as received by trigger().
-
-        Raises
-        ------
-        TypeError
-            If run_params is a tuple with 2 or more elements.
-        """
-        if isinstance(run_params, tuple) and len(run_params) >= 2:
-            raise TypeError(
-                "run_params must be a list, not a tuple. "
-                "Click returns tuples for multi-value options; convert with "
-                "list(run_params) before passing to trigger(). "
-                f"Got: {run_params!r}"
-            )
