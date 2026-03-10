@@ -102,6 +102,13 @@ runs:
           mark_args=(-m "not conda")
         fi
 
+        suffix="${{ inputs.coverage-artifact-suffix }}"
+        if [ -n "$suffix" ]; then
+          junit_file="junit-${{ github.job }}-${suffix}.xml"
+        else
+          junit_file="junit-${{ github.job }}.xml"
+        fi
+
         pytest_cmd=(
           python -m pytest $files
           "${mark_args[@]}"
@@ -109,6 +116,7 @@ runs:
           --cov=metaflow
           --cov-report=xml:coverage.xml
           --cov-report=html:htmlcov
+          --junitxml="$junit_file"
         )
 
         if [ "${{ inputs.use-sudo }}" = "true" ]; then
@@ -139,6 +147,28 @@ runs:
           htmlcov/
         if-no-files-found: ignore
         include-hidden-files: true
+
+    - name: Set JUnit artifact name
+      if: always()
+      shell: bash
+      id: junit-name
+      run: |
+        suffix="${{ inputs.coverage-artifact-suffix }}"
+        if [ -n "$suffix" ]; then
+          echo "name=junit-${{ github.job }}-${suffix}" >> "$GITHUB_OUTPUT"
+          echo "file=junit-${{ github.job }}-${suffix}.xml" >> "$GITHUB_OUTPUT"
+        else
+          echo "name=junit-${{ github.job }}" >> "$GITHUB_OUTPUT"
+          echo "file=junit-${{ github.job }}.xml" >> "$GITHUB_OUTPUT"
+        fi
+
+    - name: Upload JUnit XML artifact
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: ${{ steps.junit-name.outputs.name }}
+        path: ${{ steps.junit-name.outputs.file }}
+        if-no-files-found: ignore
 
     - name: Upload coverage to Codecov
       if: ${{ inputs.codecov-token != '' }}
