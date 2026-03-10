@@ -105,6 +105,9 @@ jobs:
           - backend: airflow-kubernetes
             services: "minio,postgresql,metadata-service,airflow"
             workers: 2
+          - backend: gcs-local
+            services: "minio,postgresql,metadata-service,fake-gcs-server"
+            workers: 4
           - backend: sfn-batch
             services: "minio,postgresql,metadata-service,localbatch,ddb-local,sfn-local"
             workers: 4
@@ -131,6 +134,10 @@ jobs:
           pip install --upgrade pip
           pip install -e ".[dev]" pytest-xdist pytest-timeout pytest-cov
           pip install "git+https://github.com/npow/localbatch.git@main#egg=localbatch"
+
+      - name: Install GCS dependencies
+        if: matrix.backend == 'gcs-local'
+        run: pip install google-cloud-storage
 
       - name: Set up minikube
         uses: medyagh/setup-minikube@latest
@@ -174,7 +181,7 @@ jobs:
           SERVICES: ${{ matrix.services }}
 
       - name: Wait for test image to be loaded into minikube
-        if: matrix.backend != 'local' && matrix.backend != 'sfn-batch'
+        if: matrix.backend != 'local' && matrix.backend != 'sfn-batch' && matrix.backend != 'gcs-local'
         run: |
           tilt wait --for=condition=Ready uiresource/build-test-image --timeout=300s
 
@@ -201,6 +208,12 @@ jobs:
       - name: Wait for Airflow REST API
         if: matrix.backend == 'airflow-kubernetes'
         run: devtools/ci/wait-airflow-api.sh
+
+      - name: Set GCS emulator environment
+        if: matrix.backend == 'gcs-local'
+        run: |
+          echo "METAFLOW_DEFAULT_DATASTORE=gs" >> $GITHUB_ENV
+          echo "STORAGE_EMULATOR_HOST=http://localhost:4443" >> $GITHUB_ENV
 
       - name: Clean up completed pods (argo/airflow only)
         if: matrix.backend == 'argo-kubernetes' || matrix.backend == 'airflow-kubernetes'
