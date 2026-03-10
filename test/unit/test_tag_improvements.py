@@ -5,9 +5,6 @@ Tests for tag improvements:
 """
 
 import json
-import os
-import pytest
-from unittest.mock import patch, MagicMock
 
 
 class TestTriggerTimeTags:
@@ -129,34 +126,6 @@ class TestResumeTags:
         # A non-existent flow/run should return empty list, not raise.
         result = _get_origin_run_tags("NonExistentFlow", "nonexistent_run_id")
         assert result == []
-
-    def test_get_origin_run_tags_with_mock(self):
-        """Test that user_tags from origin run are returned."""
-        from metaflow.cli_components.run_cmds import _get_origin_run_tags
-
-        mock_run = MagicMock()
-        mock_run.user_tags = {"experiment_v2", "batch_1"}
-
-        with patch(
-            "metaflow.cli_components.run_cmds.Run",
-            return_value=mock_run,
-            create=True,
-        ) as mock_cls:
-            # We need to patch where it's imported
-            with patch(
-                "metaflow.client.core.Run",
-                return_value=mock_run,
-            ):
-                # The function does a local import, so we need to patch at module level
-                pass
-
-        # Since the function uses a local import, let's test through the actual
-        # function with a mock at the right level
-        with patch.dict("sys.modules", {}):
-            # This is tricky with local imports. Test the contract instead:
-            # _get_origin_run_tags should return a list
-            result = _get_origin_run_tags("SomeFlow", "some_run_id")
-            assert isinstance(result, list)
 
     def test_resume_tags_merge_logic(self):
         """Verify that origin tags are merged with CLI tags correctly."""
