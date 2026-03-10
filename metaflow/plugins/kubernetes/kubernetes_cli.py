@@ -153,6 +153,12 @@ def kubernetes():
     multiple=False,
 )
 @click.option(
+    "--priority-class",
+    default=None,
+    type=str,
+    help="PriorityClass name for the Kubernetes pod",
+)
+@click.option(
     "--security-context",
     default=None,
     type=JSONTypeClass(),
@@ -189,6 +195,7 @@ def step(
     port=None,
     num_parallel=None,
     qos=None,
+    priority_class=None,
     labels=None,
     annotations=None,
     security_context=None,
@@ -335,6 +342,7 @@ def step(
                 port=port,
                 num_parallel=num_parallel,
                 qos=qos,
+                priority_class=priority_class,
                 labels=labels,
                 annotations=annotations,
                 security_context=security_context,
