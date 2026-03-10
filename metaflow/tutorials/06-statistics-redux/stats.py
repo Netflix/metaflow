@@ -1,34 +1,55 @@
 from metaflow import FlowSpec, step, Parameter
+import csv
 
-class StatisticsReduxFlow(FlowSpec):
-    # This parameter allows us to pass different movie data files
-    movie_data = Parameter('movies', default='movies.csv')
+class MovieStatsFlow(FlowSpec):
+    movies_file = Parameter('movies', default='movies.csv', help="The CSV file to process")
 
     @step
     def start(self):
-        # We simulate loading the data here
-        print(f"Loading data from {self.movie_data}")
-        self.genres = ['Sci-Fi', 'Comedy', 'Drama']
+        # Read data from the CSV file
+        with open(self.movies_file, newline='', encoding='utf-8') as f:
+            reader = csv.DictReader(f)
+            self.data = [row for row in reader]
+        
+        # Get unique genres for the foreach
+        self.genres = list(set(row['genre'] for row in self.data))
         self.next(self.compute_stats, foreach='genres')
 
     @step
     def compute_stats(self):
-        # This runs in parallel for each genre
         self.genre = self.input
-        print(f"Computing stats for {self.genre}")
-        self.count = 42 # Mocking the computation
+        # Filter data for the specific genre
+        genre_data = [row for row in self.data if row['genre'] == self.genre]
+        
+        # Calculate real statistics (Quartiles of the movie scores)
+        # Assuming the CSV has a 'score' or 'rating' column
+        scores = sorted([int(row['score']) for row in genre_data if row['score'].isdigit()])
+        
+        if scores:
+            n = len(scores)
+            self.quartiles = [
+                scores[n // 4],    # Q1
+                scores[n // 2],    # Median
+                scores[3 * n // 4] # Q3
+            ]
+        else:
+            self.quartiles = [0, 0, 0]
+            
+        self.count = len(genre_data)
         self.next(self.join)
 
     @step
     def join(self, inputs):
-        # Merging the parallel results back together
-        self.results = {inp.genre: inp.count for inp in inputs}
+        # Merge results into a single dictionary
+        self.stats = {
+            inp.genre: {'count': inp.count, 'quartiles': inp.quartiles}
+            for inp in inputs
+        }
         self.next(self.end)
 
     @step
     def end(self):
-        print("Final Results:", self.results)
-        print("StatisticsRedux is finished.")
+        print("Statistics computation complete.")
 
-if __name__ == "__main__":
-    StatisticsReduxFlow()
+if __name__ == '__main__':
+    MovieStatsFlow()
