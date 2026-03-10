@@ -68,6 +68,7 @@ CMDS_DESC = [
     ("tutorials", ".tutorials_cmd.cli"),
     ("develop", ".develop.cli"),
     ("code", ".code.cli"),
+    ("resume", ".resume.cli"),
 ]
 
 process_cmds(globals())
