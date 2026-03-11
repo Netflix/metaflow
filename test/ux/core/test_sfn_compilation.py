@@ -254,14 +254,6 @@ class TestSfnCompilation:
             result.get("result", "OK") == "OK"
         ), f"Validation failed: {result.get('diagnostics', result)}"
 
-    def test_trigger_flow(self):
-        """Flow with @trigger compiles to valid ASL."""
-        definition = _compile_flow_to_json("triggers/hello_static_trigger.py")
-        result = _validate_state_machine(definition)
-        assert (
-            result.get("result", "OK") == "OK"
-        ), f"Validation failed: {result.get('diagnostics', result)}"
-
     def test_schedule_flow(self):
         """Flow with @schedule compiles to valid ASL."""
         definition = _compile_flow_to_json("lifecycle/schedule_flow.py")

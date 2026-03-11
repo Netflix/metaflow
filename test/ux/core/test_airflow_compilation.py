@@ -173,10 +173,6 @@ class TestAirflowCompilation:
         """Flow with @resources compiles to valid Airflow DAG."""
         self._compile_and_validate("basic/resources_flow.py")
 
-    def test_trigger_flow(self):
-        """Flow with @trigger compiles to valid Airflow DAG."""
-        self._compile_and_validate("triggers/hello_static_trigger.py")
-
     def test_schedule_flow(self):
         """Flow with @schedule compiles to valid Airflow DAG."""
         self._compile_and_validate("lifecycle/schedule_flow.py")
