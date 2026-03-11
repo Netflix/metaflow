@@ -8,6 +8,9 @@ from typing import Dict, List, Union, Tuple as TTuple
 from metaflow.exception import MetaflowException
 from metaflow.metaflow_config_funcs import from_conf, get_validate_choice_fn
 
+# Recursive type alias for JSON, used by Runner API type mappings
+JSON = Union[Dict[str, "JSON"], List["JSON"], str, int, float, bool, None]
+
 # Disable multithreading security on MacOS
 if sys.platform == "darwin":
     os.environ["OBJC_DISABLE_INITIALIZE_FORK_SAFETY"] = "YES"
@@ -633,6 +636,8 @@ def get_click_to_python_types():
     Returns the mapping from Click parameter types to Python types for Runner API.
     Extensions can override this function to add custom type mappings.
     """
+    # Imports are local to avoid circular dependencies:
+    # metaflow_config -> includefile -> plugins -> ... -> config_options -> debug -> metaflow_config
     from metaflow._vendor.click.types import (
         BoolParamType,
         Choice,
@@ -652,9 +657,6 @@ def get_click_to_python_types():
         MultipleTuple,
         ConfigValue,
     )
-
-    # Define JSON type for type hints
-    JSON = Union[Dict[str, "JSON"], List["JSON"], str, int, float, bool, None]
 
     return {
         StringParamType: str,

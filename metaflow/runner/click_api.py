@@ -30,7 +30,11 @@ from metaflow._vendor import click
 from metaflow.decorators import add_decorator_options
 from metaflow.exception import MetaflowException
 from metaflow.flowspec import FlowStateItems
-from metaflow.metaflow_config import CLICK_API_PROCESS_CONFIG, get_click_to_python_types
+from metaflow.metaflow_config import (
+    CLICK_API_PROCESS_CONFIG,
+    JSON,
+    get_click_to_python_types,
+)
 from metaflow.parameters import flow_context
 from metaflow.user_configs.config_options import (
     ConfigValue,
@@ -42,9 +46,6 @@ from metaflow.user_decorators.user_flow_decorator import FlowMutator
 
 # Import Click type mappings from config (allows extensions to add custom types)
 click_to_python_types = get_click_to_python_types()
-
-# Define a recursive type alias for JSON
-JSON = Union[Dict[str, "JSON"], List["JSON"], str, int, float, bool, None]
 
 
 def _method_sanity_check(
