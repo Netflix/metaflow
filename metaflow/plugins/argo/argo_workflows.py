@@ -1440,13 +1440,13 @@ class ArgoWorkflows(object):
                 # b --static-split-> b1,b2,b3 -> shared_join
                 #
                 # the shared_join needs to handle dependencies (a1&&a2&&a3) || (b1&&b2&&b3) || switch_step
-                if self.graph[node.name].type == "join" and any(
+                if node.type == "join" and any(
                     self._is_conditional_node(self.graph[fn]) for fn in node.in_funcs
                 ):
 
-                    def _split_switch_ancestors(node, first_ancestor):
+                    def _split_switch_ancestors(step_name, first_ancestor):
                         acc = []
-                        for in_fn in self.graph[node].in_funcs:
+                        for in_fn in self.graph[step_name].in_funcs:
                             if self.graph[in_fn].type == "split-switch":
                                 acc.append(in_fn)
                             if not in_fn == first_ancestor:
