@@ -1,4 +1,3 @@
-import errno
 import json
 import os
 import shutil
@@ -708,6 +707,10 @@ def atomic_json_update(path, updater_fn):
 
             # Apply update
             d = updater_fn(d)
+            if not isinstance(d, dict):
+                raise TypeError(
+                    "updater_fn must return a dict, got %s" % type(d).__name__
+                )
 
             # Atomic write via temp file + replace
             fd, tmp = tempfile.mkstemp(dir=dir_name or None, suffix=".tmp")
