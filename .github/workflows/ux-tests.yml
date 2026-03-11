@@ -98,7 +98,7 @@ jobs:
         include:
           - backend: local
             services: "minio,postgresql,metadata-service"
-            workers: 4
+            workers: 2
           - backend: argo-kubernetes
             services: "minio,postgresql,metadata-service,argo-workflows"
             workers: 2
