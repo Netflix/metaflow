@@ -43,8 +43,8 @@ def setup_minio(ctx):
             "METAFLOW_DATATOOLS_CLIENT_PARAMS": {
                 "endpoint_url": "http://localhost:9000",
                 "config": {
-                    "read_timeout": 1,
-                    "connect_timeout": 2,
+                    "read_timeout": 60,
+                    "connect_timeout": 10,
                     "max_pool_connections": 1,
                     "retries": {"max_attempts": 3, "mode": "standard"},
                 },
