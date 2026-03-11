@@ -64,9 +64,7 @@ def load_token(token_prefix):
 
 
 def store_token(token_prefix, token):
+    from metaflow.util import atomic_json_update
+
     path = _path(token_prefix)
-    config = _load_config(path)
-    config["production_token"] = token
-    _makedirs(os.path.dirname(path))
-    with open(path, "w") as f:
-        json.dump(config, f)
+    atomic_json_update(path, lambda d: {**d, "production_token": token})

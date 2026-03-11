@@ -1,3 +1,6 @@
+import errno
+import fcntl
+import json
 import os
 import shutil
 import sys
@@ -661,3 +664,58 @@ def walk_without_cycles(
     for x in _recurse(top_root, skip_dirs, set()):
         skip_dirs = default_skip_dirs
         yield x
+
+
+def atomic_json_update(path, updater_fn):
+    """Read-modify-write a JSON file safely under concurrent access.
+
+    Uses a separate .lock file so that flock serializes all writers on a
+    stable inode, while the data file itself is replaced atomically via
+    os.replace (crash-safe: readers never see a half-written file).
+
+    Parameters
+    ----------
+    path : str
+        Path to the JSON file. Created (with ``{}``) if it doesn't exist.
+    updater_fn : callable
+        Called with the current dict contents; must return the new dict
+        to write back.
+
+    Returns
+    -------
+    dict
+        The updated dict that was written.
+    """
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+
+    lock_path = path + ".lock"
+    with open(lock_path, "a+") as lock_f:
+        fcntl.flock(lock_f, fcntl.LOCK_EX)
+        try:
+            # Read current contents
+            d = {}
+            if os.path.exists(path) and os.path.getsize(path) > 0:
+                with open(path, "r") as f:
+                    d = json.load(f)
+
+            # Apply update
+            d = updater_fn(d)
+
+            # Atomic write via temp file + replace
+            fd, tmp = tempfile.mkstemp(dir=os.path.dirname(path), suffix=".tmp")
+            try:
+                with os.fdopen(fd, "w") as f:
+                    json.dump(d, f)
+                    f.flush()
+                    os.fsync(f.fileno())
+                os.replace(tmp, path)
+            except BaseException:
+                try:
+                    os.unlink(tmp)
+                except OSError:
+                    pass
+                raise
+
+            return d
+        finally:
+            fcntl.flock(lock_f, fcntl.LOCK_UN)
