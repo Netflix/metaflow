@@ -49,6 +49,8 @@ def _compile_flow_to_json(flow_path, **extra_tl_args):
             pytest.skip(
                 "argo-workflows CLI not available (extension may override plugins)"
             )
+        if "no such option" in stderr or "no such option" in stdout:
+            pytest.skip("argo-workflows options not available on this backend")
         if "ConnectionRefusedError" in stderr or "ConnectionError" in stderr:
             pytest.skip("Argo backend not configured (connection refused)")
         if "is not supported" in stderr:
