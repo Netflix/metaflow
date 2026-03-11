@@ -39,7 +39,7 @@ def _compile_flow_to_dag(flow_path, **extra_tl_args):
     for k, v in extra_tl_args.items():
         if v is not None:
             cmd.extend([f"--{k.replace('_', '-')}", str(v)])
-    cmd.extend(["airflow", "create", "--file", dag_file_path])
+    cmd.extend(["airflow", "create", dag_file_path])
 
     try:
         result = subprocess.run(
@@ -61,6 +61,8 @@ def _compile_flow_to_dag(flow_path, **extra_tl_args):
                 pytest.skip(
                     "airflow CLI not available (extension may override plugins)"
                 )
+            if "ConnectionRefusedError" in stderr or "ConnectionError" in stderr:
+                pytest.skip("Airflow backend not configured (connection refused)")
             pytest.fail(f"Compilation failed:\nstderr: {stderr}\nstdout: {stdout}")
 
         with open(dag_file_path, "r") as f:

@@ -55,6 +55,8 @@ def test_card_basic(exec_mode, decospecs, compute_env, tag, scheduler_config):
     assert run.successful, "Run was not successful"
     assert run["start"].task.data.message == "hello from card flow"
 
-    # Verify a card was actually created
-    cards = list(run["start"].task.cards)
+    # Verify a card was actually created using the card client API
+    from metaflow.cards import get_cards
+
+    cards = get_cards(run["start"].task)
     assert len(cards) > 0, "Expected at least one card on the start step"

@@ -43,11 +43,16 @@ def _compile_flow_to_json(flow_path, **extra_tl_args):
     )
     if result.returncode != 0:
         stderr = result.stderr or ""
-        if "No such command" in stderr or "No such command" in (result.stdout or ""):
+        stdout = result.stdout or ""
+        if "No such command" in stderr or "No such command" in stdout:
             pytest.skip(
                 "step-functions CLI not available (extension may override plugins)"
             )
-        pytest.fail(f"Compilation failed:\nstderr: {stderr}\nstdout: {result.stdout}")
+        if "ConnectionRefusedError" in stderr or "ConnectionError" in stderr:
+            pytest.skip(
+                "SFN backend not configured (connection refused to metadata/SFN service)"
+            )
+        pytest.fail(f"Compilation failed:\nstderr: {stderr}\nstdout: {stdout}")
 
     # The JSON is printed to stdout; parse it
     # Filter out non-JSON lines (echo output goes to stderr with metaflow)
