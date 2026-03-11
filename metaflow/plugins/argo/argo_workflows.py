@@ -1413,12 +1413,6 @@ class ArgoWorkflows(object):
                     required_deps = []
 
                 # join steps in_funcs need special handling, as there can be disjoint sets of always-executing and conditional branches.
-                # for example
-                #  switch_step -> a, b, shared_join
-                # a --static-split-> a1, a2, a3 -> shared_join
-                # b --static-split-> b1,b2,b3 -> shared_join
-                #
-                # the shared_join needs to handle dependencies (a1&&a2&&a3) || (b1&&b2&&b3) || switch_step
                 if node.type == "join" and any(
                     self._is_conditional_node(self.graph[fn]) for fn in node.in_funcs
                 ):
