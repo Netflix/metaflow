@@ -530,12 +530,18 @@ def _get_extension_packages(ignore_info_file=False, restrict_to_directories=None
             # the extension and __init__.py file)
             if len(parts) == 2:
                 # Ensure that we don't have a __init__.py to force this package to
-                # be a NS package
+                # be a NS package.  Tolerate empty (0-byte) __init__.py files
+                # because build systems like Bazel's rules_python auto-generate
+                # them for every directory, even namespace packages.
                 if parts[1] == "__init__.py":
-                    raise RuntimeError(
-                        "Package '%s' providing '%s' is not an implicit namespace "
-                        "package as required" % (state["name"], EXT_PKG)
-                    )
+                    init_path = os.path.join(root_dir, file)
+                    if os.path.isfile(init_path) and os.path.getsize(init_path) > 0:
+                        raise RuntimeError(
+                            "Package '%s' providing '%s' is not an implicit "
+                            "namespace package as required"
+                            % (state["name"], EXT_PKG)
+                        )
+                    return
                 # Check for any metadata; we can only have one metadata per
                 # distribution at most
                 if EXT_META_REGEXP.match(parts[1]) is not None:
@@ -596,7 +602,11 @@ def _get_extension_packages(ignore_info_file=False, restrict_to_directories=None
 
                     if len(parts) == len(ext_list) + 3 and (
                         EXT_CONFIG_REGEXP.match(parts[-1]) is not None
-                        or parts[-1] == "__init__.py"
+                        or (
+                            parts[-1] == "__init__.py"
+                            and os.path.isfile(os.path.join(root_dir, *parts))
+                            and os.path.getsize(os.path.join(root_dir, *parts)) > 0
+                        )
                     ):
                         parts[-1] = parts[-1][:-3]  # Remove the .py
                         config_module = ".".join(parts)
