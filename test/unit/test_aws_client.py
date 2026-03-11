@@ -75,7 +75,6 @@ def test_sandbox_sts_connect_timeout_fails_fast(monkeypatch):
     )
 <<<<<<< Updated upstream
 =======
-    with pytest.raises(MetaflowException) as exc:
 
 >>>>>>> Stashed changes
     assert f"connect timeout={AWS_SANDBOX_STS_CONNECT_TIMEOUT}s" in msg
@@ -101,10 +100,7 @@ def test_sandbox_sts_read_timeout_fails_fast(monkeypatch):
 
     with pytest.raises(MetaflowException) as exc:
         Boto3ClientProvider.get_client("s3")
-<<<<<<< Updated upstream
-    msg = str(exc.value)
-    assert endpoint in msg
-    assert "Timed out while fetching AWS sandbox STS credentials" in msg
+
 =======
 
     msg = str(exc.value)
