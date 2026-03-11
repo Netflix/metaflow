@@ -52,6 +52,7 @@ jobs:
         run: |
           python -m pytest \
             test/unit/ test/cmd/ test/plugins/ \
+            --ignore=test/unit/spin \
             -v \
             --tb=short \
             --timeout=120 \

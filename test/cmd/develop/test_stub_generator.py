@@ -95,7 +95,8 @@ class TestStubGenerator:
             assert "<class '" not in result
             assert "typing.Dict" in result
             assert "typing.List" in result
-            assert "typing.Optional" in result
+            # Python 3.9 expands Optional[X] to Union[X, None]
+            assert "typing.Optional" in result or "typing.Union" in result
             assert "test.module.TestClass" in result
 
     def test_get_element_name_callable_with_class_args(self):
