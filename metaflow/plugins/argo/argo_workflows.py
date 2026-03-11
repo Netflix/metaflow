@@ -1190,27 +1190,6 @@ class ArgoWorkflows(object):
         return node.name in self.conditional_join_nodes
 
     def _many_in_funcs_all_conditional(self, node):
-        # avoid situation where none of the in_funcs are actually conditional,
-        # because this might be a nested static-split inside a conditional branch,
-        # which means all of the in_funcs will execute, not just some.
-        def _same_join(in_func):
-            split_parents = self.graph[in_func].split_parents
-            if not split_parents:
-                return False
-            return self.graph[split_parents[-1]].matching_join == node.name
-
-        def _split_parent(in_func):
-            split_parents = self.graph[in_func].split_parents
-            if not split_parents:
-                return None
-            return self.graph[split_parents[-1]]
-
-        if (
-            all(_same_join(in_func) for in_func in node.in_funcs)
-            and len(set(_split_parent(in_func) for in_func in node.in_funcs)) > 1
-        ):
-            return False
-
         cond_in_funcs = [
             in_func
             for in_func in node.in_funcs
