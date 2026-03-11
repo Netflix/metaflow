@@ -1443,21 +1443,15 @@ class ArgoWorkflows(object):
                 if self.graph[node.name].type == "join" and any(
                     self._is_conditional_node(self.graph[fn]) for fn in node.in_funcs
                 ):
-                    # NOTE: The groupings for the in_funcs are formed by traversing up each funcs
-                    # relative path until we encounter a split-switch.
-                    # when a split is encountered, next we determine if the split is joined **before** we reach the join-node, or if it remains
-                    # conditional.
 
-                    # TODO: This needs to cover ALL split types in order to tackle every use case.
-                    # not covered is: static-split -> static-split -> conditional join node.
-                    def _split_switch_ancestor(node, first_ancestor):
+                    def _split_switch_ancestors(node, first_ancestor):
                         acc = []
                         for in_fn in self.graph[node].in_funcs:
                             if self.graph[in_fn].type == "split-switch":
                                 acc.append(in_fn)
                             if not in_fn == first_ancestor:
                                 acc.extend(
-                                    _split_switch_ancestor(in_fn, first_ancestor)
+                                    _split_switch_ancestors(in_fn, first_ancestor)
                                 )
 
                         return acc
@@ -1468,7 +1462,7 @@ class ArgoWorkflows(object):
                         if self.graph[fn].split_branches:
                             # This is the latest split in the DAG.
                             last_split = self.graph[fn].split_branches[-1]
-                            switch_ancestors = _split_switch_ancestor(
+                            switch_ancestors = _split_switch_ancestors(
                                 fn, node.split_parents[-1]
                             )
                             if switch_ancestors:
@@ -1516,7 +1510,6 @@ class ArgoWorkflows(object):
                     ).items():
                         parts = []
                         for chain in chains:
-                            # TODO: fix double-braces, though only cosmetic.
                             groups = [
                                 "({})".format(
                                     " || ".join(
