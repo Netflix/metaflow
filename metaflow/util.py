@@ -1,5 +1,4 @@
 import errno
-import fcntl
 import json
 import os
 import shutil
@@ -673,6 +672,11 @@ def atomic_json_update(path, updater_fn):
     stable inode, while the data file itself is replaced atomically via
     os.replace (crash-safe: readers never see a half-written file).
 
+    The ``.lock`` file is intentionally never deleted; its stable inode is
+    required for correct flock serialization across processes. Removing it
+    between writers would re-introduce the inode-replacement bug that this
+    function exists to prevent.
+
     Parameters
     ----------
     path : str
@@ -686,7 +690,11 @@ def atomic_json_update(path, updater_fn):
     dict
         The updated dict that was written.
     """
-    os.makedirs(os.path.dirname(path), exist_ok=True)
+    import fcntl  # POSIX only — safe here because callers are Linux/macOS
+
+    dir_name = os.path.dirname(path)
+    if dir_name:
+        os.makedirs(dir_name, exist_ok=True)
 
     lock_path = path + ".lock"
     with open(lock_path, "a+") as lock_f:
@@ -702,7 +710,7 @@ def atomic_json_update(path, updater_fn):
             d = updater_fn(d)
 
             # Atomic write via temp file + replace
-            fd, tmp = tempfile.mkstemp(dir=os.path.dirname(path), suffix=".tmp")
+            fd, tmp = tempfile.mkstemp(dir=dir_name or None, suffix=".tmp")
             try:
                 with os.fdopen(fd, "w") as f:
                     json.dump(d, f)
