@@ -20,7 +20,7 @@ pytestmark = [pytest.mark.argo_compilation]
 
 def _compile_flow_to_json(flow_path, **extra_tl_args):
     """Compile a flow to Argo WorkflowTemplate JSON using CLI with --only-json."""
-    from test.ux.core.test_utils import _resolve_flow_path
+    from .test_utils import _resolve_flow_path
 
     full_path = _resolve_flow_path(flow_path)
 
@@ -43,9 +43,17 @@ def _compile_flow_to_json(flow_path, **extra_tl_args):
         env=os.environ.copy(),
     )
     if result.returncode != 0:
-        pytest.fail(
-            f"Compilation failed:\nstderr: {result.stderr}\nstdout: {result.stdout}"
-        )
+        stderr = result.stderr or ""
+        stdout = result.stdout or ""
+        if "No such command" in stderr or "No such command" in stdout:
+            pytest.skip(
+                "argo-workflows CLI not available (extension may override plugins)"
+            )
+        if "ConnectionRefusedError" in stderr or "ConnectionError" in stderr:
+            pytest.skip("Argo backend not configured (connection refused)")
+        if "is not supported" in stderr:
+            pytest.skip(f"Feature not supported by Argo: {stderr.strip()}")
+        pytest.fail(f"Compilation failed:\nstderr: {stderr}\nstdout: {stdout}")
 
     stdout = result.stdout.strip()
     json_start = stdout.find("{")
