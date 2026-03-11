@@ -214,7 +214,6 @@ jobs:
           PYTHONPATH=$PWD \
           python -m pytest \
             test/ux/core/ \
-            -m "not conda" \
             --only-backend "${{ matrix.backend }}" \
             -n ${{ matrix.workers }} \
             -v \
