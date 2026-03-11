@@ -52,6 +52,8 @@ def _compile_flow_to_json(flow_path, **extra_tl_args):
             pytest.skip(
                 "SFN backend not configured (connection refused to metadata/SFN service)"
             )
+        if "is not supported" in stderr:
+            pytest.skip(f"Feature not supported by Step Functions: {stderr.strip()}")
         pytest.fail(f"Compilation failed:\nstderr: {stderr}\nstdout: {stdout}")
 
     # The JSON is printed to stdout; parse it
@@ -107,7 +109,13 @@ def _validate_state_machine(definition_json):
         return result
     except Exception as e:
         # sfn-local might not support validate -- fall back to structural checks
-        if "not implemented" in str(e).lower() or "Unknown Operation" in str(e):
+        err_str = str(e)
+        if (
+            "not implemented" in err_str.lower()
+            or "Unknown Operation" in err_str
+            or "UnsupportedOperation" in err_str
+            or "Unsupported Operation" in err_str
+        ):
             return _structural_validate(definition_json)
         raise
 

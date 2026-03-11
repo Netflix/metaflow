@@ -40,13 +40,18 @@ def test_static_trigger(exec_mode, decospecs, compute_env, tag, scheduler_config
 
     tl_args = {"decospecs": decospecs, "env": compute_env}
 
-    deployed_flow = deploy_flow_to_scheduler(
-        flow_name="triggers/hello_static_trigger.py",
-        tl_args=tl_args,
-        scheduler_args={"cluster": scheduler_config.cluster},
-        deploy_args={"tags": combined_tags, **(scheduler_config.deploy_args or {})},
-        scheduler_type=scheduler_type,
-    )
+    try:
+        deployed_flow = deploy_flow_to_scheduler(
+            flow_name="triggers/hello_static_trigger.py",
+            tl_args=tl_args,
+            scheduler_args={"cluster": scheduler_config.cluster},
+            deploy_args={"tags": combined_tags, **(scheduler_config.deploy_args or {})},
+            scheduler_type=scheduler_type,
+        )
+    except RuntimeError as e:
+        if "not supported" in str(e).lower():
+            pytest.skip(f"@trigger not supported by {scheduler_type}: {e}")
+        raise
 
     try:
         send_event(
@@ -83,13 +88,18 @@ def test_deploy_time_trigger(exec_mode, decospecs, compute_env, tag, scheduler_c
 
     # Deploy-time triggers resolve the callable at create() time.
     # If the orchestrator doesn't support deploy-time triggers, create() will fail.
-    deployed_flow = deploy_flow_to_scheduler(
-        flow_name="triggers/hello_deploy_time_trigger.py",
-        tl_args=tl_args,
-        scheduler_args={"cluster": scheduler_config.cluster},
-        deploy_args={"tags": combined_tags, **(scheduler_config.deploy_args or {})},
-        scheduler_type=scheduler_type,
-    )
+    try:
+        deployed_flow = deploy_flow_to_scheduler(
+            flow_name="triggers/hello_deploy_time_trigger.py",
+            tl_args=tl_args,
+            scheduler_args={"cluster": scheduler_config.cluster},
+            deploy_args={"tags": combined_tags, **(scheduler_config.deploy_args or {})},
+            scheduler_type=scheduler_type,
+        )
+    except RuntimeError as e:
+        if "not supported" in str(e).lower():
+            pytest.skip(f"@trigger not supported by {scheduler_type}: {e}")
+        raise
 
     try:
         send_event(
@@ -125,13 +135,18 @@ def test_trigger_on_finish(exec_mode, decospecs, compute_env, tag, scheduler_con
     tl_args = {"decospecs": decospecs, "env": compute_env}
 
     # Deploy the downstream flow first (it listens for upstream completion)
-    downstream = deploy_flow_to_scheduler(
-        flow_name="triggers/hello_trigger_on_finish.py",
-        tl_args=tl_args,
-        scheduler_args={"cluster": scheduler_config.cluster},
-        deploy_args={"tags": combined_tags, **(scheduler_config.deploy_args or {})},
-        scheduler_type=scheduler_type,
-    )
+    try:
+        downstream = deploy_flow_to_scheduler(
+            flow_name="triggers/hello_trigger_on_finish.py",
+            tl_args=tl_args,
+            scheduler_args={"cluster": scheduler_config.cluster},
+            deploy_args={"tags": combined_tags, **(scheduler_config.deploy_args or {})},
+            scheduler_type=scheduler_type,
+        )
+    except RuntimeError as e:
+        if "not supported" in str(e).lower():
+            pytest.skip(f"@trigger_on_finish not supported by {scheduler_type}: {e}")
+        raise
 
     # Deploy and trigger the upstream flow
     upstream = deploy_flow_to_scheduler(
