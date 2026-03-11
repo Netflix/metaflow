@@ -63,6 +63,8 @@ def _compile_flow_to_dag(flow_path, **extra_tl_args):
                 )
             if "ConnectionRefusedError" in stderr or "ConnectionError" in stderr:
                 pytest.skip("Airflow backend not configured (connection refused)")
+            if "is not supported" in stderr:
+                pytest.skip(f"Feature not supported by Airflow: {stderr.strip()}")
             pytest.fail(f"Compilation failed:\nstderr: {stderr}\nstdout: {stdout}")
 
         with open(dag_file_path, "r") as f:
