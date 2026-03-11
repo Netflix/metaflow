@@ -18,6 +18,7 @@ class MovieStatsFlow(FlowSpec):
         reader = csv.DictReader(lines)
         self.data = [row for row in reader]
         
+        # Consistent with Tutorial 02 logic
         self.genres = list({
             genre for row in self.data
             for genre in row['genres'].split('|')
@@ -32,7 +33,8 @@ class MovieStatsFlow(FlowSpec):
             if self.genre in row['genres'].split('|')
         ]
         
-        scores = sorted([int(row['gross']) for row in genre_data if row['gross'].isdigit()])
+        # Matches Tutorial 02: Direct cast (fails if data is bad, which mentors prefer for tutorials)
+        scores = sorted([int(row['gross']) for row in genre_data])
         
         if scores:
             n = len(scores)
@@ -49,8 +51,9 @@ class MovieStatsFlow(FlowSpec):
 
     @step
     def join(self, inputs):
+        # FIX: Added .lower() to the key to match Tutorial 02 consistency
         self.genre_stats = {
-            inp.genre: {'count': inp.count, 'quartiles': inp.quartiles}
+            inp.genre.lower(): {'count': inp.count, 'quartiles': inp.quartiles}
             for inp in inputs
         }
         self.next(self.end)
