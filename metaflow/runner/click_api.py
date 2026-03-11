@@ -27,6 +27,7 @@ from typing import Union
 
 from metaflow import FlowSpec, Parameter
 from metaflow._vendor import click
+from metaflow.cli import DynamicVarFileInput
 from metaflow.decorators import add_decorator_options
 from metaflow.exception import MetaflowException
 from metaflow.flowspec import FlowStateItems
@@ -46,6 +47,7 @@ from metaflow.user_decorators.user_flow_decorator import FlowMutator
 
 # Import Click type mappings from config (allows extensions to add custom types)
 click_to_python_types = get_click_to_python_types()
+click_to_python_types[DynamicVarFileInput] = str
 
 
 def _method_sanity_check(
