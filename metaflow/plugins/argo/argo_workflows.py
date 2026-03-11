@@ -1503,23 +1503,25 @@ class ArgoWorkflows(object):
                             result[parent] = [[g for _, g in chain] for chain in chains]
                         return result
 
-                    conditional_deps = []
-                    required_deps = []
-                    for parent, chains in build_ancestor_tree(
-                        node_groups, node_switch_ancestors
-                    ).items():
-                        parts = []
-                        for chain in chains:
-                            groups = [
-                                "({})".format(
-                                    " || ".join(
-                                        "%s.Succeeded" % self._sanitize(g) for g in grp
+                    if node_groups:
+                        conditional_deps = []
+                        required_deps = []
+                        for parent, chains in build_ancestor_tree(
+                            node_groups, node_switch_ancestors
+                        ).items():
+                            parts = []
+                            for chain in chains:
+                                groups = [
+                                    "({})".format(
+                                        " || ".join(
+                                            "%s.Succeeded" % self._sanitize(g)
+                                            for g in grp
+                                        )
                                     )
-                                )
-                                for grp in chain
-                            ]
-                            parts.append("({})".format(" || ".join(groups)))
-                        required_deps.append("&&".join(parts))
+                                    for grp in chain
+                                ]
+                                parts.append("({})".format(" || ".join(groups)))
+                            required_deps.append("&&".join(parts))
 
                 both_conditions = required_deps and conditional_deps
 
