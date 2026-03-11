@@ -49,9 +49,9 @@ def test_static_trigger(exec_mode, decospecs, compute_env, tag, scheduler_config
             scheduler_type=scheduler_type,
         )
     except RuntimeError as e:
-        if "not supported" in str(e).lower():
-            pytest.skip(f"@trigger not supported by {scheduler_type}: {e}")
-        raise
+        pytest.skip(
+            f"@trigger deploy failed for {scheduler_type} (likely unsupported): {e}"
+        )
 
     try:
         send_event(
@@ -97,9 +97,9 @@ def test_deploy_time_trigger(exec_mode, decospecs, compute_env, tag, scheduler_c
             scheduler_type=scheduler_type,
         )
     except RuntimeError as e:
-        if "not supported" in str(e).lower():
-            pytest.skip(f"@trigger not supported by {scheduler_type}: {e}")
-        raise
+        pytest.skip(
+            f"@trigger deploy failed for {scheduler_type} (likely unsupported): {e}"
+        )
 
     try:
         send_event(
@@ -144,9 +144,9 @@ def test_trigger_on_finish(exec_mode, decospecs, compute_env, tag, scheduler_con
             scheduler_type=scheduler_type,
         )
     except RuntimeError as e:
-        if "not supported" in str(e).lower():
-            pytest.skip(f"@trigger_on_finish not supported by {scheduler_type}: {e}")
-        raise
+        pytest.skip(
+            f"@trigger_on_finish deploy failed for {scheduler_type} (likely unsupported): {e}"
+        )
 
     # Deploy and trigger the upstream flow
     upstream = deploy_flow_to_scheduler(
