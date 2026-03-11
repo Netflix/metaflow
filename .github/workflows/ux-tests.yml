@@ -51,7 +51,7 @@ jobs:
       - name: Run unit and command tests
         run: |
           python -m pytest \
-            test/unit/ test/cmd/ \
+            test/unit/ test/cmd/ test/plugins/ \
             -v \
             --tb=short \
             --timeout=120 \

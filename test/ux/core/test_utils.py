@@ -232,6 +232,32 @@ def verify_run_provenance(run: Run, decospecs: Any) -> None:
         )
 
 
+def send_event(scheduler_type, event_name, payload, scheduler_config):
+    """Send a trigger event to the appropriate orchestrator.
+
+    Each orchestrator branch adds its implementation here:
+    - Argo Events: POST to webhook (localhost:12000)
+    - Step Functions: EventBridge put_events or start_execution
+    - Airflow: POST to DAG trigger API
+
+    Raises NotImplementedError if the scheduler_type is not yet implemented.
+    Tests that call this catch NotImplementedError and skip gracefully.
+    """
+    raise NotImplementedError(
+        f"send_event not implemented for {scheduler_type}. "
+        f"Add implementation on the appropriate devstack branch."
+    )
+
+
+def get_run_pathspecs(flow_name, tags, timeout=10, polling_interval=60):
+    """Get pathspecs for runs matching flow_name and tags.
+
+    Convenience wrapper around track_runs_by_tags for use in trigger tests
+    where we need to find runs that were triggered asynchronously.
+    """
+    return track_runs_by_tags(flow_name, tags, timeout, polling_interval)
+
+
 def execute_test_flow(
     flow_name: str,
     exec_mode: str,
