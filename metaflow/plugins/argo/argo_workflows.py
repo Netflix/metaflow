@@ -1448,42 +1448,85 @@ class ArgoWorkflows(object):
                     # when a split is encountered, next we determine if the split is joined **before** we reach the join-node, or if it remains
                     # conditional.
 
+                    # TODO: This needs to cover ALL split types in order to tackle every use case.
+                    # not covered is: static-split -> static-split -> conditional join node.
+                    def _split_switch_ancestor(node, first_ancestor):
+                        acc = []
+                        for in_fn in self.graph[node].in_funcs:
+                            if self.graph[in_fn].type == "split-switch":
+                                acc.append(in_fn)
+                            if not in_fn == first_ancestor:
+                                acc.extend(
+                                    _split_switch_ancestor(in_fn, first_ancestor)
+                                )
+
+                        return acc
+
                     node_groups = {}
+                    node_switch_ancestors = {}
                     for fn in node.in_funcs:
                         if self.graph[fn].split_branches:
                             # This is the latest split in the DAG.
                             last_split = self.graph[fn].split_branches[-1]
+                            switch_ancestors = _split_switch_ancestor(
+                                fn, node.split_parents[-1]
+                            )
+                            if switch_ancestors:
+                                node_switch_ancestors[fn] = switch_ancestors
                             new_funcs = node_groups.get(last_split, [])
                             new_funcs.append(fn)
                             node_groups[last_split] = new_funcs
 
+                    def build_ancestor_tree(node_groups, switch_ancestors):
+                        result = {}
+                        for parent, children in node_groups.items():
+                            nodes = [
+                                n
+                                for g in children
+                                for n in (g if isinstance(g, list) else [g])
+                            ]
+
+                            # Group nodes by their ancestor set
+                            by_anc = defaultdict(list)
+                            for n in nodes:
+                                by_anc[frozenset(switch_ancestors.get(n, []))].append(n)
+
+                            # Sort from most specific (most ancestors) to least
+                            groups = sorted(
+                                by_anc.items(), key=lambda x: len(x[0]), reverse=True
+                            )
+
+                            # Greedily build chains: add to a chain if this key is a subset of its first (largest) key
+                            chains = []
+                            for key, grp in groups:
+                                for chain in chains:
+                                    if key <= chain[0][0]:
+                                        chain.append((key, grp))
+                                        break
+                                else:
+                                    chains.append([(key, grp)])
+
+                            result[parent] = [[g for _, g in chain] for chain in chains]
+                        return result
+
                     conditional_deps = []
                     required_deps = []
-                    for lsplit, in_funcs in node_groups.items():
-                        if (
-                            self.graph[lsplit].type == "split-switch"
-                            and len(in_funcs) > 1
-                        ):
-                            # we have an unresolved conditional split leading to a join.
-                            required_deps.append(
-                                "(%s)"
-                                % "||".join(
-                                    [
-                                        "%s.Succeeded" % self._sanitize(in_func)
-                                        for in_func in in_funcs
-                                    ]
+                    for parent, chains in build_ancestor_tree(
+                        node_groups, node_switch_ancestors
+                    ).items():
+                        parts = []
+                        for chain in chains:
+                            # TODO: fix double-braces, though only cosmetic.
+                            groups = [
+                                "({})".format(
+                                    " || ".join(
+                                        "%s.Succeeded" % self._sanitize(g) for g in grp
+                                    )
                                 )
-                            )
-                        else:
-                            required_deps.append(
-                                "(%s)"
-                                % "&&".join(
-                                    [
-                                        "%s.Succeeded" % self._sanitize(in_func)
-                                        for in_func in in_funcs
-                                    ]
-                                )
-                            )
+                                for grp in chain
+                            ]
+                            parts.append("({})".format(" || ".join(groups)))
+                        required_deps.append("&&".join(parts))
 
                 both_conditions = required_deps and conditional_deps
 
