@@ -19,3 +19,7 @@ because the data is being stored in AWS S3.**
 #### To play this episode:
 1. ```python 02-statistics/stats.py run --with kubernetes --max-workers 4```
 2. Open ```06-statistics-redux/stats.ipynb```
+Alternatively, you can run the standalone script:
+```bash
+python stats.py run
+```

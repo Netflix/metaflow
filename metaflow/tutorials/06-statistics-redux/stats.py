@@ -1,11 +1,15 @@
+import os
 from metaflow import FlowSpec, step, IncludeFile
 import csv
+
+def script_path(filename):
+    return os.path.join(os.path.dirname(__file__), filename)
 
 class MovieStatsFlow(FlowSpec):
     movie_data = IncludeFile(
         'movie_data',
         help='The path to a movie metadata file.',
-        default='movies.csv',
+        default=script_path('../02-statistics/movies.csv'),
     )
 
     @step
