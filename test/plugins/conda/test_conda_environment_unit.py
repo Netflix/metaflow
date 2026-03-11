@@ -42,11 +42,11 @@ class TestManifestConcurrentWrites:
                         try:
                             data = json.load(f)
                             data[key] = {"platform": "linux-64", "thread": thread_id}
-                            f.seek(0)
-                            f.truncate()
-                            json.dump(data, f)
-                            f.flush()
-                            os.fsync(f.fileno())
+                            # Write to temp file then atomic rename
+                            tmp = manifest_path + f".tmp.{thread_id}"
+                            with open(tmp, "w") as tmp_f:
+                                json.dump(data, tmp_f)
+                            os.replace(tmp, manifest_path)
                         finally:
                             fcntl.flock(f.fileno(), fcntl.LOCK_UN)
             except Exception as e:
