@@ -45,6 +45,8 @@ class TestManifestConcurrentWrites:
                             f.seek(0)
                             f.truncate()
                             json.dump(data, f)
+                            f.flush()
+                            os.fsync(f.fileno())
                         finally:
                             fcntl.flock(f.fileno(), fcntl.LOCK_UN)
             except Exception as e:
