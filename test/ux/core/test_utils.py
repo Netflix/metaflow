@@ -199,6 +199,45 @@ def wait_for_deployed_run(
     return triggered_run.run
 
 
+def wait_for_deployed_run_allow_failure(
+    deployed_flow,
+    timeout: int = 3600,
+    run_kwargs: Optional[Dict[str, Any]] = None,
+    polling_interval: int = 3,
+):
+    """Trigger a deployed flow and wait for it to finish, even if it fails.
+
+    Same as wait_for_deployed_run but does NOT raise on failed status.
+    Returns the Run regardless of success/failure so the caller can assert
+    on run.successful.
+    """
+    print(f"Deployed flow {deployed_flow.name}")
+    run_kwargs = run_kwargs or {}
+    triggered_run = deployed_flow.trigger(**run_kwargs)
+
+    start_time = time.time()
+    while triggered_run.run is None:
+        if time.time() - start_time > timeout:
+            raise RuntimeError(f"Run failed to start within {timeout} seconds")
+        print("Waiting for run to start...")
+        time.sleep(polling_interval)
+
+    print(f"Run {triggered_run.run.id} started")
+
+    while not triggered_run.run.finished:
+        if time.time() - start_time > timeout:
+            raise RuntimeError(
+                f"Run {triggered_run.run.id} failed to complete within {timeout} seconds"
+            )
+        print(f"Waiting for run {triggered_run.run.id} to complete...")
+        time.sleep(polling_interval)
+
+    print(
+        f"Run {triggered_run.run.id} completed (successful={triggered_run.run.successful})"
+    )
+    return triggered_run.run
+
+
 def verify_run_provenance(run: Run, decospecs: Any) -> None:
     """Verify the run used the expected datastore and execution environment.
 

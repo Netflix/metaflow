@@ -20,6 +20,7 @@ pytestmark = [pytest.mark.compliance, pytest.mark.scheduler_only]
 from .test_utils import (
     deploy_flow_to_scheduler,
     wait_for_deployed_run,
+    wait_for_deployed_run_allow_failure,
 )
 
 
@@ -310,4 +311,46 @@ def test_nested_foreach_or_skip(
     assert all_results == ["x-1", "y-1"], (
         f"Nested foreach produced wrong results: {all_results!r}. "
         "Expected ['x-1', 'y-1']."
+    )
+
+
+# ---------------------------------------------------------------------------
+# test_timeout_enforcement
+#
+# WHY: The existing test_timeout only verifies that @timeout doesn't break
+# normal execution (step sleeps 1s with a 10-minute timeout — always passes).
+# If the timeout= kwarg on subprocess.run() is completely broken, that test
+# still passes.  This test deploys a flow where a step sleeps well beyond its
+# @timeout(seconds=5) and verifies the run actually fails.
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.compliance
+@pytest.mark.scheduler_only
+def test_timeout_enforcement(exec_mode, decospecs, compute_env, tag, scheduler_config):
+    """A step that exceeds its @timeout must be killed — the run must fail."""
+    if exec_mode != "deployer":
+        pytest.skip("compliance test requires deployer mode")
+
+    test_unique_tag = f"test_compliance_timeout_enforce_{exec_mode}"
+    combined_tags = tag + [test_unique_tag]
+
+    tl_args = {
+        "env": compute_env,
+        "decospecs": decospecs,
+    }
+
+    deployed_flow = deploy_flow_to_scheduler(
+        flow_name="basic/timeout_enforce_flow.py",
+        tl_args=tl_args,
+        scheduler_args={"cluster": scheduler_config.cluster},
+        deploy_args={"tags": combined_tags, **(scheduler_config.deploy_args or {})},
+        scheduler_type=scheduler_config.scheduler_type,
+    )
+
+    run = wait_for_deployed_run_allow_failure(deployed_flow)
+
+    assert not run.successful, (
+        "Run should have failed because the 'slow' step exceeds its "
+        "@timeout(seconds=5), but it succeeded. Timeout enforcement may be broken."
     )
