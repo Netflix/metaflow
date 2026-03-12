@@ -7,7 +7,7 @@ import json
 import os
 import tempfile
 import unittest
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch
 
 # We test persist_env in isolation by patching the module-level helpers
 # (echo, click.confirm, get_config_path) so we never touch real files or TTYs.
