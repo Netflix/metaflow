@@ -5,18 +5,23 @@ from metaflow import FlowSpec, step, secrets, project
 class HelloSecretsFlow(FlowSpec):
     @step
     def start(self):
-        from metaflow import metaflow_version
-
-        print(f"In start step and using metaflow: {metaflow_version.get_version()}")
         print("HelloSecretsFlow is starting.")
         self.next(self.hello)
 
-    @secrets(sources=["mf_secrets_test"])
+    @secrets(
+        sources=[
+            {
+                "type": "inline",
+                "id": "test-secret",
+                "options": {"env_vars": {"MY_SECRET_VALUE": "hellosecrets"}},
+            }
+        ]
+    )
     @step
     def hello(self):
         import os
 
-        self.secrets = os.environ["mf_secrets_test"]
+        self.secrets = os.environ["MY_SECRET_VALUE"]
         print("Hello secrets: %s" % self.secrets)
         self.next(self.end)
 
