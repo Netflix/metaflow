@@ -43,29 +43,7 @@ from .R import metaflow_r_version, use_r
 from .util import get_latest_run_id, resolve_identity, decompress_list
 from .user_configs.config_options import LocalFileInput, config_options
 from .user_configs.config_parameters import ConfigValue
-from .dynamic_var import set_dynamic_var_store
-
-
-class DynamicVarFileInput(click.Path):
-    """Click type that reads resolved dynamic var values from a pickle file."""
-
-    name = "DynamicVarFileInput"
-
-    def convert(self, value, param, ctx):
-        import pickle
-
-        v = super().convert(value, param, ctx)
-        with open(v, "rb") as f:
-            payload = pickle.load(f)
-
-        values, split_index = payload
-
-        set_dynamic_var_store(values, split_index)
-        try:
-            os.remove(v)
-        except OSError:
-            pass
-        return v
+from .dynamic_var import DynamicVarFileInput  # noqa: F401
 
 
 ERASE_TO_EOL = "\033[K"
