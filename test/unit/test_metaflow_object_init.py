@@ -98,8 +98,8 @@ class TestMetaflowObjectMetaflowParam:
             "constructed."
         )
 
-    def test_child_inherits_parent_metaflow(self):
-        """When parent creates children, children must receive the parent's _metaflow."""
+    def test_run_stores_passed_metaflow(self):
+        """When _metaflow is passed to Run directly, it must be stored as-is."""
         parent_mf = _DummyMetaflow()
 
         from metaflow.client.core import Run
