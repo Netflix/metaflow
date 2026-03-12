@@ -63,7 +63,7 @@ def test_load_blobs_uses_current_path_key_when_version_missing(tmp_path):
     )
 
     with pytest.raises(DataException) as exc:
-        list(store.load_blobs([stale_key, current_key]))
+        list(store.load_blobs([current_key, stale_key]))
 
     message = str(exc.value)
     assert current_path in message
@@ -87,7 +87,7 @@ def test_load_blobs_uses_current_path_key_for_unknown_encoding_version(tmp_path)
     )
 
     with pytest.raises(DataException) as exc:
-        list(store.load_blobs([stale_key, current_key]))
+        list(store.load_blobs([current_key, stale_key]))
 
     message = str(exc.value)
     assert "Unknown encoding version 999" in message
@@ -116,7 +116,7 @@ def test_load_blobs_uses_current_path_key_when_unpack_fails(tmp_path, monkeypatc
     monkeypatch.setattr(store, "_unpack_v1", _raise_unpack_error)
 
     with pytest.raises(DataException) as exc:
-        list(store.load_blobs([stale_key, current_key]))
+        list(store.load_blobs([current_key, stale_key]))
 
     message = str(exc.value)
     assert "Could not unpack artifact" in message
