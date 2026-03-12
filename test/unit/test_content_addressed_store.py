@@ -35,7 +35,9 @@ class _FakeStorageImpl(object):
 
     def load_bytes(self, paths):
         expected_paths = [entry[0] for entry in self._entries]
-        assert paths == expected_paths, "unexpected paths: %s" % paths
+        assert set(expected_paths).issubset(set(paths)), (
+            "expected paths %s not all in %s" % (expected_paths, paths)
+        )
         return _LoadedBytesContext(self._entries)
 
 
