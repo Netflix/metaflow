@@ -372,7 +372,7 @@ _aliased_modules = []
 
 # Tracks which package promoted each alias so overlapping promotions can be
 # detected and warned about.  Mapping: alias -> (tl_package, target_module)
-_promoted_aliases = {}  # type: Dict[str, tuple]
+_promoted_aliases = {}  # type: Dict[str, Tuple[str, str]]
 
 import importlib.util
 
