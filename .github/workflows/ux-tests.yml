@@ -237,13 +237,14 @@ jobs:
         run: devtools/ci/wait-airflow-api.sh
 
       - name: Clean up completed pods and start background cleanup
-        if: matrix.backend == 'argo-kubernetes' || matrix.backend == 'airflow-kubernetes'
+        if: matrix.backend == 'airflow-kubernetes'
         run: |
           kubectl delete pods --field-selector=status.phase=Succeeded --all-namespaces 2>/dev/null || true
           kubectl delete pods --field-selector=status.phase=Failed --all-namespaces 2>/dev/null || true
           # Periodically clean up completed pods during test runs to free cluster resources
+          # NOTE: Only safe for airflow — argo controller needs Succeeded pods to read task results
           while true; do
-            sleep 60
+            sleep 120
             kubectl delete pods --field-selector=status.phase=Succeeded --all-namespaces 2>/dev/null || true
             kubectl delete pods --field-selector=status.phase=Failed --all-namespaces 2>/dev/null || true
           done &
