@@ -258,9 +258,7 @@ jobs:
             -n ${{ matrix.workers }} \
             -v \
             --tb=short \
-            --timeout=1800 \
-            --reruns 1 \
-            --reruns-delay 10 \
+            --timeout=900 \
             --cov=metaflow \
             --cov-report=term-missing \
             --cov-report=xml:coverage.xml \
