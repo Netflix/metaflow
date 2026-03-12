@@ -27,7 +27,7 @@ from typing import Union
 
 from metaflow import FlowSpec, Parameter
 from metaflow._vendor import click
-from metaflow.cli import DynamicVarFileInput
+from metaflow.dynamic_var import DynamicVarFileInput
 from metaflow.decorators import add_decorator_options
 from metaflow.exception import MetaflowException
 from metaflow.flowspec import FlowStateItems

@@ -1,7 +1,8 @@
-from typing import Any, Dict, List, Optional, TYPE_CHECKING, Union
+import os
 
-if TYPE_CHECKING:
-    import metaflow.flowspec
+from metaflow._vendor import click
+
+from typing import Any, Dict, List, Optional, Union
 
 # Sentinel for "no default provided" — distinct from None which is a valid default.
 _NO_DEFAULT = object()
@@ -18,6 +19,32 @@ def set_dynamic_var_store(values: Dict[str, Any], split_index: Optional[int] = N
     global _resolved_store, _resolved_split_index
     _resolved_store = values
     _resolved_split_index = split_index
+
+
+class DynamicVarFileInput(click.Path):
+    """Click type that reads resolved dynamic var values from a pickle file.
+
+    This is kept in dynamic_var.py (rather than cli.py) so that class identity
+    is stable even when cli.py is reloaded by the Runner subprocess machinery.
+    """
+
+    name = "DynamicVarFileInput"
+
+    def convert(self, value, param, ctx):
+        import pickle
+
+        v = super().convert(value, param, ctx)
+        with open(v, "rb") as f:
+            payload = pickle.load(f)
+
+        values, split_index = payload
+
+        set_dynamic_var_store(values, split_index)
+        try:
+            os.remove(v)
+        except OSError:
+            pass
+        return v
 
 
 def resolve_dynamic_vars_from_store(attributes: Dict[str, Any]) -> Dict[str, Any]:
@@ -147,7 +174,7 @@ def collect_dynamic_var_names(val):
 
 def resolve_dynamic_vars(
     attributes: Union[Dict[str, Any], List[Any]],
-    source: "Union[Dict[str, Any], metaflow.flowspec.FlowSpec]",
+    source: Any,
     split_index: Optional[int] = None,
 ):
     """Recursively replace DynamicVar with resolved values.
