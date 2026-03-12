@@ -114,6 +114,9 @@ def test_load_blobs_uses_current_path_key_when_unpack_fails(tmp_path, monkeypatc
         raise ValueError("boom")
 
     monkeypatch.setattr(store, "_unpack_v1", _raise_unpack_error)
+    # Keep stale_key last on purpose:
+    # this ensures stale outer-loop `path` is `stale_path`, while the failing
+    # blob's actual `path_key` is `current_path`.
 
     with pytest.raises(DataException) as exc:
         list(store.load_blobs([current_key, stale_key]))
