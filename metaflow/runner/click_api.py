@@ -41,7 +41,7 @@ from metaflow._vendor.click.types import (
     Tuple,
     UUIDParameterType,
 )
-from metaflow.cli import DynamicVarFileInput
+from metaflow.dynamic_var import DynamicVarFileInput
 from metaflow.decorators import add_decorator_options
 from metaflow.exception import MetaflowException
 from metaflow.flowspec import FlowStateItems
