@@ -134,7 +134,7 @@ jobs:
           pip install "git+https://github.com/npow/localbatch.git@main#egg=localbatch"
 
       - name: Set up minikube
-        uses: medyagh/setup-minikube@aba8d5ff1666c72adf94ccd078b2ca12e7756382
+        uses: medyagh/setup-minikube@aba8d5ff1666d19b9549133e3b92e70d4fc52cb7
         with:
           driver: docker
           cpus: 2
