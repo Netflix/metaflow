@@ -11,11 +11,12 @@ class TimeoutEnforceFlow(FlowSpec):
     def start(self):
         self.next(self.slow)
 
-    @timeout(seconds=5)
+    @timeout(seconds=60)
     @step
     def slow(self):
-        # Sleep well beyond the 5-second timeout to guarantee enforcement.
-        time.sleep(120)
+        # Sleep well beyond the 60-second timeout to guarantee enforcement.
+        # Kubernetes requires at least 60s for @timeout.
+        time.sleep(300)
         self.next(self.end)
 
     @step
