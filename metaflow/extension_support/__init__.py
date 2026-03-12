@@ -5,6 +5,7 @@ import os
 import re
 import sys
 import types
+import warnings
 
 from collections import defaultdict, namedtuple
 
@@ -68,6 +69,7 @@ __all__ = (
     "extension_info",
     "update_package_info",
     "get_aliased_modules",
+    "get_promoted_aliases",
     "package_mfext_package",
     "package_mfext_all",
     "load_globals",
@@ -185,6 +187,17 @@ def get_aliased_modules():
     return _aliased_modules
 
 
+def get_promoted_aliases():
+    """Return a copy of the promoted alias tracking dictionary.
+
+    Returns a dict mapping each promoted alias (str) to a tuple of
+    ``(tl_package, target_module)`` where *tl_package* is the top-level
+    extension package that last successfully promoted the alias and
+    *target_module* is the fully-qualified module path it resolves to.
+    """
+    return dict(_promoted_aliases)
+
+
 def package_mfext_package(package_name):
     from metaflow.util import to_unicode
 
@@ -253,13 +266,14 @@ def alias_submodules(module, tl_package, extension_point, extra_indent=False):
     addl_modules = module.__dict__.get("__mf_promote_submodules__")
     if addl_modules:
         # We make an alias for these modules which the extension author wants to
-        # expose but since it may not already be loaded, we don't load it either
-
-        # TODO: This does not properly work for multiple packages that overwrite
-        # their submodule for example if EXT_PKG.X.datatools.Y is provided
-        # by two packages. For now, don't do this.
+        # expose but since it may not already be loaded, we don't load it either.
+        #
+        # When multiple packages promote the same alias, the last-loaded package
+        # wins (deterministic, based on the topological load order). A warning is
+        # emitted so that extension authors are aware of the conflict.
+        new_promotions = {}
         if extension_point is not None:
-            lazy_load_custom_modules.update(
+            new_promotions.update(
                 {
                     "metaflow.%s.%s"
                     % (extension_point, k): "%s.%s.%s.%s"
@@ -269,12 +283,44 @@ def alias_submodules(module, tl_package, extension_point, extra_indent=False):
             )
         else:
             # Top-level "metaflow" overrides
-            lazy_load_custom_modules.update(
+            new_promotions.update(
                 {
                     "metaflow.%s" % k: "%s.%s.%s" % (EXT_PKG, tl_package, k)
                     for k in addl_modules
                 }
             )
+
+        # Detect overlapping promotions from different packages
+        for alias, target in new_promotions.items():
+            prev = _promoted_aliases.get(alias)
+            if prev is not None:
+                prev_tl_package, prev_target = prev
+                if prev_tl_package != tl_package:
+                    warnings.warn(
+                        "Overlapping submodule promotion detected for alias "
+                        "'%s': package '%s' (target '%s') is overriding "
+                        "package '%s' (target '%s'). The last-loaded package "
+                        "wins. To silence this warning, ensure only one "
+                        "extension promotes this alias via "
+                        "__mf_promote_submodules__."
+                        % (alias, tl_package, target, prev_tl_package, prev_target),
+                        stacklevel=2,
+                    )
+                    _ext_debug(
+                        "%s    WARNING: Overlapping promotion for '%s': "
+                        "'%s' (from '%s') overrides '%s' (from '%s')"
+                        % (
+                            extra_indent,
+                            alias,
+                            target,
+                            tl_package,
+                            prev_target,
+                            prev_tl_package,
+                        )
+                    )
+            _promoted_aliases[alias] = (tl_package, target)
+
+        lazy_load_custom_modules.update(new_promotions)
         if lazy_load_custom_modules:
             _ext_debug(
                 "%s    Found explicit promotions in __mf_promote_submodules__: %s"
@@ -322,6 +368,10 @@ def multiload_all(modules, extension_point, dst_globals):
 
 _py_ver = sys.version_info[:2]
 _aliased_modules = []
+
+# Tracks which package promoted each alias so overlapping promotions can be
+# detected and warned about.  Mapping: alias -> (tl_package, target_module)
+_promoted_aliases = {}  # type: Dict[str, tuple]
 
 import importlib.util
 
