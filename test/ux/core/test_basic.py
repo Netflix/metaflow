@@ -150,6 +150,20 @@ def test_timeout(exec_mode, decospecs, compute_env, tag, scheduler_config):
     assert run["work"].task.data.done is True, "Timeout step did not complete"
 
 
+def test_hello_s3(exec_mode, decospecs, compute_env, tag, scheduler_config):
+    run = execute_test_flow(
+        flow_name="basic/hellos3.py",
+        exec_mode=exec_mode,
+        decospecs=decospecs,
+        tag=tag,
+        scheduler_config=scheduler_config,
+        test_name="hello_s3",
+        tl_args_extra={"env": compute_env},
+    )
+    assert run.successful, "Run was not successful"
+    assert run["start"].task.data.s3_verified, "S3 round-trip verification failed"
+
+
 @pytest.mark.conda
 def test_hello_conda(exec_mode, decospecs, compute_env, tag, scheduler_config):
     run = execute_test_flow(
