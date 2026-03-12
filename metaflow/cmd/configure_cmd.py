@@ -81,14 +81,46 @@ def get_env(profile):
 
 
 def persist_env(env_dict, profile):
-    # TODO: Should we persist empty env_dict or notify user differently?
     path = get_config_path(profile)
+
+    if not env_dict:
+        # Warn the user that saving an empty configuration will overwrite
+        # any existing settings, effectively resetting to a blank state.
+        echo(
+            "\nWarning: The configuration to be saved is empty. "
+            "Writing an empty configuration will overwrite any "
+            "existing settings in ",
+            nl=False,
+            fg="yellow",
+            bold=True,
+        )
+        echo('"%s"' % path, fg="cyan", nl=False)
+        echo(".", fg="yellow", bold=True)
+
+        # In non-interactive contexts (e.g. piped input, CI) abort by default
+        # to prevent accidental configuration loss.
+        if not sys.stdin.isatty():
+            echo(
+                "Aborting: refusing to write an empty configuration "
+                "in a non-interactive environment. Use an explicit "
+                "configuration or the 'reset' command instead.",
+                fg="red",
+                bold=True,
+            )
+            return False
+
+        if not click.confirm(
+            "Do you still want to save the empty configuration?"
+        ):
+            echo("Operation aborted. Configuration was not modified.", fg="green")
+            return False
 
     with open(path, "w") as f:
         json.dump(env_dict, f, indent=4, sort_keys=True)
 
     echo("\nConfiguration successfully written to ", nl=False, bold=True)
     echo('"%s"' % path, fg="cyan")
+    return True
 
 
 @configure.command(help="Reset configuration to disable cloud access.")
