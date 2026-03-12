@@ -58,6 +58,9 @@ def test_resume_hello_world(decospecs, compute_env, tag, scheduler_config):
         scheduler_type=sched_type,
     )
 
+    if not hasattr(deployed_flow, "resume"):
+        pytest.skip(f"{sched_type} deployer does not support resume")
+
     # First run: should succeed (should_fail defaults to False)
     run1 = wait_for_deployed_run(deployed_flow)
     assert run1.successful, "First run was not successful"
@@ -90,6 +93,9 @@ def test_resume_failed_flow(decospecs, compute_env, tag, scheduler_config):
         deploy_args={"tags": combined_tags, **(scheduler_config.deploy_args or {})},
         scheduler_type=sched_type,
     )
+
+    if not hasattr(deployed_flow, "resume"):
+        pytest.skip(f"{sched_type} deployer does not support resume")
 
     # First run: trigger with should_fail=True — process step will fail
     triggered = deployed_flow.trigger(should_fail=True)
@@ -130,6 +136,9 @@ def test_resume_step_to_rerun(decospecs, compute_env, tag, scheduler_config):
         deploy_args={"tags": combined_tags, **(scheduler_config.deploy_args or {})},
         scheduler_type=sched_type,
     )
+
+    if not hasattr(deployed_flow, "resume"):
+        pytest.skip(f"{sched_type} deployer does not support resume")
 
     # First run: succeed
     run1 = wait_for_deployed_run(deployed_flow)
