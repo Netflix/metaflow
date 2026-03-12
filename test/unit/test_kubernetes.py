@@ -3,10 +3,11 @@ from unittest.mock import MagicMock
 import pytest
 
 from metaflow.plugins.kubernetes.kube_utils import (
-    KubernetesException,
+    KubernetesException as KubeUtilsException,
     validate_kube_labels,
     parse_kube_keyvalue_list,
 )
+from metaflow.plugins.kubernetes.kubernetes import KubernetesException
 from metaflow.plugins.kubernetes.kubernetes_decorator import KubernetesDecorator
 
 
@@ -70,7 +71,7 @@ def test_kubernetes_decorator_validate_kube_labels(labels):
 )
 def test_kubernetes_decorator_validate_kube_labels_fail(labels):
     """Fail if label contains invalid characters or is too long"""
-    with pytest.raises(KubernetesException):
+    with pytest.raises(KubeUtilsException):
         validate_kube_labels(labels)
 
 
@@ -96,7 +97,7 @@ def test_kubernetes_parse_keyvalue_list(items, requires_both, expected):
     ],
 )
 def test_kubernetes_parse_keyvalue_list(items, requires_both):
-    with pytest.raises(KubernetesException):
+    with pytest.raises(KubeUtilsException):
         parse_kube_keyvalue_list(items, requires_both)
 
 
