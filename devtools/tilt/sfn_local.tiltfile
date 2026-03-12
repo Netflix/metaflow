@@ -50,8 +50,20 @@ def setup_sfn_local(ctx):
                             {'name': 'AWS_SECRET_ACCESS_KEY', 'value': 'test'},
                         ],
                         'resources': {
-                            'requests': {'cpu': '50m', 'memory': '256Mi'},
-                            'limits':   {'cpu': '200m', 'memory': '512Mi'},
+                            'requests': {'cpu': '100m', 'memory': '512Mi'},
+                            'limits':   {'cpu': '500m', 'memory': '1Gi'},
+                        },
+                        'livenessProbe': {
+                            'tcpSocket': {'port': 8083},
+                            'initialDelaySeconds': 10,
+                            'periodSeconds': 10,
+                            'failureThreshold': 3,
+                        },
+                        'readinessProbe': {
+                            'tcpSocket': {'port': 8083},
+                            'initialDelaySeconds': 5,
+                            'periodSeconds': 5,
+                            'failureThreshold': 3,
                         },
                     }],
                 },
