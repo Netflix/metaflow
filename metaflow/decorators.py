@@ -906,6 +906,34 @@ def _process_late_attached_decorator(
             if deco.name in deco_names:
                 deco.external_init()
 
+    # Re-run step mutators so they can see the late-attached decorators.
+    # This is needed because _init_step_decorators (which runs mutators) may
+    # have already executed before the late-attached decorators were added.
+    cls = flow.__class__
+    for step in cls._steps:
+        for deco in step.config_decorators:
+            if isinstance(deco, StepMutator):
+                inserted_by_value = [deco.decorator_name] + (
+                    deco.inserted_by or []
+                )
+                debug.userconf_exec(
+                    "Re-evaluating step level decorator %s for %s (mutate)"
+                    % (deco.__class__.__name__, step.name)
+                )
+                deco.mutate(
+                    MutableStep(
+                        cls,
+                        step,
+                        pre_mutate=False,
+                        statically_defined=deco.statically_defined,
+                        inserted_by=inserted_by_value,
+                    )
+                )
+
+    # Rebuild the graph so that node.decorators reflects any changes
+    # made by the mutators above (e.g. add_decorator with OVERRIDE).
+    cls._init_graph()
+
     for s in flow:
         for deco in s.decorators:
             if deco.name in deco_names:
