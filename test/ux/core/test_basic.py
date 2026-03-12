@@ -152,6 +152,10 @@ def test_timeout(exec_mode, decospecs, compute_env, tag, scheduler_config):
 
 @pytest.mark.conda
 def test_hello_conda(exec_mode, decospecs, compute_env, tag, scheduler_config):
+    sched_type = scheduler_config.scheduler_type
+    if sched_type and "step-functions" in sched_type:
+        pytest.skip("conda env resolution not supported on sfn-batch in CI")
+
     run = execute_test_flow(
         flow_name="basic/helloconda.py",
         exec_mode=exec_mode,
