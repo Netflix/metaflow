@@ -1,3 +1,5 @@
+from unittest.mock import patch
+
 import pytest
 
 from metaflow.system_context import (
@@ -5,7 +7,6 @@ from metaflow.system_context import (
     ExecutionPhase,
     _phase_from_cli_args,
     _TASK_COMMANDS,
-    _TRAMPOLINE_COMMANDS,
     system_context,
 )
 from metaflow.decorators import Decorator, StepDecorator, FlowDecorator
@@ -61,13 +62,21 @@ class TestPhaseFromCliArgs:
     def test_spin_step_is_task(self):
         assert _phase_from_cli_args(["spin-step"]) == ExecutionPhase.TASK
 
-    def test_batch_is_trampoline(self):
+    @patch(
+        "metaflow.plugins.get_trampoline_cli_names",
+        return_value=frozenset({"batch", "kubernetes"}),
+    )
+    def test_batch_is_trampoline(self, _mock):
         assert (
             _phase_from_cli_args(["batch", "step", "train"])
             == ExecutionPhase.TRAMPOLINE
         )
 
-    def test_kubernetes_is_trampoline(self):
+    @patch(
+        "metaflow.plugins.get_trampoline_cli_names",
+        return_value=frozenset({"batch", "kubernetes"}),
+    )
+    def test_kubernetes_is_trampoline(self, _mock):
         assert (
             _phase_from_cli_args(["kubernetes", "step", "train"])
             == ExecutionPhase.TRAMPOLINE

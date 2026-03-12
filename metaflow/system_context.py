@@ -37,10 +37,6 @@ class ExecutionPhase(Enum):
 # Commands that indicate the process is in the TASK phase.
 _TASK_COMMANDS = frozenset({"step", "init", "spin-step"})
 
-# Commands that indicate the process is in the TRAMPOLINE phase.
-# These are compute-backend CLI groups whose ``step`` subcommand
-# delegates to a remote system rather than executing user code directly.
-_TRAMPOLINE_COMMANDS = frozenset({"batch", "kubernetes"})
 
 if TYPE_CHECKING:
     from metaflow.datastore.flow_datastore import FlowDataStore
@@ -70,10 +66,12 @@ def _phase_from_cli_args(saved_args: Optional[List[str]]):
     if not saved_args:
         return ExecutionPhase.LAUNCH
 
+    from metaflow.plugins import get_trampoline_cli_names
+
     first_arg = saved_args[0]
     if first_arg in _TASK_COMMANDS:
         return ExecutionPhase.TASK
-    elif first_arg in _TRAMPOLINE_COMMANDS:
+    elif first_arg in get_trampoline_cli_names():
         return ExecutionPhase.TRAMPOLINE
     else:
         return ExecutionPhase.LAUNCH
