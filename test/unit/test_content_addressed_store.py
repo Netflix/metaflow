@@ -34,6 +34,8 @@ class _FakeStorageImpl(object):
         return "fake://" + path
 
     def load_bytes(self, paths):
+        expected_paths = [entry[0] for entry in self._entries]
+        assert paths == expected_paths, "unexpected paths: %s" % paths
         return _LoadedBytesContext(self._entries)
 
 
