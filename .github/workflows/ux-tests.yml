@@ -83,7 +83,8 @@ jobs:
 
       - name: Publish test results
         if: always()
-        uses: dorny/test-reporter@v1
+        continue-on-error: true
+        uses: dorny/test-reporter@d61b558e8df85cb60d09ca3e5b09653b4477cea7  # v1
         with:
           name: "Test Results — Unit"
           path: junit-unit.xml
@@ -133,7 +134,7 @@ jobs:
           pip install "git+https://github.com/npow/localbatch.git@main#egg=localbatch"
 
       - name: Set up minikube
-        uses: medyagh/setup-minikube@latest
+        uses: medyagh/setup-minikube@aba8d5ff1666c72adf94ccd078b2ca12e7756382
         with:
           driver: docker
           cpus: 2
@@ -151,21 +152,54 @@ jobs:
         if: steps.image-cache.outputs.cache-hit == 'true'
         run: devtools/ci/load-minikube-images.sh
 
-      - name: Cache Helm repos
+      - name: Cache Helm repos and charts
         uses: actions/cache@v4
         with:
-          path: ~/.cache/helm
-          key: helm-${{ hashFiles('devtools/Tiltfile') }}
-          restore-keys: helm-
+          path: |
+            ~/.cache/helm
+            ~/.local/share/tilt-dev/.helm
+          key: helm-charts-${{ matrix.backend }}-${{ hashFiles('devtools/Tiltfile', 'devtools/tilt/*.tiltfile') }}
+          restore-keys: |
+            helm-charts-${{ matrix.backend }}-
+            helm-charts-
 
       - name: Set up Helm
         uses: azure/setup-helm@v4
 
+      - name: Cache Tilt binary
+        id: tilt-cache
+        uses: actions/cache@v4
+        with:
+          path: /usr/local/bin/tilt
+          key: tilt-v0.33.11
+
       - name: Install Tilt
+        if: steps.tilt-cache.outputs.cache-hit != 'true'
         run: |
-          # Pin to the same version as devtools/Makefile to avoid extension API breaks
-          curl -fsSL https://raw.githubusercontent.com/tilt-dev/tilt/master/scripts/install.sh \
-            | VERSION=v0.33.11 bash
+          for attempt in 1 2 3; do
+            curl -fsSL https://raw.githubusercontent.com/tilt-dev/tilt/master/scripts/install.sh \
+              | VERSION=v0.33.11 bash && break
+            echo "Tilt install attempt $attempt failed, retrying in 10s..."
+            sleep 10
+          done
+          tilt version
+
+      - name: Pre-pull Helm repos (with retry)
+        run: |
+          retry() {
+            local cmd="$*" attempt=1
+            until $cmd; do
+              attempt=$((attempt + 1))
+              if [ $attempt -gt 3 ]; then echo "Failed after 3 attempts: $cmd"; return 1; fi
+              echo "Retry $attempt for: $cmd"
+              sleep $((attempt * 5))
+            done
+          }
+          retry helm repo add bitnami https://charts.bitnami.com/bitnami 2>/dev/null || true
+          retry helm repo add argo https://argoproj.github.io/argo-helm 2>/dev/null || true
+          retry helm repo add apache-airflow https://airflow.apache.org 2>/dev/null || true
+          retry helm repo add metaflow-tools https://outerbounds.github.io/metaflow-tools 2>/dev/null || true
+          retry helm repo update || true
 
       - name: Start devstack
         working-directory: devtools
@@ -248,7 +282,8 @@ jobs:
 
       - name: Publish test results
         if: always()
-        uses: dorny/test-reporter@v1
+        continue-on-error: true
+        uses: dorny/test-reporter@d61b558e8df85cb60d09ca3e5b09653b4477cea7  # v1
         with:
           name: "Test Results — ${{ matrix.backend }}"
           path: junit-${{ matrix.backend }}.xml
@@ -305,7 +340,8 @@ jobs:
           path: junit-artifacts/
 
       - name: Publish combined test results
-        uses: dorny/test-reporter@v1
+        continue-on-error: true
+        uses: dorny/test-reporter@d61b558e8df85cb60d09ca3e5b09653b4477cea7  # v1
         with:
           name: "Test Results — All Backends"
           path: "junit-artifacts/**/*.xml"
