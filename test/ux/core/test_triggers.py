@@ -1,3 +1,4 @@
+import os
 import uuid
 import pytest
 
@@ -9,6 +10,29 @@ from .test_utils import (
     verify_single_run,
     run_flow_with_env,
 )
+
+
+def _require_trigger_infra(scheduler_config):
+    """Skip if the backend lacks event/trigger infrastructure.
+
+    @trigger_on_finish requires:
+      - argo-kubernetes: Argo Events (sensor + eventsource CRDs)
+      - sfn-batch: EventBridge rules
+      - airflow-kubernetes: Airflow sensors
+    The devstack CI does not yet include these components.
+    """
+    sched_type = scheduler_config.scheduler_type
+    if sched_type is None:
+        pytest.skip("No scheduler configured")
+
+    if "argo" in sched_type:
+        webhook_url = os.environ.get("ARGO_EVENTS_WEBHOOK_URL", "")
+        if not webhook_url:
+            pytest.skip("Argo Events not configured (ARGO_EVENTS_WEBHOOK_URL unset)")
+    elif "step-functions" in sched_type:
+        pytest.skip("@trigger_on_finish not yet supported on sfn-batch in CI")
+    elif "airflow" in sched_type:
+        pytest.skip("@trigger_on_finish not yet supported on airflow in CI")
 
 
 def verify_param(expected, actual, param_name):
@@ -42,6 +66,7 @@ def verify_pathspec(expected, actual):
 
 def setup_test_deployment(test_name, exec_mode, decospecs, tag, scheduler_config):
     """Common test setup for deployment tests."""
+    _require_trigger_infra(scheduler_config)
     test_unique_tag = f"{test_name}_{exec_mode}"
     combined_tags = tag + [test_unique_tag]
     disp_test(exec_mode, decospecs, tag, scheduler_config)
