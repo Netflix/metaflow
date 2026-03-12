@@ -112,7 +112,7 @@ def persist_env(env_dict, profile):
         if not click.confirm(
             "Do you still want to save the empty configuration?", default=False
         ):
-            echo("Operation aborted. Configuration was not modified.", fg="green")
+            echo("Operation aborted. Configuration was not modified.", fg="yellow")
             return False
 
     with open(path, "w") as f:
