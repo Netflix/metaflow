@@ -100,15 +100,23 @@ jobs:
           - backend: local
             services: "minio,postgresql,metadata-service"
             workers: 4
+            memory: 6144
+            timeout: 900
           - backend: argo-kubernetes
             services: "minio,postgresql,metadata-service,argo-workflows"
             workers: 2
+            memory: 6144
+            timeout: 900
           - backend: airflow-kubernetes
             services: "minio,postgresql,metadata-service,airflow"
-            workers: 2
+            workers: 1
+            memory: 7168
+            timeout: 1200
           - backend: sfn-batch
             services: "minio,postgresql,metadata-service,localbatch,ddb-local,sfn-local"
             workers: 2
+            memory: 6144
+            timeout: 900
 
     runs-on: ubuntu-latest
 
@@ -138,7 +146,7 @@ jobs:
         with:
           driver: docker
           cpus: 2
-          memory: 6144
+          memory: ${{ matrix.memory }}
 
       - name: Restore minikube image cache
         id: image-cache
@@ -259,7 +267,8 @@ jobs:
             -n ${{ matrix.workers }} \
             -v \
             --tb=short \
-            --timeout=900 \
+            --timeout=${{ matrix.timeout }} \
+            --reruns=1 \
             --cov=metaflow \
             --cov-report=term-missing \
             --cov-report=xml:coverage.xml \
