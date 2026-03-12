@@ -500,6 +500,15 @@ CONDA_USE_FAST_INIT = from_conf("CONDA_USE_FAST_INIT", False)
 ESCAPE_HATCH_WARNING = from_conf("ESCAPE_HATCH_WARNING", True)
 
 ###
+# uv configuration
+###
+# Version of uv to download and use
+UV_VERSION = from_conf("UV_VERSION", "0.6.11")
+# Explicit URL to download uv from (overrides UV_VERSION if set)
+UV_INSTALL_URL = from_conf("UV_INSTALL_URL")
+
+
+###
 # Features
 ###
 FEAT_ALWAYS_UPLOAD_CODE_PACKAGE = from_conf("FEAT_ALWAYS_UPLOAD_CODE_PACKAGE", False)
