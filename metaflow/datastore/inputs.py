@@ -21,19 +21,19 @@ class Inputs(object):
         if not self.flows:
             return
 
-        foreach_stacks = []
+        stacks = {}
         for flow in self.flows:
             try:
                 stack = flow._datastore["_foreach_stack"]
                 if stack:
-                    foreach_stacks.append(stack)
+                    stacks[id(flow)] = stack
                 else:
                     return  # empty stack — not a foreach join
             except (KeyError, AttributeError):
                 return  # no foreach stack — not a foreach join
 
-        # Sort by the index of the topmost foreach frame
-        self.flows.sort(key=lambda f: f._datastore["_foreach_stack"][-1].index)
+        # Sort by the index of the topmost foreach frame, reusing already-fetched stacks
+        self.flows.sort(key=lambda f: stacks[id(f)][-1].index)
 
     def __getitem__(self, idx):
         return self.flows[idx]
