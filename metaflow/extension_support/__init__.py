@@ -307,7 +307,6 @@ def alias_submodules(module, tl_package, extension_point, extra_indent=False):
                         UserWarning,
                         stacklevel=2,
                     )
-                    )
                     _ext_debug(
                         "%s    WARNING: Overlapping promotion for '%s': "
                         "'%s' (from '%s') overrides '%s' (from '%s')"
