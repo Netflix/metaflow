@@ -304,7 +304,9 @@ def alias_submodules(module, tl_package, extension_point, extra_indent=False):
                         "extension promotes this alias via "
                         "__mf_promote_submodules__."
                         % (alias, tl_package, target, prev_tl_package, prev_target),
+                        UserWarning,
                         stacklevel=2,
+                    )
                     )
                     _ext_debug(
                         "%s    WARNING: Overlapping promotion for '%s': "
