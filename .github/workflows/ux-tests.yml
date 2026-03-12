@@ -102,10 +102,10 @@ jobs:
             workers: 4
           - backend: argo-kubernetes
             services: "minio,postgresql,metadata-service,argo-workflows"
-            workers: 1
+            workers: 2
           - backend: airflow-kubernetes
             services: "minio,postgresql,metadata-service,airflow"
-            workers: 1
+            workers: 2
           - backend: sfn-batch
             services: "minio,postgresql,metadata-service,localbatch,ddb-local,sfn-local"
             workers: 2
@@ -138,7 +138,7 @@ jobs:
         with:
           driver: docker
           cpus: 2
-          memory: 4096
+          memory: 6144
 
       - name: Restore minikube image cache
         id: image-cache
