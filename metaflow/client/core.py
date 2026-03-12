@@ -43,12 +43,7 @@ from .filecache import FileCache
 if TYPE_CHECKING:
     from metaflow.metadata_provider import MetadataProvider
 
-try:
-    # python2
-    import cPickle as pickle
-except:  # noqa E722
-    # python3
-    import pickle
+import pickle
 
 # populated at the bottom of this file
 _CLASSES = {}
