@@ -56,12 +56,12 @@ def test_load_blobs_uses_current_path_key_when_version_missing(tmp_path):
 
     file_path = _write_blob_file(tmp_path)
 
-    store = _make_store(
-        [
-            (current_path, file_path, {})
-        ]
-    )
+    store = _make_store([(current_path, file_path, {})])
 
+    # Keep stale_key last on purpose:
+    # the buggy code reuses the outer-loop `path`, which retains the path for
+    # the last key processed. `load_bytes()` returns only `current_path`, so
+    # this ordering makes stale `path` differ from current `path_key`.
     with pytest.raises(DataException) as exc:
         list(store.load_blobs([current_key, stale_key]))
 
@@ -81,11 +81,12 @@ def test_load_blobs_uses_current_path_key_for_unknown_encoding_version(tmp_path)
     file_path = _write_blob_file(tmp_path)
 
     store = _make_store(
-        [
-            (current_path, file_path, {"cas_version": 999, "cas_raw": False})
-        ]
+        [(current_path, file_path, {"cas_version": 999, "cas_raw": False})]
     )
 
+    # Keep stale_key last on purpose:
+    # the buggy code leaves `path` pointing at the last outer-loop key, while
+    # `path_key` comes from the current `load_bytes()` entry.
     with pytest.raises(DataException) as exc:
         list(store.load_blobs([current_key, stale_key]))
 
@@ -105,19 +106,17 @@ def test_load_blobs_uses_current_path_key_when_unpack_fails(tmp_path, monkeypatc
     file_path = _write_blob_file(tmp_path)
 
     store = _make_store(
-        [
-            (current_path, file_path, {"cas_version": 1, "cas_raw": False})
-        ]
+        [(current_path, file_path, {"cas_version": 1, "cas_raw": False})]
     )
 
     def _raise_unpack_error(_fileobj):
         raise ValueError("boom")
 
     monkeypatch.setattr(store, "_unpack_v1", _raise_unpack_error)
+
     # Keep stale_key last on purpose:
     # this ensures stale outer-loop `path` is `stale_path`, while the failing
     # blob's actual `path_key` is `current_path`.
-
     with pytest.raises(DataException) as exc:
         list(store.load_blobs([current_key, stale_key]))
 
