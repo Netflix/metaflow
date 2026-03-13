@@ -6,7 +6,12 @@ pytestmark = pytest.mark.config
 
 _FLOWS_DIR = os.path.join(os.path.dirname(__file__), "flows")
 
-from .test_utils import execute_test_flow, disp_test
+from .test_utils import (
+    execute_test_flow,
+    deploy_flow_to_scheduler,
+    wait_for_deployed_run,
+    disp_test,
+)
 
 
 def _run_config_flow(
@@ -304,3 +309,71 @@ def test_config_corner_cases(
     ), "config_from_env_2 incorrect"
     assert end_task.data.var1 == "1", "var1 incorrect"
     assert end_task.data.var2 == "2", "var2 incorrect"
+
+
+@pytest.mark.scheduler_only
+def test_config_from_deployment(
+    exec_mode, decospecs, compute_env, tag, scheduler_config, backend_name
+):
+    """Verify DeployedFlow.from_deployment() works with Config-based flows."""
+    from metaflow.runner.deployer import DeployedFlow
+
+    test_unique_tag = f"test_config_from_deployment_{backend_name}_{exec_mode}"
+    combined_tags = tag + [test_unique_tag]
+
+    scheduler_type = scheduler_config.scheduler_type
+    if scheduler_type is None:
+        pytest.skip("No scheduler configured")
+    impl = scheduler_type.replace("-", "_")
+
+    deployed_flow = deploy_flow_to_scheduler(
+        flow_name="config/hello_from_deployment_with_config.py",
+        tl_args={
+            "decospecs": decospecs,
+            "env": {
+                "METAFLOW_CLICK_API_PROCESS_CONFIG": "1",
+                **(compute_env or {}),
+            },
+        },
+        scheduler_args={"cluster": scheduler_config.cluster},
+        deploy_args={
+            "tags": combined_tags,
+            **(getattr(scheduler_config, "deploy_args", None) or {}),
+        },
+        scheduler_type=scheduler_type,
+    )
+
+    # First run
+    run1 = wait_for_deployed_run(deployed_flow)
+    assert run1.successful, "First run was not successful"
+    assert run1["start"].task.data.batch_size == 32, "batch_size incorrect"
+
+    # Recover via from_deployment and trigger a second run
+    deployment_id = deployed_flow.deployer.name
+    recovered = DeployedFlow.from_deployment(deployment_id, impl=impl)
+    run2 = wait_for_deployed_run(recovered)
+    assert run2.successful, "Run from recovered deployment was not successful"
+    assert run2["start"].task.data.batch_size == 32, "batch_size incorrect on recovery"
+
+
+@pytest.mark.conda
+def test_config_parser_flow_default(
+    exec_mode, decospecs, compute_env, tag, scheduler_config, backend_name
+):
+    """Verify Config with requirements_txt_parser sets up the pypi environment."""
+    run = _run_config_flow(
+        flow_name="config/config_parser.py",
+        exec_mode=exec_mode,
+        decospecs=decospecs,
+        compute_env=compute_env,
+        tag=tag,
+        scheduler_config=scheduler_config,
+        test_name=f"config_parser_flow_default_{backend_name}",
+        tl_args_extra={
+            "environment": "conda",
+            "package_suffixes": ".py,.txt",
+        },
+    )
+
+    assert run.successful, "Run was not successful"
+    assert run["start"].task.data.lib_version == "2024.11.6", "regex version incorrect"
