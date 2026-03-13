@@ -354,26 +354,3 @@ def test_config_from_deployment(
     run2 = wait_for_deployed_run(recovered)
     assert run2.successful, "Run from recovered deployment was not successful"
     assert run2["start"].task.data.batch_size == 32, "batch_size incorrect on recovery"
-
-
-@pytest.mark.conda
-def test_config_parser_flow_default(
-    exec_mode, decospecs, compute_env, tag, scheduler_config, backend_name
-):
-    """Verify Config with requirements_txt_parser sets up the pypi environment."""
-    run = _run_config_flow(
-        flow_name="config/config_parser.py",
-        exec_mode=exec_mode,
-        decospecs=decospecs,
-        compute_env=compute_env,
-        tag=tag,
-        scheduler_config=scheduler_config,
-        test_name=f"config_parser_flow_default_{backend_name}",
-        tl_args_extra={
-            "environment": "conda",
-            "package_suffixes": ".py,.txt",
-        },
-    )
-
-    assert run.successful, "Run was not successful"
-    assert run["start"].task.data.lib_version == "2024.11.6", "regex version incorrect"

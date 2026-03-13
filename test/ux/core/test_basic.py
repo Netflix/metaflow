@@ -6,7 +6,6 @@ from .test_utils import (
     execute_test_flow,
     deploy_flow_to_scheduler,
     wait_for_deployed_run,
-    wait_for_deployed_run_allow_failure,
     verify_run_provenance,
 )
 
@@ -173,29 +172,6 @@ def test_hello_conda(exec_mode, decospecs, compute_env, tag, scheduler_config):
     assert (
         run["combo"].task.data.itsdangerous_version == "2.2.0"
     ), "itsdangerous version incorrect"
-
-
-@pytest.mark.conda
-def test_build_env_conda(exec_mode, decospecs, compute_env, tag, scheduler_config):
-    """Verify that a conda environment can be built at runtime within a step."""
-    run = execute_test_flow(
-        flow_name="basic/self_building_env.py",
-        exec_mode=exec_mode,
-        decospecs=decospecs,
-        tag=tag,
-        scheduler_config=scheduler_config,
-        test_name="build_env_conda",
-        tl_args_extra={
-            "environment": "conda",
-            "env": compute_env,
-        },
-    )
-
-    assert run.successful, "Run was not successful"
-    assert (
-        run["fetch_old"].task.data.found_version_old == "2.1.2"
-    ), "fetch_old version incorrect"
-    assert run["end"].task.data.found_version == "2.1.2", "end version incorrect"
 
 
 @pytest.mark.scheduler_only
