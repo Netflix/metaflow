@@ -271,21 +271,25 @@ def verify_run_provenance(run: Run, decospecs: Any) -> None:
         )
 
 
-def send_event(scheduler_type, event_name, payload, scheduler_config):
+def send_event(event_name, payload=None, backend=None):
     """Send a trigger event to the appropriate orchestrator.
 
-    Each orchestrator branch adds its implementation here:
-    - Argo Events: POST to webhook (localhost:12000)
-    - Step Functions: EventBridge put_events or start_execution
-    - Airflow: POST to DAG trigger API
+    Delegates to metaflow.integrations.send_event() which discovers
+    providers via the plugin system.  Each provider's is_configured()
+    method checks for the required environment variables.
 
-    Raises NotImplementedError if the scheduler_type is not yet implemented.
-    Tests that call this catch NotImplementedError and skip gracefully.
+    Parameters
+    ----------
+    event_name : str
+        Event name (must match the @trigger event name on the deployed flow).
+    payload : dict, optional
+        Key-value pairs delivered with the event.
+    backend : str, optional
+        Override auto-detection (e.g. "argo-workflows", "step-functions").
     """
-    raise NotImplementedError(
-        f"send_event not implemented for {scheduler_type}. "
-        f"Add implementation on the appropriate devstack branch."
-    )
+    from metaflow.integrations import send_event as _send_event
+
+    return _send_event(event_name, payload=payload, backend=backend)
 
 
 def get_run_pathspecs(flow_name, tags, timeout=10, polling_interval=60):

@@ -35,9 +35,18 @@ class ArgoEvent(object):
         A set of key-value pairs delivered in this event. Used to set parameters of triggered flows.
     """
 
-    def __init__(
-        self, name, url=ARGO_EVENTS_WEBHOOK_URL, payload=None, access_token=None
-    ):
+    TYPE = "argo-workflows"
+
+    @classmethod
+    def is_configured(cls):
+        # Check the env var directly (not the module-level constant) so that
+        # env vars set after import are picked up.  Also fall back to the
+        # already-loaded config value for non-env-var configuration sources.
+        return bool(
+            os.environ.get("ARGO_EVENTS_WEBHOOK_URL") or ARGO_EVENTS_WEBHOOK_URL
+        )
+
+    def __init__(self, name, url=None, payload=None, access_token=None):
         # TODO: Introduce support for NATS
         if callable(name):
             name = name()
@@ -47,7 +56,10 @@ class ArgoEvent(object):
                     % type(name).__name__
                 )
         self._name = name
-        self._url = url
+        # Resolve URL: explicit arg > env var > config constant
+        self._url = (
+            url or os.environ.get("ARGO_EVENTS_WEBHOOK_URL") or ARGO_EVENTS_WEBHOOK_URL
+        )
         self._payload = payload or {}
         self._access_token = access_token
 

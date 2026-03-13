@@ -5,6 +5,7 @@ pytestmark = [pytest.mark.triggers, pytest.mark.scheduler_only]
 from .test_utils import (
     deploy_flow_to_scheduler,
     disp_test,
+    send_event,
     wait_for_deployed_run,
     verify_single_run,
     run_flow_with_env,
@@ -83,38 +84,27 @@ def deploy_trigger_flow(
     )
 
 
-def _require_argo_events(scheduler_config):
-    """Skip test if the backend does not support ArgoEvent (only Argo Workflows does)."""
-    sched_type = scheduler_config.scheduler_type
-    if sched_type != "argo-workflows":
-        pytest.skip(
-            f"ArgoEvent.publish() requires argo-workflows backend, "
-            f"got '{sched_type}'"
-        )
+def _require_event_provider(scheduler_config):
+    """Skip test if no event provider is configured for the current backend."""
+    from metaflow.plugins import EVENT_PROVIDERS
 
-    from metaflow.metaflow_config import ARGO_EVENTS_WEBHOOK_URL
-
-    if not ARGO_EVENTS_WEBHOOK_URL:
-        pytest.skip("ARGO_EVENTS_WEBHOOK_URL is not configured")
-
-
-def send_trigger_event(signal_name, params):
-    """Send a trigger event via ArgoEvent.publish().
-
-    This is the OSS equivalent of the internal send_signals() helper.
-    """
-    from metaflow.integrations import ArgoEvent
-
-    ArgoEvent(name=signal_name).publish(payload=params)
+    for provider_class in EVENT_PROVIDERS:
+        if hasattr(provider_class, "is_configured") and provider_class.is_configured():
+            return  # At least one provider is ready
+    pytest.skip(
+        "No event provider is configured for the current environment "
+        "(need ARGO_EVENTS_WEBHOOK_URL, METAFLOW_SFN_IAM_ROLE, or "
+        "METAFLOW_AIRFLOW_WEBSERVER_URL)"
+    )
 
 
 def send_trigger_signals(signals_data):
-    """Send multiple trigger signals.
+    """Send multiple trigger signals via the plugin-based send_event().
 
     signals_data: list of tuples (signal_name, params_dict)
     """
     for signal_name, params in signals_data:
-        send_trigger_event(signal_name, params)
+        send_event(signal_name, payload=params)
 
 
 def generate_test_params(*param_names):
@@ -133,12 +123,12 @@ def verify_params_batch(all_data, expected_params):
 
 
 # ---------------------------------------------------------------------------
-# Phase 2: @trigger tests (ArgoEvent-based)
+# Phase 2: @trigger tests (backend-agnostic via send_event plugin system)
 # ---------------------------------------------------------------------------
 
 
 def test_static_triggers(exec_mode, decospecs, compute_env, tag, scheduler_config):
-    _require_argo_events(scheduler_config)
+    _require_event_provider(scheduler_config)
 
     # Setup
     combined_tags = setup_test_deployment(
@@ -190,7 +180,7 @@ def test_static_triggers(exec_mode, decospecs, compute_env, tag, scheduler_confi
 def test_deploy_time_trigger_toplevel_list(
     exec_mode, decospecs, compute_env, tag, scheduler_config
 ):
-    _require_argo_events(scheduler_config)
+    _require_event_provider(scheduler_config)
 
     # Setup
     combined_tags = setup_test_deployment(
@@ -246,7 +236,7 @@ def test_deploy_time_trigger_toplevel_list(
 def test_deploy_time_trigger_toplevel_name(
     exec_mode, decospecs, compute_env, tag, scheduler_config
 ):
-    _require_argo_events(scheduler_config)
+    _require_event_provider(scheduler_config)
 
     # Setup
     combined_tags = setup_test_deployment(
@@ -299,7 +289,7 @@ def test_deploy_time_trigger_toplevel_name(
 def test_deploy_time_trigger_events_nested(
     exec_mode, decospecs, compute_env, tag, scheduler_config
 ):
-    _require_argo_events(scheduler_config)
+    _require_event_provider(scheduler_config)
 
     # Setup
     combined_tags = setup_test_deployment(
@@ -364,7 +354,7 @@ def test_deploy_time_trigger_events_nested(
 def test_deploy_time_trigger_event_nested(
     exec_mode, decospecs, compute_env, tag, scheduler_config
 ):
-    _require_argo_events(scheduler_config)
+    _require_event_provider(scheduler_config)
 
     # Setup
     combined_tags = setup_test_deployment(

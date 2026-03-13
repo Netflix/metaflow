@@ -172,6 +172,12 @@ DEPLOYER_IMPL_PROVIDERS_DESC = [
     ("airflow", ".airflow.airflow_deployer.AirflowDeployer"),
 ]
 
+EVENT_PROVIDERS_DESC = [
+    ("argo-workflows", ".argo.argo_events.ArgoEvent"),
+    ("step-functions", ".aws.step_functions.sfn_event.SFNEvent"),
+    ("airflow", ".airflow.airflow_event.AirflowEvent"),
+]
+
 TL_PLUGINS_DESC = [
     ("yaml_parser", ".parsers.yaml_parser"),
     ("requirements_txt_parser", ".pypi.parsers.requirements_txt_parser"),
@@ -219,6 +225,8 @@ GCP_CLIENT_PROVIDERS = resolve_plugins("gcp_client_provider")
 
 if sys.version_info >= (3, 7):
     DEPLOYER_IMPL_PROVIDERS = resolve_plugins("deployer_impl_provider")
+
+EVENT_PROVIDERS = resolve_plugins("event_provider")
 
 TL_PLUGINS = resolve_plugins("tl_plugin")
 

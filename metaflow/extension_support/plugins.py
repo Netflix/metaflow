@@ -189,6 +189,7 @@ _plugin_categories = {
     "secrets_provider": lambda x: x.TYPE,
     "gcp_client_provider": lambda x: x.name,
     "deployer_impl_provider": lambda x: x.TYPE,
+    "event_provider": lambda x: x.TYPE,
     "azure_client_provider": lambda x: x.name,
     "sidecar": None,
     "logging_sidecar": None,
