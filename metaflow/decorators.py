@@ -944,6 +944,13 @@ def _process_late_attached_decorator(
         cls._init_graph()
         graph = flow._graph
 
+        # Ensure any replacement decorators created by add_decorator(OVERRIDE)
+        # have external_init() called before step_init().
+        for s in flow:
+            for deco in s.decorators:
+                if deco.name in deco_names and not deco._ran_init:
+                    deco.external_init()
+
     for s in flow:
         for deco in s.decorators:
             if deco.name in deco_names:
