@@ -249,6 +249,7 @@ class Kubernetes(object):
             .environment_variable("METAFLOW_DEFAULT_DATASTORE", self._datastore.TYPE)
             .environment_variable("METAFLOW_DEFAULT_METADATA", DEFAULT_METADATA)
             .environment_variable("METAFLOW_KUBERNETES_WORKLOAD", 1)
+            .environment_variable("METAFLOW_KUBERNETES_CONTAINER_IMAGE", docker_image)
             .environment_variable(
                 "METAFLOW_KUBERNETES_FETCH_EC2_METADATA", KUBERNETES_FETCH_EC2_METADATA
             )
@@ -560,6 +561,7 @@ class Kubernetes(object):
             .environment_variable("METAFLOW_DEFAULT_DATASTORE", self._datastore.TYPE)
             .environment_variable("METAFLOW_DEFAULT_METADATA", DEFAULT_METADATA)
             .environment_variable("METAFLOW_KUBERNETES_WORKLOAD", 1)
+            .environment_variable("METAFLOW_KUBERNETES_CONTAINER_IMAGE", docker_image)
             .environment_variable(
                 "METAFLOW_KUBERNETES_FETCH_EC2_METADATA", KUBERNETES_FETCH_EC2_METADATA
             )
