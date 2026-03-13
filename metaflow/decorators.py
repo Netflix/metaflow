@@ -901,16 +901,22 @@ def _process_late_attached_decorator(
     skip_decorators=False,
 ):
 
+    # Collect steps that received a late-attached decorator so we only
+    # re-run mutators on those steps (avoids breaking non-idempotent mutators).
+    late_attached_step_names = set()
     for s in flow:
         for deco in s.decorators:
             if deco.name in deco_names:
                 deco.external_init()
+                late_attached_step_names.add(s.__name__)
 
     # Re-run step mutators so they can see the late-attached decorators.
     # This is needed because _init_step_decorators (which runs mutators) may
     # have already executed before the late-attached decorators were added.
     cls = flow.__class__
     for step in cls._steps:
+        if step.name not in late_attached_step_names:
+            continue
         for deco in step.config_decorators:
             if isinstance(deco, StepMutator):
                 inserted_by_value = [deco.decorator_name] + (
@@ -933,6 +939,7 @@ def _process_late_attached_decorator(
     # Rebuild the graph so that node.decorators reflects any changes
     # made by the mutators above (e.g. add_decorator with OVERRIDE).
     cls._init_graph()
+    graph = flow._graph
 
     for s in flow:
         for deco in s.decorators:

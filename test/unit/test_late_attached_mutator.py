@@ -162,14 +162,36 @@ def test_process_late_attached_preserves_defaults_without_mutator():
         def end(self):
             pass
 
+    start_step = TestFlow.start
     end_step = TestFlow.end
 
-    # Late-attach @kubernetes to end step (no mutator on end).
+    # Initialize mutators on start step.
+    for deco in start_step.config_decorators:
+        if isinstance(deco, StepMutator):
+            deco.external_init()
+
+    # Late-attach @kubernetes to both steps.
+    decorators._attach_decorators_to_step(
+        start_step, [KubernetesDecorator.name]
+    )
     decorators._attach_decorators_to_step(
         end_step, [KubernetesDecorator.name]
     )
 
-    # Verify defaults are preserved.
+    # Run _process_late_attached_decorator (exercises the new code path).
+    mock_flow = _MockFlow(TestFlow, [start_step, end_step])
+    mock_datastore = MagicMock()
+    mock_datastore.TYPE = "gs"
+    decorators._process_late_attached_decorator(
+        [KubernetesDecorator.name],
+        mock_flow,
+        TestFlow._graph,
+        environment=None,
+        flow_datastore=mock_datastore,
+        logger=MagicMock(),
+    )
+
+    # Verify defaults are preserved on end step (no mutator).
     k8s_decos = [d for d in end_step.decorators if d.name == "kubernetes"]
     assert len(k8s_decos) == 1
     assert str(k8s_decos[0].attributes["cpu"]) == "1"
