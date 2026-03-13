@@ -55,6 +55,7 @@ STEP_DECORATORS_DESC = [
     ("airflow_internal", ".airflow.airflow_decorator.AirflowInternalDecorator"),
     ("pypi", ".pypi.pypi_decorator.PyPIStepDecorator"),
     ("conda", ".pypi.conda_decorator.CondaStepDecorator"),
+    ("huggingface", ".huggingface.huggingface_decorator.HuggingFaceDecorator"),
 ]
 
 # Add new flow decorators here
@@ -139,6 +140,11 @@ SENSOR_FLOW_DECORATORS = [
 
 FLOW_DECORATORS_DESC += SENSOR_FLOW_DECORATORS
 
+# HuggingFace decorator: auth providers (Part 1)
+HF_AUTH_PROVIDERS_DESC = [
+    ("env", ".huggingface.env_auth_provider.EnvHuggingFaceAuthProvider"),
+]
+
 SECRETS_PROVIDERS_DESC = [
     ("inline", ".secrets.inline_secrets_provider.InlineSecretsProvider"),
     (
@@ -213,6 +219,7 @@ SIDECARS.update(MONITOR_SIDECARS)
 
 AWS_CLIENT_PROVIDERS = resolve_plugins("aws_client_provider")
 SECRETS_PROVIDERS = resolve_plugins("secrets_provider")
+HF_AUTH_PROVIDERS = resolve_plugins("hf_auth_provider")
 AZURE_CLIENT_PROVIDERS = resolve_plugins("azure_client_provider")
 GCP_CLIENT_PROVIDERS = resolve_plugins("gcp_client_provider")
 
