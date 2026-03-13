@@ -1,3 +1,4 @@
+import os
 import signal
 import traceback
 
@@ -5,6 +6,8 @@ from metaflow.exception import MetaflowException
 from metaflow.decorators import StepDecorator
 from metaflow.unbounded_foreach import UBF_CONTROL
 from metaflow.metaflow_config import DEFAULT_RUNTIME_LIMIT
+
+_THIS_FILE = os.path.basename(__file__)
 
 
 class TimeoutException(MetaflowException):
@@ -81,7 +84,7 @@ class TimeoutDecorator(StepDecorator):
     def _sigalrm_handler(self, signum, frame):
         def pretty_print_stack():
             for line in traceback.format_stack():
-                if "timeout_decorators.py" not in line:
+                if _THIS_FILE not in line:
                     for part in line.splitlines():
                         yield ">  %s" % part
 
