@@ -913,6 +913,7 @@ def _process_late_attached_decorator(
     # Re-run step mutators so they can see the late-attached decorators.
     # This is needed because _init_step_decorators (which runs mutators) may
     # have already executed before the late-attached decorators were added.
+    mutators_ran = False
     cls = flow.__class__
     for step in cls._steps:
         if step.name not in late_attached_step_names:
@@ -935,10 +936,11 @@ def _process_late_attached_decorator(
                         inserted_by=inserted_by_value,
                     )
                 )
+                mutators_ran = True
 
     # Rebuild the graph so that node.decorators reflects any changes
     # made by the mutators above (e.g. add_decorator with OVERRIDE).
-    if late_attached_step_names:
+    if mutators_ran:
         cls._init_graph()
         graph = flow._graph
 

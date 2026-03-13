@@ -190,6 +190,12 @@ def test_process_late_attached_preserves_defaults_without_mutator():
         logger=MagicMock(),
     )
 
+    # Verify start step @kubernetes was overridden by the mutator.
+    start_k8s = [d for d in start_step.decorators if d.name == "kubernetes"]
+    assert len(start_k8s) == 1
+    assert str(start_k8s[0].attributes["cpu"]) == "4"
+    assert str(start_k8s[0].attributes["memory"]) == "16384"
+
     # Verify defaults are preserved on end step (no mutator).
     k8s_decos = [d for d in end_step.decorators if d.name == "kubernetes"]
     assert len(k8s_decos) == 1
