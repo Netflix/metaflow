@@ -1,18 +1,14 @@
 import json
 import os
-import sys
-import time
-import uuid
-from datetime import datetime
 
-from metaflow.exception import MetaflowException
+from metaflow.event_provider import MetaflowEvent, MetaflowEventException
 
 
-class SFNEventException(MetaflowException):
+class SFNEventException(MetaflowEventException):
     headline = "SFN Event Exception"
 
 
-class SFNEvent(object):
+class SFNEvent(MetaflowEvent):
     """
     SFNEvent sends a trigger event via AWS EventBridge to start Step Functions
     workflows deployed with @trigger.
@@ -27,6 +23,7 @@ class SFNEvent(object):
     """
 
     TYPE = "step-functions"
+    LABEL = "SFN Event"
 
     @classmethod
     def is_configured(cls):
@@ -35,76 +32,32 @@ class SFNEvent(object):
             or os.environ.get("METAFLOW_SFN_STATE_MACHINE_PREFIX")
         )
 
-    def __init__(self, name, payload=None):
-        self._name = name
-        self._payload = payload or {}
+    def _do_publish(self, payload):
+        import boto3
 
-    def add_to_payload(self, key, value):
-        """Add a key-value pair to the event payload."""
-        self._payload[key] = str(value)
-        return self
+        event_bus = os.environ.get("METAFLOW_SFN_EVENT_BUS_ARN", "default")
+        event_payload = self._build_payload(payload)
+        event_id = event_payload["id"]
 
-    def publish(self, payload=None, ignore_errors=True):
-        """
-        Publish an event to EventBridge that will trigger any Step Functions
-        workflow listening for this event name.
+        client = boto3.client("events")
+        response = client.put_events(
+            Entries=[
+                {
+                    "Source": "metaflow",
+                    "DetailType": self._name,
+                    "Detail": json.dumps(event_payload),
+                    "EventBusName": event_bus,
+                }
+            ]
+        )
 
-        Parameters
-        ----------
-        payload : dict, optional
-            Additional key-value pairs to merge into the payload.
-        ignore_errors : bool, default True
-            If True, errors are silently ignored.
-
-        Returns
-        -------
-        str or None
-            The event ID if published successfully, None otherwise.
-        """
-        if payload is None:
-            payload = {}
-
-        try:
-            import boto3
-
-            event_bus = os.environ.get("METAFLOW_SFN_EVENT_BUS_ARN", "default")
-
-            event_id = str(uuid.uuid4())
-            event_payload = {
-                "name": self._name,
-                "id": event_id,
-                "timestamp": int(time.time()),
-                "utc_date": datetime.utcnow().strftime("%Y%m%d"),
-                "generated-by-metaflow": True,
-                **self._payload,
-                **payload,
-            }
-
-            client = boto3.client("events")
-            response = client.put_events(
-                Entries=[
-                    {
-                        "Source": "metaflow",
-                        "DetailType": self._name,
-                        "Detail": json.dumps(event_payload),
-                        "EventBusName": event_bus,
-                    }
-                ]
+        if response.get("FailedEntryCount", 0) > 0:
+            err = response["Entries"][0].get("ErrorMessage", "Unknown error")
+            raise SFNEventException(
+                "Failed to publish event %s: %s" % (self._name, err)
             )
 
-            if response.get("FailedEntryCount", 0) > 0:
-                err = response["Entries"][0].get("ErrorMessage", "Unknown error")
-                raise SFNEventException(
-                    "Failed to publish event %s: %s" % (self._name, err)
-                )
+        return event_id
 
-            print("SFN Event (%s) published." % self._name, file=sys.stderr)
-            return event_id
-
-        except Exception as e:
-            msg = "Unable to publish SFN Event (%s): %s" % (self._name, e)
-            if ignore_errors:
-                print(msg, file=sys.stderr)
-                return None
-            else:
-                raise SFNEventException(msg)
+    def _make_exception(self, msg):
+        return SFNEventException(msg)

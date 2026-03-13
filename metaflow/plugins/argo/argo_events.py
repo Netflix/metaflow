@@ -4,9 +4,8 @@ import sys
 import time
 import urllib
 import uuid
-from datetime import datetime
 
-from metaflow.exception import MetaflowException
+from metaflow.event_provider import MetaflowEvent, MetaflowEventException
 from metaflow.metaflow_config import (
     ARGO_EVENTS_WEBHOOK_AUTH,
     ARGO_EVENTS_WEBHOOK_URL,
@@ -15,11 +14,11 @@ from metaflow.metaflow_config import (
 )
 
 
-class ArgoEventException(MetaflowException):
+class ArgoEventException(MetaflowEventException):
     headline = "Argo Event Exception"
 
 
-class ArgoEvent(object):
+class ArgoEvent(MetaflowEvent):
     """
     ArgoEvent is a small event, a message, that can be published to Argo Workflows. The
     event will eventually start all flows which have been previously deployed with `@trigger`
@@ -36,6 +35,7 @@ class ArgoEvent(object):
     """
 
     TYPE = "argo-workflows"
+    LABEL = "Argo Event"
 
     @classmethod
     def is_configured(cls):
@@ -55,30 +55,12 @@ class ArgoEvent(object):
                     "Callable for 'name' must return a string, got %s"
                     % type(name).__name__
                 )
-        self._name = name
+        super().__init__(name, payload=payload)
         # Resolve URL: explicit arg > env var > config constant
         self._url = (
             url or os.environ.get("ARGO_EVENTS_WEBHOOK_URL") or ARGO_EVENTS_WEBHOOK_URL
         )
-        self._payload = payload or {}
         self._access_token = access_token
-
-    def add_to_payload(self, key, value):
-        """
-        Add a key-value pair in the payload. This is typically used to set parameters
-        of triggered flows. Often, `key` is the parameter name you want to set to
-        `value`. Overrides any existing value of `key`.
-
-        Parameters
-        ----------
-        key : str
-            Key
-        value : str
-            Value
-        """
-
-        self._payload[key] = str(value)
-        return self
 
     def safe_publish(self, payload=None, ignore_errors=True):
         """
@@ -99,6 +81,39 @@ class ArgoEvent(object):
 
         return self.publish(payload=payload, force=False, ignore_errors=ignore_errors)
 
+    def _do_publish(self, payload):
+        headers = {}
+        if self._access_token:
+            # TODO: Test with bearer tokens
+            headers = {"Authorization": "Bearer {}".format(self._access_token)}
+        if ARGO_EVENTS_WEBHOOK_AUTH == "service":
+            headers.update(SERVICE_HEADERS)
+
+        # Argo wraps the payload in a {"name": ..., "payload": {...}} envelope
+        data = {
+            "name": self._name,
+            "payload": self._build_payload(payload),
+        }
+        request = urllib.request.Request(
+            self._url,
+            method="POST",
+            headers={"Content-Type": "application/json", **headers},
+            data=json.dumps(data).encode("utf-8"),
+        )
+
+        for i in range(SERVICE_RETRY_COUNT):
+            try:
+                urllib.request.urlopen(request, timeout=60)
+                return data["payload"]["id"]
+            except urllib.error.HTTPError as e:
+                # TODO: Retry retryable HTTP error codes
+                raise e
+            except urllib.error.URLError as e:
+                if i == SERVICE_RETRY_COUNT - 1:
+                    raise e
+                else:
+                    time.sleep(2**i)
+
     def publish(self, payload=None, force=True, ignore_errors=True):
         """
         Publishes an event.
@@ -110,66 +125,16 @@ class ArgoEvent(object):
         ----------
         payload : dict
             Additional key-value pairs to add to the payload.
+        force : bool, default True
+            If False, only publishes when running inside an Argo Workflow.
         ignore_errors : bool, default True
             If True, events are created on a best effort basis - errors are silently ignored.
         """
-
-        if payload == None:
+        if payload is None:
             payload = {}
         # Publish event iff forced or running on Argo Workflows
         if force or os.environ.get("ARGO_WORKFLOW_TEMPLATE"):
-            try:
-                headers = {}
-                if self._access_token:
-                    # TODO: Test with bearer tokens
-                    headers = {"Authorization": "Bearer {}".format(self._access_token)}
-                if ARGO_EVENTS_WEBHOOK_AUTH == "service":
-                    headers.update(SERVICE_HEADERS)
-                # TODO: do we need to worry about certs?
-
-                # Use urllib to avoid introducing any dependency in Metaflow
-                data = {
-                    "name": self._name,
-                    "payload": {
-                        # Add default fields here...
-                        "name": self._name,
-                        "id": str(uuid.uuid4()),
-                        "timestamp": int(time.time()),
-                        "utc_date": datetime.utcnow().strftime("%Y%m%d"),
-                        "generated-by-metaflow": True,
-                        **self._payload,
-                        **payload,
-                    },
-                }
-                request = urllib.request.Request(
-                    self._url,
-                    method="POST",
-                    headers={"Content-Type": "application/json", **headers},
-                    data=json.dumps(data).encode("utf-8"),
-                )
-
-                for i in range(SERVICE_RETRY_COUNT):
-                    try:
-                        # we do not want to wait indefinitely for a response on the event broadcast, as this will keep the task running.
-                        urllib.request.urlopen(request, timeout=60)
-                        print(
-                            "Argo Event (%s) published." % self._name, file=sys.stderr
-                        )
-                        return data["payload"]["id"]
-                    except urllib.error.HTTPError as e:
-                        # TODO: Retry retryable HTTP error codes
-                        raise e
-                    except urllib.error.URLError as e:
-                        if i == SERVICE_RETRY_COUNT - 1:
-                            raise e
-                        else:
-                            time.sleep(2**i)
-            except Exception as e:
-                msg = "Unable to publish Argo Event (%s): %s" % (self._name, e)
-                if ignore_errors:
-                    print(msg, file=sys.stderr)
-                else:
-                    raise ArgoEventException(msg)
+            return super().publish(payload=payload, ignore_errors=ignore_errors)
         else:
             msg = (
                 "Argo Event (%s) was not published. Use "
@@ -181,3 +146,6 @@ class ArgoEvent(object):
                 print(msg, file=sys.stderr)
             else:
                 raise ArgoEventException(msg)
+
+    def _make_exception(self, msg):
+        return ArgoEventException(msg)
