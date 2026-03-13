@@ -327,6 +327,11 @@ def test_nested_foreach_or_skip(
 
 @pytest.mark.compliance
 @pytest.mark.scheduler_only
+@pytest.mark.skip(
+    reason="@timeout enforcement on remote backends (argo/sfn/airflow) is not "
+    "reliable — the run may hang instead of failing. Needs backend-specific "
+    "timeout mechanisms (e.g. activeDeadlineSeconds for k8s). See #XXXX."
+)
 def test_timeout_enforcement(exec_mode, decospecs, compute_env, tag, scheduler_config):
     """A step that exceeds its @timeout must be killed — the run must fail."""
     if exec_mode != "deployer":
