@@ -938,8 +938,9 @@ def _process_late_attached_decorator(
 
     # Rebuild the graph so that node.decorators reflects any changes
     # made by the mutators above (e.g. add_decorator with OVERRIDE).
-    cls._init_graph()
-    graph = flow._graph
+    if late_attached_step_names:
+        cls._init_graph()
+        graph = flow._graph
 
     for s in flow:
         for deco in s.decorators:

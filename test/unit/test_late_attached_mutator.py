@@ -11,10 +11,15 @@ Regression test for the ordering change introduced in 2.19.14 (PR #2719).
 
 from unittest.mock import MagicMock
 
+import pytest
+
 from metaflow import FlowSpec, StepMutator, step
-from metaflow.plugins.kubernetes.kubernetes_decorator import KubernetesDecorator
 from metaflow.user_decorators.mutable_step import MutableStep
 from metaflow import decorators
+
+KubernetesDecorator = pytest.importorskip(
+    "metaflow.plugins.kubernetes.kubernetes_decorator"
+).KubernetesDecorator
 
 
 class kubernetes_override(StepMutator):
