@@ -28,4 +28,3 @@ message("Playlist for movies in genre: ", run$artifact("genre"))
 playlist <- run$artifact("playlist")
 print(head(playlist))
 ```
-
