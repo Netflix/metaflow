@@ -455,8 +455,8 @@ def start(
         ):
             param_ds = d
 
-        # We can now set the the CONFIGS value in the flow properly. This will overwrite
-        # anything that may have been passed in by default and we will use exactly what
+        # We can now set the CONFIGS value in the flow properly. This will overwrite
+        # anything that may have been passed in by default, and we will use exactly what
         # the original flow had. Note that these are accessed through the parameter name
         # We need to save the "plain-ness" flag to carry it over
         config_plain_flags = {
@@ -475,8 +475,16 @@ def start(
         raise ctx.obj.delayed_config_exception
 
     # Init all values in the flow mutators and then process them
-    for decorator in ctx.obj.flow._flow_mutators:
-        decorator.external_init()
+    for mutator in ctx.obj.flow._flow_mutators:
+        mutator.external_init()
+
+    # Initialize mutators with top-level options
+    for mutator in ctx.obj.flow._flow_mutators:
+        mutator_options = {
+            option: deco_options.get(option.replace("-", "_"), option_info["default"])
+            for option, option_info in mutator.options.items()
+        }
+        mutator.flow_init_options(mutator_options)
 
     new_cls = ctx.obj.flow._process_config_decorators(config_options)
     if new_cls:
