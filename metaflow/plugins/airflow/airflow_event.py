@@ -1,4 +1,6 @@
+import base64
 import json
+import os
 import sys
 import time
 import urllib
@@ -31,13 +33,9 @@ class AirflowEvent(object):
 
     @classmethod
     def is_configured(cls):
-        import os
-
         return bool(os.environ.get("METAFLOW_AIRFLOW_WEBSERVER_URL"))
 
     def __init__(self, name, url=None, payload=None):
-        import os
-
         self._name = name
         self._url = url or os.environ.get(
             "METAFLOW_AIRFLOW_WEBSERVER_URL", "http://localhost:8080"
@@ -89,10 +87,20 @@ class AirflowEvent(object):
             )
             data = json.dumps({"dag_run_id": dag_run_id, "conf": conf}).encode("utf-8")
 
+            headers = {"Content-Type": "application/json"}
+            # Support basic auth via env vars
+            username = os.environ.get("METAFLOW_AIRFLOW_REST_API_USERNAME")
+            password = os.environ.get("METAFLOW_AIRFLOW_REST_API_PASSWORD")
+            if username and password:
+                credentials = base64.b64encode(
+                    ("%s:%s" % (username, password)).encode("utf-8")
+                ).decode("utf-8")
+                headers["Authorization"] = "Basic %s" % credentials
+
             request = urllib.request.Request(
                 api_url,
                 method="POST",
-                headers={"Content-Type": "application/json"},
+                headers=headers,
                 data=data,
             )
 

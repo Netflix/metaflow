@@ -30,8 +30,6 @@ class SFNEvent(object):
 
     @classmethod
     def is_configured(cls):
-        import os
-
         return bool(
             os.environ.get("METAFLOW_SFN_IAM_ROLE")
             or os.environ.get("METAFLOW_SFN_STATE_MACHINE_PREFIX")

@@ -6,9 +6,7 @@ from .test_utils import (
     deploy_flow_to_scheduler,
     disp_test,
     send_event,
-    wait_for_deployed_run,
     verify_single_run,
-    run_flow_with_env,
 )
 
 
@@ -33,12 +31,6 @@ def verify_event_names_set(expected_set, actual_set):
         raise RuntimeError(
             f"Expecting triggers to be '{expected_set}' but got '{actual_set}'"
         )
-
-
-def verify_pathspec(expected, actual):
-    """Verify event id/pathspec matches expected."""
-    if actual != expected:
-        raise RuntimeError(f"Expecting event id to be '{expected}', but got '{actual}'")
 
 
 def setup_test_deployment(test_name, exec_mode, decospecs, tag, scheduler_config):
@@ -85,17 +77,22 @@ def deploy_trigger_flow(
 
 
 def _require_event_provider(scheduler_config):
-    """Skip test if no event provider is configured for the current backend."""
+    """Skip test if no event provider is configured for the current scheduler backend."""
     from metaflow.plugins import EVENT_PROVIDERS
 
+    sched_type = scheduler_config.scheduler_type
     for provider_class in EVENT_PROVIDERS:
-        if hasattr(provider_class, "is_configured") and provider_class.is_configured():
-            return  # At least one provider is ready
-    pytest.skip(
-        "No event provider is configured for the current environment "
-        "(need ARGO_EVENTS_WEBHOOK_URL, METAFLOW_SFN_IAM_ROLE, or "
-        "METAFLOW_AIRFLOW_WEBSERVER_URL)"
-    )
+        if provider_class.TYPE == sched_type:
+            if (
+                hasattr(provider_class, "is_configured")
+                and provider_class.is_configured()
+            ):
+                return
+            pytest.skip(
+                "Event provider for '%s' is registered but not configured "
+                "(missing required environment variables)" % sched_type
+            )
+    pytest.skip("No event provider registered for scheduler type '%s'" % sched_type)
 
 
 def send_trigger_signals(signals_data):
