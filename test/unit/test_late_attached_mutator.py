@@ -144,6 +144,12 @@ def test_process_late_attached_reruns_mutators():
         f"Expected memory=8192, got {k8s_decos[0].attributes['memory']}"
     )
 
+    # Verify end step was NOT overridden (no mutator on it).
+    end_k8s = [d for d in end_step.decorators if d.name == "kubernetes"]
+    assert len(end_k8s) == 1
+    assert str(end_k8s[0].attributes["cpu"]) == "1"
+    assert str(end_k8s[0].attributes["memory"]) == "4096"
+
 
 def test_process_late_attached_preserves_defaults_without_mutator():
     """
