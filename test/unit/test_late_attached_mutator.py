@@ -44,20 +44,14 @@ class _MockFlow:
     Minimal wrapper that makes a FlowSpec class work with
     _process_late_attached_decorator without invoking the CLI.
 
-    _process_late_attached_decorator needs:
-    - iteration (for s in flow) to yield steps
-    - flow.__class__._steps for mutator re-run
-    - flow.__class__._init_graph() for graph rebuild
-    - flow._graph for graph access
+    Reassigning __class__ to flow_cls delegates _steps, _init_graph,
+    _graph, and __iter__ (which iterates cls._steps) to the real
+    FlowSpec class.
     """
 
-    def __init__(self, flow_cls, steps):
-        # Use the real FlowSpec class so _init_graph, _steps etc. work.
+    def __init__(self, flow_cls):
+        # Use the real FlowSpec class so _init_graph, _steps, __iter__ etc. work.
         self.__class__ = flow_cls
-        self._steps_list = steps
-
-    def __iter__(self):
-        return iter(self._steps_list)
 
 
 def test_process_late_attached_reruns_mutators():
@@ -126,7 +120,7 @@ def test_process_late_attached_reruns_mutators():
 
     # Step 3: Call _process_late_attached_decorator.
     # This should re-run the mutator so it can override the @kubernetes.
-    mock_flow = _MockFlow(TestFlow, [start_step, end_step])
+    mock_flow = _MockFlow(TestFlow)
     mock_datastore = MagicMock()
     mock_datastore.TYPE = "gs"
     decorators._process_late_attached_decorator(
@@ -184,7 +178,7 @@ def test_process_late_attached_preserves_defaults_without_mutator():
     )
 
     # Run _process_late_attached_decorator (exercises the new code path).
-    mock_flow = _MockFlow(TestFlow, [start_step, end_step])
+    mock_flow = _MockFlow(TestFlow)
     mock_datastore = MagicMock()
     mock_datastore.TYPE = "gs"
     decorators._process_late_attached_decorator(
@@ -205,8 +199,10 @@ def test_process_late_attached_preserves_defaults_without_mutator():
 
 def test_mutator_is_noop_without_late_attachment():
     """
-    If @kubernetes is never attached, the mutator's iteration over
-    decorator_specs should find nothing and be a no-op.
+    If @kubernetes is never attached, _process_late_attached_decorator
+    should find no matching decorators, the mutator re-run loop should
+    be skipped (empty late_attached_step_names), and no @kubernetes
+    should appear on any step.
     """
 
     class TestFlow(FlowSpec):
@@ -224,18 +220,20 @@ def test_mutator_is_noop_without_late_attachment():
     for deco in start_step.config_decorators:
         if isinstance(deco, StepMutator):
             deco.external_init()
-            inserted_by_value = [deco.decorator_name] + (
-                deco.inserted_by or []
-            )
-            deco.mutate(
-                MutableStep(
-                    TestFlow,
-                    start_step,
-                    pre_mutate=False,
-                    statically_defined=deco.statically_defined,
-                    inserted_by=inserted_by_value,
-                )
-            )
+
+    # Call _process_late_attached_decorator without attaching @kubernetes.
+    # This exercises the empty late_attached_step_names path.
+    mock_flow = _MockFlow(TestFlow)
+    mock_datastore = MagicMock()
+    mock_datastore.TYPE = "gs"
+    decorators._process_late_attached_decorator(
+        [KubernetesDecorator.name],
+        mock_flow,
+        TestFlow._graph,
+        environment=None,
+        flow_datastore=mock_datastore,
+        logger=MagicMock(),
+    )
 
     # No @kubernetes should exist.
     assert not any(d.name == "kubernetes" for d in start_step.decorators)
