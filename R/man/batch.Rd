@@ -25,7 +25,7 @@ resources(cpu = 1L, gpu = 0L, memory = 4096L, shared_memory = NULL)
 
 \item{gpu}{Integer number of GPUs required for this step. Defaults to \code{0}.}
 
-\item{memory}{Integer memory size (in MB) required for this step. Defaults to
+\item{memory}{Integer memory size (in MiB) required for this step. Defaults to
 \code{4096}.}
 
 \item{image}{Character. Specifies the image to use when launching on AWS
@@ -79,8 +79,8 @@ from all decorators is used.
 \examples{
 \dontrun{
 # This example will generate a large random matrix which takes up roughly 
-# 48GB of memory, and sums the entries. The `batch` decorator forces this
-# step to run in an environment with 60000MB of memory.
+# 48 GiB of memory, and sums the entries. The `batch` decorator forces this
+# step to run in an environment with 60,000 MiB of memory.
 
 start <- function(self) {
   big_matrix <- matrix(rexp(80000*80000), 80000)
