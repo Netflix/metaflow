@@ -524,32 +524,19 @@ class CondaEnvironment(MetaflowEnvironment):
                 return data
 
     def write_to_environment_manifest(self, keys, value):
+        from metaflow.util import atomic_json_update
+
         path = self.get_environment_manifest_path()
-        try:
-            os.makedirs(os.path.dirname(path))
-        except OSError as x:
-            if x.errno != errno.EEXIST:
-                raise
-        with os.fdopen(os.open(path, os.O_RDWR | os.O_CREAT), "r+") as f:
-            try:
-                fcntl.flock(f, fcntl.LOCK_EX)
-                d = {}
-                if os.path.getsize(path) > 0:
-                    f.seek(0)
-                    d = json.load(f)
-                data = d
-                for key in keys[:-1]:
-                    data = data.setdefault(key, {})
-                data[keys[-1]] = value
-                f.seek(0)
-                json.dump(d, f)
-                f.truncate()
-                return value
-            except IOError as e:
-                if e.errno != errno.EAGAIN:
-                    raise
-            finally:
-                fcntl.flock(f, fcntl.LOCK_UN)
+
+        def _update(d):
+            data = d
+            for key in keys[:-1]:
+                data = data.setdefault(key, {})
+            data[keys[-1]] = value
+            return d
+
+        atomic_json_update(path, _update)
+        return value
 
 
 class LazyOpen(BufferedIOBase):
