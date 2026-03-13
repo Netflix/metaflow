@@ -21,7 +21,7 @@ def test_compress_decompress_prefix_encoded():
     # or just test with a manual prefix string
     # Prefix encoding (Mode 2)
     lst = ["test_1", "test_2", "test_3"]
-    # compress_list should produce a prefix-encoded string
+    # Round-trip test for a list with a shared prefix ("test_") - tests Mode 2 indirectly
     compressed = compress_list(lst)
     assert decompress_list(compressed) == lst
 
@@ -29,7 +29,8 @@ def test_compress_decompress_zlib():
     # Test with a very long list to trigger zlib compression (Mode 3)
     lst = [str(i) for i in range(1000)]
     compressed = compress_list(lst)
-    assert compressed.startswith("!")
+    ZLIB_MARKER = "!"
+    assert compressed.startswith(ZLIB_MARKER)
     assert decompress_list(compressed) == lst
 
 def test_compress_empty_string_element_ambiguity():
