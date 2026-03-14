@@ -1875,7 +1875,7 @@ class Task(MetaflowObject):
             return 0
         if filecache is None:
             filecache = FileCache()
-        attempt = int(meta_dict.get("attempt", 0))
+        attempt = self._attempt if self._attempt is not None else int(meta_dict.get("attempt", 0))
 
         return filecache.get_log_size(
             ds_type, ds_root, stream, attempt, *self.path_components
