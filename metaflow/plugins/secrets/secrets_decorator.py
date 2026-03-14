@@ -30,6 +30,7 @@ class SecretsDecorator(StepDecorator):
 
     name = "secrets"
     defaults = {"sources": [], "role": None, "allow_override": False}
+    allow_var = {"sources", "role", "allow_override"}
 
     def task_pre_step(
         self,

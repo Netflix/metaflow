@@ -785,6 +785,10 @@ class ArgoWorkflows(object):
         return triggers, options
 
     def _compile_workflow_template(self):
+        from metaflow.dynamic_var import check_no_dynamic_vars
+
+        check_no_dynamic_vars(self.graph, "Argo Workflows")
+
         # This method compiles a Metaflow FlowSpec into Argo WorkflowTemplate
         #
         # WorkflowTemplate

@@ -44,8 +44,11 @@ from .exception import (
 )
 from . import procpoll
 from .datastore import FlowDataStore, TaskDataStoreSet
+from copy import copy
+
 from .debug import debug
 from .decorators import flow_decorators
+from .dynamic_var import has_dynamic_vars, resolve_dynamic_vars
 from .flowspec import FlowStateItems
 from .mflog import mflog, RUNTIME_LOG_SOURCE
 from .util import to_unicode, compress_list, unicode_type, get_latest_task_pathspec
@@ -76,6 +79,7 @@ PREFETCH_DATA_ARTIFACTS = [
     "_transition",
     "_control_mapper_tasks",
     "_control_task_is_mapper_zero",
+    "_dynamic_var_values",
 ]
 RESUME_POLL_SECONDS = 60
 
@@ -265,7 +269,35 @@ class SpinRuntime(object):
         return self._whitelist_decorators
 
     def _new_task(self, step, input_paths=None, **kwargs):
-        return Task(
+        decos = self.whitelist_decorators
+
+        # Read _dynamic_var_values from the parent task in the original
+        # datastore (the run being spun from).
+        dynamic_var_values = None
+        if input_paths and step in self._graph and self._graph[step].dynamic_var_names:
+            first_parent = input_paths[0]
+            parts = first_parent.split("/")
+            run_id, step_name, task_id = parts[0], parts[1], parts[2]
+            parent_ds = self._orig_flow_datastore.get_task_datastore(
+                run_id, step_name, task_id
+            )
+            dynamic_var_values = parent_ds.get("_dynamic_var_values")
+
+        split_index = self.split_index
+        split_index_int = int(split_index) if split_index is not None else None
+
+        if dynamic_var_values:
+            resolved = []
+            for deco in decos:
+                if has_dynamic_vars(deco.attributes):
+                    deco = copy(deco)
+                    deco.attributes = resolve_dynamic_vars(
+                        deco.attributes, dynamic_var_values, split_index_int
+                    )
+                resolved.append(deco)
+            decos = resolved
+
+        task = Task(
             flow_datastore=self._flow_datastore,
             flow=self._flow,
             step=step,
@@ -276,11 +308,13 @@ class SpinRuntime(object):
             event_logger=self._event_logger,
             monitor=self._monitor,
             input_paths=input_paths,
-            decos=self.whitelist_decorators,
+            decos=decos,
             logger=self._logger,
-            split_index=self.split_index,
+            split_index=split_index,
             **kwargs,
         )
+        task.resolved_dynamic_vars = dynamic_var_values
+        return task
 
     def execute(self):
         exception = None
@@ -455,7 +489,7 @@ class NativeRuntime(object):
                 for deco in step.decorators:
                     deco.runtime_init(flow, graph, package, self._run_id)
 
-    def _new_task(self, step, input_paths=None, **kwargs):
+    def _new_task(self, step, input_paths=None, dynamic_var_values=None, **kwargs):
         if input_paths is None:
             may_clone = True
         else:
@@ -469,7 +503,27 @@ class NativeRuntime(object):
         else:
             decos = getattr(self._flow, step).decorators
 
-        return Task(
+        # Determine split_index for pertask=True dynamic vars.
+        raw_split_index = kwargs.get("split_index")
+        split_index = int(raw_split_index) if raw_split_index is not None else None
+
+        # If the parent task produced dynamic var values, shallow-copy only
+        # the decorators that contain DynamicVar markers and resolve them so
+        # that runtime_step_cli() / make_decorator_spec() see concrete values.
+        # We use copy() instead of deepcopy() to avoid infinite recursion on
+        # decorator objects that hold back-references to the flow.
+        if dynamic_var_values:
+            resolved = []
+            for deco in decos:
+                if has_dynamic_vars(deco.attributes):
+                    deco = copy(deco)
+                    deco.attributes = resolve_dynamic_vars(
+                        deco.attributes, dynamic_var_values, split_index
+                    )
+                resolved.append(deco)
+            decos = resolved
+
+        task = Task(
             self._flow_datastore,
             self._flow,
             step,
@@ -490,6 +544,8 @@ class NativeRuntime(object):
             resume_identifier=self._resume_identifier,
             **kwargs,
         )
+        task.resolved_dynamic_vars = dynamic_var_values
+        return task
 
     @property
     def run_id(self):
@@ -1104,7 +1160,7 @@ class NativeRuntime(object):
     def _queue_pop(self):
         return self._run_queue.pop() if self._run_queue else (None, {})
 
-    def _queue_task_join(self, task, next_steps):
+    def _queue_task_join(self, task, next_steps, dynamic_var_values=None):
         # if the next step is a join, we need to check that
         # all input tasks for the join have finished before queuing it.
 
@@ -1203,7 +1259,11 @@ class NativeRuntime(object):
                     # all tasks to be joined are ready. Schedule the next join step.
                     self._queue_push(
                         next_step,
-                        {"input_paths": required_tasks, "join_type": "foreach"},
+                        {
+                            "input_paths": required_tasks,
+                            "join_type": "foreach",
+                            "dynamic_var_values": dynamic_var_values,
+                        },
                         index,
                     )
         else:
@@ -1255,11 +1315,17 @@ class NativeRuntime(object):
                 # We have all the required previous tasks to schedule a join
                 self._queue_push(
                     next_step,
-                    {"input_paths": required_tasks, "join_type": join_type},
+                    {
+                        "input_paths": required_tasks,
+                        "join_type": join_type,
+                        "dynamic_var_values": dynamic_var_values,
+                    },
                     index,
                 )
 
-    def _queue_task_switch(self, task, next_steps, is_recursive):
+    def _queue_task_switch(
+        self, task, next_steps, is_recursive, dynamic_var_values=None
+    ):
         chosen_step = next_steps[0]
 
         loop_mode = LoopBehavior.NONE
@@ -1271,9 +1337,13 @@ class NativeRuntime(object):
                 # We are staying in the loop
                 loop_mode = LoopBehavior.LOOPING
         index = self._translate_index(task, chosen_step, "linear", None, loop_mode)
-        self._queue_push(chosen_step, {"input_paths": [task.path]}, index)
+        self._queue_push(
+            chosen_step,
+            {"input_paths": [task.path], "dynamic_var_values": dynamic_var_values},
+            index,
+        )
 
-    def _queue_task_foreach(self, task, next_steps):
+    def _queue_task_foreach(self, task, next_steps, dynamic_var_values=None):
         # CHECK: this condition should be enforced by the linter but
         # let's assert that the assumption holds
         if len(next_steps) > 1:
@@ -1303,6 +1373,7 @@ class NativeRuntime(object):
                     "input_paths": [task.path],
                     "ubf_context": UBF_CONTROL,
                     "ubf_iter": ubf_iter,
+                    "dynamic_var_values": dynamic_var_values,
                 },
                 index,
             )
@@ -1327,7 +1398,11 @@ class NativeRuntime(object):
                 index = self._translate_index(task, next_step, "split", i)
                 self._queue_push(
                     next_step,
-                    {"split_index": str(i), "input_paths": [task.path]},
+                    {
+                        "split_index": str(i),
+                        "input_paths": [task.path],
+                        "dynamic_var_values": dynamic_var_values,
+                    },
                     index,
                 )
 
@@ -1398,21 +1473,31 @@ class NativeRuntime(object):
                     )
                 )
 
+            # Read dynamic var values persisted by task.py for downstream steps.
+            dyn_vars = task.results.get("_dynamic_var_values")
+
             # Different transition types require different treatment
             if any(self._graph[f].type == "join" for f in next_steps):
                 # Next step is a join
-                self._queue_task_join(task, next_steps)
+                self._queue_task_join(task, next_steps, dyn_vars)
             elif foreach:
                 # Next step is a foreach child
-                self._queue_task_foreach(task, next_steps)
+                self._queue_task_foreach(task, next_steps, dyn_vars)
             elif self._graph[task.step].type == "split-switch":
                 # Current step is switch - queue the chosen step
-                self._queue_task_switch(task, next_steps, is_recursive)
+                self._queue_task_switch(task, next_steps, is_recursive, dyn_vars)
             else:
                 # Next steps are normal linear steps
                 for step in next_steps:
                     index = self._translate_index(task, step, "linear")
-                    self._queue_push(step, {"input_paths": [task.path]}, index)
+                    self._queue_push(
+                        step,
+                        {
+                            "input_paths": [task.path],
+                            "dynamic_var_values": dyn_vars,
+                        },
+                        index,
+                    )
 
     def _poll_workers(self):
         if self._workers:
@@ -2245,6 +2330,29 @@ class Worker(object):
                     self.task.user_code_retries,
                     self.task.ubf_context,
                 )
+            print("ARGS IS: %s" % str(args))
+
+        # Write resolved dynamic var values to a temp file for the child process.
+        # The child deletes the file after reading.  We use pickle to be more
+        # compatible -- values do not have to be human readable.
+        # The payload is a (values, split_index) tuple so the child can resolve
+        # task=True vars.
+        resolved_dv = getattr(self.task, "resolved_dynamic_vars", None)
+        if resolved_dv:
+            import pickle
+
+            split_idx = self.task.split_index
+            split_idx_int = int(split_idx) if split_idx is not None else None
+
+            dv_file = tempfile.NamedTemporaryFile(
+                mode="wb",
+                prefix="metaflow_dynvar_",
+                suffix=".pkl",
+                delete=False,
+            )
+            pickle.dump((resolved_dv, split_idx_int), dv_file)
+            dv_file.close()
+            args.top_level_options["dynamic-var-file"] = dv_file.name
 
         # Add user configurations using a file to avoid using up too much space on the
         # command line

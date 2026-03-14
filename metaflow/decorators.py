@@ -13,6 +13,11 @@ from .exception import (
 )
 
 from .debug import debug
+from .dynamic_var import (
+    DynamicVar,
+    _contains_dynamic_var,
+    resolve_dynamic_vars_from_store,
+)
 from .parameters import current_flow
 from .user_configs.config_parameters import (
     UNPACK_KEY,
@@ -121,6 +126,9 @@ class Decorator(object):
     defaults = {}
     # `allow_multiple` allows setting many decorators of the same type to a step/flow.
     allow_multiple = False
+    # Set of attribute names that accept var() for dynamic resolution at runtime.
+    # Empty means no attributes accept var(). Subclasses override to opt in.
+    allow_var = frozenset()
 
     def __init__(self, attributes=None, statically_defined=False, inserted_by=None):
         self.attributes = self.defaults.copy()
@@ -156,6 +164,29 @@ class Decorator(object):
         self._user_defined_attributes.update(new_user_attributes)
         self.attributes = resolve_delayed_evaluator(self.attributes, to_dict=True)
 
+        # Check this first -- we don't want var values to be allowed if a decorator
+        # does not explicitly allow it.
+        for k, v in self.attributes.items():
+            if _contains_dynamic_var(v) and k not in self.allow_var:
+                raise MetaflowException(
+                    "The attribute '%s' of decorator '@%s' does not support "
+                    "var(). Attributes that accept var(): %s"
+                    % (
+                        k,
+                        self.name,
+                        (
+                            ", ".join(sorted(self.allow_var))
+                            if self.allow_var
+                            else "(none)"
+                        ),
+                    )
+                )
+        # Resolve DynamicVar markers from the global store (if available).
+        # In the child subprocess the store is populated from the temp file
+        # passed via --dynamic-var-file. In the outermost process (no store),
+        # this is a no-op.
+        self.attributes = resolve_dynamic_vars_from_store(self.attributes)
+
         if "init" in self.__class__.__dict__:
             self.init()
         self._ran_init = True
@@ -169,18 +200,25 @@ class Decorator(object):
         # TODO: Do we really want to allow spaces in the names of attributes?!?
         for a in re.split(r""",(?=[\s\w]+=)""", deco_spec):
             name, val = a.split("=", 1)
-            try:
-                val_parsed = json.loads(val.strip().replace('\\"', '"'))
-            except json.JSONDecodeError:
-                # In this case, we try to convert to either an int or a float or
-                # leave as is. Prefer ints if possible.
+            val_stripped = val.strip()
+            if val_stripped.startswith("__dynvar__:"):
+                val_parsed = DynamicVar(val_stripped[len("__dynvar__:") :])
+            else:
                 try:
-                    val_parsed = int(val.strip())
-                except ValueError:
+                    val_parsed = json.loads(val_stripped.replace('\\"', '"'))
+                except json.JSONDecodeError:
+                    # In this case, we try to convert to either an int or a float or
+                    # leave as is. Prefer ints if possible.
                     try:
-                        val_parsed = float(val.strip())
+                        val_parsed = int(val_stripped)
                     except ValueError:
-                        val_parsed = val.strip()
+                        try:
+                            val_parsed = float(val_stripped)
+                        except ValueError:
+                            val_parsed = val_stripped
+                else:
+                    # Decode any nested __dynvar__ sentinel dicts
+                    val_parsed = Decorator._decode_dynamic_vars(val_parsed)
 
             attrs[name.strip()] = val_parsed
 
@@ -194,6 +232,60 @@ class Decorator(object):
         _, kwargs = cls.extract_args_kwargs_from_decorator_spec(deco_spec)
         return cls(attributes=kwargs)
 
+    @staticmethod
+    def _encode_dynamic_vars(val):
+        """Recursively encode DynamicVar as short string sentinel for JSON serialization."""
+
+        # DynamicVar as value or key
+        def encode_dyn(v):
+            if isinstance(v, DynamicVar):
+                return "__dynvar__:%s" % v.var_name
+            return v
+
+        if isinstance(val, dict):
+            # Encode both keys and values
+            return {
+                Decorator._encode_dynamic_vars(k): Decorator._encode_dynamic_vars(v)
+                for k, v in val.items()
+            }
+        elif isinstance(val, (list, tuple, set)):
+            seq = [Decorator._encode_dynamic_vars(x) for x in val]
+            if isinstance(val, list):
+                return seq
+            elif isinstance(val, tuple):
+                return tuple(seq)
+            elif isinstance(val, set):
+                return set(seq)
+            return seq
+        else:
+            return encode_dyn(val)
+
+    @staticmethod
+    def _decode_dynamic_vars(val):
+        """Recursively decode __dynvar__ string sentinels back to DynamicVar,"""
+
+        def try_decode(v):
+            if isinstance(v, str) and v.startswith("__dynvar__:"):
+                return DynamicVar(v[len("__dynvar__:") :])
+            return v
+
+        if isinstance(val, dict):
+            # Decode both dict keys and values
+            return {
+                try_decode(
+                    Decorator._decode_dynamic_vars(k)
+                ): Decorator._decode_dynamic_vars(v)
+                for k, v in val.items()
+            }
+        elif isinstance(val, list):
+            return [Decorator._decode_dynamic_vars(x) for x in val]
+        elif isinstance(val, tuple):
+            return tuple(Decorator._decode_dynamic_vars(x) for x in val)
+        elif isinstance(val, set):
+            return {Decorator._decode_dynamic_vars(x) for x in val}
+        else:
+            return try_decode(val)
+
     def make_decorator_spec(self):
         # Make sure all attributes are evaluated
         self.external_init()
@@ -204,10 +296,16 @@ class Decorator(object):
             # escaping but for more complex types (typically dictionaries or lists),
             # we dump using JSON.
             for k, v in attrs.items():
-                if isinstance(v, (int, float, str)):
+                if isinstance(v, DynamicVar):
+                    attr_list.append("%s=__dynvar__:%s" % (k, v.var_name))
+                elif isinstance(v, (int, float, str)):
                     attr_list.append("%s=%s" % (k, str(v)))
                 else:
-                    attr_list.append("%s=%s" % (k, json.dumps(v).replace('"', '\\"')))
+                    # Encode any nested DynamicVar as sentinel dicts before JSON dump
+                    encoded = self._encode_dynamic_vars(v)
+                    attr_list.append(
+                        "%s=%s" % (k, json.dumps(encoded).replace('"', '\\"'))
+                    )
 
             attrstr = ",".join(attr_list)
             return "%s:%s" % (self.name, attrstr)
@@ -726,21 +824,6 @@ def _should_skip_decorator_for_spin(
     return False
 
 
-def _init(flow, only_non_static=False):
-    flow_decos = flow._flow_state[FlowStateItems.FLOW_DECORATORS]
-    for decorators in flow_decos.values():
-        for deco in decorators:
-            deco.external_init()
-
-    for flowstep in flow:
-        for deco in flowstep.decorators:
-            deco.external_init()
-        for deco in flowstep.config_decorators or []:
-            deco.external_init()
-        for deco in flowstep.wrappers or []:
-            deco.external_init()
-
-
 def _init_flow_decorators(
     flow,
     graph,
@@ -755,6 +838,12 @@ def _init_flow_decorators(
 ):
     # Since all flow decorators are stored as `{key:[deco]}` we iterate through each of them.
     flow_decos = flow._flow_state[FlowStateItems.FLOW_DECORATORS]
+
+    # Run external_init on all decorators first
+    for decorators in flow_decos.values():
+        for deco in decorators:
+            deco.external_init()
+
     for decorators in flow_decos.values():
         # First resolve the `options` for the flow decorator.
         # Options are passed from cli.
@@ -873,11 +962,23 @@ def _init_step_decorators(
     cls._init_graph()
     graph = flow._graph
 
+    # Call the external_init on all step decorators. At this point, we have all the ones
+    # the user wants to add through mutators
+    cached_skip_decorators = set()
     for step in flow:
         for deco in step.decorators:
+            if deco.name in cached_skip_decorators:
+                continue
             if _should_skip_decorator_for_spin(
                 deco, is_spin, skip_decorators, logger, "Step decorator"
             ):
+                cached_skip_decorators.add(deco.name)
+                continue
+            deco.external_init()
+
+    for step in flow:
+        for deco in step.decorators:
+            if deco.name in cached_skip_decorators:
                 continue
             deco.step_init(
                 flow,
