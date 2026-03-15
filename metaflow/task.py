@@ -855,6 +855,21 @@ class MetaflowTask(object):
                             }
                         )
                 from_start("MetaflowTask: before pre-step decorators")
+                # Update the system context singleton with task-level information.
+                from .system_context import system_context
+
+                system_context._update(
+                    step_name=step_name,
+                    run_id=run_id,
+                    task_id=task_id,
+                    task_datastore=output,
+                    metadata=self.metadata,
+                    retry_count=retry_count,
+                    max_user_code_retries=max_user_code_retries,
+                    ubf_context=self.ubf_context,
+                    inputs=inputs,
+                    split_index=split_index,
+                )
                 for deco in decorators:
                     if deco.name == "card" and self.orig_flow_datastore:
                         # if spin step and card decorator, pass spin metadata
@@ -863,19 +878,22 @@ class MetaflowTask(object):
                         ](self.environment, self.flow, self.event_logger, self.monitor)
                     else:
                         metadata = self.metadata
-                    deco.task_pre_step(
-                        step_name,
-                        output,
-                        metadata,
-                        run_id,
-                        task_id,
-                        self.flow,
-                        self.flow._graph,
-                        retry_count,
-                        max_user_code_retries,
-                        self.ubf_context,
-                        inputs,
-                    )
+                    if deco.task_pre_step_ctx is not None:
+                        deco.task_pre_step_ctx()
+                    else:
+                        deco.task_pre_step(
+                            step_name,
+                            output,
+                            metadata,
+                            run_id,
+                            task_id,
+                            self.flow,
+                            self.flow._graph,
+                            retry_count,
+                            max_user_code_retries,
+                            self.ubf_context,
+                            inputs,
+                        )
 
                 orig_step_func = step_func
                 for deco in decorators:
@@ -884,14 +902,17 @@ class MetaflowTask(object):
                     # is used e.g. by catch_decorator which switches to a
                     # fallback code if the user code has failed too many
                     # times.
-                    step_func = deco.task_decorate(
-                        step_func,
-                        self.flow,
-                        self.flow._graph,
-                        retry_count,
-                        max_user_code_retries,
-                        self.ubf_context,
-                    )
+                    if deco.task_decorate_ctx is not None:
+                        step_func = deco.task_decorate_ctx(step_func)
+                    else:
+                        step_func = deco.task_decorate(
+                            step_func,
+                            self.flow,
+                            self.flow._graph,
+                            retry_count,
+                            max_user_code_retries,
+                            self.ubf_context,
+                        )
                 from_start("MetaflowTask: finished decorator processing")
                 if join_type:
                     self._exec_step_function(step_func, orig_step_func, input_obj)
@@ -899,13 +920,16 @@ class MetaflowTask(object):
                     self._exec_step_function(step_func, orig_step_func)
                 from_start("MetaflowTask: step function executed")
                 for deco in decorators:
-                    deco.task_post_step(
-                        step_name,
-                        self.flow,
-                        self.flow._graph,
-                        retry_count,
-                        max_user_code_retries,
-                    )
+                    if deco.task_step_completed is not None:
+                        deco.task_step_completed()
+                    else:
+                        deco.task_post_step(
+                            step_name,
+                            self.flow,
+                            self.flow._graph,
+                            retry_count,
+                            max_user_code_retries,
+                        )
 
                 self.flow._task_ok = True
                 self.flow._success = True
@@ -921,14 +945,17 @@ class MetaflowTask(object):
 
                 exception_handled = False
                 for deco in decorators:
-                    res = deco.task_exception(
-                        ex,
-                        step_name,
-                        self.flow,
-                        self.flow._graph,
-                        retry_count,
-                        max_user_code_retries,
-                    )
+                    if deco.task_step_completed is not None:
+                        res = deco.task_step_completed(exception=ex)
+                    else:
+                        res = deco.task_exception(
+                            ex,
+                            step_name,
+                            self.flow,
+                            self.flow._graph,
+                            retry_count,
+                            max_user_code_retries,
+                        )
                     exception_handled = bool(res) or exception_handled
 
                 if exception_handled:
@@ -988,14 +1015,17 @@ class MetaflowTask(object):
                 # final decorator hook: The task results are now
                 # queryable through the client API / datastore
                 for deco in decorators:
-                    deco.task_finished(
-                        step_name,
-                        self.flow,
-                        self.flow._graph,
-                        self.flow._task_ok,
-                        retry_count,
-                        max_user_code_retries,
-                    )
+                    if deco.task_finished_ctx is not None:
+                        deco.task_finished_ctx(self.flow._task_ok)
+                    else:
+                        deco.task_finished(
+                            step_name,
+                            self.flow,
+                            self.flow._graph,
+                            self.flow._task_ok,
+                            retry_count,
+                            max_user_code_retries,
+                        )
 
                 # terminate side cars
                 self.metadata.stop_heartbeat()
