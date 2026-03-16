@@ -1,1 +1,1 @@
-localbatch
+-e .[dev]

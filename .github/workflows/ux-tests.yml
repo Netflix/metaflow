@@ -46,7 +46,7 @@ jobs:
       - name: Install Metaflow and test dependencies
         run: |
           pip install --upgrade pip
-          pip install -e ".[dev]" pytest-timeout pytest-cov
+          pip install -e ".[dev]"
 
       - name: Run unit and command tests
         run: |
@@ -138,8 +138,7 @@ jobs:
       - name: Install Metaflow and test dependencies
         run: |
           pip install --upgrade pip
-          pip install -e ".[dev]" pytest-xdist pytest-timeout pytest-cov pytest-rerunfailures
-          pip install "git+https://github.com/npow/localbatch.git@main#egg=localbatch"
+          pip install -e ".[dev]"
 
       - name: Set up minikube
         uses: medyagh/setup-minikube@aba8d5ff1666d19b9549133e3b92e70d4fc52cb7

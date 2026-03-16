@@ -64,6 +64,15 @@ setup(
     install_requires=["requests", "boto3"],
     extras_require={
         "stubs": ["metaflow-stubs==%s" % version],
-        "dev": ["pytest", "omegaconf", "kubernetes"],
+        "dev": [
+            "pytest",
+            "pytest-timeout",
+            "pytest-cov",
+            "pytest-xdist",
+            "pytest-rerunfailures",
+            "omegaconf",
+            "kubernetes",
+            "localbatch",
+        ],
     },
 )
