@@ -202,6 +202,85 @@ def test_resources_cpu(exec_mode, decospecs, compute_env, tag, scheduler_config)
 
 
 @pytest.mark.scheduler_only
+@pytest.mark.deployer
+def test_fail_flow_reports_failed_status(
+    exec_mode, decospecs, compute_env, tag, scheduler_config
+):
+    """Verify schedulers report FAILED (not RUNNING/PENDING) when a step raises.
+
+    Catches A03-1: _check_sysroot_completion returns RUNNING forever for flows
+    that crash before reaching the end step, because end/ dir never appears.
+    """
+    import time
+    from .test_utils import deploy_flow_to_scheduler
+
+    scheduler_type = scheduler_config.scheduler_type
+    if scheduler_type is None:
+        pytest.skip("No scheduler configured — requires a scheduler_type")
+
+    deployed_flow = deploy_flow_to_scheduler(
+        flow_name="basic/fail_flow.py",
+        tl_args={"decospecs": decospecs, "env": compute_env},
+        scheduler_args={"cluster": scheduler_config.cluster},
+        deploy_args={"tags": tag, **(scheduler_config.deploy_args or {})},
+        scheduler_type=scheduler_type,
+    )
+
+    triggered = deployed_flow.trigger()
+
+    deadline = time.time() + 120
+    final_status = None
+    while time.time() < deadline:
+        s = triggered.status
+        if s in ("FAILED", "SUCCEEDED"):
+            final_status = s
+            break
+        time.sleep(5)
+
+    assert final_status == "FAILED", (
+        "A flow that raises RuntimeError mid-step should report FAILED, got %r"
+        % final_status
+    )
+
+
+@pytest.mark.scheduler_only
+@pytest.mark.deployer
+def test_split_in_branch_deployer(
+    exec_mode, decospecs, compute_env, tag, scheduler_config
+):
+    """Verify a split nested inside a branch compiles and executes correctly.
+
+    Catches A02-2: _find_join_step's while loop follows only out_funcs[0],
+    causing it to return the inner join instead of the outer join. Without the
+    fix, outer_join and end are silently dropped from the compiled flow.
+    """
+    from .test_utils import deploy_flow_to_scheduler, wait_for_deployed_run
+
+    scheduler_type = scheduler_config.scheduler_type
+    if scheduler_type is None:
+        pytest.skip("No scheduler configured — requires a scheduler_type")
+
+    deployed_flow = deploy_flow_to_scheduler(
+        flow_name="basic/split_in_branch_flow.py",
+        tl_args={"decospecs": decospecs, "env": compute_env},
+        scheduler_args={"cluster": scheduler_config.cluster},
+        deploy_args={"tags": tag, **(scheduler_config.deploy_args or {})},
+        scheduler_type=scheduler_type,
+    )
+
+    run = wait_for_deployed_run(deployed_flow)
+    assert run.successful, "SplitInBranchFlow should complete successfully"
+    assert sorted(run["outer_join"].task.data.labels) == [
+        "a",
+        "b",
+    ], "outer_join should receive results from both branch_a and branch_b"
+    assert sorted(run["inner_join"].task.data.sub_labels) == [
+        "x",
+        "y",
+    ], "inner_join should receive results from inner_x and inner_y"
+
+
+@pytest.mark.scheduler_only
 @pytest.mark.skip(reason="devstack has no GPU nodes")
 def test_resources_gpu(exec_mode, decospecs, compute_env, tag, scheduler_config):
     """Verify @resources(gpu=1) deploys successfully (no actual GPU validation)."""
