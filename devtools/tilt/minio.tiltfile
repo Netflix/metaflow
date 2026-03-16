@@ -40,6 +40,7 @@ def setup_minio(ctx):
         config={
             "METAFLOW_DEFAULT_DATASTORE": "s3",
             "METAFLOW_DATASTORE_SYSROOT_S3": "s3://metaflow-test/metaflow",
+            "METAFLOW_S3_ENDPOINT_URL": "http://localhost:9000",
             "METAFLOW_DATATOOLS_CLIENT_PARAMS": {
                 "endpoint_url": "http://localhost:9000",
                 "config": {
