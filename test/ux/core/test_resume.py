@@ -135,6 +135,55 @@ def test_resume_failed_flow(decospecs, compute_env, tag, scheduler_config):
     assert run2["end"].task.data.end_value == "done"
 
 
+def test_resume_foreach(decospecs, compute_env, tag, scheduler_config):
+    """Resume a failed foreach run — failed iteration re-executes, completed ones are cloned."""
+    sched_type = scheduler_config.scheduler_type
+    if sched_type is None:
+        pytest.skip("No scheduler configured")
+
+    test_unique_tag = "test_resume_foreach"
+    combined_tags = tag + [test_unique_tag]
+
+    deployed_flow = deploy_flow_to_scheduler(
+        flow_name="dag/foreach_resume_flow.py",
+        tl_args={"decospecs": decospecs, "env": compute_env},
+        scheduler_args={"cluster": scheduler_config.cluster},
+        deploy_args={"tags": combined_tags, **(scheduler_config.deploy_args or {})},
+        scheduler_type=sched_type,
+    )
+
+    # First run: item 1 fails, items 2 and 3 succeed
+    try:
+        triggered = deployed_flow.trigger(fail_on_item=1)
+    except Exception as e:
+        pytest.skip(f"{sched_type}: cannot trigger with parameters: {e}")
+
+    start_time = time.time()
+    while time.time() - start_time < 600:
+        status = triggered.status
+        if _is_failed_status(status):
+            break
+        if triggered.run and triggered.run.finished:
+            break
+        time.sleep(3)
+
+    failed_run_id = triggered.run.id if triggered.run else None
+    assert failed_run_id is not None, "Could not get failed run ID"
+
+    # Resume: item 1 should re-execute (fail_on_item=-1), others are cloned
+    resumed = _try_resume(
+        deployed_flow,
+        sched_type,
+        origin_run_id=failed_run_id,
+        fail_on_item=-1,
+    )
+    run2 = _wait_for_resumed_run(resumed)
+    assert run2.successful, "Resumed foreach run was not successful"
+    assert run2["join"].task.data.results == [2, 4, 6], (
+        "Resumed foreach results didn't match: got %r" % run2["join"].task.data.results
+    )
+
+
 def test_resume_step_to_rerun(decospecs, compute_env, tag, scheduler_config):
     """Resume with --step-to-rerun forces re-execution of specified step and downstream."""
     sched_type = scheduler_config.scheduler_type

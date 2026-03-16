@@ -72,13 +72,21 @@ def test_from_deployment(exec_mode, decospecs, compute_env, tag, scheduler_confi
     assert run1["start"].task.data.message == "Metaflow says: Hi!"
     verify_run_provenance(run1, decospecs)
 
-    # Recover the deployment via from_deployment and trigger a second run
+    # Recover via the plain deployer name (all schedulers support this)
     deployment_id = deployed_flow.deployer.name
     recovered = DeployedFlow.from_deployment(deployment_id, impl=impl)
     run2 = wait_for_deployed_run(recovered)
     assert run2.successful, "Run from recovered deployment was not successful"
     assert run2["start"].task.data.message == "Metaflow says: Hi!"
     verify_run_provenance(run2, decospecs)
+
+    # Recover via the full JSON id (scheduler-specific; skip if not supported)
+    full_id = getattr(deployed_flow, "id", None)
+    if full_id and full_id != deployment_id:
+        recovered2 = DeployedFlow.from_deployment(full_id, impl=impl)
+        run3 = wait_for_deployed_run(recovered2)
+        assert run3.successful, "Run from JSON id recovery was not successful"
+        assert run3["start"].task.data.message == "Metaflow says: Hi!"
 
 
 def test_retry(exec_mode, decospecs, compute_env, tag, scheduler_config):

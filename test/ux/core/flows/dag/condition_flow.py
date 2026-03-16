@@ -27,12 +27,20 @@ class ConditionFlow(FlowSpec):
     @step
     def high_branch(self):
         self.branch = "high"
+        self.next(self.high_detail)
+
+    @step
+    def high_detail(self):
         self.result = self.value * 2
         self.next(self.merge)
 
     @step
     def low_branch(self):
         self.branch = "low"
+        self.next(self.low_detail)
+
+    @step
+    def low_detail(self):
         self.result = self.value + 1
         self.next(self.merge)
 
