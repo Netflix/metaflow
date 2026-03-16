@@ -206,3 +206,49 @@ def test_nested_foreach_2x2(exec_mode, decospecs, compute_env, tag, scheduler_co
     assert (
         len(inner_tasks) == 4
     ), "Expected 4 inner tasks for 2x2 foreach, got %d" % len(inner_tasks)
+
+
+def test_nested_foreach_3level(
+    exec_mode, decospecs, compute_env, tag, scheduler_config
+):
+    """Verify 3-level nested foreach compiles and executes correctly.
+
+    Topology: outer(foreach groups) → middle(foreach batches) → inner(foreach items)
+    This catches compiler bugs where inner foreach step names are looked up in a
+    dict keyed only by outermost foreach names (D-A02-4).
+    """
+    from metaflow.exception import MetaflowException
+
+    try:
+        run = execute_test_flow(
+            flow_name="dag/nested_foreach_3level_flow.py",
+            exec_mode=exec_mode,
+            decospecs=decospecs,
+            tag=tag,
+            scheduler_config=scheduler_config,
+            test_name="nested_foreach_3level",
+            tl_args_extra={"env": compute_env},
+        )
+    except (MetaflowException, Exception) as e:
+        msg = str(e).lower()
+        if exec_mode == "deployer" and (
+            "not supported" in msg or "not yet supported" in msg
+        ):
+            pytest.skip(
+                f"{scheduler_config.scheduler_type} does not support 3-level nested foreach: {e}"
+            )
+        raise
+
+    assert run.successful, "Run was not successful"
+    assert run["outer_join"].task.data.all_results == [
+        "a-1-10",
+        "a-1-20",
+        "a-2-10",
+        "a-2-20",
+        "b-1-10",
+        "b-1-20",
+        "b-2-10",
+        "b-2-20",
+    ], "3-level nested foreach all_results didn't match: %s" % (
+        run["outer_join"].task.data.all_results
+    )
