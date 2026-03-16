@@ -34,6 +34,22 @@ def setup_minio(ctx):
 
     k8s_resource("minio-post-job", labels=['minio'])
 
+    local_resource(
+        name="minio-create-bucket",
+        cmd=(
+            "python -c \"" +
+            "import boto3, botocore;" +
+            "s3=boto3.client('s3',endpoint_url='http://localhost:9000'," +
+            "aws_access_key_id='rootuser',aws_secret_access_key='rootpass123');" +
+            "s3.create_bucket(Bucket='metaflow-test') " +
+            "if 'metaflow-test' not in [b['Name'] for b in s3.list_buckets()['Buckets']] " +
+            "else print('bucket already exists')" +
+            "\""
+        ),
+        resource_deps=["minio"],
+        labels=["minio"],
+    )
+
     k8s_yaml(read_file('./tilt/k8s/minio-secret.yaml'))
 
     return new_result(
