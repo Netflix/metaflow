@@ -208,11 +208,6 @@ def test_nested_foreach_2x2(exec_mode, decospecs, compute_env, tag, scheduler_co
     ), "Expected 4 inner tasks for 2x2 foreach, got %d" % len(inner_tasks)
 
 
-@pytest.mark.skip(
-    reason="3-level nested foreach requires ~240+ sequential Mage subprocess calls "
-    "per run. Too slow for the shared CI worker (>480s). Needs a dedicated "
-    "long-running job or Mage parallel block execution support."
-)
 def test_nested_foreach_3level(
     exec_mode, decospecs, compute_env, tag, scheduler_config
 ):
@@ -245,10 +240,15 @@ def test_nested_foreach_3level(
         raise
 
     assert run.successful, "Run was not successful"
-    # groups=["a"], batches=[1,2], items=[10] — 1x2x1 keeps total subproc calls ~9
     assert run["outer_join"].task.data.all_results == [
         "a-1-10",
+        "a-1-20",
         "a-2-10",
+        "a-2-20",
+        "b-1-10",
+        "b-1-20",
+        "b-2-10",
+        "b-2-20",
     ], "3-level nested foreach all_results didn't match: %s" % (
         run["outer_join"].task.data.all_results
     )

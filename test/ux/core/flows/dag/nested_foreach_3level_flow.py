@@ -15,7 +15,7 @@ class NestedForeach3LevelFlow(FlowSpec):
     @step
     def start(self):
         self.execution_env = os.environ.get("KUBERNETES_SERVICE_HOST", "")
-        self.groups = ["a"]  # 1 outer item keeps total subprocess calls ~9 for CI speed
+        self.groups = ["a", "b"]
         self.next(self.outer, foreach="groups")
 
     @step
@@ -27,7 +27,7 @@ class NestedForeach3LevelFlow(FlowSpec):
     @step
     def middle(self):
         self.batch = self.input
-        self.items = [10]  # 1 item keeps total leaf tasks at 4 (2x2x1) for CI speed
+        self.items = [10, 20]
         self.next(self.inner, foreach="items")
 
     @step
