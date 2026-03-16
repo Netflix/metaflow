@@ -359,3 +359,100 @@ def test_timeout_enforcement(exec_mode, decospecs, compute_env, tag, scheduler_c
         "Run should have failed because the 'slow' step exceeds its "
         "@timeout(seconds=5), but it succeeded. Timeout enforcement may be broken."
     )
+
+
+# ---------------------------------------------------------------------------
+# test_timeout_minutes_enforced
+#
+# WHY: _get_timeout_seconds only read 'seconds' attribute, silently ignoring
+# 'minutes'.  @timeout(minutes=1) produced no timeout at all — the step ran
+# indefinitely.  This test verifies that minute-based timeouts are actually
+# enforced (D-TIMEOUT-1).
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.compliance
+@pytest.mark.scheduler_only
+@pytest.mark.skip(
+    reason="@timeout enforcement on remote backends (argo/sfn/airflow) is not "
+    "reliable — the run may hang instead of failing. Needs backend-specific "
+    "timeout mechanisms (e.g. activeDeadlineSeconds for k8s). See #XXXX."
+)
+def test_timeout_minutes_enforced(
+    exec_mode, decospecs, compute_env, tag, scheduler_config
+):
+    """WHY: _get_timeout_seconds only read 'seconds' attribute, silently ignoring 'minutes'.
+    @timeout(minutes=1) produced no timeout at all.
+    This test verifies that minute-based timeouts are actually enforced (D-TIMEOUT-1).
+    """
+    if exec_mode != "deployer":
+        pytest.skip("compliance test requires deployer mode")
+
+    test_unique_tag = f"test_compliance_timeout_minutes_{exec_mode}"
+    combined_tags = tag + [test_unique_tag]
+
+    tl_args = {
+        "env": compute_env,
+        "decospecs": decospecs,
+    }
+
+    deployed_flow = deploy_flow_to_scheduler(
+        flow_name="basic/timeout_minutes_flow.py",
+        tl_args=tl_args,
+        scheduler_args={"cluster": scheduler_config.cluster},
+        deploy_args={"tags": combined_tags, **(scheduler_config.deploy_args or {})},
+        scheduler_type=scheduler_config.scheduler_type,
+    )
+
+    run = wait_for_deployed_run_allow_failure(deployed_flow)
+
+    assert not run.successful, (
+        "@timeout(minutes=1) was NOT enforced — the step ran for 2+ minutes without being killed. "
+        "Check that _get_timeout_seconds correctly computes minutes*60+seconds."
+    )
+
+
+# ---------------------------------------------------------------------------
+# test_run_param_not_dropped
+#
+# WHY: Parameters were silently dropped when trigger variables dict had None
+# values or when JSON serialization lost the value.  Verify parameter values
+# arrive correctly at task runtime.
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.compliance
+@pytest.mark.scheduler_only
+def test_run_param_not_dropped(
+    exec_mode, decospecs, compute_env, tag, scheduler_config
+):
+    """WHY: Parameters were silently dropped when trigger variables dict had None values
+    or when JSON serialization lost the value. Verify parameter values arrive correctly.
+    """
+    if exec_mode != "deployer":
+        pytest.skip("compliance test requires deployer mode")
+
+    test_unique_tag = f"test_compliance_run_param_not_dropped_{exec_mode}"
+    combined_tags = tag + [test_unique_tag]
+
+    tl_args = {
+        "env": compute_env,
+        "decospecs": decospecs,
+    }
+
+    deployed_flow = deploy_flow_to_scheduler(
+        flow_name="basic/reserved_param_flow.py",
+        tl_args=tl_args,
+        scheduler_args={"cluster": scheduler_config.cluster},
+        deploy_args={"tags": combined_tags, **(scheduler_config.deploy_args or {})},
+        scheduler_type=scheduler_config.scheduler_type,
+    )
+
+    run = wait_for_deployed_run(deployed_flow, run_kwargs={"retry_count": 42})
+
+    assert run.successful, "Run was not successful"
+    assert run["start"].task.data.stored_retry_count == 42, (
+        "Expected retry_count=42, got %r. "
+        "Parameter may have been dropped or not passed correctly."
+        % run["start"].task.data.stored_retry_count
+    )

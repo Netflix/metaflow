@@ -36,6 +36,12 @@ def test_foreach(exec_mode, decospecs, compute_env, tag, scheduler_config):
     )
 
     assert run.successful, "Run was not successful"
+    # Verify exact fanout count — catches silent foreach_count=1 fallback (D-FOREACH-1)
+    process_tasks = list(run["process"].tasks())
+    assert len(process_tasks) == 3, (
+        "Expected 3 foreach tasks for items=[1,2,3], got %d. "
+        "This may indicate foreach_count fell back to 1." % len(process_tasks)
+    )
     assert run["join"].task.data.results == [
         2,
         4,
@@ -56,6 +62,10 @@ def test_multibody_foreach(exec_mode, decospecs, compute_env, tag, scheduler_con
     )
 
     assert run.successful, "Run was not successful"
+    process_tasks = list(run["process"].tasks())
+    assert len(process_tasks) == 3, "Expected 3 foreach process tasks, got %d" % len(
+        process_tasks
+    )
     assert run["join"].task.data.results == [
         3,
         5,
@@ -153,3 +163,46 @@ def test_nested_foreach(exec_mode, decospecs, compute_env, tag, scheduler_config
         "x-1",
         "y-1",
     ], "Nested foreach all_results didn't match"
+
+
+def test_nested_foreach_2x2(exec_mode, decospecs, compute_env, tag, scheduler_config):
+    """Verify nested foreach with 2 outer x 2 inner items — catches D-NESTED-1 semantic bug."""
+    from metaflow.exception import MetaflowException
+
+    try:
+        run = execute_test_flow(
+            flow_name="dag/nested_foreach_2x2_flow.py",
+            exec_mode=exec_mode,
+            decospecs=decospecs,
+            tag=tag,
+            scheduler_config=scheduler_config,
+            test_name="nested_foreach_2x2",
+            tl_args_extra={"env": compute_env},
+        )
+    except (MetaflowException, Exception) as e:
+        msg = str(e).lower()
+        if exec_mode == "deployer" and (
+            "not supported" in msg or "not yet supported" in msg
+        ):
+            pytest.skip(
+                f"{scheduler_config.scheduler_type} does not support nested foreach: {e}"
+            )
+        raise
+
+    assert run.successful, "Run was not successful"
+    # Must have all 4 combinations: x-1, x-2, y-1, y-2
+    assert run["outer_join"].task.data.all_results == [
+        "x-1",
+        "x-2",
+        "y-1",
+        "y-2",
+    ], (
+        "Expected 4 results from 2x2 nested foreach, got: %s. "
+        "This may indicate nested_foreach_join is not aggregating all outer items correctly."
+        % run["outer_join"].task.data.all_results
+    )
+    # Verify inner task count: 4 inner tasks total (2 outer x 2 inner)
+    inner_tasks = list(run["inner"].tasks())
+    assert (
+        len(inner_tasks) == 4
+    ), "Expected 4 inner tasks for 2x2 foreach, got %d" % len(inner_tasks)

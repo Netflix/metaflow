@@ -182,7 +182,12 @@ def wait_for_deployed_run(
         print("Waiting for run to start...")
         time.sleep(polling_interval)
 
-    print(f"Run {triggered_run.run.id} started")
+    run = triggered_run.run
+    assert run is not None, (
+        "triggered_run.run returned None — run_id mismatch between deployer and init block. "
+        "Check that pipeline_run_id kwarg is injected by the scheduler."
+    )
+    print(f"Run {run.id} started")
 
     while not triggered_run.run.finished:
         if time.time() - start_time > timeout:
