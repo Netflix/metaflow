@@ -182,14 +182,21 @@ local_resource(
 )
 
 # ---------------------------------------------------------------------------
+# Python dev dependencies
+# ---------------------------------------------------------------------------
+local_resource(
+    name="install-dev-deps",
+    cmd="pip install -r devtools/requirements-devstack.txt",
+    deps=["devtools/requirements-devstack.txt"],
+    labels=["setup"],
+)
+
+# ---------------------------------------------------------------------------
 # Test image
 # ---------------------------------------------------------------------------
 local_resource(
     name="build-test-image",
-    cmd=(
-        "docker build -t metaflow-test:python3.9 docker/metaflow-test/ && " +
-        "minikube image load metaflow-test:python3.9"
-    ),
+    cmd="minikube image build -t metaflow-test:python3.9 docker/metaflow-test/",
     deps=["docker/metaflow-test/Dockerfile"],
     labels=["test"],
 )

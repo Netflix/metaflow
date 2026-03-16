@@ -35,7 +35,7 @@ def setup_localbatch(ctx):
             link("http://localhost:8000/docs",   "localbatch API docs"),
         ],
         labels=["localbatch"],
-        resource_deps=ctx.components["localbatch"],
+        resource_deps=ctx.components["localbatch"] + ["install-dev-deps"],
     )
 
     return new_result(
