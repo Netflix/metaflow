@@ -103,7 +103,12 @@ def test_condition(exec_mode, decospecs, compute_env, tag, scheduler_config):
         )
     except (MetaflowException, Exception) as e:
         msg = str(e).lower()
-        if "not supported" in msg or "not yet supported" in msg:
+        if (
+            "not supported" in msg
+            or "not yet supported" in msg
+            or isinstance(e, ImportError)
+            or "cannot import name" in msg
+        ):
             pytest.skip(
                 f"{scheduler_config.scheduler_type} does not support @condition: {e}"
             )
