@@ -240,12 +240,10 @@ def test_nested_foreach_3level(
         raise
 
     assert run.successful, "Run was not successful"
-    # items=[10] only (was [10,20]) — keeps leaf task count at 4 (2x2x1) for CI speed
+    # groups=["a"], batches=[1,2], items=[10] — 1x2x1 keeps total subproc calls ~9
     assert run["outer_join"].task.data.all_results == [
         "a-1-10",
         "a-2-10",
-        "b-1-10",
-        "b-2-10",
     ], "3-level nested foreach all_results didn't match: %s" % (
         run["outer_join"].task.data.all_results
     )

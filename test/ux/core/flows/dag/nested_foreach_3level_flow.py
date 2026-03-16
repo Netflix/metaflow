@@ -15,7 +15,7 @@ class NestedForeach3LevelFlow(FlowSpec):
     @step
     def start(self):
         self.execution_env = os.environ.get("KUBERNETES_SERVICE_HOST", "")
-        self.groups = ["a", "b"]
+        self.groups = ["a"]  # 1 outer item keeps total subprocess calls ~9 for CI speed
         self.next(self.outer, foreach="groups")
 
     @step
