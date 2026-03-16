@@ -25,21 +25,22 @@ class SplitInBranchFlow(FlowSpec):
     @step
     def inner_x(self):
         self.sub_label = "x"
+        # In subprocess execution each step only persists explicitly-assigned
+        # attributes. Re-assign inherited 'label' so it survives to inner_join.
+        self.label = self.label
         self.next(self.inner_join)
 
     @step
     def inner_y(self):
         self.sub_label = "y"
+        self.label = self.label
         self.next(self.inner_join)
 
     @step
     def inner_join(self, inputs):
         self.sub_labels = sorted(i.sub_label for i in inputs)
-        # Explicitly read-and-store inherited 'label' so that outer_join can
-        # access it from this task's artifact file in subprocess execution.
-        # Without this, label is lazily inherited during execution but never
-        # persisted to the artifact store, causing AttributeError downstream.
-        self.label = self.label
+        # Propagate label through the join for outer_join to read.
+        self.label = inputs[0].label
         self.next(self.outer_join)
 
     @step
