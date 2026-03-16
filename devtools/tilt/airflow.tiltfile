@@ -84,7 +84,7 @@ def setup_airflow(ctx):
     _airflow_db_deps = ctx.components['airflow'] + ['airflow-db-init']
 
     k8s_resource(workload='airflow-run-airflow-migrations', labels=['airflow'], resource_deps=_airflow_db_deps)
-    k8s_resource(workload='airflow-create-user', labels=['airflow'], resource_deps=_airflow_db_deps)
+    k8s_resource(workload='airflow-create-user', labels=['airflow'], resource_deps=_airflow_db_deps + ['airflow-run-airflow-migrations'])
     k8s_resource(workload='airflow-triggerer', labels=['airflow'], resource_deps=_airflow_db_deps)
     k8s_resource(
         workload='airflow-webserver',
