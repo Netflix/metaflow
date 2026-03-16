@@ -186,8 +186,8 @@ local_resource(
 # ---------------------------------------------------------------------------
 local_resource(
     name="install-dev-deps",
-    cmd="pip install -r devtools/requirements-devstack.txt",
-    deps=["devtools/requirements-devstack.txt"],
+    cmd="python -m pip install -r requirements-devstack.txt",
+    deps=["requirements-devstack.txt"],
     labels=["setup"],
 )
 

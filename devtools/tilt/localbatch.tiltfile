@@ -2,7 +2,7 @@ load('./_result.tiltfile', 'new_result')
 
 def setup_localbatch(ctx):
     localbatch_serve_cmd = (
-        "localbatch --port 8000 --queue localbatch-default" +
+        "python -m localbatch --port 8000 --queue localbatch-default" +
         " --inject-env AWS_ACCESS_KEY_ID=rootuser" +
         " --inject-env AWS_SECRET_ACCESS_KEY=rootpass123" +
         " --inject-env AWS_ENDPOINT_URL_S3=http://host.docker.internal:9000" +
