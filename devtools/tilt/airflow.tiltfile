@@ -7,8 +7,11 @@ def setup_airflow(ctx):
         name="airflow-db-init",
         cmd=(
             "kubectl exec postgresql-0 -- " +
-            "sh -c \"PGPASSWORD=devstackpostgres123 psql -h 127.0.0.1 -U postgres " +
-            "-c 'CREATE DATABASE airflow OWNER metaflow' 2>/dev/null; exit 0\""
+            "sh -c \"PGPASSWORD=metaflow123 psql -h 127.0.0.1 -U metaflow -d metaflow " +
+            "-c 'CREATE DATABASE airflow OWNER metaflow' 2>&1 || true\" && " +
+            "kubectl exec postgresql-0 -- " +
+            "sh -c \"PGPASSWORD=metaflow123 psql -h 127.0.0.1 -U metaflow -d metaflow -lqt " +
+            "| cut -d'|' -f1 | grep -qw airflow\""
         ),
         resource_deps=["postgresql"],
         labels=["airflow"],
@@ -38,7 +41,7 @@ def setup_airflow(ctx):
             'executor=LocalExecutor',
             'postgresql.enabled=false',
             'data.metadataConnection.user=metaflow',
-            'data.metadataConnection.pass=metaflow123',
+            'data.metadataConnection.pass=devstackpostgres123',
             'data.metadataConnection.host=postgresql',
             'data.metadataConnection.port=5432',
             'data.metadataConnection.db=airflow',
