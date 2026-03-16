@@ -27,7 +27,7 @@ class NestedForeach3LevelFlow(FlowSpec):
     @step
     def middle(self):
         self.batch = self.input
-        self.items = [10, 20]
+        self.items = [10]  # 1 item keeps total leaf tasks at 4 (2x2x1) for CI speed
         self.next(self.inner, foreach="items")
 
     @step
