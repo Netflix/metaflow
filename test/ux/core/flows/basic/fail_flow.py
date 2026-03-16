@@ -15,6 +15,9 @@ class FailFlow(FlowSpec):
     @step
     def failing_step(self):
         raise RuntimeError("Deliberate failure for testing scheduler status reporting.")
+        self.next(
+            self.end
+        )  # noqa: unreachable — required for Metaflow's graph validator
 
     @step
     def end(self):
