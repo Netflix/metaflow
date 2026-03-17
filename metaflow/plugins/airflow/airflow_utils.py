@@ -283,6 +283,13 @@ class AirflowDAGArgs(object):
                     data_dict[k] = v.isoformat()
                 elif isinstance(v, timedelta):
                     data_dict[k] = dict(seconds=v.total_seconds())
+                elif isinstance(v, tuple):
+                    # Airflow 2.x DAG.__init__ validates that `tags` (and
+                    # similar args) is a list, not a tuple.  Metaflow's CLI
+                    # (Click) returns multi-value options as tuples, so
+                    # normalise all tuples to lists here so that the
+                    # serialised CONFIG dict round-trips correctly.
+                    data_dict[k] = list(v)
                 else:
                     data_dict[k] = v
             return data_dict

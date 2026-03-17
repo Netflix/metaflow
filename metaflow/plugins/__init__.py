@@ -177,6 +177,7 @@ DEPLOYER_IMPL_PROVIDERS_DESC = [
         "step-functions",
         ".aws.step_functions.step_functions_deployer.StepFunctionsDeployer",
     ),
+    ("airflow", ".airflow.airflow_deployer.AirflowDeployer"),
 ]
 
 TL_PLUGINS_DESC = [

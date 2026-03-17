@@ -1,0 +1,7 @@
+{
+  "tool_name": "Read",
+  "tool_input_preview": "{\"file_path\":\"/private/tmp/claude-501/-Users-npow-code-metaflow/7dd6d9e3-d084-4fcf-915a-548aa784a7eb/tasks/bx377k2ce.output\"}",
+  "error": "File content (263.6KB) exceeds maximum allowed size (256KB). Use offset and limit parameters to read specific portions of the file, or search for specific content instead of reading the whole file.",
+  "timestamp": "2026-04-12T20:42:35.389Z",
+  "retry_count": 1
+}
