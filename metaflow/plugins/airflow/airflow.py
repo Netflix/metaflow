@@ -353,6 +353,22 @@ class Airflow(object):
             }
         )
 
+        # Pass flow config values (--config-value overrides) to the pod so
+        # config_expr / @project decorators evaluate correctly at task runtime.
+        try:
+            from metaflow.flowspec import FlowStateItems
+
+            flow_configs = self.flow._flow_state[FlowStateItems.CONFIGS]
+            config_env = {
+                name: value
+                for name, (value, _is_plain) in flow_configs.items()
+                if value is not None
+            }
+            if config_env:
+                env["METAFLOW_FLOW_CONFIG_VALUE"] = json.dumps(config_env)
+        except Exception:
+            pass
+
         # Extract the k8s decorators for constructing the arguments of the K8s Pod Operator on Airflow.
         k8s_deco = [deco for deco in node.decorators if deco.name == "kubernetes"][0]
         user_code_retries, _ = self._get_retries(node)
