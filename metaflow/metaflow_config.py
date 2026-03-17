@@ -170,7 +170,7 @@ TEMPDIR = from_conf("TEMPDIR", ".")
 
 DATATOOLS_CLIENT_PARAMS = from_conf("DATATOOLS_CLIENT_PARAMS", {})
 if S3_ENDPOINT_URL:
-    DATATOOLS_CLIENT_PARAMS.setdefault("endpoint_url", S3_ENDPOINT_URL)
+    DATATOOLS_CLIENT_PARAMS["endpoint_url"] = S3_ENDPOINT_URL
 if S3_VERIFY_CERTIFICATE:
     DATATOOLS_CLIENT_PARAMS["verify"] = S3_VERIFY_CERTIFICATE
 
@@ -354,8 +354,6 @@ SERVICE_INTERNAL_URL = from_conf("SERVICE_INTERNAL_URL", SERVICE_URL)
 BATCH_EMIT_TAGS = from_conf("BATCH_EMIT_TAGS", False)
 # Default tags to add to AWS Batch jobs. These are in addition to the defaults set when BATCH_EMIT_TAGS is true.
 BATCH_DEFAULT_TAGS = from_conf("BATCH_DEFAULT_TAGS", {})
-# Extra boto3 client kwargs for the Batch client (e.g. {"endpoint_url": "http://localhost:8000"} for local emulators).
-BATCH_CLIENT_PARAMS = from_conf("BATCH_CLIENT_PARAMS", {})
 
 ###
 # AWS Step Functions configuration
@@ -365,10 +363,6 @@ BATCH_CLIENT_PARAMS = from_conf("BATCH_CLIENT_PARAMS", {})
 SFN_IAM_ROLE = from_conf("SFN_IAM_ROLE")
 # AWS DynamoDb Table name (with partition key - `pathspec` of type string)
 SFN_DYNAMO_DB_TABLE = from_conf("SFN_DYNAMO_DB_TABLE")
-# Extra boto3 client kwargs for the Step Functions client (e.g. {"endpoint_url": "http://localhost:8082"}).
-SFN_CLIENT_PARAMS = from_conf("SFN_CLIENT_PARAMS", {})
-# Extra boto3 client kwargs for the DynamoDB client used by Step Functions (e.g. {"endpoint_url": "http://localhost:8765"}).
-SFN_DYNAMO_DB_CLIENT_PARAMS = from_conf("SFN_DYNAMO_DB_CLIENT_PARAMS", {})
 # IAM role for AWS Events with AWS Step Functions access
 # https://docs.aws.amazon.com/eventbridge/latest/userguide/auth-and-access-control-eventbridge.html
 EVENTS_SFN_ACCESS_IAM_ROLE = from_conf("EVENTS_SFN_ACCESS_IAM_ROLE")
@@ -445,13 +439,6 @@ KUBERNETES_JOBSET_VERSION = from_conf("KUBERNETES_JOBSET_VERSION", "v1alpha2")
 
 KUBERNETES_JOB_TERMINATE_MODE = from_conf("KUBERNETES_JOB_TERMINATE_MODE", "stop")
 
-# How long (in seconds) to keep completed k8s Jobs before auto-deletion.
-# Default: 7 days. Set lower in dev/test environments to prevent pod
-# accumulation that can exhaust cluster resources.
-KUBERNETES_JOB_TTL_SECONDS_AFTER_FINISHED = from_conf(
-    "KUBERNETES_JOB_TTL_SECONDS_AFTER_FINISHED", 7 * 24 * 60 * 60
-)
-
 ##
 # Argo Events Configuration
 ##
@@ -486,16 +473,6 @@ AIRFLOW_KUBERNETES_KUBECONFIG_FILE = from_conf("AIRFLOW_KUBERNETES_KUBECONFIG_FI
 AIRFLOW_KUBERNETES_KUBECONFIG_CONTEXT = from_conf(
     "AIRFLOW_KUBERNETES_KUBECONFIG_CONTEXT"
 )
-# Airflow REST API endpoint, e.g. http://localhost:8090/api/v1
-AIRFLOW_REST_API_URL = from_conf("AIRFLOW_REST_API_URL")
-AIRFLOW_REST_API_USERNAME = from_conf("AIRFLOW_REST_API_USERNAME", "admin")
-AIRFLOW_REST_API_PASSWORD = from_conf("AIRFLOW_REST_API_PASSWORD", "admin")
-# Path inside Airflow pods where DAG files are stored
-AIRFLOW_KUBERNETES_DAGS_PATH = from_conf(
-    "AIRFLOW_KUBERNETES_DAGS_PATH", "/opt/airflow/dags"
-)
-# Kubernetes namespace where Airflow runs (for kubectl cp DAG upload)
-AIRFLOW_KUBERNETES_NAMESPACE = from_conf("AIRFLOW_KUBERNETES_NAMESPACE", "default")
 
 
 ###

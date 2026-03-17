@@ -42,10 +42,7 @@ class LocalStorage(DataStoreStorage):
                         "Creating %s datastore in current directory (%s)"
                         % (cls.TYPE, orig_path)
                     )
-                    try:
-                        os.mkdir(orig_path)
-                    except FileExistsError:
-                        pass  # Another process created it concurrently
+                    os.mkdir(orig_path)
                     result = orig_path
                 else:
                     return None

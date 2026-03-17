@@ -12,14 +12,14 @@ except NameError:
     basestring = str
 
 from metaflow.exception import MetaflowException
-from metaflow.metaflow_config import AWS_SANDBOX_ENABLED, BATCH_CLIENT_PARAMS
+from metaflow.metaflow_config import AWS_SANDBOX_ENABLED
 
 
 class BatchClient(object):
     def __init__(self):
         from ..aws_client import get_aws_client
 
-        self._client = get_aws_client("batch", client_params=BATCH_CLIENT_PARAMS)
+        self._client = get_aws_client("batch")
 
     def active_job_queues(self):
         paginator = self._client.get_paginator("describe_job_queues")

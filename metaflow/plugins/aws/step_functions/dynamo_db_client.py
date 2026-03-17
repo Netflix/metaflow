@@ -1,15 +1,13 @@
 import time
 
-from metaflow.metaflow_config import SFN_DYNAMO_DB_CLIENT_PARAMS, SFN_DYNAMO_DB_TABLE
+from metaflow.metaflow_config import SFN_DYNAMO_DB_TABLE
 
 
 class DynamoDbClient(object):
     def __init__(self):
         from ..aws_client import get_aws_client
 
-        self._client = get_aws_client(
-            "dynamodb", client_params=SFN_DYNAMO_DB_CLIENT_PARAMS
-        )
+        self._client = get_aws_client("dynamodb")
         self.name = SFN_DYNAMO_DB_TABLE
 
     def save_foreach_cardinality(self, foreach_split_task_id, foreach_cardinality, ttl):
