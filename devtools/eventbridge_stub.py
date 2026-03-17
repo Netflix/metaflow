@@ -17,7 +17,7 @@ Run on port 7777 (set AWS_ENDPOINT_URL_EVENTBRIDGE=http://localhost:7777).
 
 import json
 import sys
-from http.server import BaseHTTPRequestHandler, HTTPServer
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer as HTTPServer
 
 PORT = 7777
 
