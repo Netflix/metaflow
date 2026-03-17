@@ -29,7 +29,7 @@ TILTFILE := $(MKFILE_DIR)/Tiltfile
 MAKE_CMD := $(MAKE) -f "$(MKFILE_PATH)"
 
 MINIKUBE_CPUS ?= 4
-MINIKUBE_MEMORY ?= 6144
+MINIKUBE_MEMORY ?= 8192
 MINIKUBE_DISK_SIZE ?= 20g
 WAIT_TIMEOUT ?= 300
 
@@ -255,10 +255,12 @@ shell: setup-tilt
 				METAFLOW_HOME="$(DEVTOOLS_DIR)" \
 				METAFLOW_PROFILE=local \
 				AWS_CONFIG_FILE="$(DEVTOOLS_DIR)/aws_config" \
+				PYTHONPATH="$(MKFILE_DIR)/.." \
 				"$$user_shell" -i; \
 		else \
 			env METAFLOW_HOME="$(DEVTOOLS_DIR)" \
 				METAFLOW_PROFILE=local \
+				PYTHONPATH="$(MKFILE_DIR)/.." \
 				"$$user_shell" -i; \
 		fi'
 
