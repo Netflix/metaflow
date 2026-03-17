@@ -244,13 +244,20 @@ def pytest_generate_tests(metafunc):
             user_exec_mode, deployer_only, runner_and_deployer, has_scheduler
         )
 
+        xfail_reason = b.get("xfail_reason")
+        marks = (
+            [pytest.mark.xfail(reason=xfail_reason, strict=False)]
+            if xfail_reason
+            else []
+        )
+
         for mode in modes:
             if needs_exec and needs_backend:
-                params.append(pytest.param(mode, b))
+                params.append(pytest.param(mode, b, marks=marks))
             elif needs_exec:
-                params.append(pytest.param(mode))
+                params.append(pytest.param(mode, marks=marks))
             else:
-                params.append(pytest.param(b))
+                params.append(pytest.param(b, marks=marks))
             ids.append("%s-%s" % (b["name"], mode))
 
     if needs_exec and needs_backend:

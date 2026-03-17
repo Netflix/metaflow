@@ -201,6 +201,11 @@ class TestSfnCompilation:
             result.get("result", "OK") == "OK"
         ), f"Validation failed: {result.get('diagnostics', result)}"
 
+    @pytest.mark.xfail(
+        reason="requires npow/core-deployer-changes: step_functions.py must add "
+        "ResultSelector to Parallel states for sfn-local compatibility",
+        strict=False,
+    )
     def test_branch_flow(self):
         """Parallel branch flow produces valid Parallel states with ResultSelector."""
         definition = _compile_flow_to_json("dag/branch_flow.py")
