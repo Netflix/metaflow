@@ -196,7 +196,11 @@ def _resolve_val(val, source, split_index=None):
     *split_index* is the foreach/parallel index for ``pertask=True`` vars.
     """
     if isinstance(val, DynamicVar):
-        collection = source[val.var_name]
+        if isinstance(source, dict):
+            collection = source[val.var_name]
+        else:
+            # source is a FlowSpec instance (UserStepDecorator path)
+            collection = getattr(source, val.var_name)
 
         if not val.pertask:
             return collection
@@ -219,7 +223,7 @@ def _resolve_val(val, source, split_index=None):
             from .exception import MetaflowException
 
             raise MetaflowException(
-                "var('%s', task=True) expects the artifact to be a list or "
+                "var('%s', pertask=True) expects the artifact to be a list or "
                 "dict but got %s." % (val.var_name, type(collection).__name__)
             )
 
@@ -275,4 +279,16 @@ def check_no_dynamic_vars(graph, orchestrator_name):
                     "Deploying flows with var() to %s is not supported. "
                     "var() is currently only supported with Maestro."
                     % (node.name, deco.name, attr_list, orchestrator_name)
+                )
+        for wrapper in getattr(node, "wrappers", []):
+            args_vars = collect_dynamic_var_names(wrapper._args)
+            kwargs_vars = collect_dynamic_var_names(wrapper._kwargs)
+            var_names = args_vars | kwargs_vars
+            if var_names:
+                attr_list = ", ".join("var('%s')" % name for name in sorted(var_names))
+                raise MetaflowException(
+                    "Step *%s* uses var() in @%s (%s). "
+                    "Deploying flows with var() to %s is not supported. "
+                    "var() is currently only supported with Maestro."
+                    % (node.name, type(wrapper).__name__, attr_list, orchestrator_name)
                 )

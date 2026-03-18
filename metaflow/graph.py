@@ -1,4 +1,3 @@
-from gc import collect
 import inspect
 import ast
 import re
