@@ -439,6 +439,13 @@ KUBERNETES_JOBSET_VERSION = from_conf("KUBERNETES_JOBSET_VERSION", "v1alpha2")
 
 KUBERNETES_JOB_TERMINATE_MODE = from_conf("KUBERNETES_JOB_TERMINATE_MODE", "stop")
 
+# How long (in seconds) to keep completed k8s Jobs before auto-deletion.
+# Default: 7 days. Set lower in dev/test environments to prevent pod
+# accumulation that can exhaust cluster resources.
+KUBERNETES_JOB_TTL_SECONDS_AFTER_FINISHED = from_conf(
+    "KUBERNETES_JOB_TTL_SECONDS_AFTER_FINISHED", 7 * 24 * 60 * 60
+)
+
 ##
 # Argo Events Configuration
 ##

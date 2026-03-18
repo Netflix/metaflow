@@ -21,12 +21,12 @@ class ResourcesCpuFlow(FlowSpec):
     def default(self):
         self.next(self.join)
 
-    @resources(cpu=2)
+    @resources(cpu=1)
     @step
     def cpu2(self):
         self.next(self.join)
 
-    @resources(cpu=4, memory=8000)
+    @resources(cpu=1, memory=512)
     @step
     def cpu4(self):
         self.next(self.join)
