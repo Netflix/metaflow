@@ -56,7 +56,11 @@ def setup_minio(ctx):
         config={
             "METAFLOW_DEFAULT_DATASTORE": "s3",
             "METAFLOW_DATASTORE_SYSROOT_S3": "s3://metaflow-test/metaflow",
-            "METAFLOW_S3_ENDPOINT_URL": "http://host.docker.internal:9000",
+            # Do NOT set METAFLOW_S3_ENDPOINT_URL here. The k8s plugin injects it
+            # into pods verbatim, and host.docker.internal:9000 doesn't resolve from
+            # inside Kubernetes pods on Linux. Pods get AWS_ENDPOINT_URL_S3 from the
+            # minio-secret (http://minio.default.svc.cluster.local:9000) instead.
+            # Host-side boto3 uses METAFLOW_DATATOOLS_CLIENT_PARAMS.endpoint_url below.
             "METAFLOW_DATATOOLS_CLIENT_PARAMS": {
                 "endpoint_url": "http://localhost:9000",
                 "config": {
