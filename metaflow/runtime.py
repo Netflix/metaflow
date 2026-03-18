@@ -2330,7 +2330,6 @@ class Worker(object):
                     self.task.user_code_retries,
                     self.task.ubf_context,
                 )
-            print("ARGS IS: %s" % str(args))
 
         # Write resolved dynamic var values to a temp file for the child process.
         # The child deletes the file after reading.  We use pickle to be more

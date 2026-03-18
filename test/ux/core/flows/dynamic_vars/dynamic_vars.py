@@ -1,4 +1,4 @@
-from metaflow import FlowSpec, step, environment, var, kubernetes
+from metaflow import FlowSpec, step, environment, var
 
 
 class DynamicEnvTestFlow(FlowSpec):
