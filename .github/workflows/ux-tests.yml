@@ -214,11 +214,6 @@ jobs:
         env:
           SERVICES: ${{ matrix.services }}
 
-      - name: Wait for test image to be loaded into minikube
-        if: matrix.backend != 'local' && matrix.backend != 'sfn-batch'
-        run: |
-          tilt wait --for=condition=Ready uiresource/build-test-image --timeout=300s
-
       - name: Save minikube images to cache
         if: steps.image-cache.outputs.cache-hit != 'true'
         run: devtools/ci/save-minikube-images.sh

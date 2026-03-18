@@ -191,12 +191,3 @@ local_resource(
     labels=["setup"],
 )
 
-# ---------------------------------------------------------------------------
-# Test image
-# ---------------------------------------------------------------------------
-local_resource(
-    name="build-test-image",
-    cmd="minikube image build -t metaflow-test:python3.9 docker/metaflow-test/",
-    deps=["docker/metaflow-test/Dockerfile"],
-    labels=["test"],
-)
