@@ -32,6 +32,14 @@ class Current(object):
         self.__class__.graph = property(
             fget=lambda self: _raise(RuntimeError("Graph is not available"))
         )
+        self.__class__.huggingface = property(
+            fget=lambda self: _raise(
+                RuntimeError(
+                    "current.huggingface is only available inside a step "
+                    "decorated with @huggingface"
+                )
+            )
+        )
 
     def _set_env(
         self,
