@@ -232,8 +232,9 @@ def test_fail_flow_reports_failed_status(
     final_status = None
     while time.time() < deadline:
         s = triggered.status
-        if s in ("FAILED", "SUCCEEDED"):
-            final_status = s
+        # Normalize to uppercase — Argo returns "Failed"/"Succeeded", SFN "FAILED"/"SUCCEEDED"
+        if s and s.upper() in ("FAILED", "SUCCEEDED"):
+            final_status = s.upper()
             break
         time.sleep(5)
 
