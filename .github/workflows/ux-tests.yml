@@ -214,6 +214,10 @@ jobs:
         env:
           SERVICES: ${{ matrix.services }}
 
+      - name: Pre-pull python:3.9 into minikube
+        if: matrix.backend != 'local' && matrix.backend != 'sfn-batch'
+        run: minikube image pull python:3.9
+
       - name: Save minikube images to cache
         if: steps.image-cache.outputs.cache-hit != 'true'
         run: devtools/ci/save-minikube-images.sh
