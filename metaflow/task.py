@@ -893,6 +893,11 @@ class MetaflowTask(object):
                         self.ubf_context,
                     )
                 from_start("MetaflowTask: finished decorator processing")
+                # Initialize any user step decorator -- we do this late so we can
+                # be lazy about it.
+                for wrapper in orig_step_func.wrappers:
+                    wrapper.external_init(self.flow)
+
                 if join_type:
                     self._exec_step_function(step_func, orig_step_func, input_obj)
                 else:
@@ -909,6 +914,33 @@ class MetaflowTask(object):
 
                 self.flow._task_ok = True
                 self.flow._success = True
+
+                # Collect dynamic var values needed by downstream steps.
+                # We use _transition (set by self.next()) to know the exact
+                # next steps and look up their dynamic_var_names from the graph.
+                trans = self.flow._transition
+                if trans:
+                    next_step_names = trans[0]
+                    dyn_names = set()
+                    for ns in next_step_names:
+                        if ns in self.flow._graph:
+                            dyn_names |= self.flow._graph[ns].dynamic_var_names
+                    for var_name in dyn_names:
+                        if hasattr(self.flow, var_name):
+                            self.flow._add_dynamic_var(
+                                var_name, getattr(self.flow, var_name)
+                            )
+                        else:
+                            raise MetaflowInternalError(
+                                "Step *%s* did not set artifact '%s' "
+                                "required by var('%s') in step(s) *%s*."
+                                % (
+                                    step_name,
+                                    var_name,
+                                    var_name,
+                                    ", ".join(next_step_names),
+                                )
+                            )
 
             except Exception as ex:
                 with self.monitor.count("metaflow.task.exception"):

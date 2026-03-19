@@ -104,6 +104,7 @@ from .flowspec import FlowSpec
 from .parameters import Parameter, JSONTypeClass, JSONType
 
 from .user_configs.config_parameters import Config, ConfigValue, config_expr
+from .dynamic_var import var
 from .user_decorators.user_step_decorator import (
     UserStepDecorator,
     StepMutator,

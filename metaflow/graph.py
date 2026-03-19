@@ -5,6 +5,8 @@ import re
 from itertools import chain
 
 
+from .dynamic_var import collect_dynamic_var_names
+from .exception import MetaflowException
 from .util import to_pod
 
 
@@ -295,6 +297,30 @@ class FlowGraph(object):
             ]
             if [f for f in foreaches if self.nodes[f].matching_join != node.name]:
                 node.is_inside_foreach = True
+
+        # Compute the flat set of artifact names referenced by var() in any
+        # decorator on each step.  NativeRuntime uses this to know which
+        # artifacts to prefetch from the parent datastore.
+        for node in self.nodes.values():
+            names = set()
+            for deco in node.decorators:
+                for v in deco.attributes.values():
+                    names |= collect_dynamic_var_names(v)
+            for w in node.wrappers:
+                names |= collect_dynamic_var_names(w._args)
+                names |= collect_dynamic_var_names(w._kwargs)
+            node.dynamic_var_names = names
+
+        # Validate: var() cannot be used on the start step (no parent).
+        start_node = self.nodes.get("start")
+        if start_node and start_node.dynamic_var_names:
+            raise MetaflowException(
+                "Step *start* uses var() (%s) but the start step has no parent "
+                "step to resolve artifacts from. Move var() to a downstream step."
+                % ", ".join(
+                    "var('%s')" % n for n in sorted(start_node.dynamic_var_names)
+                )
+            )
 
     def _traverse_graph(self):
         def traverse(node, seen, split_parents, split_branches):
