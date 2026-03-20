@@ -1,11 +1,17 @@
 import pytest
 
+from metaflow.plugins.kubernetes import kube_utils
 from metaflow.plugins.kubernetes.kubernetes import KubernetesException
 
 from metaflow.plugins.kubernetes.kube_utils import (
     validate_kube_labels,
     parse_kube_keyvalue_list,
 )
+
+
+def test_kubernetes_exception_type_is_shared_across_modules():
+    """Ensure Kubernetes helpers and runtime expose the same exception class."""
+    assert kube_utils.KubernetesException is KubernetesException
 
 
 @pytest.mark.parametrize(
