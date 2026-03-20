@@ -45,7 +45,6 @@ jobs:
       uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405  # v6.2.0
       with:
         python-version: ${{ matrix.ver }}
-        cache: 'pip'
       env:
         PIP_TRUSTED_HOST: "pypi.python.org pypi.org files.pythonhosted.org"
 
@@ -72,14 +71,6 @@ jobs:
       uses: r-lib/actions/setup-r@33f03a860e4659235eb60a4d87ebc0b2ea65f722 # v2.4.0
       with:
         r-version: ${{ matrix.ver }}
-
-    - name: Cache R packages
-      uses: actions/cache@v4
-      with:
-        path: ~/R/library
-        key: ${{ runner.os }}-r-${{ matrix.ver }}-${{ hashFiles('R/DESCRIPTION') }}
-        restore-keys: |
-          ${{ runner.os }}-r-${{ matrix.ver }}-
 
     - name: Install R ${{ matrix.ver }} system dependencies
       if: startsWith(matrix.os, 'ubuntu')
