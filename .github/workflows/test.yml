@@ -12,7 +12,7 @@ permissions: read-all
 
 jobs:
   pre-commit:
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-latest-64-cores
     steps:
     - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8  # v6.0.1
     - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405  # v6.2.0
@@ -24,7 +24,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-22.04]
+        os: [ubuntu-latest-64-cores]
         ver: ['3.7', '3.8', '3.9', '3.10', '3.11', '3.12', '3.13', '3.14']
         include:
           - os: macos-latest
@@ -62,7 +62,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-22.04]
+        os: [ubuntu-latest-64-cores]
         ver: ['4.4.1']
 
     steps:
@@ -73,7 +73,7 @@ jobs:
         r-version: ${{ matrix.ver }}
 
     - name: Install R ${{ matrix.ver }} system dependencies
-      if: matrix.os == 'ubuntu-22.04'
+      if: startsWith(matrix.os, 'ubuntu')
       run: sudo apt-get update; sudo apt-get install -y libcurl4-openssl-dev qpdf libgit2-dev libharfbuzz-dev libfribidi-dev libwebp-dev
 
     - name: Install R ${{ matrix.ver }} Rlang dependencies
