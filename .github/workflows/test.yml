@@ -45,6 +45,7 @@ jobs:
       uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405  # v6.2.0
       with:
         python-version: ${{ matrix.ver }}
+        cache: 'pip'
       env:
         PIP_TRUSTED_HOST: "pypi.python.org pypi.org files.pythonhosted.org"
 
@@ -72,6 +73,14 @@ jobs:
       with:
         r-version: ${{ matrix.ver }}
 
+    - name: Cache R packages
+      uses: actions/cache@v4
+      with:
+        path: ~/R/library
+        key: ${{ runner.os }}-r-${{ matrix.ver }}-${{ hashFiles('R/DESCRIPTION') }}
+        restore-keys: |
+          ${{ runner.os }}-r-${{ matrix.ver }}-
+
     - name: Install R ${{ matrix.ver }} system dependencies
       if: startsWith(matrix.os, 'ubuntu')
       run: sudo apt-get update; sudo apt-get install -y libcurl4-openssl-dev qpdf libgit2-dev libharfbuzz-dev libfribidi-dev libwebp-dev
@@ -81,10 +90,9 @@ jobs:
         python3 -m venv path/to/venv
         source path/to/venv/bin/activate
         python3 -m pip install .
-        Rscript -e 'install.packages(c("devtools", "remotes"), repos="https://cloud.r-project.org", Ncpus=8)'
+        Rscript -e 'install.packages(c("devtools", "remotes", "data.table", "caret", "glmnet", "Matrix", "rjson"), repos="https://cloud.r-project.org", Ncpus=64)'
         Rscript -e 'devtools::install_deps("R", dependencies=TRUE, repos="https://cloud.r-project.org", upgrade="default")'
         R CMD INSTALL R
-        Rscript -e 'install.packages(c("data.table", "caret", "glmnet", "Matrix", "rjson"), repos="https://cloud.r-project.org", Ncpus=8)'
 
     - name: Execute R tests
       run: |
