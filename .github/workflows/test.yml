@@ -81,7 +81,7 @@ jobs:
         python3 -m venv path/to/venv
         source path/to/venv/bin/activate
         python3 -m pip install .
-        Rscript -e 'install.packages("devtools", repos="https://cloud.r-project.org", Ncpus=8)'
+        Rscript -e 'install.packages(c("devtools", "remotes"), repos="https://cloud.r-project.org", Ncpus=8)'
         Rscript -e 'devtools::install_deps("R", dependencies=TRUE, repos="https://cloud.r-project.org", upgrade="default")'
         R CMD INSTALL R
         Rscript -e 'install.packages(c("data.table", "caret", "glmnet", "Matrix", "rjson"), repos="https://cloud.r-project.org", Ncpus=8)'
