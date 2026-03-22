@@ -383,6 +383,13 @@ def compress_list(lst, separator=",", rangedelim=":", zlibmarker="!", zlibmin=50
 
 
 def decompress_list(lststr, separator=",", rangedelim=":", zlibmarker="!"):
+    # Handle the empty-list round-trip: compress_list([]) == "" so we must
+    # return [] without touching lststr[0] (which would raise IndexError).
+    # Note: This introduces a minor ambiguity where both compress_list([])
+    # and compress_list([""]) return "". Decompressing "" now consistently
+    # returns [], favoring the empty list.
+    if lststr == "":
+        return []
     # Three input modes:
     if lststr[0] == zlibmarker:
         # 3. zlib-compressed, base64-encoded
