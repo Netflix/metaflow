@@ -6,7 +6,7 @@ def setup_sfn_local(ctx):
     _is_linux = str(local("uname -s", quiet=True)).strip() == "Linux"
     if _is_linux:
         _minikube_gw = str(local(
-            "docker network inspect minikube --format '{{range .IPAM.Config}}{{.Gateway}}{{end}}'",
+            "docker network inspect minikube --format '{{range .IPAM.Config}}{{.Gateway}}{{end}}' 2>/dev/null || echo '192.168.49.1'",
             quiet=True,
         )).strip() or "192.168.49.1"
         _sfn_host_network = False
