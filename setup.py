@@ -6,11 +6,16 @@ with open("metaflow/version.py", mode="r") as f:
 
 
 def find_devtools_files():
-    filepaths = []
+    # Returns a list of (install_dir, [files]) tuples preserving subdirectory structure.
+    entries = {}
     for path in glob.iglob("devtools/**/*", recursive=True):
         if os.path.isfile(path):
-            filepaths.append(path)
-    return filepaths
+            rel_dir = os.path.dirname(path)  # e.g. "devtools/tilt/k8s"
+            install_dir = os.path.join(
+                "share/metaflow", rel_dir
+            )  # e.g. "share/metaflow/devtools/tilt/k8s"
+            entries.setdefault(install_dir, []).append(path)
+    return list(entries.items())
 
 
 setup(
@@ -55,7 +60,7 @@ setup(
             "**/*.pyi",
         ]
     },
-    data_files=[("share/metaflow/devtools", find_devtools_files())],
+    data_files=find_devtools_files(),
     entry_points="""
         [console_scripts]
         metaflow=metaflow.cmd.main_cli:start
