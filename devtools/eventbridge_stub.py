@@ -20,6 +20,9 @@ import sys
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer as HTTPServer
 
 PORT = 7777
+# Fake ARN returned for PutRule — metaflow never reads this value back,
+# it uses only the rule name for subsequent API calls.
+STUB_RULE_ARN = "arn:aws:events:us-east-1:123456789012:rule/devstack-stub"
 
 
 class EventBridgeHandler(BaseHTTPRequestHandler):
@@ -53,10 +56,7 @@ class EventBridgeHandler(BaseHTTPRequestHandler):
                 },
             )
         elif target.endswith("PutRule"):
-            self._send_json(
-                200,
-                {"RuleArn": "arn:aws:events:us-east-1:123456789012:rule/devstack-stub"},
-            )
+            self._send_json(200, {"RuleArn": STUB_RULE_ARN})
         elif target.endswith("PutTargets"):
             self._send_json(200, {"FailedEntryCount": 0, "FailedEntries": []})
         else:
