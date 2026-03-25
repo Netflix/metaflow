@@ -1,8 +1,11 @@
+import sys
 import tempfile
 import typing
 import inspect
 from typing import TypeVar, Optional
 from unittest.mock import Mock, patch
+
+import pytest
 
 from metaflow.cmd.develop.stub_generator import StubGenerator
 
@@ -307,6 +310,9 @@ class TestStubGenerator:
             assert "typing.ClassVar" in result
             assert "test.module.TestClass" in result
 
+    @pytest.mark.skipif(
+        sys.version_info < (3, 8), reason="typing.Final not available in Python 3.7"
+    )
     def test_get_element_name_final(self):
         """Test Final types"""
         final_type = typing.Final[TestClass]
