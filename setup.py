@@ -77,7 +77,7 @@ setup(
             "pytest-rerunfailures",
             "omegaconf",
             "kubernetes",
-            "localbatch",
+            "localbatch; python_version >= '3.8'",
         ],
     },
 )

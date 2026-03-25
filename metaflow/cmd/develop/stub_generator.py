@@ -581,8 +581,20 @@ class StubGenerator:
         elif isinstance(element, type(Ellipsis)):
             return "..."
         elif _NativeUnionType is not None and isinstance(element, _NativeUnionType):
-            # Python 3.10+ native union type (X | Y syntax), including when
-            # typing.Union[X, Y] normalizes to X | Y on Python 3.14+
+            # Python 3.10+ native union type (X | Y syntax)
+            args_str = []
+            for arg in element.__args__:
+                if isinstance(arg, type):
+                    args_str.append(_format_qualified_class_name(arg))
+                else:
+                    args_str.append(self._get_element_name_with_module(arg))
+            _add_to_import("typing")
+            return "typing.Union[%s]" % ", ".join(args_str)
+        elif getattr(element, "__origin__", None) is typing.Union and hasattr(
+            element, "__args__"
+        ):
+            # Handle typing.Union/Optional on Python 3.14+ where Union types may
+            # no longer be instances of typing._GenericAlias
             args_str = []
             for arg in element.__args__:
                 if isinstance(arg, type):
