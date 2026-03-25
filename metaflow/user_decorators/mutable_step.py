@@ -371,6 +371,7 @@ class MutableStep:
                 for deco in getattr(self._my_step, attr):
                     if deco.decorator_name == canonical_deco_type.decorator_name:
                         if do_all:
+                            did_remove = True
                             continue  # We remove all decorators with this name
                         if deco.get_args_kwargs() == (
                             deco_args or [],
@@ -399,6 +400,7 @@ class MutableStep:
         for deco in self._my_step.decorators:
             if deco.name == deco_name:
                 if do_all:
+                    did_remove = True
                     continue  # We remove all decorators with this name
                 # Check if the decorator specification matches
                 if deco.get_args_kwargs() == (deco_args, deco_kwargs):
