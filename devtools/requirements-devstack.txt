@@ -1,1 +1,8 @@
--e ..[dev]
+git+https://github.com/npow/localbatch.git@main
+pytest
+pytest-timeout
+pytest-cov
+pytest-xdist
+pytest-rerunfailures
+omegaconf
+kubernetes
