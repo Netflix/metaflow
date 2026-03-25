@@ -97,7 +97,7 @@ Changes touching any of the following files or directories are **Core Runtime** 
 | **Config/parameters** | `metaflow/metaflow_config.py`, `metaflow/parameters.py`, `metaflow/user_configs/` |
 | **Logging/capture** | `metaflow/mflog/`, `metaflow/system/`, `metaflow/debug.py` |
 | **Decorators (core)** | `metaflow/decorators.py` |
-| **Hugging Face Hub (`@huggingface`)** | `metaflow/plugins/huggingface/`, `docs/huggingface.md` |
+| **Hugging Face (`@huggingface`)** | `metaflow/plugins/huggingface/`, `docs/huggingface.md`, `demos/huggingface/` |
 | **Graph/DAG** | `metaflow/graph.py` |
 | **Orchestrator plugins** | `metaflow/plugins/argo/`, `metaflow/plugins/aws/batch/`, `metaflow/plugins/aws/step_functions/`, `metaflow/plugins/kubernetes/` |
 

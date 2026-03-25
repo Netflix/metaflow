@@ -1,17 +1,14 @@
 #!/usr/bin/env python
 """
-Demo entrypoint for ``@huggingface``.
+Demo script for the @huggingface decorator.
 
-The script defines three small flows (one per mode). Select the mode with
-``HUGGINGFACE_DEMO_MODE``:
+Three separate flows so the decorators are clear for each mode. Run with:
+  HUGGINGFACE_DEMO_MODE=none     (default) – public model, metadata only
+  HUGGINGFACE_DEMO_MODE=download – private model, full download (token env)
+  HUGGINGFACE_DEMO_MODE=env      – private model, metadata only (token env)
 
-- ``none`` (default): public model, metadata only, no token.
-- ``download``: private model, full snapshot (set a Hugging Face token in the environment).
-- ``env``: private model, metadata only (token env).
-
-See ``demos/huggingface/README.md`` for how to run the shell wrapper. Conceptual
-documentation and configuration are in ``docs/huggingface.md``. The private-repo
-examples use ``netflix/my-gpt2``; change ``models=`` for your own repo.
+See demos/huggingface/run_huggingface_demo.sh run [none|download|env].
+See docs/huggingface.md for configuration and auth.
 """
 import os
 

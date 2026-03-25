@@ -18,15 +18,18 @@ How to test locally
 
 3. Unit tests (parsing + sentinel; require metaflow_test on PYTHONPATH):
    cd test/core
-   PYTHONPATH=../.. python -m unittest tests.huggingface_decorator.TestHuggingFaceParsing tests.huggingface_decorator.TestCurrentHuggingFaceSentinel -v
+   PYTHONPATH=../.. python -m unittest tests.huggingface_decorator.TestHuggingFaceParsing tests.huggingface_decorator.TestCurrentHuggingFaceSentinel tests.huggingface_decorator.TestEnvHuggingFaceAuthProvider -v
 
 4. Manual flow (from repo root):
    python metaflow/plugins/huggingface/example_flow.py run
-   (Optional: set HF_TOKEN or HUGGING_FACE_HUB_TOKEN for gated models.)
+   (Optional: set HF_TOKEN, HUGGING_FACE_TOKEN, or HUGGING_FACE_HUB_TOKEN for gated models.)
+
+5. Multi-mode demo: ./demos/huggingface/run_huggingface_demo.sh run [none|download|env] (see docs/huggingface.md).
 """
 
 import os
 import unittest
+from unittest.mock import patch
 
 try:
     import huggingface_hub  # noqa: F401
@@ -87,6 +90,47 @@ class TestHuggingFaceParsing(unittest.TestCase):
         )
         self.assertEqual(m["llama"], ("meta-llama/Llama-2-7b", "main"))
         self.assertEqual(m["bert"], ("bert-base-uncased", "main"))
+
+
+class TestEnvHuggingFaceAuthProvider(unittest.TestCase):
+    """Env provider reads HF_TOKEN, then HUGGING_FACE_TOKEN, then HUGGING_FACE_HUB_TOKEN."""
+
+    def test_token_precedence(self):
+        from metaflow.plugins.huggingface.env_auth_provider import (
+            EnvHuggingFaceAuthProvider,
+        )
+
+        p = EnvHuggingFaceAuthProvider()
+        with patch.dict(
+            os.environ,
+            {
+                "HF_TOKEN": "a",
+                "HUGGING_FACE_TOKEN": "b",
+                "HUGGING_FACE_HUB_TOKEN": "c",
+            },
+            clear=False,
+        ):
+            self.assertEqual(p.get_token(), "a")
+        with patch.dict(
+            os.environ,
+            {
+                "HF_TOKEN": "",
+                "HUGGING_FACE_TOKEN": "b",
+                "HUGGING_FACE_HUB_TOKEN": "c",
+            },
+            clear=False,
+        ):
+            self.assertEqual(p.get_token(), "b")
+        with patch.dict(
+            os.environ,
+            {
+                "HF_TOKEN": "",
+                "HUGGING_FACE_TOKEN": "",
+                "HUGGING_FACE_HUB_TOKEN": "c",
+            },
+            clear=False,
+        ):
+            self.assertEqual(p.get_token(), "c")
 
 
 class TestCurrentHuggingFaceSentinel(unittest.TestCase):

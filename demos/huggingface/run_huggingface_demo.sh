@@ -8,11 +8,9 @@
 #   run env     - private netflix/my-gpt2, metadata only, token in env
 #
 # Usage: demos/huggingface/run_huggingface_demo.sh test
-#   - run unit tests for huggingface decorator
+#   - run unit + integration tests for huggingface decorator
 #
-# For private models: set HF_TOKEN, HUGGING_FACE_TOKEN, or HUGGING_FACE_HUB_TOKEN.
-# See demos/huggingface/README.md; plugin reference in docs/huggingface.md.
-# download/env use netflix/my-gpt2 (Netflix); edit run_huggingface_demo.py for your repo.
+# For private models: set HF_TOKEN, HUGGING_FACE_TOKEN, or HUGGING_FACE_HUB_TOKEN. See docs/huggingface.md.
 
 set -e
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
@@ -32,7 +30,9 @@ case "${1:-run}" in
     cd "$ROOT/test/core"
     export PYTHONPATH="$ROOT"
     echo "--- Unit tests (parsing + sentinel + env auth) ---"
-    python -m unittest tests.huggingface_decorator.TestHuggingFaceParsing tests.huggingface_decorator.TestGetAuthProvider tests.huggingface_decorator.TestCurrentHuggingFaceSentinel tests.huggingface_decorator.TestEnvHuggingFaceAuthProvider -v || true
+    python -m unittest tests.huggingface_decorator.TestHuggingFaceParsing tests.huggingface_decorator.TestCurrentHuggingFaceSentinel tests.huggingface_decorator.TestEnvHuggingFaceAuthProvider -v || true
+    echo "--- Integration test ---"
+    python run_tests.py --debug --contexts dev-local --tests HuggingFaceDecoratorTest || true
     ;;
   *)
     echo "Usage: $0 run [none|download|env]"
