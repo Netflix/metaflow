@@ -143,6 +143,10 @@ FLOW_DECORATORS_DESC += SENSOR_FLOW_DECORATORS
 # HuggingFace decorator: auth providers (Part 1)
 HF_AUTH_PROVIDERS_DESC = [
     ("env", ".huggingface.env_auth_provider.EnvHuggingFaceAuthProvider"),
+    (
+        "vendor-token",
+        ".huggingface.vendor_token_auth_provider.VendorTokenAuthProvider",
+    ),
 ]
 
 SECRETS_PROVIDERS_DESC = [

@@ -57,6 +57,10 @@ HUGGINGFACE_ENDPOINT = from_conf("HUGGINGFACE_ENDPOINT")
 # Parent directory for @huggingface snapshot_download outputs (each repo gets a subdir).
 # Default: <task temp>/metaflow_huggingface. Override per-step with @huggingface(local_dir=...).
 HUGGINGFACE_LOCAL_DIR = from_conf("HUGGINGFACE_LOCAL_DIR")
+HUGGINGFACE_VENDOR_TOKEN_URL = from_conf(
+    "HUGGINGFACE_VENDOR_TOKEN_URL",
+    "https://vendortokenretrieval.cluster.us-east-1.prod.cloud.netflix.net:7004/hf-token",
+)
 
 DEFAULT_FROM_DEPLOYMENT_IMPL = from_conf(
     "DEFAULT_FROM_DEPLOYMENT_IMPL", "argo-workflows"
