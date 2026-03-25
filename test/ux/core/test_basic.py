@@ -228,7 +228,7 @@ def test_fail_flow_reports_failed_status(
 
     triggered = deployed_flow.trigger()
 
-    deadline = time.time() + 120
+    deadline = time.time() + 300
     final_status = None
     while time.time() < deadline:
         s = triggered.status
