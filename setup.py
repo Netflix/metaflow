@@ -77,7 +77,7 @@ setup(
             "pytest-rerunfailures",
             "omegaconf",
             "kubernetes",
-            "localbatch",
+            "localbatch @ git+https://github.com/npow/localbatch.git@main",
         ],
     },
 )
