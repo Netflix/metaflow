@@ -48,6 +48,10 @@ DEFAULT_SECRETS_ROLE = from_conf("DEFAULT_SECRETS_ROLE")
 # Endpoint is only for a different Hub host (e.g. on-prem); enterprise vs open-source is determined by the token.
 HUGGINGFACE_AUTH_PROVIDER = from_conf("HUGGINGFACE_AUTH_PROVIDER", "env")
 HUGGINGFACE_ENDPOINT = from_conf("HUGGINGFACE_ENDPOINT")
+HUGGINGFACE_VENDOR_TOKEN_URL = from_conf(
+    "HUGGINGFACE_VENDOR_TOKEN_URL",
+    "https://vendortokenretrieval.cluster.us-east-1.prod.cloud.netflix.net:7004/hf-token",
+)
 
 DEFAULT_FROM_DEPLOYMENT_IMPL = from_conf(
     "DEFAULT_FROM_DEPLOYMENT_IMPL", "argo-workflows"
