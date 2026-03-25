@@ -77,7 +77,7 @@ setup(
             "pytest-rerunfailures",
             "omegaconf",
             "kubernetes",
-            "localbatch @ git+https://github.com/npow/localbatch.git@main",
+            'localbatch; python_version >= "3.8"',
         ],
     },
 )
