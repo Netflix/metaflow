@@ -33,9 +33,7 @@ def run_core_test_combination(
     env["METAFLOW_CLICK_API_PROCESS_CONFIG"] = "0"
     env["METAFLOW_TEST_PRINT_FLOW"] = "1"
     env["PYTHONPATH"] = (
-        "%s:%s" % (core_dir, env["PYTHONPATH"])
-        if "PYTHONPATH" in env
-        else core_dir
+        "%s:%s" % (core_dir, env["PYTHONPATH"]) if "PYTHONPATH" in env else core_dir
     )
 
     with _WithDir(core_dir):

@@ -35,17 +35,15 @@ def pytest_generate_tests(metafunc: Any) -> None:
         from run_tests import iter_graphs, iter_tests
         from metaflow_test.formatter import FlowFormatter
 
-        test_batches = list(
-            _split_into_batches(list(iter_tests()), batch_size=10)
-        )
+        test_batches = list(_split_into_batches(list(iter_tests()), batch_size=10))
         all_graphs = list(iter_graphs())
 
         params = []
-        for context, graph, batch in product(enabled_contexts, all_graphs, test_batches):
+        for context, graph, batch in product(
+            enabled_contexts, all_graphs, test_batches
+        ):
             valid = [
-                t.__class__.__name__
-                for t in batch
-                if FlowFormatter(graph, t).valid
+                t.__class__.__name__ for t in batch if FlowFormatter(graph, t).valid
             ]
             if valid:
                 params.append((context, graph["name"], valid))
