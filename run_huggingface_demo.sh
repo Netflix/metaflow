@@ -1,8 +1,16 @@
 #!/usr/bin/env bash
 # Run the @huggingface decorator demo from repo root.
-# Usage: ./run_huggingface_demo.sh [run|test]
-#   run  - run the demo flow (default)
-#   test - run unit + integration tests for huggingface decorator
+#
+# Usage: ./run_huggingface_demo.sh run [none|download|env]
+#   run         - default: public model, metadata only
+#   run none    - public model (openai-community/gpt2), metadata only
+#   run download - private netflix/my-gpt2, full download (HF_TOKEN)
+#   run env     - private netflix/my-gpt2, metadata only, HF_TOKEN in env
+#
+# Usage: ./run_huggingface_demo.sh test
+#   - run unit + integration tests for huggingface decorator
+#
+# For private models: set HF_TOKEN (or HUGGING_FACE_HUB_TOKEN). See docs/huggingface.md.
 
 set -e
 cd "$(dirname "$0")"
@@ -11,8 +19,11 @@ export PYTHONPATH="$ROOT"
 
 case "${1:-run}" in
   run)
-    echo "Running HuggingFace demo flow..."
-    python run_huggingface_demo.py run --no-pylint
+    MODE="${2:-none}"
+    export HUGGINGFACE_DEMO_MODE="$MODE"
+    PYTHON="${PYTHON_PATH:-python}"
+    echo "Running HuggingFace demo flow (mode=$MODE)..."
+    "$PYTHON" run_huggingface_demo.py run
     ;;
   test)
     echo "Running HuggingFace decorator tests..."
@@ -24,9 +35,12 @@ case "${1:-run}" in
     python run_tests.py --debug --contexts dev-local --tests HuggingFaceDecoratorTest || true
     ;;
   *)
-    echo "Usage: $0 [run|test]"
-    echo "  run  - run the demo flow (default)"
-    echo "  test - run unit + integration tests"
+    echo "Usage: $0 run [none|download|env]"
+    echo "       $0 test"
+    echo "  run         - public model, metadata only (default)"
+    echo "  run none    - public model, metadata only"
+    echo "  run download - private netflix model, full download (HF_TOKEN)"
+    echo "  run env     - private netflix model, metadata only (HF_TOKEN in env)"
     exit 1
     ;;
 esac

@@ -44,10 +44,10 @@ DEFAULT_GCP_CLIENT_PROVIDER = from_conf("DEFAULT_GCP_CLIENT_PROVIDER", "gcp-defa
 DEFAULT_SECRETS_BACKEND_TYPE = from_conf("DEFAULT_SECRETS_BACKEND_TYPE")
 DEFAULT_SECRETS_ROLE = from_conf("DEFAULT_SECRETS_ROLE")
 
-# HuggingFace @huggingface decorator: auth provider type (Part 1)
-METAFLOW_HUGGINGFACE_AUTH_PROVIDER = from_conf(
-    "METAFLOW_HUGGINGFACE_AUTH_PROVIDER", "env"
-)
+# HuggingFace @huggingface decorator: auth provider type; optional custom Hub URL.
+# Endpoint is only for a different Hub host (e.g. on-prem); enterprise vs open-source is determined by the token.
+HUGGINGFACE_AUTH_PROVIDER = from_conf("HUGGINGFACE_AUTH_PROVIDER", "env")
+HUGGINGFACE_ENDPOINT = from_conf("HUGGINGFACE_ENDPOINT")
 
 DEFAULT_FROM_DEPLOYMENT_IMPL = from_conf(
     "DEFAULT_FROM_DEPLOYMENT_IMPL", "argo-workflows"

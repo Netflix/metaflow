@@ -30,6 +30,7 @@ import unittest
 
 try:
     import huggingface_hub  # noqa: F401
+
     HAS_HUGGINGFACE_HUB = True
 except ImportError:
     HAS_HUGGINGFACE_HUB = False
@@ -42,7 +43,9 @@ class TestHuggingFaceParsing(unittest.TestCase):
     def test_parse_repo_spec_repo_only(self):
         from metaflow.plugins.huggingface.huggingface_decorator import _parse_repo_spec
 
-        self.assertEqual(_parse_repo_spec("bert-base-uncased"), ("bert-base-uncased", "main"))
+        self.assertEqual(
+            _parse_repo_spec("bert-base-uncased"), ("bert-base-uncased", "main")
+        )
         self.assertEqual(
             _parse_repo_spec("meta-llama/Llama-2-7b"),
             ("meta-llama/Llama-2-7b", "main"),
@@ -69,32 +72,21 @@ class TestHuggingFaceParsing(unittest.TestCase):
         with self.assertRaises(MetaflowException):
             _parse_repo_spec("   ")
 
-    def test_build_spec_map_models(self):
+    def test_build_spec_map_list(self):
         from metaflow.plugins.huggingface.huggingface_decorator import _build_spec_map
 
-        m = _build_spec_map(models=["bert-base-uncased", "meta-llama/Llama-2-7b@main"], model_mapping=None)
+        m = _build_spec_map(["bert-base-uncased", "meta-llama/Llama-2-7b@main"])
         self.assertEqual(m["bert-base-uncased"], ("bert-base-uncased", "main"))
         self.assertEqual(m["meta-llama/Llama-2-7b"], ("meta-llama/Llama-2-7b", "main"))
 
-    def test_build_spec_map_model_mapping(self):
+    def test_build_spec_map_dict(self):
         from metaflow.plugins.huggingface.huggingface_decorator import _build_spec_map
 
         m = _build_spec_map(
-            models=None,
-            model_mapping={"llama": "meta-llama/Llama-2-7b@main", "bert": "bert-base-uncased"},
+            {"llama": "meta-llama/Llama-2-7b@main", "bert": "bert-base-uncased"},
         )
         self.assertEqual(m["llama"], ("meta-llama/Llama-2-7b", "main"))
         self.assertEqual(m["bert"], ("bert-base-uncased", "main"))
-
-    def test_build_spec_map_combined(self):
-        from metaflow.plugins.huggingface.huggingface_decorator import _build_spec_map
-
-        m = _build_spec_map(
-            models=["bert-base-uncased"],
-            model_mapping={"llama": "meta-llama/Llama-2-7b@main"},
-        )
-        self.assertEqual(m["bert-base-uncased"], ("bert-base-uncased", "main"))
-        self.assertEqual(m["llama"], ("meta-llama/Llama-2-7b", "main"))
 
 
 class TestCurrentHuggingFaceSentinel(unittest.TestCase):
@@ -106,7 +98,9 @@ class TestCurrentHuggingFaceSentinel(unittest.TestCase):
         # Default state: huggingface property raises (set in Current.__init__)
         try:
             _ = current.huggingface
-            self.fail("expected RuntimeError when accessing current.huggingface without @huggingface")
+            self.fail(
+                "expected RuntimeError when accessing current.huggingface without @huggingface"
+            )
         except RuntimeError as e:
             self.assertIn("huggingface", str(e))
             self.assertIn("@huggingface", str(e))
@@ -162,7 +156,9 @@ class HuggingFaceDecoratorTest(MetaflowTest):
                     return
                 if hasattr(task.data, "model_path") and task.data.model_path:
                     path = task.data.model_path
-                    assert_equals(True, os.path.isdir(path), "model path should be a directory")
+                    assert_equals(
+                        True, os.path.isdir(path), "model path should be a directory"
+                    )
                     assert_equals(True, len(path) > 0, "model path should be non-empty")
                 if hasattr(task.data, "model_key_present"):
                     assert_equals(True, task.data.model_key_present)
