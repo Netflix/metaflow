@@ -5,6 +5,12 @@ import os
 import select
 import shlex
 import time
+import re
+
+def _sanitize_user(user):
+    if user:
+        return re.sub(r'[^a-zA-Z0-9_-]', '-', user)
+    return user
 
 from metaflow import util
 from metaflow.plugins.datatools.s3.s3tail import S3Tail
@@ -158,7 +164,9 @@ class Batch(object):
         if user is None:
             regex = "-{flow_name}-".format(flow_name=flow_name)
         else:
-            regex = "{user}-{flow_name}-".format(user=user, flow_name=flow_name)
+            sanitized_user = _sanitize_user(user)
+            regex = "{user}-{flow_name}-".format(user=sanitized_user, flow_name=flow_name
+        )
         jobs = []
         for job in self._client.unfinished_jobs():
             if regex in job["jobName"]:
@@ -176,6 +184,7 @@ class Batch(object):
                 yield job
 
     def _job_name(self, user, flow_name, run_id, step_name, task_id, retry_count):
+        user = _sanitize_user(user)
         return "{user}-{flow_name}-{run_id}-{step_name}-{task_id}-{retry_count}".format(
             user=user,
             flow_name=flow_name,
