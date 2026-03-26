@@ -64,5 +64,6 @@ setup(
     install_requires=["requests", "boto3"],
     extras_require={
         "stubs": ["metaflow-stubs==%s" % version],
+        "huggingface": ["huggingface_hub"],
     },
 )

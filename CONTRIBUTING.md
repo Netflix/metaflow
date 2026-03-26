@@ -97,6 +97,7 @@ Changes touching any of the following files or directories are **Core Runtime** 
 | **Config/parameters** | `metaflow/metaflow_config.py`, `metaflow/parameters.py`, `metaflow/user_configs/` |
 | **Logging/capture** | `metaflow/mflog/`, `metaflow/system/`, `metaflow/debug.py` |
 | **Decorators (core)** | `metaflow/decorators.py` |
+| **Hugging Face (`@huggingface`)** | `metaflow/plugins/huggingface/`, `docs/huggingface.md`, `demos/huggingface/` |
 | **Graph/DAG** | `metaflow/graph.py` |
 | **Orchestrator plugins** | `metaflow/plugins/argo/`, `metaflow/plugins/aws/batch/`, `metaflow/plugins/aws/step_functions/`, `metaflow/plugins/kubernetes/` |
 
@@ -319,6 +320,13 @@ PYTHONPATH=`pwd`/../../ python run_tests.py --debug --contexts dev-local
 **Run specific test:**
 ```bash
 PYTHONPATH=`pwd`/../../ python run_tests.py --debug --contexts dev-local --tests YourTestName
+```
+
+Example — `@huggingface` decorator unit tests:
+
+```bash
+cd test/core
+PYTHONPATH=`pwd`/../../ python -m unittest tests.huggingface_decorator.TestHuggingFaceParsing -v
 ```
 
 ### Data/S3 Tests
