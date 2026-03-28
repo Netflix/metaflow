@@ -1353,6 +1353,7 @@ class ArgoWorkflows(object):
                                 "argo-{{workflow.name}}/%s/{{tasks.%s.outputs.parameters.task-id}}"
                                 % (n, self._sanitize(n))
                                 for n in node.in_funcs
+                                if not self._is_conditional_node(self.graph[n])
                             ],
                             # NOTE: We set zlibmin to infinite because zlib compression for the Argo input-paths breaks template value substitution.
                             zlibmin=inf,
