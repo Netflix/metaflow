@@ -1346,19 +1346,35 @@ class ArgoWorkflows(object):
                 )
             else:
                 # Every other node needs only input-paths
-                parameters = [
-                    Parameter("input-paths").value(
-                        compress_list(
-                            [
-                                "argo-{{workflow.name}}/%s/{{tasks.%s.outputs.parameters.task-id}}"
-                                % (n, self._sanitize(n))
-                                for n in node.in_funcs
-                            ],
-                            # NOTE: We set zlibmin to infinite because zlib compression for the Argo input-paths breaks template value substitution.
-                            zlibmin=inf,
+                def _build_input_path(n):
+                    sanitized = self._sanitize(n)
+                    parent_node = self.graph[n]
+                    if self._is_conditional_node(parent_node):
+                        return (
+                            "argo-{{workflow.name}}/%s/"
+                            "{{=(tasks['%s'].status == 'Succeeded' "
+                            "? tasks['%s'].outputs.parameters['task-id'] : '')}}"
+                            % (n, sanitized, sanitized)
                         )
+                    else:
+                        return (
+                            "argo-{{workflow.name}}/%s/"
+                            "{{tasks.%s.outputs.parameters.task-id}}"
+                            % (n, sanitized)
+                        )
+                has_conditional_parent = any(
+                    self._is_conditional_node(self.graph[n]) for n in node.in_funcs
+                )
+                if has_conditional_parent:
+                    input_paths_value = ",".join(
+                        _build_input_path(n) for n in node.in_funcs
                     )
-                ]
+                else:
+                    input_paths_value = compress_list(
+                        [_build_input_path(n) for n in node.in_funcs],
+                        zlibmin=inf,
+                    )                  
+                parameters = [Parameter("input-paths").value(input_paths_value)]
                 # NOTE: Due to limitations with Argo Workflows Parameter size we
                 #       can not pass arbitrarily large lists of task id's to join tasks.
                 #       Instead we ensure that task id's for foreach tasks can be
