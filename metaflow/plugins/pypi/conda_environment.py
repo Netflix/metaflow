@@ -535,7 +535,8 @@ class CondaEnvironment(MetaflowEnvironment):
                 raise
         with os.fdopen(os.open(path, os.O_RDWR | os.O_CREAT), "r+") as f:
             try:
-                fcntl.flock(f, fcntl.LOCK_EX)
+                if fcntl is not None:
+                    fcntl.flock(f, fcntl.LOCK_EX)
                 d = {}
                 if os.path.getsize(path) > 0:
                     f.seek(0)
@@ -552,7 +553,8 @@ class CondaEnvironment(MetaflowEnvironment):
                 if e.errno != errno.EAGAIN:
                     raise
             finally:
-                fcntl.flock(f, fcntl.LOCK_UN)
+                if fcntl is not None:
+                    fcntl.flock(f, fcntl.LOCK_UN)
 
 
 class LazyOpen(BufferedIOBase):

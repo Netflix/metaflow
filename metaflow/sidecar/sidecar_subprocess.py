@@ -7,7 +7,6 @@ try:
 except ImportError:
     fcntl = None
     F_SETFL = None
-    F_GETFL = None
 import select
 import os
 import sys
@@ -94,6 +93,11 @@ class SidecarSubProcess(object):
             self._poller = NullPoller()
             self._process = None
             self._logger("No sidecar started")
+        elif sys.platform == "win32":
+            # Fast-fail on Windows to prevent POSIX-only select.poll and fcntl.fcntl crashes
+            self._poller = NullPoller()
+            self._process = None
+            self._logger("Sidecars are not supported on Windows.")
         else:
             self._starting = True
             from select import poll

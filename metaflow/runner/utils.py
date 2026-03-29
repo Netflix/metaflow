@@ -66,6 +66,9 @@ def temporary_fifo() -> ContextManager[Tuple[str, int]]:
     int
         File descriptor of the temporary FIFO.
     """
+    import sys
+    if sys.platform == "win32":
+        raise NotImplementedError("FIFO (Named Pipes) are not supported natively on Windows.")
     with tempfile.TemporaryDirectory() as temp_dir:
         path = os.path.join(temp_dir, "fifo")
         os.mkfifo(path)
