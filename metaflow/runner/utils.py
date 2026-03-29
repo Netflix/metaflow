@@ -4,7 +4,10 @@ import time
 import asyncio
 import tempfile
 import select
-import fcntl
+try:
+    import fcntl
+except ImportError:
+    fcntl = None
 from contextlib import contextmanager
 from subprocess import CalledProcessError
 from typing import Any, Dict, TYPE_CHECKING, ContextManager, Tuple

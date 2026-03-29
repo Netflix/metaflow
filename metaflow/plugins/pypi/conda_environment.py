@@ -1,6 +1,9 @@
 import copy
 import errno
-import fcntl
+try:
+    import fcntl
+except ImportError:
+    fcntl = None
 import functools
 import io
 import json
