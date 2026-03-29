@@ -1,0 +1,8 @@
+{
+    "name": "My GSoC Sandbox",
+    "image": "python:3.12-bookworm",
+    "containerEnv": {
+        "PROJECT_STAGE": "PROTOTYPE",
+        "DEVELOPER": "MEHFOOJ"
+    }
+}
