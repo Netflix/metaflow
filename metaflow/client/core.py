@@ -1772,6 +1772,32 @@ class Task(MetaflowObject):
         meta_dict = self.metadata_dict
         return env.get_client_info(self.path_components[0], meta_dict)
 
+    def to_dict(self) -> Dict[str, Any]:
+        """
+        Returns a dictionary representation of this Task.
+
+        Useful for agents and external systems that need a serializable
+        summary of the task without fetching full artifact data.
+
+        Returns
+        -------
+        Dict[str, Any]
+            Dictionary containing key metadata about this task.
+        """
+        return {
+            "pathspec": self.pathspec,
+            "id": self.id,
+            "successful": self.successful,
+            "finished": self.finished,
+            "finished_at": self.finished_at.isoformat() if self.finished_at else None,
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+            "tags": list(self.tags),
+            "user_tags": list(self.user_tags),
+            "runtime_name": self.runtime_name,
+            "current_attempt": self.current_attempt,
+            "origin_pathspec": self.origin_pathspec,
+        }
+
     def _load_log(self, stream):
         meta_dict = self.metadata_dict
         log_location = meta_dict.get("log_location_%s" % stream)
@@ -2313,6 +2339,30 @@ class Run(MetaflowObject):
             return None
 
         return end_step.task
+    
+    def to_dict(self) -> Dict[str, Any]:
+        """
+        Returns a dictionary representation of this Run.
+
+        Useful for agents and external systems that need a serializable
+        summary of the run without fetching full artifact data.
+
+        Returns
+        -------
+        Dict[str, Any]
+            Dictionary containing key metadata about this run.
+        """
+        return {
+            "pathspec": self.pathspec,
+            "id": self.id,
+            "successful": self.successful,
+            "finished": self.finished,
+            "finished_at": self.finished_at.isoformat() if self.finished_at else None,
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+            "tags": list(self.tags),
+            "user_tags": list(self.user_tags),
+            "origin_pathspec": self.origin_pathspec,
+        }
 
     def add_tag(self, tag: str):
         """
