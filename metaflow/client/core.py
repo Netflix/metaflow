@@ -2339,7 +2339,7 @@ class Run(MetaflowObject):
             return None
 
         return end_step.task
-    
+
     def to_dict(self) -> Dict[str, Any]:
         """
         Returns a dictionary representation of this Run.
