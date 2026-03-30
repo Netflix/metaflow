@@ -7,4 +7,4 @@ cp -r vignettes ./cran_check/
 cp DESCRIPTION ./cran_check/
 cp NAMESPACE ./cran_check/
 cp LICENSE ./cran_check/
-cd cran_check; R CMD build . ; R CMD check --as-cran metaflow_*.tar.gz
+cd cran_check; R -e 'print(Sys.info()); sessionInfo(); installed.packages()'; R CMD build . ; R CMD check --as-cran metaflow_*.tar.gz
