@@ -25,6 +25,7 @@ class Current(object):
         self._metadata_str = None
         self._is_running = False
         self._tempdir = TEMPDIR
+        self._tags = None
 
         def _raise(ex):
             raise ex
