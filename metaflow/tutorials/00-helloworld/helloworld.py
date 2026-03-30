@@ -9,6 +9,9 @@ class HelloFlow(FlowSpec):
 
     """
 
+    # Each @step defines a stage in the workflow.
+    # Metaflow executes steps based on transitions defined using self.next().
+
     @step
     def start(self):
         """
@@ -17,6 +20,9 @@ class HelloFlow(FlowSpec):
 
         """
         print("HelloFlow is starting.")
+
+        # self.next() defines which step runs next.
+        # Here, after 'start', Metaflow will execute the 'hello' step.
         self.next(self.hello)
 
     @step
@@ -26,6 +32,8 @@ class HelloFlow(FlowSpec):
 
         """
         print("Metaflow says: Hi!")
+
+        # After 'hello', execution moves to the 'end' step.
         self.next(self.end)
 
     @step
