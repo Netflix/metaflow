@@ -31,6 +31,7 @@ from metaflow.exception import (
 )
 from metaflow.includefile import IncludedFile
 from metaflow.metaflow_config import DEFAULT_METADATA, MAX_ATTEMPTS
+from metaflow.metaflow_config_funcs import reset_config_cache
 from metaflow.metaflow_environment import MetaflowEnvironment
 from metaflow.package import MetaflowPackage
 from metaflow.packaging_sys import ContentType
