@@ -6,7 +6,7 @@ import datetime
 
 from typing import Dict, List, Union, Tuple as TTuple
 from metaflow.exception import MetaflowException
-from metaflow.metaflow_config_funcs import from_conf, get_validate_choice_fn
+from metaflow.metaflow_config_funcs import from_conf, get_validate_choice_fn, reset_config_cache
 
 # Recursive type alias for JSON, used by Runner API type mappings
 JSON = Union[Dict[str, "JSON"], List["JSON"], str, int, float, bool, None]
