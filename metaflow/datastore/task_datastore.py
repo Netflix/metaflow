@@ -369,10 +369,8 @@ class TaskDataStore(object):
                             "serialize large objects." % name
                         ) from e
                     except TypeError as e:
-                        raise UnpicklableArtifactException(name) from TypeError(
-                            f"Artifact '{name}' could not be serialized. "
-                                "This may be due to unsupported data types or non-picklable objects."
-                            )
+                    except TypeError as e:
+                        raise UnpicklableArtifactException(name) from e
 
                 self._info[name] = {
                     "size": len(blob),
