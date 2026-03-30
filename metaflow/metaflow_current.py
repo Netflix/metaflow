@@ -273,7 +273,7 @@ class Current(object):
         frozenset
             Tags assigned to the run.
         """
-        return frozenset(self._tags) if self._tags else frozenset()
+        return frozenset(self._tags) if self._tags is not None else frozenset()
 
     @property
     def tempdir(self) -> Optional[str]:
