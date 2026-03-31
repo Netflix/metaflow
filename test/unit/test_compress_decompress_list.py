@@ -1,4 +1,4 @@
-import pytest
+from metaflow.util import compress_list, decompress_list
 from metaflow.util import compress_list, decompress_list
 
 
