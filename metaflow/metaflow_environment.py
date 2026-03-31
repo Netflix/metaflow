@@ -157,8 +157,10 @@ class MetaflowEnvironment(object):
             )
 
     def _get_install_dependencies_cmd(self, datastore_type):
-        base_cmd = "{} -m pip install -qqq --no-compile --no-cache-dir --disable-pip-version-check".format(
-            self._python()
+        python = self._python()
+        base_cmd = (
+            "{} -m pip install -qqq --no-compile --no-cache-dir "
+            "--disable-pip-version-check".format(python)
         )
 
         datastore_packages = {
@@ -186,8 +188,17 @@ class MetaflowEnvironment(object):
         cmd = "{} {}".format(
             base_cmd, " ".join(datastore_packages[datastore_type] + ["requests"])
         )
+        bootstrap_pip_cmd = (
+            "if ! {python} -m pip --version >/dev/null 2>&1; then "
+            "{python} -m ensurepip --upgrade >/dev/null 2>&1 || true; "
+            "fi; "
+            "{python} -m pip --version >/dev/null 2>&1 || "
+            "(echo 'pip is required to install remote runtime dependencies but could not be bootstrapped.' >&2; exit 1); "
+        ).format(python=python)
         # skip pip installs if we know that packages might already be available
-        return "if [ -z $METAFLOW_SKIP_INSTALL_DEPENDENCIES ]; then {}; fi".format(cmd)
+        return 'if [ -z "$METAFLOW_SKIP_INSTALL_DEPENDENCIES" ]; then {}{}; fi'.format(
+            bootstrap_pip_cmd, cmd
+        )
 
     def get_package_commands(
         self, code_package_url, datastore_type, code_package_metadata=None
