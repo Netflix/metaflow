@@ -193,7 +193,8 @@ class MetaflowEnvironment(object):
             "{python} -m ensurepip --upgrade >/dev/null 2>&1 || true; "
             "fi; "
             "{python} -m pip --version >/dev/null 2>&1 || "
-            "(echo 'pip is required to install remote runtime dependencies but could not be bootstrapped.' >&2; exit 1); "
+            "{python} -m pip --version >/dev/null 2>&1 || "
+            "{ echo 'pip is required to install remote runtime dependencies but could not be bootstrapped.' >&2; exit 1; }; "
         ).format(python=python)
         # skip pip installs if we know that packages might already be available
         return 'if [ -z "$METAFLOW_SKIP_INSTALL_DEPENDENCIES" ]; then {}{}; fi'.format(
