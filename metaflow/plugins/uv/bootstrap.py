@@ -1,8 +1,11 @@
+import io
 import os
 import shutil
 import subprocess
 import sys
 import time
+import zipfile
+import platform
 
 from metaflow.util import which
 from metaflow.meta_files import read_info_file
@@ -11,8 +14,71 @@ from metaflow.packaging_sys import MetaflowCodeContent, ContentType
 from urllib.request import Request, urlopen
 from urllib.error import URLError
 
-# TODO: support version/platform/architecture selection.
-UV_URL = "https://github.com/astral-sh/uv/releases/download/0.6.11/uv-x86_64-unknown-linux-gnu.tar.gz"
+DEFAULT_UV_VERSION = os.environ.get("METAFLOW_UV_VERSION", "0.6.11")
+UV_RELEASE_URL = (
+    "https://github.com/astral-sh/uv/releases/download/{version}/{asset_name}"
+)
+UV_PLATFORM_ASSETS = {
+    ("linux", "x86_64"): ("uv-x86_64-unknown-linux-gnu.tar.gz", "uv", "tar.gz"),
+    ("linux", "aarch64"): ("uv-aarch64-unknown-linux-gnu.tar.gz", "uv", "tar.gz"),
+    ("darwin", "x86_64"): ("uv-x86_64-apple-darwin.tar.gz", "uv", "tar.gz"),
+    ("darwin", "aarch64"): ("uv-aarch64-apple-darwin.tar.gz", "uv", "tar.gz"),
+    ("windows", "x86_64"): ("uv-x86_64-pc-windows-msvc.zip", "uv.exe", "zip"),
+    ("windows", "aarch64"): ("uv-aarch64-pc-windows-msvc.zip", "uv.exe", "zip"),
+    ("windows", "i686"): ("uv-i686-pc-windows-msvc.zip", "uv.exe", "zip"),
+}
+UV_MACHINE_ALIASES = {
+    "amd64": "x86_64",
+    "x86-64": "x86_64",
+    "arm64": "aarch64",
+    "x64": "x86_64",
+    "x86": "i686",
+    "i386": "i686",
+}
+
+
+def get_uv_download_info(version=None, system=None, machine=None):
+    system = (system or platform.system()).lower()
+    if system.startswith("win"):
+        system = "windows"
+    elif system.startswith("linux"):
+        system = "linux"
+    elif system.startswith("darwin"):
+        system = "darwin"
+
+    machine = (machine or platform.machine()).lower()
+    machine = UV_MACHINE_ALIASES.get(machine, machine)
+
+    asset_info = UV_PLATFORM_ASSETS.get((system, machine))
+    if asset_info is None:
+        raise RuntimeError(
+            "Unsupported platform for uv bootstrap: system=%s machine=%s"
+            % (system, machine)
+        )
+
+    asset_name, executable_name, archive_type = asset_info
+    version = version or DEFAULT_UV_VERSION
+    return {
+        "url": UV_RELEASE_URL.format(version=version, asset_name=asset_name),
+        "asset_name": asset_name,
+        "executable_name": executable_name,
+        "archive_type": archive_type,
+    }
+
+
+def build_uv_sync_cmd(dependencies, skip_packages):
+    skip_pkgs = " ".join(
+        [f"--no-install-package {dep}" for dep in skip_packages]
+    ).strip()
+    sync_cmd = "uv sync --frozen --no-dev"
+    if skip_pkgs:
+        sync_cmd = f"{sync_cmd} {skip_pkgs}"
+    if dependencies:
+        return "{sync_cmd} && uv pip install {dependencies} --strict".format(
+            sync_cmd=sync_cmd,
+            dependencies=" ".join(dependencies),
+        )
+    return sync_cmd
 
 if __name__ == "__main__":
 
@@ -37,6 +103,13 @@ if __name__ == "__main__":
         uv_install_path = os.path.join(os.getcwd(), "uv_install")
         if which("uv"):
             return
+        download_info = get_uv_download_info()
+        uv_binary_path = os.path.join(
+            uv_install_path, download_info["executable_name"]
+        )
+        if os.path.exists(uv_binary_path):
+            os.environ["PATH"] += os.pathsep + uv_install_path
+            return
 
         print("Installing uv...")
 
@@ -59,10 +132,33 @@ if __name__ == "__main__":
         max_retries = 3
         for attempt in range(max_retries):
             try:
-                req = Request(UV_URL, headers=headers)
+                req = Request(download_info["url"], headers=headers)
                 with urlopen(req) as response:
-                    with tarfile.open(fileobj=response, mode="r:gz") as tar:
-                        tar.extractall(uv_install_path, filter=_tar_filter)
+                    if download_info["archive_type"] == "tar.gz":
+                        with tarfile.open(fileobj=response, mode="r:gz") as tar:
+                            tar.extractall(uv_install_path, filter=_tar_filter)
+                    else:
+                        with zipfile.ZipFile(io.BytesIO(response.read())) as archive:
+                            extracted = False
+                            for member in archive.infolist():
+                                if (
+                                    os.path.basename(member.filename).lower()
+                                    == download_info["executable_name"].lower()
+                                ):
+                                    with archive.open(member) as src, open(
+                                        uv_binary_path, "wb"
+                                    ) as dst:
+                                        shutil.copyfileobj(src, dst)
+                                    extracted = True
+                                    break
+                            if not extracted:
+                                raise RuntimeError(
+                                    "Could not find %s in uv archive %s"
+                                    % (
+                                        download_info["executable_name"],
+                                        download_info["asset_name"],
+                                    )
+                                )
                 break
             except (URLError, IOError) as e:
                 if attempt == max_retries - 1:
@@ -70,6 +166,9 @@ if __name__ == "__main__":
                         f"Failed to download UV after {max_retries} attempts: {e}"
                     )
                 time.sleep(2**attempt)
+
+        if os.path.exists(uv_binary_path):
+            os.chmod(uv_binary_path, 0o755)
 
         # Update PATH only once at the end
         os.environ["PATH"] += os.pathsep + uv_install_path
@@ -105,15 +204,12 @@ if __name__ == "__main__":
             shutil.move(path_to_file, os.path.join(os.getcwd(), filename))
 
         print("Syncing uv project...")
-        dependencies = " ".join(get_dependencies(datastore_type))
-        skip_pkgs = " ".join(
-            [f"--no-install-package {dep}" for dep in skip_metaflow_dependencies()]
+        run_cmd(
+            build_uv_sync_cmd(
+                list(get_dependencies(datastore_type)),
+                skip_metaflow_dependencies(),
+            )
         )
-        cmd = f"""set -e;
-            uv sync --frozen --no-dev {skip_pkgs};
-            uv pip install {dependencies} --strict
-            """
-        run_cmd(cmd)
 
     if len(sys.argv) != 2:
         print("Usage: bootstrap.py <datastore_type>")
