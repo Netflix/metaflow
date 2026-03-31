@@ -73,10 +73,12 @@ def build_uv_sync_cmd(dependencies, skip_packages):
     sync_cmd = "uv sync --frozen --no-dev"
     if skip_pkgs:
         sync_cmd = f"{sync_cmd} {skip_pkgs}"
-    return "{sync_cmd} && uv pip install {dependencies} --strict".format(
-        sync_cmd=sync_cmd,
-        dependencies=" ".join(dependencies),
-    )
+    if dependencies:
+        return "{sync_cmd} && uv pip install {dependencies} --strict".format(
+            sync_cmd=sync_cmd,
+            dependencies=" ".join(dependencies),
+        )
+    return sync_cmd
 
 if __name__ == "__main__":
 
