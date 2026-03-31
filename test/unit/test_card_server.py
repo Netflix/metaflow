@@ -36,18 +36,15 @@ def card_mapping():
 
 @pytest.fixture
 def patch_cards_for_task(monkeypatch, card_mapping):
-    def _patch():
-        def _cards_for_task(
-            flow_datastore, task_pathspec, card_type=None, card_hash=None, card_id=None
-        ):
-            cards = card_mapping.get(task_pathspec)
-            if cards is None:
-                return None
-            return iter(cards)
+    def _cards_for_task(
+        flow_datastore, task_pathspec, card_type=None, card_hash=None, card_id=None
+    ):
+        cards = card_mapping.get(task_pathspec)
+        if cards is None:
+            return None
+        return iter(cards)
 
-        monkeypatch.setattr(card_server, "cards_for_task", _cards_for_task)
-
-    return _patch
+    monkeypatch.setattr(card_server, "cards_for_task", _cards_for_task)
 
 
 def _build_run():
@@ -77,8 +74,6 @@ def _build_run():
 def test_cards_for_run_yields_exactly_max_cards(
     patch_cards_for_task, max_cards, expected_cards
 ):
-    patch_cards_for_task()
-
     cards = list(
         card_server.cards_for_run(
             None, _build_run(), only_running=False, max_cards=max_cards
@@ -91,8 +86,6 @@ def test_cards_for_run_yields_exactly_max_cards(
 def test_cards_for_run_preserves_pathspec_card_pairing_and_order(
     patch_cards_for_task,
 ):
-    patch_cards_for_task()
-
     cards = list(
         card_server.cards_for_run(
             None, _build_run(), only_running=False, max_cards=10
@@ -109,8 +102,6 @@ def test_cards_for_run_preserves_pathspec_card_pairing_and_order(
 
 
 def test_cards_for_run_stops_cleanly_after_limit(patch_cards_for_task):
-    patch_cards_for_task()
-
     card_iter = card_server.cards_for_run(
         None, _build_run(), only_running=False, max_cards=1
     )
@@ -121,8 +112,6 @@ def test_cards_for_run_stops_cleanly_after_limit(patch_cards_for_task):
 
 
 def test_cards_for_run_skips_finished_tasks_when_only_running(patch_cards_for_task):
-    patch_cards_for_task()
-
     cards = list(
         card_server.cards_for_run(
             None, _build_run(), only_running=True, max_cards=10
@@ -133,9 +122,7 @@ def test_cards_for_run_skips_finished_tasks_when_only_running(patch_cards_for_ta
 
 
 def test_cards_for_run_skips_tasks_without_cards(monkeypatch):
-    def _cards_for_task(
-        flow_datastore, task_pathspec, card_type=None, card_hash=None, card_id=None
-    ):
+    def _cards_for_task(flow_datastore, task_pathspec, **kwargs):
         if task_pathspec == "Flow/1/start/1":
             return None
         return iter(["card-3", "card-4"]) if task_pathspec == "Flow/1/end/2" else None
