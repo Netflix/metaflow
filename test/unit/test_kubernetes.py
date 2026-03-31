@@ -3,6 +3,7 @@ import pytest
 from metaflow.plugins.kubernetes.kubernetes import KubernetesException
 
 from metaflow.plugins.kubernetes.kube_utils import (
+    KubernetesException as KubeUtilsKubernetesException,
     validate_kube_labels,
     parse_kube_keyvalue_list,
 )
@@ -70,6 +71,10 @@ def test_kubernetes_decorator_validate_kube_labels_fail(labels):
     """Fail if label contains invalid characters or is too long"""
     with pytest.raises(KubernetesException):
         validate_kube_labels(labels)
+
+
+def test_kubernetes_exception_is_shared_between_modules():
+    assert KubernetesException is KubeUtilsKubernetesException
 
 
 @pytest.mark.parametrize(
