@@ -293,7 +293,16 @@ class UserStepDecoratorBase(metaclass=UserStepDecoratorMeta):
         self.statically_defined = self._special_kwargs["_statically_defined"]
         self.inserted_by = self._special_kwargs["_inserted_by"]
 
-        getattr(self._my_step, self._step_field).append(self)
+        # Collect all distinct _step_field values from the MRO so that a class
+        # inheriting from both UserStepDecorator and StepMutator is registered
+        # in both step.wrappers and step.config_decorators.
+        seen_fields = set()
+        for cls in type(self).__mro__:
+            field = cls.__dict__.get("_step_field")
+            if field is not None and field not in seen_fields:
+                seen_fields.add(field)
+                getattr(self._my_step, field).append(self)
+
         return self._my_step
 
     def __str__(self):

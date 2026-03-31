@@ -74,7 +74,7 @@ class MetaflowTask(object):
         # contain the arguments to pass to `self.next`. If
         # True, it means we are using whatever the usual
         # arguments to `self.next` are for this step.
-        fake_next_call_args = False
+        fake_next_call_args = None
         raised_exception = None
         had_raised_exception = False
 
@@ -103,7 +103,7 @@ class MetaflowTask(object):
                 # wrapped function
             # Else, we continue down the list of wrappers
         try:
-            # fake_next_call is used here to also indicate that the step was skipped
+            # fake_next_call_args is used here to also indicate that the step was skipped
             # so we do not execute anything.
             if not fake_next_call_args:
                 if input_obj is None:
@@ -139,14 +139,14 @@ class MetaflowTask(object):
                     raise r[2]
             else:
                 raise RuntimeError(
-                    "Invalid return value from a UserStepDecorator. Expected an"
+                    "Invalid return value from a UserStepDecorator. Expected an "
                     "exception or an exception and arguments for self.next, got: %s" % r
                 )
         if raised_exception:
             # We have an exception that we need to propagate
             raise raised_exception
 
-        if fake_next_call_args or had_raised_exception:
+        if fake_next_call_args is not None or had_raised_exception:
             # We want to override the next call or we caught an exception (in which
             # case the regular step code didn't call self.next). In this case,
             # we need to set the transition variables
@@ -179,7 +179,7 @@ class MetaflowTask(object):
                 else:
                     raise RuntimeError(
                         "Invalid value passed to self.next; expected "
-                        " bool of a dictionary; got: %s" % fake_next_call_args
+                        "bool or a dictionary; got: %s" % fake_next_call_args
                     )
 
     def _init_parameters(self, parameter_ds, passdown=True):
