@@ -27,7 +27,7 @@ main.js.map
 
 .project
 .pydevproject
-
+.devcontainer/devcontainer.json
 # Pycharm
 .idea
 
