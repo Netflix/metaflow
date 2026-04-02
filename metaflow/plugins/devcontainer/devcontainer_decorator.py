@@ -75,7 +75,7 @@ class DevContainerDecorator(StepDecorator):
             "working_dir": "/work",
             "volumes": volumes,
             "entrypoint_args": original_entrypoint_args,
-            "user": "%d:%d" % (os.getuid(), os.getgid()),
+            "user": "%d:%d" % (os.getuid(), os.getgid()) if hasattr(os, "getuid") else "",
         })
 
         # Swap the entrypoint to our Docker SDK launcher.
