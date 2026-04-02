@@ -69,23 +69,18 @@ def main():
             volumes=volumes,
             working_dir=working_dir,
             user=config.get("user", ""),
-            remove=False,
+        container = client.containers.run(
+            image=image,
+            command=["bash", "-c", full_cmd],
+            environment=env_vars,
+            volumes=volumes,
+            working_dir=working_dir,
+            user=config.get("user", ""),
+            remove=True,
             detach=True,
             stdout=True,
             stderr=True,
         )
-
-        # Stream logs so Metaflow can capture them
-        for chunk in container.logs(stream=True, follow=True):
-            sys.stdout.buffer.write(chunk)
-            sys.stdout.buffer.flush()
-
-        result = container.wait()
-        exit_code = result.get("StatusCode", 1)
-
-        try:
-            container.remove()
-        except Exception:
             pass
 
         sys.exit(exit_code)
