@@ -79,7 +79,17 @@ def main():
             volumes=volumes,
             working_dir=working_dir,
             user=config.get("user", ""),
+
             auto_remove=True,  # Replaces manual container.remove()
+
+        container = client.containers.run(
+            image=image,
+            command=["bash", "-c", full_cmd],
+            environment=env_vars,
+            volumes=volumes,
+            working_dir=working_dir,
+            user=config.get("user", ""),
+            remove=True,
             detach=True,
             stdout=True,
             stderr=True,
@@ -92,6 +102,8 @@ def main():
 
         result = container.wait()
         exit_code = result.get("StatusCode", 1)
+            pass
+
         sys.exit(exit_code)
 
     except Exception as e:

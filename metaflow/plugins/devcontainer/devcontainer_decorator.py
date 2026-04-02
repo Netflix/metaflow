@@ -76,6 +76,7 @@ class DevContainerDecorator(StepDecorator):
         }
         container_env["HOME"] = home_dir
 
+
         # Fix 3: Windows/WSL2 Compatibility Guard
         # os.getuid/gid don't exist on native Windows.
         user_spec = ""
@@ -92,6 +93,14 @@ class DevContainerDecorator(StepDecorator):
                 "user": user_spec,
             }
         )
+        config = json.dumps({
+            "image": self.image,
+            "env": container_env,
+            "working_dir": "/work",
+            "volumes": volumes,
+            "entrypoint_args": original_entrypoint_args,
+            "user": "%d:%d" % (os.getuid(), os.getgid()) if hasattr(os, "getuid") else "",
+        })
 
         launcher_path = os.path.join(
             os.path.dirname(os.path.abspath(__file__)), "_docker_launcher.py"
