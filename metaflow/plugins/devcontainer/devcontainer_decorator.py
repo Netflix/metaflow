@@ -6,85 +6,98 @@ from metaflow.util import get_username
 
 
 class DevContainerDecorator(StepDecorator):
-    """
-    Phase 1 & 2 Prototype — @devcontainer step decorator.
-
-    Phase 1: Registration — Metaflow recognizes @devcontainer via plugins/__init__.py.
-    Phase 2: CLI Hijack + Spec Parsing — runs the step inside a Docker container
-             using the image and env vars from .devcontainer/devcontainer.json.
-
-    Uses the Docker SDK (docker-py) as the backend instead of shelling out to
-    `docker run`. This was necessary to fix host environment leakage — the shell
-    approach passed the host's full env (VIRTUAL_ENV, PATH, USER, etc.) into the
-    container, making it a "dirty boot". The SDK passes only the vars we specify.
-    """
-
     name = "devcontainer"
+
+    # Allows user override: @devcontainer(config="custom/spec.json")
+    defaults = {"config": None}
+
+    def _find_spec(self, start_path):
+        """Recursively searches upward for .devcontainer/devcontainer.json."""
+        curr = os.path.abspath(start_path)
+        while curr != os.path.dirname(curr):
+            potential_path = os.path.join(curr, ".devcontainer", "devcontainer.json")
+            if os.path.exists(potential_path):
+                return potential_path
+            curr = os.path.dirname(curr)
+        return None
 
     def step_init(
         self, flow, graph, step_name, decorators, environment, flow_datastore, logger
     ):
-        # Phase 2: Parse the devcontainer spec if it exists
-        self.spec_path = os.path.join(os.getcwd(), ".devcontainer/devcontainer.json")
-        self.image = "python:3.11-slim"
+        # Fix 1: Robust Path Discovery (No more os.getcwd() fragility)
+        # We start looking from the directory where the flow file actually lives.
+        flow_dir = os.path.dirname(os.path.abspath(sys.argv[0]))
+        custom_path = self.attributes.get("config")
+
+        if custom_path:
+            self.spec_path = os.path.abspath(os.path.join(flow_dir, custom_path))
+        else:
+            self.spec_path = self._find_spec(flow_dir)
+
+        self.image = "python:3.12-slim"  # Updated default
         self.env_vars = {}
 
-        if os.path.exists(self.spec_path):
+        if self.spec_path and os.path.exists(self.spec_path):
             with open(self.spec_path, "r") as f:
-                spec = json.load(f)
-                self.image = spec.get("image", self.image)
-                self.env_vars = spec.get("containerEnv", {})
+                try:
+                    # Note: Future milestones will add JSONC (comments) support
+                    spec = json.load(f)
+                    self.image = spec.get("image", self.image)
+                    self.env_vars = spec.get("containerEnv", {})
+                except json.JSONDecodeError:
+                    print(f"[SANDBOX] Warning: Could not parse {self.spec_path}")
 
     def runtime_step_cli(
         self, cli_args, retry_count, max_user_code_retries, ubf_context
     ):
-        # Phase 2: The CLI Hijack.
-        # Key learning: runtime_step_cli must modify cli_args IN-PLACE.
-        # Returning a value does nothing — Metaflow ignores it.
-        # (Discovered via TypeError when CLIArgs was an object, not a str.)
-
-        # Build the container's environment — ONLY these vars will exist inside.
-        # This is the fix for the host env leakage problem.
         container_env = self.env_vars.copy()
         container_env["PYTHONPATH"] = "/work"
         container_env["PYTHONUNBUFFERED"] = "x"
 
-        # Metaflow needs a username to function (see metaflow/util.py:get_username)
         username = get_username()
         if username:
             container_env["USERNAME"] = username
 
-        # The entrypoint is like ['/path/to/python', 'hello_sandbox2.py'].
-        # We need the flow file (everything after the python binary) to
-        # reconstruct the command inside the container.
         original_entrypoint_args = list(cli_args.entrypoint[1:])
 
-        # Mount cwd for code, and HOME so the datastore root path
-        # (an absolute host path like ~/.metaflow) is reachable.
+        # Fix 2: Principle of Least Privilege (Targeted Mounting)
+        # We no longer mount the entire home_dir. We only mount the .metaflow dir
+        # so the local datastore works without exposing SSH/AWS keys.
         cwd = os.getcwd()
         home_dir = os.path.expanduser("~")
+        metaflow_home = os.path.join(home_dir, ".metaflow")
+
+        # Ensure .metaflow exists on host so Docker doesn't create it as root
+        os.makedirs(metaflow_home, exist_ok=True)
+
         volumes = {
             cwd: {"bind": "/work", "mode": "rw"},
-            home_dir: {"bind": home_dir, "mode": "rw"},
+            metaflow_home: {"bind": metaflow_home, "mode": "rw"},
         }
         container_env["HOME"] = home_dir
 
-        config = json.dumps({
-            "image": self.image,
-            "env": container_env,
-            "working_dir": "/work",
-            "volumes": volumes,
-            "entrypoint_args": original_entrypoint_args,
-            "user": "%d:%d" % (os.getuid(), os.getgid()),
-        })
+        # Fix 3: Windows/WSL2 Compatibility Guard
+        # os.getuid/gid don't exist on native Windows.
+        user_spec = ""
+        if hasattr(os, "getuid"):
+            user_spec = "%d:%d" % (os.getuid(), os.getgid())
 
-        # Swap the entrypoint to our Docker SDK launcher.
-        # Metaflow's Worker._launch() will Popen this instead of python directly.
+        config = json.dumps(
+            {
+                "image": self.image,
+                "env": container_env,
+                "working_dir": "/work",
+                "volumes": volumes,
+                "entrypoint_args": original_entrypoint_args,
+                "user": user_spec,
+            }
+        )
+
         launcher_path = os.path.join(
             os.path.dirname(os.path.abspath(__file__)), "_docker_launcher.py"
         )
         cli_args.entrypoint = [sys.executable, launcher_path, config]
 
         print(
-            "\n[SANDBOX] Launching %s via Docker SDK (clean boot)...\n" % self.image
+            "\n[SANDBOX] Launching %s with Hardened Security Policies...\n" % self.image
         )

@@ -1,0 +1,11 @@
+{
+    "name": "Metaflow Sandbox",
+    "image": "python:3.12-slim",
+    "containerEnv": {
+        "PROJECT_STAGE": "DEVELOPMENT",
+        "APP_ENV": "sandbox"
+    },
+    "mounts": [
+        "source=${localWorkspaceFolder},target=/work,type=bind"
+    ]
+}
