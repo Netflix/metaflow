@@ -192,9 +192,9 @@ def cards_for_run(
             if card_generator is None:
                 continue
             for card in card_generator:
-                curr_idx += 1
                 if curr_idx >= max_cards:
-                    raise StopIteration
+                    return
+                curr_idx += 1
                 yield task.pathspec, card
 
 
