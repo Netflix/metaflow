@@ -7,6 +7,7 @@ Requires Metatron mutual TLS. Set METAFLOW_HUGGINGFACE_AUTH_PROVIDER=vendor-toke
 Requires: requests, metatron (MetatronAdapter). Ensure Metatron credentials are fresh (metatron refresh).
 """
 
+import sys
 from typing import Optional
 
 from .auth import HuggingFaceAuthProvider
@@ -50,6 +51,15 @@ def _normalize_access_token(raw) -> Optional[str]:
     return None
 
 
+def _redact_token(token: str, head: int = 6, tail: int = 4) -> str:
+    """Avoid logging full secrets; keep enough to verify retrieval in dev."""
+    t = token.strip()
+    n = len(t)
+    if n <= head + tail + 3:
+        return "***"
+    return "%s...%s" % (t[:head], t[-tail:])
+
+
 class VendorTokenAuthProvider(HuggingFaceAuthProvider):
     """
     Supplies Hugging Face token from the vendor-token-retrieval /hf-token endpoint.
@@ -68,6 +78,9 @@ class VendorTokenAuthProvider(HuggingFaceAuthProvider):
                 "@huggingface: vendor-token auth requires HUGGINGFACE_VENDOR_TOKEN_URL "
                 "(or METAFLOW_HUGGINGFACE_VENDOR_TOKEN_URL) to be set."
             )
+        sys.stderr.write(
+            "@huggingface: using the token retrieval service to fetch token\n"
+        )
         try:
             data = _http_get_json(url, requests_mod, metatron_adapter_cls)
         except Exception as e:
@@ -76,7 +89,13 @@ class VendorTokenAuthProvider(HuggingFaceAuthProvider):
             ) from e
         try:
             raw = data.get("access_token")
-            return _normalize_access_token(raw)
+            token = _normalize_access_token(raw)
+            if token:
+                sys.stderr.write(
+                    "@huggingface: retrieved token (redacted): %s\n"
+                    % _redact_token(token)
+                )
+            return token
         except Exception as e:
             raise MetaflowException(
                 "@huggingface: vendor-token response invalid (expected JSON with access_token): %s"

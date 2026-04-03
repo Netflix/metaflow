@@ -55,7 +55,7 @@ See `metaflow/plugins/huggingface/example_flow.py` for a minimal runnable flow.
 
 The [demos/huggingface/](../demos/huggingface/) directory has a multi-mode demo (`run_huggingface_demo.py` and `run_huggingface_demo.sh`).
 
-**CLI:** `./demos/huggingface/run_huggingface_demo.sh run [none|download|env]`. Default is `none`.
+**CLI:** `./demos/huggingface/run_huggingface_demo.sh run [none|download|env|vendor|vendor-download]`. Default is `none`. Token modes (`download`, `env`) require `HF_TOKEN` or `HUGGING_FACE_HUB_TOKEN`. Vendor modes use the token retrieval service (`METAFLOW_HUGGINGFACE_AUTH_PROVIDER=vendor-token`); set `METAFLOW_HUGGINGFACE_VENDOR_TOKEN_URL` or `HUGGINGFACE_VENDOR_TOKEN_URL`, or rely on the script to fill the default from Metaflow config.
 
 ### Prerequisites
 
@@ -80,7 +80,7 @@ Metadata only for `openai-community/gpt2@main`. No token.
 
 ### Case 2: Private model – full download (`download`)
 
-Downloads `netflix/my-gpt2@main`. Requires `HF_TOKEN`, `HUGGING_FACE_TOKEN`, or `HUGGING_FACE_HUB_TOKEN` with repo access.
+Downloads `netflix/my-gpt2@main`. Requires `HF_TOKEN` or `HUGGING_FACE_HUB_TOKEN` with repo access (the demo exits if neither is set).
 
 ```bash
 export HF_TOKEN=hf_xxxxxxxx
@@ -89,20 +89,32 @@ export HF_TOKEN=hf_xxxxxxxx
 
 ### Case 3: Private model – metadata only (`env`)
 
-Metadata only for `netflix/my-gpt2@main`. Requires a token (`HF_TOKEN`, `HUGGING_FACE_TOKEN`, or `HUGGING_FACE_HUB_TOKEN`).
+Metadata only for `netflix/my-gpt2@main`. Requires `HF_TOKEN` or `HUGGING_FACE_HUB_TOKEN` (the demo exits early if neither is set).
 
 ```bash
 export HF_TOKEN=hf_xxxxxxxx
 ./demos/huggingface/run_huggingface_demo.sh run env
 ```
 
+### Case 4: Private model – vendor token retrieval (`vendor`, `vendor-download`)
+
+Uses `METAFLOW_HUGGINGFACE_AUTH_PROVIDER=vendor-token` and the vendor-token URL (Metatron + `/hf-token`). The shell script sets the auth provider and, if unset, fills `METAFLOW_HUGGINGFACE_VENDOR_TOKEN_URL` from Metaflow config. Requires `requests` and `metatron` (see `metaflow/plugins/huggingface/vendor_token_auth_provider.py`).
+
+```bash
+./demos/huggingface/run_huggingface_demo.sh run vendor
+# full download:
+./demos/huggingface/run_huggingface_demo.sh run vendor-download
+```
+
 ### Summary
 
-| Mode     | Model                   | Auth      | Command                                                |
-|----------|-------------------------|-----------|--------------------------------------------------------|
-| none     | openai-community/gpt2   | none      | `./demos/huggingface/run_huggingface_demo.sh run`      |
-| download | netflix/my-gpt2         | token env | `./demos/huggingface/run_huggingface_demo.sh run download` |
-| env      | netflix/my-gpt2         | token env | `./demos/huggingface/run_huggingface_demo.sh run env`  |
+| Mode            | Model                   | Auth              | Command                                                         |
+|-----------------|-------------------------|-------------------|-----------------------------------------------------------------|
+| none            | openai-community/gpt2   | none              | `./demos/huggingface/run_huggingface_demo.sh run`               |
+| download        | netflix/my-gpt2         | HF token env vars | `./demos/huggingface/run_huggingface_demo.sh run download`      |
+| env             | netflix/my-gpt2         | HF token env vars | `./demos/huggingface/run_huggingface_demo.sh run env`           |
+| vendor          | netflix/my-gpt2         | vendor-token URL  | `./demos/huggingface/run_huggingface_demo.sh run vendor`        |
+| vendor-download | netflix/my-gpt2         | vendor-token URL  | `./demos/huggingface/run_huggingface_demo.sh run vendor-download` |
 
 ### Running tests (`test`)
 
