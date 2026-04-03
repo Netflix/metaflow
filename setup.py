@@ -5,6 +5,11 @@ with open("metaflow/version.py", mode="r") as f:
     version = f.read().splitlines()[0].split("=")[1].strip(" \"'")
 
 
+def read_dev_requirements():
+    with open("devtools/requirements-devstack.txt") as f:
+        return [l.strip() for l in f if l.strip() and not l.startswith("#")]
+
+
 def find_devtools_files():
     # Returns a list of (install_dir, [files]) tuples preserving subdirectory structure.
     entries = {}
@@ -69,15 +74,6 @@ setup(
     install_requires=["requests", "boto3"],
     extras_require={
         "stubs": ["metaflow-stubs==%s" % version],
-        "dev": [
-            "pytest",
-            "pytest-timeout",
-            "pytest-cov",
-            "pytest-xdist",
-            "pytest-rerunfailures",
-            "omegaconf",
-            "kubernetes",
-            "localbatch; python_version >= '3.8'",
-        ],
+        "dev": read_dev_requirements(),
     },
 )
