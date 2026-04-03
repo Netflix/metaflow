@@ -107,10 +107,16 @@ def deploy_flow_to_scheduler(
     return deployed_flow
 
 
-def track_runs_by_tags(
+def wait_for_runs_by_tags(
     flow_name: str, tags: List[str], timeout: int = 10, polling_interval: int = 60
 ) -> List[str]:
-    """Poll for runs matching flow_name and tags, returning their pathspecs."""
+    """Poll until all runs matching flow_name and tags have finished, then return their pathspecs.
+
+    Blocks until every matching run has a non-None finished_at, or until timeout minutes elapse.
+    Note: the number of runs returned depends on how many have started by the time all running
+    runs finish — on low-resource infra this may be fewer than expected when concurrent runs
+    are involved.
+    """
     start_time = time.time()
     namespace(None)
     runs = []
@@ -137,7 +143,7 @@ def track_runs_by_tags(
 
 def verify_single_run(flow_name: str, tags: List[str], timeout: int = 60) -> Run:
     """Verify exactly one run exists for the given flow and tags."""
-    run_pathspecs = track_runs_by_tags(flow_name, tags, timeout)
+    run_pathspecs = wait_for_runs_by_tags(flow_name, tags, timeout)
 
     if len(run_pathspecs) != 1:
         raise RuntimeError(

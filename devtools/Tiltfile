@@ -35,12 +35,12 @@ components = {
 # ---------------------------------------------------------------------------
 # Resolve requested components with dependencies
 # ---------------------------------------------------------------------------
-services_env = os.getenv("SERVICES", "all").strip().lower()
+services_env = os.getenv("SERVICES", "metadata-service,argo-workflows").strip().lower()
 
-if services_env and services_env != "all":
-    requested_components = services_env.split(",")
-else:
+if services_env == "all":
     requested_components = list(components.keys())
+else:
+    requested_components = [s.strip() for s in services_env.split(",") if s.strip()]
 
 load('ext://helm_resource', 'helm_resource', 'helm_repo')
 load('ext://helm_remote', 'helm_remote')

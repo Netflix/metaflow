@@ -1,4 +1,4 @@
-git+https://github.com/npow/localbatch.git@main
+localbatch
 pytest
 pytest-timeout
 pytest-cov
