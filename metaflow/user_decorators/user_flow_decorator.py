@@ -310,3 +310,38 @@ class FlowMutator(metaclass=FlowMutatorMeta):
             A representation of this flow
         """
         return None
+
+    def add_to_package(self):
+        """
+        Called to add custom files needed by this flow mutator. This hook will be
+        called in the `MetaflowPackage` class where metaflow compiles the code package
+        tarball. This hook can return one of two things (the first is for backwards
+        compatibility -- move to the second):
+          - a generator yielding a tuple of `(file_path, arcname)` to add files to
+            the code package. `file_path` is the path to the file on the local filesystem
+            and `arcname` is the path relative to the packaged code.
+          - a generator yielding a tuple of `(content, arcname, type)` where:
+            - type is one of
+            ContentType.{USER_CONTENT, CODE_CONTENT, MODULE_CONTENT, OTHER_CONTENT}
+            - for USER_CONTENT:
+              - the file will be included relative to the directory containing the
+                user's flow file.
+              - content: path to the file to include
+              - arcname: path relative to the directory containing the user's flow file
+            - for CODE_CONTENT:
+              - the file will be included relative to the code directory in the package.
+                This will be the directory containing `metaflow`.
+              - content: path to the file to include
+              - arcname: path relative to the code directory in the package
+            - for MODULE_CONTENT:
+              - the module will be added to the code package as a python module. It will
+                be accessible as usual (import <module_name>)
+              - content: name of the module
+              - arcname: None (ignored)
+            - for OTHER_CONTENT:
+              - the file will be included relative to any other configuration/metadata
+                files for the flow
+              - content: path to the file to include
+              - arcname: path relative to the config directory in the package
+        """
+        return []

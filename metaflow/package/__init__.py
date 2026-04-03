@@ -625,6 +625,16 @@ class MetaflowPackage(object):
             elif file_type == ContentType.OTHER_CONTENT:
                 self._mfcontent.add_other_file(file_path, file_name)
 
+        # flow decorators
+        for decos in self._flow._flow_decorators.values():
+            for deco in decos:
+                for path_tuple in deco.add_to_package():
+                    path_tuple = _check_tuple(path_tuple)
+                    if path_tuple is None:
+                        continue
+                    _add_tuple(path_tuple)
+
+        # step decorators
         for step in self._flow:
             for deco in step.decorators:
                 for path_tuple in deco.add_to_package():
@@ -639,6 +649,27 @@ class MetaflowPackage(object):
             if path_tuple is None:
                 continue
             _add_tuple(path_tuple)
+
+        # flow mutators
+        for mutator in self._flow._flow_mutators:
+            for path_tuple in mutator.add_to_package():
+                path_tuple = _check_tuple(path_tuple)
+                if path_tuple is None:
+                    continue
+                _add_tuple(path_tuple)
+
+        # step mutators (deduplicated across steps)
+        seen_step_mutators = set()
+        for step in self._flow:
+            for mutator in step.config_decorators:
+                if id(mutator) in seen_step_mutators:
+                    continue
+                seen_step_mutators.add(id(mutator))
+                for path_tuple in mutator.add_to_package():
+                    path_tuple = _check_tuple(path_tuple)
+                    if path_tuple is None:
+                        continue
+                    _add_tuple(path_tuple)
 
     def _user_code_tuples(self):
         if R.use_r():
