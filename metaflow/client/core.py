@@ -43,12 +43,7 @@ from .filecache import FileCache
 if TYPE_CHECKING:
     from metaflow.metadata_provider import MetadataProvider
 
-try:
-    # python2
-    import cPickle as pickle
-except:  # noqa E722
-    # python3
-    import pickle
+import pickle
 
 # populated at the bottom of this file
 _CLASSES = {}
@@ -285,7 +280,7 @@ class MetaflowObject(object):
         # the namespace at the import time is problematic, since there
         # may be other modules that alter environment variables etc.
         # which may affect the namespace setting.
-        self._metaflow = Metaflow(_current_metadata) or _metaflow
+        self._metaflow = _metaflow or Metaflow(_current_metadata)
         self._parent = _parent
         self._path_components = None
         self._attempt = attempt
