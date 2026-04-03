@@ -315,6 +315,11 @@ def step(
     if split_vars:
         env.update(split_vars)
 
+    # Forward debugger env vars to the remote container.
+    for key, val in os.environ.items():
+        if key.startswith("METAFLOW_DEBUGPY_"):
+            env[key] = val
+
     if retry_count:
         ctx.obj.echo_always(
             "Sleeping %d minutes before the next AWS Batch retry"
