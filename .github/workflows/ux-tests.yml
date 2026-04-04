@@ -1,0 +1,407 @@
+name: Tests
+
+# Two test tiers:
+#
+# 1. unit-tests — Fast (~30s), no infrastructure. Runs test/unit/ and test/cmd/
+#    on every push. Catches logic bugs in decorators, CLI, parsers, etc.
+#
+# 2. ux-tests — Full integration across 4 backends (local, argo, airflow, sfn).
+#    Needs devstack (minikube + tilt). Catches orchestrator/deployer bugs.
+#
+# Both tiers auto-discover tests by directory — new test files are picked up
+# automatically without editing this workflow.
+#
+# Coverage is collected from each job, then combined in a final report.
+
+on:
+  push:
+    branches:
+      - master
+      - "npow/**"  # run on this dev branch during development
+  pull_request:
+    branches:
+      - master
+  workflow_dispatch:
+
+jobs:
+  unit-tests:
+    name: "Unit Tests"
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python 3.9
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.9"
+
+      - name: Cache pip packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: pip-py3.9-${{ hashFiles('setup.py', 'setup.cfg') }}
+          restore-keys: pip-py3.9-
+
+      - name: Install Metaflow and test dependencies
+        run: |
+          pip install --upgrade pip
+          pip install -e ".[dev]"
+
+      - name: Run unit and command tests
+        run: |
+          python -m pytest \
+            test/unit/ test/cmd/ test/plugins/ \
+            --ignore=test/unit/spin \
+            -v \
+            --tb=short \
+            --timeout=120 \
+            --cov=metaflow \
+            --cov-report=term-missing \
+            --cov-report=xml:coverage.xml \
+            --cov-branch \
+            --junit-xml=junit-unit.xml
+
+      - name: Upload coverage data
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-unit
+          path: |
+            .coverage
+            coverage.xml
+          if-no-files-found: ignore
+          include-hidden-files: true
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: junit-unit
+          path: junit-unit.xml
+          if-no-files-found: ignore
+
+      - name: Publish test results
+        if: always()
+        continue-on-error: true
+        uses: dorny/test-reporter@d61b558e8df85cb60d09ca3e5b09653b4477cea7  # v1
+        with:
+          name: "Test Results — Unit"
+          path: junit-unit.xml
+          reporter: java-junit
+          fail-on-error: false
+
+  ux-tests:
+    name: "${{ matrix.backend }}"
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - backend: local
+            services: "minio,postgresql,metadata-service"
+            workers: 4
+            memory: 6144
+            timeout: 900
+          - backend: argo-kubernetes
+            services: "minio,postgresql,metadata-service,argo-workflows"
+            workers: 2
+            memory: 6144
+            timeout: 900
+          - backend: airflow-kubernetes
+            services: "minio,postgresql,metadata-service,airflow"
+            workers: 1
+            memory: 7168
+            timeout: 1200
+          - backend: sfn-batch
+            services: "minio,postgresql,metadata-service,localbatch,ddb-local,sfn-local"
+            workers: 2
+            memory: 6144
+            timeout: 900
+
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Free disk space
+        uses: jlumbroso/free-disk-space@54081f138730dfa15788a46383842cd2f914a1be  # v1.3.1
+        with:
+          tool-cache: false
+          android: true
+          dotnet: true
+          haskell: true
+          large-packages: true
+          docker-images: false
+          swap-storage: false
+
+      - name: Set up Python 3.9
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.9"
+
+      - name: Cache pip packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: pip-py3.9-${{ hashFiles('setup.py', 'setup.cfg') }}
+          restore-keys: pip-py3.9-
+
+      - name: Install Metaflow and test dependencies
+        run: |
+          pip install --upgrade pip
+          pip install -e ".[dev]"
+
+      - name: Set up minikube
+        uses: medyagh/setup-minikube@aba8d5ff1666d19b9549133e3b92e70d4fc52cb7
+        with:
+          driver: docker
+          cpus: 2
+          memory: ${{ matrix.memory }}
+
+      - name: Restore minikube image cache
+        id: image-cache
+        uses: actions/cache/restore@v4
+        with:
+          path: /tmp/minikube-image-cache
+          key: minikube-images-${{ matrix.backend }}-${{ hashFiles('devtools/Tiltfile') }}
+          restore-keys: minikube-images-${{ matrix.backend }}-
+
+      - name: Pre-load cached images into minikube
+        if: steps.image-cache.outputs.cache-hit == 'true'
+        run: devtools/ci/load-minikube-images.sh
+
+      - name: Cache Helm repos and charts
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/helm
+            ~/.local/share/tilt-dev/.helm
+          key: helm-charts-${{ matrix.backend }}-${{ hashFiles('devtools/Tiltfile', 'devtools/tilt/*.tiltfile') }}
+          restore-keys: |
+            helm-charts-${{ matrix.backend }}-
+            helm-charts-
+
+      - name: Set up Helm
+        uses: azure/setup-helm@v4
+
+      - name: Cache Tilt binary
+        id: tilt-cache
+        uses: actions/cache@v4
+        with:
+          path: /usr/local/bin/tilt
+          key: tilt-v0.33.11
+
+      - name: Install Tilt
+        if: steps.tilt-cache.outputs.cache-hit != 'true'
+        run: |
+          for attempt in 1 2 3; do
+            curl -fsSL https://raw.githubusercontent.com/tilt-dev/tilt/master/scripts/install.sh \
+              | VERSION=v0.33.11 bash && break
+            echo "Tilt install attempt $attempt failed, retrying in 10s..."
+            sleep 10
+          done
+          tilt version
+
+      - name: Pre-pull Helm repos (with retry)
+        run: |
+          retry() {
+            local cmd="$*" attempt=1
+            until $cmd; do
+              attempt=$((attempt + 1))
+              if [ $attempt -gt 3 ]; then echo "Failed after 3 attempts: $cmd"; return 1; fi
+              echo "Retry $attempt for: $cmd"
+              sleep $((attempt * 5))
+            done
+          }
+          retry helm repo add bitnami https://charts.bitnami.com/bitnami 2>/dev/null || true
+          retry helm repo add argo https://argoproj.github.io/argo-helm 2>/dev/null || true
+          retry helm repo add apache-airflow https://airflow.apache.org 2>/dev/null || true
+          retry helm repo add metaflow-tools https://outerbounds.github.io/metaflow-tools 2>/dev/null || true
+          retry helm repo update || true
+
+      - name: Start devstack
+        working-directory: devtools
+        run: ci/start-devstack.sh
+        env:
+          SERVICES: ${{ matrix.services }}
+
+      - name: Pre-pull python:3.9 into minikube
+        if: matrix.backend != 'local' && matrix.backend != 'sfn-batch'
+        run: minikube image pull python:3.9
+
+      - name: Save minikube images to cache
+        if: steps.image-cache.outputs.cache-hit != 'true'
+        run: devtools/ci/save-minikube-images.sh
+
+      - name: Store minikube image cache
+        if: steps.image-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: /tmp/minikube-image-cache
+          key: minikube-images-${{ matrix.backend }}-${{ hashFiles('devtools/Tiltfile') }}
+
+      - name: Start minikube tunnel
+        run: |
+          sudo minikube tunnel &
+          sleep 5
+
+      - name: Forward devstack ports to Docker bridge (sfn-batch only)
+        if: matrix.backend == 'sfn-batch'
+        run: devtools/ci/forward-bridge-ports.sh
+
+      - name: Wait for Airflow REST API
+        if: matrix.backend == 'airflow-kubernetes'
+        run: devtools/ci/wait-airflow-api.sh
+
+      - name: Clean up completed pods and start background cleanup
+        if: matrix.backend == 'airflow-kubernetes'
+        run: |
+          kubectl delete pods --field-selector=status.phase=Succeeded --all-namespaces 2>/dev/null || true
+          kubectl delete pods --field-selector=status.phase=Failed --all-namespaces 2>/dev/null || true
+          # Periodically clean up completed pods during test runs to free cluster resources
+          # NOTE: Only safe for airflow — argo controller needs Succeeded pods to read task results
+          while true; do
+            sleep 120
+            kubectl delete pods --field-selector=status.phase=Succeeded --all-namespaces 2>/dev/null || true
+            kubectl delete pods --field-selector=status.phase=Failed --all-namespaces 2>/dev/null || true
+          done &
+
+      - name: Run UX tests — ${{ matrix.backend }}
+        run: |
+          AWS_SHARED_CREDENTIALS_FILE="" \
+          PYTHONPATH=$PWD \
+          python -m pytest \
+            test/ux/core/ \
+            --only-backend "${{ matrix.backend }}" \
+            -n ${{ matrix.workers }} \
+            -v \
+            --tb=short \
+            --timeout=${{ matrix.timeout }} \
+            --reruns=1 \
+            --cov=metaflow \
+            --cov-report=term-missing \
+            --cov-report=xml:coverage.xml \
+            --cov-report=html:htmlcov \
+            --cov-branch \
+            --junit-xml=junit-${{ matrix.backend }}.xml
+
+      - name: Upload coverage data
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-${{ matrix.backend }}
+          path: |
+            .coverage
+            coverage.xml
+            htmlcov/
+          if-no-files-found: ignore
+          include-hidden-files: true
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: junit-${{ matrix.backend }}
+          path: junit-${{ matrix.backend }}.xml
+          if-no-files-found: ignore
+
+      - name: Publish test results
+        if: always()
+        continue-on-error: true
+        uses: dorny/test-reporter@d61b558e8df85cb60d09ca3e5b09653b4477cea7  # v1
+        with:
+          name: "Test Results — ${{ matrix.backend }}"
+          path: junit-${{ matrix.backend }}.xml
+          reporter: java-junit
+          fail-on-error: false
+
+      - name: Dump sfn-batch diagnostics on failure
+        if: failure() && matrix.backend == 'sfn-batch'
+        run: devtools/ci/dump-sfn-diagnostics.sh
+
+      - name: Dump Airflow diagnostics on failure
+        if: failure() && matrix.backend == 'airflow-kubernetes'
+        run: devtools/ci/dump-airflow-diagnostics.sh
+
+      - name: Show Tilt logs on failure
+        if: failure()
+        run: cat /tmp/tilt.log | tail -200 || true
+
+      - name: Upload Tilt logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: tilt-logs-${{ matrix.backend }}
+          path: /tmp/tilt.log
+          if-no-files-found: ignore
+
+  coverage-report:
+    name: "Coverage Report"
+    needs: [unit-tests, ux-tests]
+    if: always()
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python 3.9
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.9"
+
+      - name: Install coverage
+        run: pip install coverage[toml]
+
+      - name: Download coverage data from all backends
+        uses: actions/download-artifact@v4
+        with:
+          pattern: coverage-*
+          path: coverage-artifacts/
+
+      - name: Download test results from all backends
+        uses: actions/download-artifact@v4
+        with:
+          pattern: junit-*
+          path: junit-artifacts/
+
+      - name: Publish combined test results
+        continue-on-error: true
+        uses: dorny/test-reporter@d61b558e8df85cb60d09ca3e5b09653b4477cea7  # v1
+        with:
+          name: "Test Results — All Backends"
+          path: "junit-artifacts/**/*.xml"
+          reporter: java-junit
+          fail-on-error: false
+
+      - name: Combine coverage data
+        run: devtools/ci/combine-coverage.sh
+
+      - name: Generate combined HTML report
+        run: |
+          coverage html -d combined-htmlcov/ --title="Metaflow UX Test Coverage"
+          coverage xml -o combined-coverage.xml
+
+      - name: Post coverage summary
+        run: |
+          echo "## Test Coverage Summary" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          coverage report --sort=miss >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          total=$(coverage report | tail -1 | awk '{print $NF}')
+          echo "**Total coverage: $total**" >> $GITHUB_STEP_SUMMARY
+
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v5
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: combined-coverage.xml
+          name: ux-combined
+
+      - name: Upload combined coverage report
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-combined
+          path: |
+            combined-htmlcov/
+            combined-coverage.xml

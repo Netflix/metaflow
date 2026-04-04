@@ -1,0 +1,110 @@
+load('./_result.tiltfile', 'new_result')
+
+def setup_sfn_local(ctx):
+    ddb_svc_url = "http://ddb-local:8000"
+
+    _is_linux = str(local("uname -s", quiet=True)).strip() == "Linux"
+    if _is_linux:
+        _minikube_gw = str(local(
+            "docker network inspect minikube --format '{{range .IPAM.Config}}{{.Gateway}}{{end}}' 2>/dev/null || echo '192.168.49.1'",
+            quiet=True,
+        )).strip() or "192.168.49.1"
+        _sfn_host_network = False
+        _batch_endpoint = 'http://localbatch-host:8000'
+        k8s_yaml(encode_yaml({
+            'apiVersion': 'v1', 'kind': 'Endpoints',
+            'metadata': {'name': 'localbatch-host'},
+            'subsets': [{'addresses': [{'ip': _minikube_gw}], 'ports': [{'port': 8000}]}],
+        }))
+        k8s_yaml(encode_yaml({
+            'apiVersion': 'v1', 'kind': 'Service',
+            'metadata': {'name': 'localbatch-host'},
+            'spec': {'ports': [{'port': 8000, 'targetPort': 8000}]},
+        }))
+    else:
+        _sfn_host_network = False
+        _batch_endpoint = 'http://host.docker.internal:8000'
+
+    k8s_yaml(encode_yaml({
+        'apiVersion': 'apps/v1',
+        'kind': 'Deployment',
+        'metadata': {'name': 'sfn-local'},
+        'spec': {
+            'replicas': 1,
+            'selector': {'matchLabels': {'app': 'sfn-local'}},
+            'template': {
+                'metadata': {'labels': {'app': 'sfn-local'}},
+                'spec': {
+                    'hostNetwork': _sfn_host_network,
+                    'dnsPolicy': 'ClusterFirstWithHostNet' if _sfn_host_network else 'ClusterFirst',
+                    'containers': [{
+                        'name': 'sfn-local',
+                        'image': 'amazon/aws-stepfunctions-local:latest',
+                        'ports': [{'containerPort': 8083}],
+                        'args': ['-jar', 'StepFunctionsLocal.jar',
+                                 '--batch-endpoint', _batch_endpoint,
+                                 '--dynamodb-endpoint', ddb_svc_url],
+                        'env': [
+                            {'name': 'AWS_DEFAULT_REGION',    'value': 'us-east-1'},
+                            {'name': 'AWS_ACCESS_KEY_ID',     'value': 'test'},
+                            {'name': 'AWS_SECRET_ACCESS_KEY', 'value': 'test'},
+                        ],
+                        'resources': {
+                            'requests': {'cpu': '100m', 'memory': '512Mi'},
+                            'limits':   {'cpu': '500m', 'memory': '1Gi'},
+                        },
+                        'livenessProbe': {
+                            'tcpSocket': {'port': 8083},
+                            'initialDelaySeconds': 10,
+                            'periodSeconds': 10,
+                            'failureThreshold': 3,
+                        },
+                        'readinessProbe': {
+                            'tcpSocket': {'port': 8083},
+                            'initialDelaySeconds': 5,
+                            'periodSeconds': 5,
+                            'failureThreshold': 3,
+                        },
+                    }],
+                },
+            },
+        },
+    }))
+    k8s_yaml(encode_yaml({
+        'apiVersion': 'v1',
+        'kind': 'Service',
+        'metadata': {'name': 'sfn-local'},
+        'spec': {
+            'selector': {'app': 'sfn-local'},
+            'ports': [{'port': 8083, 'targetPort': 8083}],
+        },
+    }))
+    k8s_resource(
+        'sfn-local',
+        port_forwards=['8082:8083'],
+        links=[link('http://localhost:8082', 'SFN Local')],
+        labels=['sfn-local'],
+        resource_deps=ctx.components['sfn-local'],
+    )
+
+    # Minimal EventBridge stub
+    local_resource(
+        name="eventbridge-stub",
+        serve_cmd="python3 eventbridge_stub.py",
+        readiness_probe=probe(
+            http_get=http_get_action(port=7777, path="/"),
+            period_secs=2,
+            initial_delay_secs=1,
+        ),
+        links=[link("http://localhost:7777", "EventBridge stub")],
+        labels=["sfn-local"],
+    )
+
+    return new_result(
+        config={
+            "METAFLOW_SFN_CLIENT_PARAMS": {"endpoint_url": "http://localhost:8082"},
+            "METAFLOW_SFN_IAM_ROLE": "arn:aws:iam::123456789012:role/sfn-local-role",
+            "METAFLOW_EVENTS_SFN_ACCESS_IAM_ROLE": "arn:aws:iam::123456789012:role/sfn-events-role",
+        },
+        config_resources=['sfn-local', 'eventbridge-stub'],
+    )
