@@ -3,6 +3,22 @@ import sys
 import types
 import uuid
 import datetime
+import sys
+
+class FlushStream:
+    def __init__(self, stream):
+        self.stream = stream
+    def write(self, data):
+        self.stream.write(data)
+        self.stream.flush()
+    def flush(self):
+        self.stream.flush()
+    def __getattr__(self, attr):
+        return getattr(self.stream, attr)
+
+if not getattr(sys.stdout, 'isatty', lambda: False)():
+    sys.stdout = FlushStream(sys.stdout)
+    sys.stderr = FlushStream(sys.stderr)
 
 from typing import Dict, List, Union, Tuple as TTuple
 from metaflow.exception import MetaflowException
