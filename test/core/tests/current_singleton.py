@@ -80,7 +80,7 @@ class CurrentSingletonTest(MetaflowTest):
         self.seen_steps.add(current.step_name)
         self.uuid = str(uuid4())
         self.task_data[current.pathspec] = self.uuid
-        self.tags.update(current.tags)
+        self.tags |= current.tags
         self.task_obj = current.task
         self.run_obj = current.run
 
@@ -102,7 +102,7 @@ class CurrentSingletonTest(MetaflowTest):
         self.seen_steps.add(current.step_name)
         self.uuid = str(uuid4())
         self.task_data[current.pathspec] = self.uuid
-        self.tags.update(current.tags)
+        self.tags |= current.tags
         self.task_obj = current.task
         self.run_obj = current.run
 

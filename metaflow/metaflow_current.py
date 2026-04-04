@@ -25,6 +25,7 @@ class Current(object):
         self._metadata_str = None
         self._is_running = False
         self._tempdir = TEMPDIR
+        self._tags = None
 
         def _raise(ex):
             raise ex
@@ -263,13 +264,16 @@ class Current(object):
         return self._username
 
     @property
-    def tags(self):
+    def tags(self) -> frozenset:
         """
-        [Legacy function - do not use]
+        A set of tags assigned to the current run.
 
-        Access tags through the Run object instead.
+        Returns
+        -------
+        frozenset
+            Tags assigned to the run.
         """
-        return self._tags
+        return frozenset(self._tags) if self._tags is not None else frozenset()
 
     @property
     def tempdir(self) -> Optional[str]:
