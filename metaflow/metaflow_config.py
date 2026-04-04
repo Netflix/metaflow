@@ -176,7 +176,10 @@ TEMPDIR = from_conf("TEMPDIR", ".")
 
 DATATOOLS_CLIENT_PARAMS = from_conf("DATATOOLS_CLIENT_PARAMS", {})
 if S3_ENDPOINT_URL:
-    DATATOOLS_CLIENT_PARAMS["endpoint_url"] = S3_ENDPOINT_URL
+    # Use setdefault so that an explicit endpoint_url in METAFLOW_DATATOOLS_CLIENT_PARAMS
+    # takes precedence over S3_ENDPOINT_URL (e.g. when the datatools bucket lives on a
+    # different endpoint than the general S3 datastore).
+    DATATOOLS_CLIENT_PARAMS.setdefault("endpoint_url", S3_ENDPOINT_URL)
 if S3_VERIFY_CERTIFICATE:
     DATATOOLS_CLIENT_PARAMS["verify"] = S3_VERIFY_CERTIFICATE
 
@@ -444,6 +447,13 @@ KUBERNETES_JOBSET_GROUP = from_conf("KUBERNETES_JOBSET_GROUP", "jobset.x-k8s.io"
 KUBERNETES_JOBSET_VERSION = from_conf("KUBERNETES_JOBSET_VERSION", "v1alpha2")
 
 KUBERNETES_JOB_TERMINATE_MODE = from_conf("KUBERNETES_JOB_TERMINATE_MODE", "stop")
+
+# How long (in seconds) to keep completed k8s Jobs before auto-deletion.
+# Default: 7 days. Set lower in dev/test environments to prevent pod
+# accumulation that can exhaust cluster resources.
+KUBERNETES_JOB_TTL_SECONDS_AFTER_FINISHED = from_conf(
+    "KUBERNETES_JOB_TTL_SECONDS_AFTER_FINISHED", 7 * 24 * 60 * 60
+)
 
 ##
 # Argo Events Configuration
