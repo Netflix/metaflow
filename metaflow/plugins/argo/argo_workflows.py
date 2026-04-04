@@ -3087,7 +3087,7 @@ class ArgoWorkflows(object):
                     resources=kubernetes_sdk.V1ResourceRequirements(
                         requests={
                             "cpu": str(kube_defaults["cpu"]),
-                            "memory": "%sM" % str(kube_defaults["memory"]),
+                            "memory": "%sMi" % str(kube_defaults["memory"]),
                         }
                     ),
                 ).to_dict()
