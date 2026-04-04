@@ -6,8 +6,9 @@ class Inputs(object):
     """
 
     def __init__(self, flows):
-        # TODO sort by foreach index
         self.flows = list(flows)
+        if self.flows and getattr(self.flows[0], "index", None) is not None:
+            self.flows.sort(key=lambda x: x.index)
         for flow in self.flows:
             setattr(self, flow._current_step, flow)
 
