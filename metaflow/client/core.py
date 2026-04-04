@@ -1148,6 +1148,22 @@ class MetaflowData(object):
     def __repr__(self):
         return str(self)
 
+    def __dir__(self):
+        """Includes artifact names so IPython/Jupyter tab-completes `task.data.<TAB>`."""
+        try:
+            artifact_keys = list(self.__dict__.get("_artifacts", {}).keys())
+        except Exception:
+            artifact_keys = []
+        # Merge normal attributes with artifact names for IPython/Jupyter completion.
+        return sorted(set(super(MetaflowData, self).__dir__() + artifact_keys))
+
+    def _ipython_key_completions_(self):
+        """Returns artifact names for IPython/Jupyter key-based tab completion."""
+        try:
+            return list(self._artifacts.keys())
+        except Exception:
+            return []
+
 
 class Task(MetaflowObject):
     """
@@ -2687,6 +2703,13 @@ class Metaflow(object):
             Flow with the given name.
         """
         return Flow(name, _metaflow=self)
+
+    def _ipython_key_completions_(self):
+        """Returns flow names for IPython/Jupyter key-based tab completion."""
+        try:
+            return [flow.id for flow in self]
+        except Exception:
+            return []
 
 
 def _metadata(ms: str) -> Tuple[Optional["MetadataProvider"], Optional[str]]:
