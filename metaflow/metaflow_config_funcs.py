@@ -70,6 +70,13 @@ METAFLOW_LOCAL_CONFIG = None
 _all_configs = {}
 
 
+def reset_config_cache():
+    global METAFLOW_CONFIG, METAFLOW_LOCAL_CONFIG, _all_configs
+    METAFLOW_CONFIG = None
+    METAFLOW_LOCAL_CONFIG = None
+    _all_configs = {}
+
+
 def config_values(include=0):
     # By default, we just return non-null values and that
     # are not default. This is the common use case because in all other cases, the code
