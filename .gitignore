@@ -27,7 +27,7 @@ main.js.map
 
 .project
 .pydevproject
-
+.devcontainer/devcontainer.json
 # Pycharm
 .idea
 
@@ -35,6 +35,7 @@ stubs/version.py
 
 # devtools
 .devtools
+venv/
 
 # claude code
 .claude/

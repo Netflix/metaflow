@@ -74,6 +74,7 @@ setup(
     install_requires=["requests", "boto3"],
     extras_require={
         "stubs": ["metaflow-stubs==%s" % version],
+        "devcontainer": ["docker>=7.0.0"],
         "dev": read_dev_requirements(),
     },
 )
