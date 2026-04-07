@@ -395,10 +395,7 @@ class MetaflowObject(object):
             self._pathspec = pathspec.rstrip("/")
             self._object = self._get_object(*ids)
         elif pathspec is None and _object is None:
-            raise MetaflowInvalidPathspec(
-                "pathspec for %s cannot be None"
-                % _CLASS_DISPLAY_NAMES.get(self._NAME, self._NAME)
-            )
+            _validate_pathspec(pathspec, self._NAME)
         else:
             self._object = _object
             self._pathspec = pathspec
