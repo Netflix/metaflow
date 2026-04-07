@@ -387,18 +387,19 @@ class MetaflowObject(object):
             # distinguish between "attempt will happen" and "no such
             # attempt exists".
 
-        if pathspec is not None and _object is None:
+        if _object is None:
             _validate_pathspec(pathspec, self._NAME)
+            if pathspec is None:
+                # _NAME not in _PATHSPEC_FORMATS (e.g. "base"): no format hint to give.
+                raise MetaflowInvalidPathspec(
+                    "pathspec for %s cannot be None"
+                    % _CLASS_DISPLAY_NAMES.get(self._NAME, self._NAME)
+                )
             ids = pathspec.rstrip("/").split("/")
 
             self.id = ids[-1]
             self._pathspec = pathspec.rstrip("/")
             self._object = self._get_object(*ids)
-        elif pathspec is None and _object is None:
-            raise MetaflowInvalidPathspec(
-                "pathspec for %s cannot be None"
-                % _CLASS_DISPLAY_NAMES.get(self._NAME, self._NAME)
-            )
         else:
             self._object = _object
             self._pathspec = pathspec
