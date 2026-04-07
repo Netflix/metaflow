@@ -611,6 +611,9 @@ class MetaflowPackage(object):
                     raise NonUniqueFileNameToFilePathMappingException(
                         file_name, [deco_module_paths[file_name], file_path]
                     )
+            elif file_type == ContentType.USER_CONTENT:
+                pass  # For now pass -- it will be included normally but we need to
+                # merge it.
             else:
                 raise ValueError(f"Unknown file type: {file_type}")
             return path_tuple
