@@ -2628,6 +2628,7 @@ class ArgoWorkflows(object):
                     disk=str(resources["disk"]),
                     gpu=resources["gpu"],
                     gpu_vendor=str(resources["gpu_vendor"]),
+                    trainium=resources.get("trainium"),
                     tolerations=resources["tolerations"],
                     use_tmpfs=use_tmpfs,
                     tmpfs_tempdir=tmpfs_tempdir,
@@ -2865,6 +2866,13 @@ class ArgoWorkflows(object):
                                             )
                                             for k in [0]
                                             if resources["gpu"] is not None
+                                        },
+                                        **{
+                                            "aws.amazon.com/neuron": str(
+                                                resources["trainium"]
+                                            )
+                                            for k in [0]
+                                            if resources.get("trainium") is not None
                                         },
                                     },
                                 ),

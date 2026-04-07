@@ -152,6 +152,7 @@ class KubernetesDecorator(StepDecorator):
         "namespace": None,
         "gpu": None,  # value of 0 implies that the scheduled node should not have GPUs
         "gpu_vendor": None,
+        "trainium": None,  # number of AWS Trainium/Inferentia Neuron devices
         "tolerations": None,  # e.g., [{"key": "arch", "operator": "Equal", "value": "amd"},
         #                              {"key": "foo", "operator": "Equal", "value": "bar"}]
         "labels": None,  # e.g. {"test-label": "value", "another-label":"value2"}
@@ -382,6 +383,17 @@ class KubernetesDecorator(StepDecorator):
                                 max(float(my_val or 0), float(v or 0))
                             )
 
+        # Validate mutually exclusive: gpu and trainium cannot both be set.
+        if (
+            self.attributes["trainium"] is not None
+            and self.attributes["gpu"] is not None
+        ):
+            raise KubernetesException(
+                "Cannot specify both 'gpu' and 'trainium' for step *{step}*.".format(
+                    step=step
+                )
+            )
+
         # Check GPU vendor.
         if self.attributes["gpu_vendor"].lower() not in ("amd", "nvidia"):
             raise KubernetesException(
@@ -409,6 +421,16 @@ class KubernetesDecorator(StepDecorator):
             raise KubernetesException(
                 "Invalid GPU value *{}* for step *{step}*; it should be an integer".format(
                     self.attributes["gpu"], step=step
+                )
+            )
+
+        if self.attributes["trainium"] is not None and not (
+            isinstance(self.attributes["trainium"], (int, unicode, basestring))
+            and float(self.attributes["trainium"]).is_integer()
+        ):
+            raise KubernetesException(
+                "Invalid trainium value *{}* for step *{step}*; it should be an integer".format(
+                    self.attributes["trainium"], step=step
                 )
             )
 
