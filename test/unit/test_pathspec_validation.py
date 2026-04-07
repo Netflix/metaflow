@@ -268,17 +268,13 @@ def test_artifact_too_many_parts_raises():
 # fails before fix, passes after fix
 def test_artifact_empty_segment_raises():
     """DataArtifact with an empty segment must raise."""
-    _raises_invalid_pathspec(
-        DataArtifact, "MyFlow//1234/my_step/56789/my_artifact"
-    )
+    _raises_invalid_pathspec(DataArtifact, "MyFlow//1234/my_step/56789/my_artifact")
 
 
 # passes before fix, passes after fix
 def test_artifact_valid_pathspec():
     """DataArtifact('MyFlow/1234/my_step/56789/my_artifact') is valid."""
-    _raises_not_invalid_pathspec(
-        DataArtifact, "MyFlow/1234/my_step/56789/my_artifact"
-    )
+    _raises_not_invalid_pathspec(DataArtifact, "MyFlow/1234/my_step/56789/my_artifact")
 
 
 # ===========================================================================
