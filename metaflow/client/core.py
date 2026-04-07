@@ -91,11 +91,11 @@ def _validate_pathspec(pathspec: Optional[str], obj_name: str) -> None:
         return
 
     class_name = _CLASS_DISPLAY_NAMES.get(obj_name, obj_name)
-    expected_parts, fmt = _PATHSPEC_FORMATS[obj_name]
-
-    if pathspec is None:
+    if pathspec is None or pathspec == "" or pathspec.strip("/") == "":
         raise MetaflowInvalidPathspec(
-            "pathspec for %s cannot be None; expected %s(%s)"
+            "pathspec for %s cannot be empty or None; expected %s(%s)"
+            % (class_name, class_name, fmt)
+        )
             % (class_name, class_name, fmt)
         )
 
