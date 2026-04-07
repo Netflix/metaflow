@@ -449,6 +449,11 @@ class Airflow(object):
                     # Don't set GPU limits if gpu isn't specified.
                     if k8s_deco.attributes["gpu"] is not None
                 },
+                **{
+                    "aws.amazon.com/neuron": str(k8s_deco.attributes["trainium"])
+                    for k in [0]
+                    if k8s_deco.attributes.get("trainium") is not None
+                },
             },
         )
 
