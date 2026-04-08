@@ -2793,7 +2793,14 @@ class ArgoWorkflows(object):
                     # Set node selectors
                     .node_selectors(resources.get("node_selector"))
                     # Set tolerations
-                    .tolerations(resources.get("tolerations"))
+                    .tolerations(
+                        (resources.get("tolerations") or [])
+                        + (
+                            [{"key": "aws.amazon.com/neuron", "operator": "Exists", "effect": "NoSchedule"}]
+                            if resources.get("trainium") is not None
+                            else []
+                        )
+                    )
                     # Set image pull secrets if present. We need to use pod_spec_patch due to Argo not supporting this on a template level.
                     .pod_spec_patch(
                         {

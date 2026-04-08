@@ -506,6 +506,13 @@ class Airflow(object):
             retry_exponential_backoff=False,  # todo : should this be a arg we allow on CLI. not right now - there is an open ticket for this - maybe at some point we will.
             reattach_on_restart=False,
             secrets=[],
+            tolerations=(
+                [{"key": "aws.amazon.com/neuron", "operator": "Exists", "effect": "NoSchedule"}]
+                if k8s_deco.attributes.get("trainium") is not None
+                else []
+            ) + (
+                k8s_deco.attributes.get("tolerations") or []
+            ),
         )
         k8s_operator_args["in_cluster"] = True
         if AIRFLOW_KUBERNETES_CONN_ID is not None:

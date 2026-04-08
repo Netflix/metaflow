@@ -427,9 +427,10 @@ class KubernetesDecorator(StepDecorator):
         if self.attributes["trainium"] is not None and not (
             isinstance(self.attributes["trainium"], (int, unicode, basestring))
             and float(self.attributes["trainium"]).is_integer()
+            and int(float(self.attributes["trainium"])) > 0
         ):
             raise KubernetesException(
-                "Invalid trainium value *{}* for step *{step}*; it should be an integer".format(
+                "Invalid trainium value *{}* for step *{step}*; it should be a positive integer".format(
                     self.attributes["trainium"], step=step
                 )
             )
