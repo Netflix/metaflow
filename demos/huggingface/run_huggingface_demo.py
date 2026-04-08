@@ -7,7 +7,7 @@ CLI demo for the @huggingface decorator (argparse).
 Defaults are chosen so a no-argument run works offline for public metadata:
   ./demos/huggingface/run_huggingface_demo.py run
 
-See docs/huggingface.md § Demo for full documentation and "Using your own models".
+See docs/huggingface.md (Demo section) for defaults, the testing table, and "Using your own models".
 """
 from __future__ import annotations
 
@@ -248,7 +248,8 @@ Built-in demo repos (when --model is omitted)
   --auth public: openai-community/gpt2@main (with --only-read-first-model, a second public model is also listed).
   --auth env: %(private)s
 
-This script sets METAFLOW_HUGGINGFACE_AUTH_PROVIDER to env for both --auth public and --auth env.
+Both --auth public and --auth env set METAFLOW_HUGGINGFACE_AUTH_PROVIDER to env; they only
+differ in which built-in repos are used when --model is omitted (see above).
 """ % {
         "prog": os.path.basename(sys.argv[0]),
         "private": _DEFAULT_PRIVATE_SPEC,
@@ -271,8 +272,10 @@ This script sets METAFLOW_HUGGINGFACE_AUTH_PROVIDER to env for both --auth publi
         "--auth",
         choices=("public", "env"),
         default="public",
-        help="Auth profile: public Hub repos (no token), or env (HF_TOKEN / "
-        "HUGGING_FACE_HUB_TOKEN for private models). Default: %(default)s.",
+        help="Selects built-in demo repos when --model is omitted. Both choices use the "
+        "env auth provider (METAFLOW_HUGGINGFACE_AUTH_PROVIDER=env). public: public Hub "
+        "defaults; env: private example repo (HF_TOKEN / HUGGING_FACE_HUB_TOKEN). "
+        "Default: %(default)s.",
     )
     run.add_argument(
         "--fetch",
