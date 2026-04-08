@@ -54,6 +54,9 @@ DEFAULT_SECRETS_ROLE = from_conf("DEFAULT_SECRETS_ROLE")
 # Endpoint is only for a different Hub host (e.g. on-prem); enterprise vs open-source is determined by the token.
 HUGGINGFACE_AUTH_PROVIDER = from_conf("HUGGINGFACE_AUTH_PROVIDER", "env")
 HUGGINGFACE_ENDPOINT = from_conf("HUGGINGFACE_ENDPOINT")
+# Parent directory for @huggingface snapshot_download outputs (each repo gets a subdir).
+# Default: <task temp>/metaflow_huggingface. Override per-step with @huggingface(local_dir=...).
+HUGGINGFACE_LOCAL_DIR = from_conf("HUGGINGFACE_LOCAL_DIR")
 
 DEFAULT_FROM_DEPLOYMENT_IMPL = from_conf(
     "DEFAULT_FROM_DEPLOYMENT_IMPL", "argo-workflows"

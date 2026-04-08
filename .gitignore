@@ -41,3 +41,4 @@ stubs/version.py
 
 # Local Hugging Face model cache (demo / dev)
 metaflow_huggingface/
+demos/huggingface/.demo_hf_cache/

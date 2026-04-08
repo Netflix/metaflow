@@ -3,11 +3,16 @@
 
 Provides current.huggingface.models[key] -> local path. Use models=<list or dict>.
 Uses huggingface_hub for download.
+
+By default (``lazy=True``), each snapshot or ``ModelInfo`` is resolved on first access to
+the corresponding key. Set ``lazy=False`` to prefetch every listed model in
+``task_pre_step`` before the step body runs.
 """
 
 import os
 import sys
-from typing import Dict, List, Optional, Tuple, Union
+from collections.abc import Mapping
+from typing import Dict, Iterator, List, Optional, Tuple, Union
 
 from metaflow.decorators import StepDecorator
 from metaflow.exception import MetaflowException
@@ -19,15 +24,71 @@ class HuggingFaceContext:
     Context object attached to current.huggingface when @huggingface is used.
     models: key (alias or repo_id) -> local filesystem path (str).
     model_info: when metadata_only=True, key -> ModelInfo from the Hub (no download).
+
+    With lazy resolution (the default), ``models`` / ``model_info`` behave as read-only
+    mappings that fetch each key on first access; they are not plain ``dict`` instances.
     """
 
     def __init__(
         self,
-        models: Optional[Dict[str, str]] = None,
-        model_info: Optional[Dict[str, object]] = None,
+        models: Optional[Union[Dict[str, str], Mapping[str, str]]] = None,
+        model_info: Optional[Union[Dict[str, object], Mapping[str, object]]] = None,
     ):
         self.models = models or {}
         self.model_info = model_info or {}
+
+
+class _LazyRepoMap(Mapping):
+    """Lazily resolves each key in ``spec_map`` to a local path or ``ModelInfo``."""
+
+    def __init__(
+        self,
+        spec_map: Dict[str, Tuple[str, str]],
+        metadata_only: bool,
+        token: Optional[str],
+        endpoint,
+        local_dir_base: str,
+    ):
+        self._spec_map = spec_map
+        self._metadata_only = metadata_only
+        self._token = token
+        self._endpoint = endpoint
+        self._local_dir_base = local_dir_base
+        self._cache = {}  # type: Dict[str, Union[str, object]]
+
+    def __getitem__(self, key: str) -> Union[str, object]:
+        if key not in self._spec_map:
+            raise KeyError(key)
+        if key not in self._cache:
+            repo_id, revision = self._spec_map[key]
+            if self._metadata_only:
+                self._cache[key] = _get_model_info(
+                    repo_id, revision, self._token, endpoint=self._endpoint
+                )
+            else:
+                self._cache[key] = _download_to_task_dir(
+                    repo_id,
+                    revision,
+                    self._token,
+                    self._endpoint,
+                    self._local_dir_base,
+                )
+        return self._cache[key]
+
+    def __iter__(self) -> Iterator[str]:
+        return iter(self._spec_map)
+
+    def __len__(self) -> int:
+        return len(self._spec_map)
+
+    def __contains__(self, key: object) -> bool:
+        return key in self._spec_map
+
+    def get(self, key: str, default=None):
+        try:
+            return self[key]
+        except KeyError:
+            return default
 
 
 def _parse_repo_spec(value: str) -> Tuple[str, str]:
@@ -197,13 +258,34 @@ def _resolve_auth_token():
     return token
 
 
+def _resolve_local_dir_base(decorator_local_dir: Optional[str]) -> str:
+    """
+    Parent directory for model snapshots: ``<base>/<repo>_<revision>/``.
+
+    Order: non-empty ``@huggingface(local_dir=...)``, then ``METAFLOW_HUGGINGFACE_LOCAL_DIR``
+    / ``HUGGINGFACE_LOCAL_DIR``, else ``<task temp>/metaflow_huggingface``.
+    """
+    if isinstance(decorator_local_dir, str):
+        s = decorator_local_dir.strip()
+        if s:
+            return os.path.abspath(os.path.expanduser(s))
+    from metaflow.metaflow_config import HUGGINGFACE_LOCAL_DIR
+
+    if HUGGINGFACE_LOCAL_DIR:
+        return os.path.abspath(os.path.expanduser(str(HUGGINGFACE_LOCAL_DIR).strip()))
+    return os.path.join(current.tempdir or "/tmp", "metaflow_huggingface")
+
+
 def _download_to_task_dir(
-    repo_id: str, revision: str, token: Optional[str], endpoint
+    repo_id: str,
+    revision: str,
+    token: Optional[str],
+    endpoint,
+    local_dir_base: str,
 ) -> str:
-    base_dir = os.path.join(current.tempdir or "/tmp", "metaflow_huggingface")
-    os.makedirs(base_dir, exist_ok=True)
+    os.makedirs(local_dir_base, exist_ok=True)
     task_subdir = os.path.join(
-        base_dir, "%s_%s" % (repo_id.replace("/", "_"), revision)
+        local_dir_base, "%s_%s" % (repo_id.replace("/", "_"), revision)
     )
     return _download_model(repo_id, revision, token, task_subdir, endpoint=endpoint)
 
@@ -213,6 +295,7 @@ def _fill_huggingface_maps(
     metadata_only: bool,
     token: Optional[str],
     endpoint,
+    local_dir_base: str,
 ) -> Tuple[Dict[str, str], Dict[str, object]]:
     path_map = {}
     info_map = {}
@@ -220,7 +303,9 @@ def _fill_huggingface_maps(
         if metadata_only:
             info_map[key] = _get_model_info(repo_id, revision, token, endpoint=endpoint)
         else:
-            path_map[key] = _download_to_task_dir(repo_id, revision, token, endpoint)
+            path_map[key] = _download_to_task_dir(
+                repo_id, revision, token, endpoint, local_dir_base
+            )
     return path_map, info_map
 
 
@@ -243,6 +328,17 @@ class HuggingFaceDecorator(StepDecorator):
     metadata_only : bool, optional
         If True, only fetch model metadata from the Hub (no file download).
         Use current.huggingface.model_info["key"] to get the ModelInfo object.
+    lazy : bool, optional
+        If True (default), resolve auth in ``task_pre_step`` but fetch each snapshot or
+        ``ModelInfo`` on first access to ``current.huggingface.models`` or
+        ``model_info``. If False, prefetch every listed model before the step body runs
+        (failures occur before step code; iterating ``values()`` or ``dict(...)`` on
+        the mapping still resolves every entry when lazy is True).
+    local_dir : str, optional
+        Absolute or relative path to the **parent** directory for downloaded snapshots.
+        Each model is stored under ``<local_dir>/<repo_id_with_underscores>_<revision>/``.
+        If omitted, uses ``METAFLOW_HUGGINGFACE_LOCAL_DIR`` / ``HUGGINGFACE_LOCAL_DIR`` when
+        set, otherwise ``<task tempdir>/metaflow_huggingface``.
 
     MF Add To Current
     -----------------
@@ -254,13 +350,20 @@ class HuggingFaceDecorator(StepDecorator):
     """
 
     name = "huggingface"
-    defaults = {"models": None, "metadata_only": False}
+    defaults = {"models": None, "metadata_only": False, "lazy": True, "local_dir": None}
 
     def step_init(
         self, flow, graph, step_name, decorators, environment, flow_datastore, logger
     ):
         models = self.attributes.get("models")
         self._metadata_only = self.attributes.get("metadata_only", False)
+        self._lazy = self.attributes.get("lazy", True)
+        local_dir = self.attributes.get("local_dir")
+        if local_dir is not None and not isinstance(local_dir, str):
+            raise MetaflowException(
+                "@huggingface: local_dir must be a string filesystem path or None"
+            )
+        self._decorator_local_dir = local_dir
         if not models:
             raise MetaflowException("@huggingface: specify 'models' (list or dict)")
         self._spec_map = _build_spec_map(models)
@@ -291,8 +394,25 @@ class HuggingFaceDecorator(StepDecorator):
         from metaflow.metaflow_config import HUGGINGFACE_ENDPOINT
 
         endpoint = HUGGINGFACE_ENDPOINT
-        path_map, info_map = _fill_huggingface_maps(
-            self._spec_map, self._metadata_only, token, endpoint
-        )
-        ctx = HuggingFaceContext(models=path_map, model_info=info_map)
+        local_dir_base = _resolve_local_dir_base(self._decorator_local_dir)
+        if self._lazy:
+            if self._metadata_only:
+                ctx = HuggingFaceContext(
+                    models={},
+                    model_info=_LazyRepoMap(
+                        self._spec_map, True, token, endpoint, local_dir_base
+                    ),
+                )
+            else:
+                ctx = HuggingFaceContext(
+                    models=_LazyRepoMap(
+                        self._spec_map, False, token, endpoint, local_dir_base
+                    ),
+                    model_info={},
+                )
+        else:
+            path_map, info_map = _fill_huggingface_maps(
+                self._spec_map, self._metadata_only, token, endpoint, local_dir_base
+            )
+            ctx = HuggingFaceContext(models=path_map, model_info=info_map)
         current._update_env({"huggingface": ctx})

@@ -24,7 +24,7 @@ How to test locally
    python metaflow/plugins/huggingface/example_flow.py run
    (Optional: set HF_TOKEN, HUGGING_FACE_TOKEN, or HUGGING_FACE_HUB_TOKEN for gated models.)
 
-5. Multi-mode demo: ./demos/huggingface/run_huggingface_demo.sh run [none|download|env] (see docs/huggingface.md).
+5. Demo CLI: ./demos/huggingface/run_huggingface_demo.sh run --help (see docs/huggingface.md § Demo).
 """
 
 import os
@@ -131,6 +131,76 @@ class TestEnvHuggingFaceAuthProvider(unittest.TestCase):
             clear=False,
         ):
             self.assertEqual(p.get_token(), "c")
+
+
+class TestLazyRepoMap(unittest.TestCase):
+    """Lazy mapping resolves each key at most once on first access."""
+
+    def test_lazy_download_deferred_until_getitem(self):
+        import metaflow.plugins.huggingface.huggingface_decorator as hd
+
+        calls = []
+
+        def fake_download(repo_id, revision, token, endpoint, local_dir_base):
+            calls.append((repo_id, revision, local_dir_base))
+            return "/fake/%s" % repo_id.replace("/", "_")
+
+        with patch.object(hd, "_download_to_task_dir", side_effect=fake_download):
+            m = hd._LazyRepoMap(
+                {"a": ("org/m1", "main"), "b": ("org/m2", "v1")},
+                False,
+                None,
+                None,
+                "/fakebase",
+            )
+            self.assertEqual(len(calls), 0)
+            self.assertEqual(m["a"], "/fake/org_m1")
+            self.assertEqual(len(calls), 1)
+            self.assertEqual(m["a"], "/fake/org_m1")
+            self.assertEqual(len(calls), 1)
+            self.assertEqual(m["b"], "/fake/org_m2")
+            self.assertEqual(len(calls), 2)
+
+    def test_lazy_unknown_key_raises(self):
+        from metaflow.plugins.huggingface.huggingface_decorator import _LazyRepoMap
+
+        m = _LazyRepoMap({"a": ("x", "main")}, False, None, None, "/tmp")
+        with self.assertRaises(KeyError):
+            _ = m["missing"]
+
+    def test_contains_does_not_download(self):
+        import metaflow.plugins.huggingface.huggingface_decorator as hd
+
+        with patch.object(hd, "_download_to_task_dir", side_effect=AssertionError):
+            m = hd._LazyRepoMap({"a": ("x", "main")}, False, None, None, "/tmp")
+            self.assertIn("a", m)
+            self.assertNotIn("z", m)
+
+
+class TestResolveLocalDirBase(unittest.TestCase):
+    def test_explicit_path(self):
+        import metaflow.plugins.huggingface.huggingface_decorator as hd
+
+        p = hd._resolve_local_dir_base("/data/hf_cache")
+        self.assertEqual(p, os.path.abspath("/data/hf_cache"))
+
+    def test_default_joins_task_temp(self):
+        import metaflow.metaflow_config as mc
+        import metaflow.plugins.huggingface.huggingface_decorator as hd
+        from metaflow.metaflow_current import current
+
+        with patch.object(current, "tempdir", "/var/mf_tmp"):
+            with patch.object(mc, "HUGGINGFACE_LOCAL_DIR", None):
+                p = hd._resolve_local_dir_base(None)
+        self.assertEqual(p, os.path.join("/var/mf_tmp", "metaflow_huggingface"))
+
+    def test_config_when_decorator_unset(self):
+        import metaflow.metaflow_config as mc
+        import metaflow.plugins.huggingface.huggingface_decorator as hd
+
+        with patch.object(mc, "HUGGINGFACE_LOCAL_DIR", "/mnt/shared/hf"):
+            p = hd._resolve_local_dir_base(None)
+        self.assertEqual(p, os.path.abspath("/mnt/shared/hf"))
 
 
 class TestCurrentHuggingFaceSentinel(unittest.TestCase):
