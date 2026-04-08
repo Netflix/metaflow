@@ -1,5 +1,8 @@
-from typing import Dict, Optional, Union, TYPE_CHECKING
+import json
+import re
+from typing import Any, Dict, List, Optional, Tuple, Union, TYPE_CHECKING
 
+from metaflow.debug import debug
 from metaflow.exception import MetaflowException
 from metaflow.user_configs.config_parameters import (
     resolve_delayed_evaluator,
@@ -99,7 +102,7 @@ class FlowMutatorMeta(type):
 
     @classmethod
     def _check_init(mcs):
-        # Delay importing STEP_DECORATORS until we actually need it
+        # Delay importing FLOW_DECORATORS until we actually need it
         if not mcs._all_registered_decorators.inited:
             from metaflow.plugins import FLOW_DECORATORS
 
@@ -197,6 +200,47 @@ class FlowMutator(metaclass=FlowMutatorMeta):
 
     def __str__(self):
         return str(self.__class__)
+
+    @classmethod
+    def extract_args_kwargs_from_decorator_spec(
+        cls, deco_spec: str
+    ) -> Tuple[List[Any], Dict[str, Any]]:
+        if len(deco_spec) == 0:
+            return [], {}
+        args: List[Any] = []
+        kwargs: Dict[str, Any] = {}
+        for a in re.split(r""",(?=[\s\w]+=)""", deco_spec):
+            name, val = a.split("=", 1)
+            try:
+                val_parsed = json.loads(val.strip().replace('\\"', '"'))
+            except json.JSONDecodeError:
+                try:
+                    val_parsed = int(val.strip())
+                except ValueError:
+                    try:
+                        val_parsed = float(val.strip())
+                    except ValueError:
+                        val_parsed = val.strip()
+            try:
+                pos = int(name)
+            except ValueError:
+                kwargs[name.strip()] = val_parsed
+            else:
+                while len(args) <= pos:
+                    args.append(None)
+                args[pos] = val_parsed
+        debug.userconf_exec(
+            "Parsed decorator spec for %s: %s"
+            % (cls.decorator_name, str((args, kwargs)))
+        )
+        return args, kwargs
+
+    @classmethod
+    def parse_decorator_spec(cls, deco_spec: str) -> "FlowMutator":
+        if len(deco_spec) == 0:
+            return cls()
+        args, kwargs = cls.extract_args_kwargs_from_decorator_spec(deco_spec)
+        return cls(*args, **kwargs)
 
     def init(self, *args, **kwargs):
         """

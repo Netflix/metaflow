@@ -40,7 +40,7 @@ class UserStepDecoratorMeta(type):
             mcs._import_modules.add(effective_module)
 
         if (
-            name in ("FlowMutator", "UserStepDecorator")
+            name in ("StepMutator", "UserStepDecorator")
             or cls.decorator_name in mcs._do_not_register
         ):
             return cls
