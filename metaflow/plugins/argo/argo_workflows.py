@@ -2796,7 +2796,13 @@ class ArgoWorkflows(object):
                     .tolerations(
                         (resources.get("tolerations") or [])
                         + (
-                            [{"key": "aws.amazon.com/neuron", "operator": "Exists", "effect": "NoSchedule"}]
+                            [
+                                {
+                                    "key": "aws.amazon.com/neuron",
+                                    "operator": "Exists",
+                                    "effect": "NoSchedule",
+                                }
+                            ]
                             if resources.get("trainium") is not None
                             else []
                         )

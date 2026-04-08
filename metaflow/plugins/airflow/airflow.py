@@ -507,12 +507,17 @@ class Airflow(object):
             reattach_on_restart=False,
             secrets=[],
             tolerations=(
-                [{"key": "aws.amazon.com/neuron", "operator": "Exists", "effect": "NoSchedule"}]
+                [
+                    {
+                        "key": "aws.amazon.com/neuron",
+                        "operator": "Exists",
+                        "effect": "NoSchedule",
+                    }
+                ]
                 if k8s_deco.attributes.get("trainium") is not None
                 else []
-            ) + (
-                k8s_deco.attributes.get("tolerations") or []
-            ),
+            )
+            + (k8s_deco.attributes.get("tolerations") or []),
         )
         k8s_operator_args["in_cluster"] = True
         if AIRFLOW_KUBERNETES_CONN_ID is not None:
