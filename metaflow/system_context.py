@@ -116,6 +116,7 @@ class SystemContext:
         self._retry_count = None
         self._max_user_code_retries = None
         self._ubf_context = None
+        self._is_cloned = None
         self._inputs = None
         self._split_index = None
         # Step
@@ -223,6 +224,11 @@ class SystemContext:
     def ubf_context(self) -> Optional[Any]:
         """Unbounded foreach context (available during task hooks)."""
         return self._ubf_context
+
+    @property
+    def is_cloned(self) -> Optional[bool]:
+        """Whether the task is resumed from a prior run (available after ``runtime_task_created``)."""
+        return self._is_cloned
 
     @property
     def inputs(self) -> Optional[List[Any]]:

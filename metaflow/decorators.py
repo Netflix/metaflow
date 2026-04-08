@@ -245,6 +245,11 @@ class Decorator(object):
 class FlowDecorator(Decorator):
     options = {}
 
+    # Simplified hook variant — override in subclasses to use self.system_ctx.
+    # When not None, takes precedence over flow_init.
+    # Signature: flow_init_ctx(self, options)
+    flow_init_ctx = None
+
     def __init__(self, *args, **kwargs):
         super(FlowDecorator, self).__init__(*args, **kwargs)
 
@@ -336,6 +341,33 @@ class StepDecorator(Decorator):
                   step.__name__ etc., so that we don't have to
                   pass them around with every lifecycle call.
     """
+
+    # ------------------------------------------------------------------
+    # Simplified hook variants — override in subclasses to use self.system_ctx.
+    # When not None, each takes precedence over the corresponding legacy hook.
+    # All context (flow, graph, step_name, run_id, task_id, etc.) is available
+    # via self.system_ctx instead of positional args.
+    #
+    # Signatures:
+    #   step_init_ctx(self)
+    #   runtime_init_ctx(self)
+    #   runtime_task_created_ctx(self)
+    #   runtime_step_cli_ctx(self, cli_args)
+    #   runtime_finished_ctx(self, exception)
+    #   task_pre_step_ctx(self)
+    #   task_decorate_ctx(self, step_func) -> step_func
+    #   task_step_completed_ctx(self, exception=None) -> bool or None
+    #   task_finished_ctx(self, is_task_ok)
+    # ------------------------------------------------------------------
+    step_init_ctx = None
+    runtime_init_ctx = None
+    runtime_task_created_ctx = None
+    runtime_step_cli_ctx = None
+    runtime_finished_ctx = None
+    task_pre_step_ctx = None
+    task_decorate_ctx = None
+    task_step_completed_ctx = None  # coalesces task_post_step + task_exception
+    task_finished_ctx = None
 
     def step_init(
         self, flow, graph, step_name, decorators, environment, flow_datastore, logger
@@ -791,16 +823,19 @@ def _init_flow_decorators(
                 deco, is_spin, skip_decorators, logger, "Flow decorator"
             ):
                 continue
-            deco.flow_init(
-                flow,
-                graph,
-                environment,
-                flow_datastore,
-                metadata,
-                logger,
-                echo,
-                deco_flow_init_options,
-            )
+            if deco.flow_init_ctx is not None:
+                deco.flow_init_ctx(deco_flow_init_options)
+            else:
+                deco.flow_init(
+                    flow,
+                    graph,
+                    environment,
+                    flow_datastore,
+                    metadata,
+                    logger,
+                    echo,
+                    deco_flow_init_options,
+                )
 
 
 def _init_step_decorators(
@@ -885,15 +920,18 @@ def _init_step_decorators(
                 deco, is_spin, skip_decorators, logger, "Step decorator"
             ):
                 continue
-            deco.step_init(
-                flow,
-                graph,
-                step.__name__,
-                step.decorators,
-                environment,
-                flow_datastore,
-                logger,
-            )
+            if deco.step_init_ctx is not None:
+                deco.step_init_ctx()
+            else:
+                deco.step_init(
+                    flow,
+                    graph,
+                    step.__name__,
+                    step.decorators,
+                    environment,
+                    flow_datastore,
+                    logger,
+                )
 
 
 def _process_late_attached_decorator(
@@ -919,15 +957,18 @@ def _process_late_attached_decorator(
                     deco, is_spin, skip_decorators, logger, "Step decorator"
                 ):
                     continue
-                deco.step_init(
-                    flow,
-                    graph,
-                    s.__name__,
-                    s.decorators,
-                    environment,
-                    flow_datastore,
-                    logger,
-                )
+                if deco.step_init_ctx is not None:
+                    deco.step_init_ctx()
+                else:
+                    deco.step_init(
+                        flow,
+                        graph,
+                        s.__name__,
+                        s.decorators,
+                        environment,
+                        flow_datastore,
+                        logger,
+                    )
 
 
 FlowSpecDerived = TypeVar("FlowSpecDerived", bound=FlowSpec)
