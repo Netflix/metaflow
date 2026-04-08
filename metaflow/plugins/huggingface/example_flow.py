@@ -6,7 +6,7 @@ Run from repo root:
 
 Requires: pip install metaflow[huggingface] or pip install huggingface_hub
 Optional: set HF_TOKEN or HUGGING_FACE_HUB_TOKEN for gated models.
-More detail: docs/huggingface.md (configuration, demo CLI, custom auth providers).
+More detail: docs/huggingface.md (configuration, custom auth). Demo CLI: demos/huggingface/README.md.
 """
 
 from metaflow import FlowSpec, step, huggingface
