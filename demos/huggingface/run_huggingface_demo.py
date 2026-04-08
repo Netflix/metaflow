@@ -2,12 +2,12 @@
 """
 CLI demo for the @huggingface decorator (argparse).
 
-  python demos/huggingface/run_huggingface_demo.py run --help
+From the repository root (PYTHONPATH must include the repo root):
 
-Defaults are chosen so a no-argument run works offline for public metadata:
-  ./demos/huggingface/run_huggingface_demo.py run
+  PYTHONPATH=. python demos/huggingface/run_huggingface_demo.py run --help
+  PYTHONPATH=. python demos/huggingface/run_huggingface_demo.py run
 
-See docs/huggingface.md (Demo section) for defaults, the testing table, and "Using your own models".
+See demos/huggingface/README.md for defaults, the testing table, and "Using your own models".
 """
 from __future__ import annotations
 

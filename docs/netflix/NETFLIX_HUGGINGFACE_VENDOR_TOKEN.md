@@ -27,12 +27,12 @@ export METAFLOW_HUGGINGFACE_AUTH_PROVIDER=vendor-token
 With this branch checked out, the argparse demo supports **`--auth vendor`** (in addition to `public` and `env`). From the repo root:
 
 ```bash
-./demos/huggingface/run_huggingface_demo.sh run --auth vendor --fetch metadata
+PYTHONPATH=. python demos/huggingface/run_huggingface_demo.py run --auth vendor --fetch metadata
 ```
 
 Optional override: `export METAFLOW_HUGGINGFACE_VENDOR_TOKEN_URL=...` if you are not using the default in `metaflow_config.py`. Requires Metatron (see Dependencies).
 
-Documentation for **`--auth public`** and **`--auth env`** (and the full demo testing table) lives in **`docs/huggingface.md`** on the OSS PR branch (`huggingface-auth-management`) or on `main` after merge. **This branch** is the only place the same CLI adds **`--auth vendor`**.
+Documentation for **`--auth public`** and **`--auth env`**, the full demo testing table, and troubleshooting lives in **`demos/huggingface/README.md`** on the OSS PR branch (`huggingface-auth-management`) or on `main` after merge. **This branch** adds **`--auth vendor`** to the same CLI and registers **`VendorTokenAuthProvider`**.
 
 ## Rebasing on OSS
 
