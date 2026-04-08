@@ -684,7 +684,8 @@ class JobSetSpec(object):
                                                         self._kwargs["trainium"]
                                                     )
                                                     for k in [0]
-                                                    if self._kwargs.get("trainium") is not None
+                                                    if self._kwargs.get("trainium")
+                                                    is not None
                                                 },
                                             },
                                         ),
