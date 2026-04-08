@@ -50,10 +50,10 @@ from .flowspec import FlowStateItems
 from .mflog import mflog, RUNTIME_LOG_SOURCE
 from .util import to_unicode, compress_list, unicode_type, get_latest_task_pathspec
 from .clone_util import clone_task_helper
+from .system_context import system_context
 from .unbounded_foreach import (
     CONTROL_TASK_TAG,
     UBF_CONTROL,
-    UBF_TASK,
 )
 
 from .user_configs.config_options import ConfigInput
@@ -203,6 +203,8 @@ class SpinRuntime(object):
 
         # Create a new run_id for the spin task
         self.run_id = self._metadata.new_run_id()
+        system_context._update(run_id=self.run_id, step_name=self._step_func.name)
+
         # Raise exception if we have a black listed decorator
         for deco in self._step_func.decorators:
             if deco.name in SPIN_DISALLOWED_DECORATORS:
@@ -211,7 +213,10 @@ class SpinRuntime(object):
                 )
 
         for deco in self.whitelist_decorators:
-            deco.runtime_init(flow, graph, package, self.run_id)
+            if deco.runtime_init_ctx is not None:
+                deco.runtime_init_ctx()
+            else:
+                deco.runtime_init(flow, graph, package, self.run_id)
         from_start("SpinRuntime: after init decorators")
 
     @property
@@ -453,11 +458,12 @@ class NativeRuntime(object):
         # finished.
         self._control_num_splits = {}  # control_task -> num_splits mapping
 
-        if not self._skip_decorator_hooks:
-            from .system_context import system_context
+        # Update the context
+        system_context._update(run_id=self._run_id)
 
-            system_context._update(package=package, run_id=self._run_id)
+        if not self._skip_decorator_hooks:
             for step in flow:
+                system_context._update(step_name=step.__name__)
                 for deco in step.decorators:
                     if deco.runtime_init_ctx is not None:
                         deco.runtime_init_ctx()
@@ -926,6 +932,7 @@ class NativeRuntime(object):
                 # on finish clean tasks
                 if not self._skip_decorator_hooks:
                     for step in self._flow:
+                        system_context._update(step_name=step.__name__)
                         for deco in step.decorators:
                             if deco.runtime_finished_ctx is not None:
                                 deco.runtime_finished_ctx(exception)
@@ -1799,9 +1806,8 @@ class Task(object):
         # Open the output datastore only if the task is not being cloned.
         if not self._is_cloned:
             self.new_attempt()
-            from .system_context import system_context
-
             system_context._update(
+                step_name=self.step,
                 task_id=task_id,
                 split_index=split_index,
                 is_cloned=self._is_cloned,
@@ -2266,6 +2272,7 @@ class Worker(object):
             from .system_context import system_context
 
             system_context._update(
+                step_name=self.task.step,
                 retry_count=self.task.retries,
                 max_user_code_retries=self.task.user_code_retries,
             )

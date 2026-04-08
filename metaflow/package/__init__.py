@@ -526,9 +526,16 @@ class MetaflowPackage(object):
         try:
             # Can be called without a flow (Function)
             if self._flow:
+                system_context._update(package=self)
                 for step in self._flow:
+                    system_context._update(step_name=step.__name__)
                     for deco in step.decorators:
-                        deco.package_init(self._flow, step.__name__, self._environment)
+                        if deco.package_init_ctx is not None:
+                            deco.package_init_ctx()
+                        else:
+                            deco.package_init(
+                                self._flow, step.__name__, self._environment
+                            )
                 self._name = f"flow {self._flow.name}"
             else:
                 self._name = "<generic code package>"

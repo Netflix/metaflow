@@ -350,6 +350,7 @@ class StepDecorator(Decorator):
     #
     # Signatures:
     #   step_init_ctx(self)
+    #   package_init_ctx(self)
     #   runtime_init_ctx(self)
     #   runtime_task_created_ctx(self)
     #   runtime_step_cli_ctx(self, cli_args)
@@ -360,6 +361,7 @@ class StepDecorator(Decorator):
     #   task_finished_ctx(self, is_task_ok)
     # ------------------------------------------------------------------
     step_init_ctx = None
+    package_init_ctx = None
     runtime_init_ctx = None
     runtime_task_created_ctx = None
     runtime_step_cli_ctx = None
@@ -379,7 +381,7 @@ class StepDecorator(Decorator):
 
     def package_init(self, flow, step_name, environment):
         """
-        Called to determine package components
+        Called when a package is being created for this flow.
         """
         pass
 

@@ -861,14 +861,14 @@ class MetaflowTask(object):
                 system_context._update(
                     step_name=step_name,
                     run_id=run_id,
+                    input_paths=input_paths,
                     task_id=task_id,
                     task_datastore=output,
-                    metadata=self.metadata,
-                    retry_count=retry_count,
-                    max_user_code_retries=max_user_code_retries,
                     ubf_context=self.ubf_context,
-                    inputs=inputs,
                     split_index=split_index,
+                    max_user_code_retries=max_user_code_retries,
+                    retry_count=retry_count,
+                    inputs=inputs,
                 )
                 for deco in decorators:
                     if deco.name == "card" and self.orig_flow_datastore:

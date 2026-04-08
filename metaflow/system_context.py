@@ -10,23 +10,25 @@ class ExecutionPhase(Enum):
 
     LAUNCH: The initial `myflow.py` process. This is where the flow is parsed,
         decorators are initialized, code is packaged, and (for local runs) the
-        runtime scheduler operates. Hooks like `flow_init`, `step_init`,
-        `runtime_init`, and `runtime_finished` fire in this phase. For
-        deployment commands (e.g. `argo-workflows create`), only `flow_init`
-        and `step_init` are called.
+        runtime scheduler operates. Hooks called here are:
+          - For FlowDecorators: `flow_init`
+          - For StepDecorators: `step_init`, `package_init`, `runtime_*`
+        For deployment commands (e.g. `argo-workflows create`), only `flow_init`,
+        `step_init` and `package_init` are called.
 
     TRAMPOLINE: A per-task subprocess that delegates execution to a remote system
-        (e.g. AWS Batch, Kubernetes). The `flow_init` and `step_init` hooks
-        are called again in this process. This phase does NOT exist for local
+        (e.g. AWS Batch, Kubernetes). Hooks called here are:
+          - For FlowDecorators: `flow_init`
+          - For StepDecorators: `step_init`
+        This phase does NOT exist for local
         runs (where the subprocess directly executes user code) or for Argo/Step
         Functions deployments (where the orchestrator launches tasks directly).
 
-    TASK: The process where user code actually runs. `flow_init` and
-        `step_init` are called again, followed by the task hooks:
-        `task_pre_step`, `task_decorate`, `task_post_step`,
-        `task_exception`, and `task_finished`. For local runs, this is the
-        per-task subprocess. For remote runs, this is the process running on
-        Batch/Kubernetes/etc.
+    TASK: The process where user code actually runs. Hooks called here are:
+           - For FlowDecorators: `flow_init`
+           - For StepDecorators: `step_init`, `task_*`
+        For local runs, this is the per-task subprocess. For remote runs, this is
+        the process running on Batch/Kubernetes/etc.
     """
 
     LAUNCH = "launch"
@@ -95,33 +97,41 @@ class SystemContext:
     """
 
     def __init__(self):
+        # Flow-level — available in all hooks in all phases
         self._phase = None
-        # Flow-level — available after flow_init / step_init
         self._flow = None
         self._graph = None
         self._environment = None
         self._flow_datastore = None
         self._metadata = None
         self._logger = None
-        # Runtime-level — available after runtime_init (LAUNCH phase)
-        self._package = None
-        self._run_id = None
-        # Runtime-task-level — available after runtime_task_created (LAUNCH phase)
-        self._input_paths = None
-        # Task-level — available during task_* hooks (TASK phase)
-        self._task_id = None
-        self._task_datastore = None
-        self._retry_count = None
-        self._max_user_code_retries = None
-        self._ubf_context = None
-        self._is_cloned = None
-        self._inputs = None
-        self._split_index = None
-        # Step
+
+        # Step-level information -- available for all step-decorators in all phases
         self._step_name = None
         # Inter-decorator shared state (keyed by step_name)
         self._shared = {}  # { step_name: { namespace: { key: value } } }
         self._step_decorators = {}  # { step_name: [StepDecorator, ...] }
+
+        # Package-level - available in package_init (LAUNCH phase *only*)
+        self._package = None
+
+        # Runtime-level — available in runtime_init (LAUNCH phase) and task_* (TASK phase)
+        self._run_id = None
+
+        # Task-level - available in runtime_task_created, runtime_task_cli (LAUNCH phase) and task_* (TASK phase)
+        self._input_paths = None
+        self._task_id = None
+        self._task_datastore = None
+        self._ubf_context = None
+        self._is_cloned = None  # NOTE: For now, not available in task_* hooks
+        self._split_index = None
+
+        # Retry information - available in runtime_step_cli (LAUNCH phase) and task_* (TASK phase)
+        self._max_user_code_retries = None
+        self._retry_count = None
+
+        # Task only information - available in task_* hooks (TASK phase)
+        self._inputs = None
 
     # ------------------------------------------------------------------
     # Phase queries
