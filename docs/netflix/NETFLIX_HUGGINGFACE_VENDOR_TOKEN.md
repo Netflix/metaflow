@@ -24,7 +24,13 @@ export METAFLOW_HUGGINGFACE_AUTH_PROVIDER=vendor-token
 
 ## Demo
 
-With the internal branch checked out, restore the `service` mode in `run_huggingface_demo.py` / `run_huggingface_demo.sh` if removed, or set the env above and use flows that require private Hub access.
+With this branch checked out, the argparse demo supports **`--auth vendor`** (in addition to `public` and `env`). From the repo root:
+
+```bash
+./demos/huggingface/run_huggingface_demo.sh run --auth vendor --fetch metadata
+```
+
+Optional override: `export METAFLOW_HUGGINGFACE_VENDOR_TOKEN_URL=...` if you are not using the default in `metaflow_config.py`. Requires Metatron (see Dependencies).
 
 ## Rebasing on OSS
 

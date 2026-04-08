@@ -60,7 +60,7 @@ def _default_model_pairs(
                 ("not_accessed", _DEFAULT_SECOND_PUBLIC),
             ]
         return [("gpt2", _DEFAULT_PUBLIC_SPEC)]
-    # env: private demo repo
+    # env or vendor: private demo repo
     if only_read_first_model:
         raise argparse.ArgumentTypeError(
             "--only-read-first-model is only supported with --auth public and --fetch metadata"
@@ -102,8 +102,38 @@ def _validate_env_token_if_needed(
         sys.exit(2)
 
 
+def _validate_vendor(auth: str) -> None:
+    if auth != "vendor":
+        return
+    url = os.environ.get("METAFLOW_HUGGINGFACE_VENDOR_TOKEN_URL") or os.environ.get(
+        "HUGGINGFACE_VENDOR_TOKEN_URL"
+    )
+    if url and str(url).strip():
+        return
+    try:
+        from metaflow.metaflow_config import HUGGINGFACE_VENDOR_TOKEN_URL
+
+        os.environ.setdefault(
+            "METAFLOW_HUGGINGFACE_VENDOR_TOKEN_URL", HUGGINGFACE_VENDOR_TOKEN_URL
+        )
+    except Exception:
+        pass
+    url = os.environ.get("METAFLOW_HUGGINGFACE_VENDOR_TOKEN_URL") or os.environ.get(
+        "HUGGINGFACE_VENDOR_TOKEN_URL"
+    )
+    if not url or not str(url).strip():
+        sys.stderr.write(
+            "error: --auth vendor requires METAFLOW_HUGGINGFACE_VENDOR_TOKEN_URL or "
+            "HUGGINGFACE_VENDOR_TOKEN_URL (hf-token endpoint).\n"
+        )
+        sys.exit(2)
+
+
 def _configure_auth_env(auth: str) -> None:
-    os.environ["METAFLOW_HUGGINGFACE_AUTH_PROVIDER"] = "env"
+    if auth == "vendor":
+        os.environ["METAFLOW_HUGGINGFACE_AUTH_PROVIDER"] = "vendor-token"
+    else:
+        os.environ["METAFLOW_HUGGINGFACE_AUTH_PROVIDER"] = "env"
 
 
 def _build_flow_class(
@@ -198,6 +228,7 @@ def _run_cmd(args: Namespace) -> None:
     )
 
     _validate_env_token_if_needed(args, model_pairs)
+    _validate_vendor(args.auth)
     _configure_auth_env(args.auth)
 
     metadata_only = args.fetch == "metadata"
@@ -242,13 +273,14 @@ Using your own models
   Examples:
     %(prog)s run --auth public --fetch metadata --model m=distilbert-base-uncased
     %(prog)s run --auth env --fetch download --model my=org/private-model@main
-  For a gated/private repo, use --auth env and set HF_TOKEN / HUGGING_FACE_HUB_TOKEN as in docs.
+  For a gated/private repo, use --auth env and set HF_TOKEN / HUGGING_FACE_HUB_TOKEN, or
+  --auth vendor with METAFLOW_HUGGINGFACE_VENDOR_TOKEN_URL (Netflix internal).
 
 Built-in demo repos (when --model is omitted)
   --auth public: openai-community/gpt2@main (with --only-read-first-model, a second public model is also listed).
-  --auth env: %(private)s
+  --auth env or vendor: %(private)s
 
-This script sets METAFLOW_HUGGINGFACE_AUTH_PROVIDER to env for both --auth public and --auth env.
+This script sets METAFLOW_HUGGINGFACE_AUTH_PROVIDER to env or vendor-token from --auth.
 """ % {
         "prog": os.path.basename(sys.argv[0]),
         "private": _DEFAULT_PRIVATE_SPEC,
@@ -269,10 +301,11 @@ This script sets METAFLOW_HUGGINGFACE_AUTH_PROVIDER to env for both --auth publi
     )
     run.add_argument(
         "--auth",
-        choices=("public", "env"),
+        choices=("public", "env", "vendor"),
         default="public",
-        help="Auth profile: public Hub repos (no token), or env (HF_TOKEN / "
-        "HUGGING_FACE_HUB_TOKEN for private models). Default: %(default)s.",
+        help="Auth profile: public Hub repos (no token), env (HF_TOKEN / "
+        "HUGGING_FACE_HUB_TOKEN), or vendor (METAFLOW_HUGGINGFACE_VENDOR_TOKEN_URL; "
+        "Netflix internal). Default: %(default)s.",
     )
     run.add_argument(
         "--fetch",
