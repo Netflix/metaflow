@@ -40,7 +40,7 @@ class MyFlow(FlowSpec):
 
 By default the decorator uses the **`env`** auth provider: it reads `HF_TOKEN`, `HUGGING_FACE_TOKEN`, or `HUGGING_FACE_HUB_TOKEN` from the environment (first non-empty wins). For private or gated models, set one of these before running the flow.
 
-You can select a different provider with configuration (see below). Organizations can register **custom** auth providers via Metaflow’s plugin system (`HF_AUTH_PROVIDERS_DESC`); see `metaflow/plugins/huggingface/auth.py`.
+To use a **custom** backend (vault, internal token service, etc.), subclass **`HuggingFaceAuthProvider`** (see `metaflow/plugins/huggingface/auth.py`), set a unique `TYPE`, and register the class via **`HF_AUTH_PROVIDERS_DESC`** (usually from a Metaflow extension package). Then set `HUGGINGFACE_AUTH_PROVIDER` / `METAFLOW_HUGGINGFACE_AUTH_PROVIDER` to that id. **This repository** registers only the built-in **`env`** provider; anything else is supplied by your organization’s plugins.
 
 ## Configuration
 
@@ -85,14 +85,14 @@ The table below is the **authoritative checklist** for what the demo exercises a
 |---|---------------------|-------------------|-------|
 | 1 | **Public model, metadata only** — `@huggingface` with `metadata_only=True`, default **`lazy=True`**, one Hub `model_info` fetch when you read the key. | `./demos/huggingface/run_huggingface_demo.sh run` | Built-in: `gpt2` → `openai-community/gpt2@main`. No token. |
 | 2 | **Lazy behavior with two models** — two repos declared on `@huggingface`, step **only** calls `current.huggingface.model_info[<first key>]` so the **second repo is never contacted** while `lazy=True`. | `./demos/huggingface/run_huggingface_demo.sh run --only-read-first-model` | Built-in pair: `used` / `not_accessed` (gpt2 + bert-base). **Requires** `--auth public --fetch metadata`. Conflicts with `--prefetch`. |
-| 3 | **Private model, full download** — `snapshot_download` into task temp (or default `local_dir`), **`lazy=True`** unless you add `--prefetch`. | `export HF_TOKEN=… && ./demos/huggingface/run_huggingface_demo.sh run --auth env --fetch download` | Built-in: `gpt2` → `netflix/my-gpt2@main`. Needs token with repo access. |
-| 4 | **Prefetch before step** — `lazy=False`: every listed model resolved in **`task_pre_step`** before step body. | `export HF_TOKEN=… && ./demos/huggingface/run_huggingface_demo.sh run --auth env --fetch download --prefetch` | Same built-in private repo as #3. |
+| 3 | **Private model, full download** — `snapshot_download` into task temp (or default `local_dir`), **`lazy=True`** unless you add `--prefetch`. | `export HF_TOKEN=… && ./demos/huggingface/run_huggingface_demo.sh run --auth env --fetch download` | Built-in private example: `gpt2` → `netflix/my-gpt2@main` (may not exist in your Hub account—use `--model` with a repo your token can access). |
+| 4 | **Prefetch before step** — `lazy=False`: every listed model resolved in **`task_pre_step`** before step body. | `export HF_TOKEN=… && ./demos/huggingface/run_huggingface_demo.sh run --auth env --fetch download --prefetch` | Same built-in private example as #3. |
 | 5 | **Explicit download parent** — `@huggingface(local_dir=...)` via **`--use-demo-cache`** (gitignored `demos/huggingface/.demo_hf_cache`). | `export HF_TOKEN=… && ./demos/huggingface/run_huggingface_demo.sh run --auth env --fetch download --use-demo-cache` | Overrides default `<temp>/metaflow_huggingface` for the parent directory. |
 | 6 | **Custom download directory** — same as #5 but any path. | `... run --auth env --fetch download --local-dir /path/to/parent` | `--local-dir` wins over `--use-demo-cache` if both are passed (see `--help`). |
 
-**Flags reference:** `--auth {public,env}` sets `METAFLOW_HUGGINGFACE_AUTH_PROVIDER` to **`env`** (the demo uses the standard env-based Hugging Face auth provider). `--fetch {metadata,download}` maps to decorator `metadata_only` and download vs metadata-only. `--prefetch` sets **`lazy=False`**.
+**`--auth public` vs `--auth env` (demo only):** The CLI always sets `METAFLOW_HUGGINGFACE_AUTH_PROVIDER` to **`env`** for both flags. The difference is which **built-in** repos are used when you omit `--model`, and whether a token is required for those defaults (`public` → small public models; `env` → the built-in private example above). This is **not** a second auth plugin in the demo—only the standard `env` provider.
 
-Custom auth providers (for example a vendor-token integration) are registered via Metaflow’s plugin hooks (`HF_AUTH_PROVIDERS_DESC`); they are not required for the public demo CLI above.
+**Other flags:** `--fetch {metadata,download}` maps to decorator `metadata_only` vs full download. `--prefetch` sets **`lazy=False`** (resolve every listed model in `task_pre_step` before the step body).
 
 ### Using your own models
 
@@ -142,3 +142,4 @@ From repo root:
 ### Troubleshooting
 
 - **401 / 404:** Confirm the token has read access to the repo. Enterprise vs open-source is determined by the token, not a separate endpoint (unless you use `METAFLOW_HUGGINGFACE_ENDPOINT` for a custom Hugging Face host).
+- **Built-in `netflix/my-gpt2` missing:** That id is an example used in some forks. Point `--model` at a private repo your `HF_TOKEN` can read, or use `--auth public` with a public model.

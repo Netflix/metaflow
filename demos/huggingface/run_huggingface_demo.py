@@ -7,7 +7,7 @@ CLI demo for the @huggingface decorator (argparse).
 Defaults are chosen so a no-argument run works offline for public metadata:
   ./demos/huggingface/run_huggingface_demo.py run
 
-See docs/huggingface.md § Demo for full documentation and "Using your own models".
+See docs/huggingface.md (Demo section) for defaults, the testing table, and "Using your own models".
 """
 from __future__ import annotations
 
@@ -280,7 +280,9 @@ Built-in demo repos (when --model is omitted)
   --auth public: openai-community/gpt2@main (with --only-read-first-model, a second public model is also listed).
   --auth env or vendor: %(private)s
 
-This script sets METAFLOW_HUGGINGFACE_AUTH_PROVIDER to env or vendor-token from --auth.
+Both --auth public and --auth env set METAFLOW_HUGGINGFACE_AUTH_PROVIDER to env; they only
+differ in which built-in repos are used when --model is omitted. --auth vendor sets
+METAFLOW_HUGGINGFACE_AUTH_PROVIDER to vendor-token (see docs/netflix/NETFLIX_HUGGINGFACE_VENDOR_TOKEN.md).
 """ % {
         "prog": os.path.basename(sys.argv[0]),
         "private": _DEFAULT_PRIVATE_SPEC,
@@ -303,9 +305,10 @@ This script sets METAFLOW_HUGGINGFACE_AUTH_PROVIDER to env or vendor-token from 
         "--auth",
         choices=("public", "env", "vendor"),
         default="public",
-        help="Auth profile: public Hub repos (no token), env (HF_TOKEN / "
-        "HUGGING_FACE_HUB_TOKEN), or vendor (METAFLOW_HUGGINGFACE_VENDOR_TOKEN_URL; "
-        "Netflix internal). Default: %(default)s.",
+        help="Built-in demo selection when --model is omitted. public and env use the env "
+        "auth provider (HF_TOKEN / HUGGING_FACE_HUB_TOKEN for private defaults); vendor uses "
+        "vendor-token and METAFLOW_HUGGINGFACE_VENDOR_TOKEN_URL (Netflix internal). "
+        "Default: %(default)s.",
     )
     run.add_argument(
         "--fetch",

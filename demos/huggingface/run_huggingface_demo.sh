@@ -11,7 +11,7 @@
 #   ./demos/huggingface/run_huggingface_demo.sh run --fetch download --auth env
 #   ./demos/huggingface/run_huggingface_demo.sh run --only-read-first-model
 #
-# See docs/huggingface.md § Demo.
+# See docs/huggingface.md (Demo section).
 
 set -e
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
