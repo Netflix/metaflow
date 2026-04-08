@@ -1,23 +1,61 @@
 #!/usr/bin/env python
 """
-Demo entrypoint for ``@huggingface``.
+Demo script for the @huggingface decorator.
 
-The script defines three small flows (one per mode). Select the mode with
-``HUGGINGFACE_DEMO_MODE``:
+Run with HUGGINGFACE_DEMO_MODE (see demos/huggingface/run_huggingface_demo.sh):
+  none             – public model, metadata only
+  env              – private model, metadata only (HF_TOKEN or HUGGING_FACE_HUB_TOKEN)
+  download         – private model, full download (same env token vars)
+  vendor           – private model, metadata only (vendor-token retrieval service)
+  vendor-download  – private model, full download (vendor-token retrieval service)
 
-- ``none`` (default): public model, metadata only, no token.
-- ``download``: private model, full snapshot (set a Hugging Face token in the environment).
-- ``env``: private model, metadata only (token env).
-
-See ``demos/huggingface/README.md`` for how to run the shell wrapper. Conceptual
-documentation and configuration are in ``docs/huggingface.md``. The private-repo
-examples use ``netflix/my-gpt2``; change ``models=`` for your own repo.
+See docs/huggingface.md for configuration and auth.
 """
 import os
 
-_DEMO_MODE = os.environ.get("HUGGINGFACE_DEMO_MODE", "none").strip().lower()
-if _DEMO_MODE not in ("none", "download", "env"):
-    _DEMO_MODE = "none"
+_VALID_MODES = (
+    "none",
+    "download",
+    "env",
+    "vendor",
+    "vendor-download",
+)
+_raw_mode = (os.environ.get("HUGGINGFACE_DEMO_MODE", "none") or "none").strip().lower()
+if _raw_mode not in _VALID_MODES:
+    raise RuntimeError(
+        "Unknown HUGGINGFACE_DEMO_MODE=%r; expected one of %s"
+        % (os.environ.get("HUGGINGFACE_DEMO_MODE"), _VALID_MODES)
+    )
+_DEMO_MODE = _raw_mode
+
+
+def _validate_demo_mode(mode: str) -> None:
+    """Fail fast if required environment variables for the chosen mode are missing."""
+    if mode in ("env", "download"):
+        if not (os.environ.get("HF_TOKEN") or os.environ.get("HUGGING_FACE_HUB_TOKEN")):
+            raise RuntimeError(
+                "HUGGINGFACE_DEMO_MODE=%r requires HF_TOKEN or HUGGING_FACE_HUB_TOKEN "
+                "in the environment (env-based Hugging Face auth)." % mode
+            )
+    if mode in ("vendor", "vendor-download"):
+        url = os.environ.get("METAFLOW_HUGGINGFACE_VENDOR_TOKEN_URL") or os.environ.get(
+            "HUGGINGFACE_VENDOR_TOKEN_URL"
+        )
+        if not url or not str(url).strip():
+            raise RuntimeError(
+                "HUGGINGFACE_DEMO_MODE=%r requires METAFLOW_HUGGINGFACE_VENDOR_TOKEN_URL "
+                "or HUGGINGFACE_VENDOR_TOKEN_URL to be set to the hf-token endpoint URL "
+                "(vendor token retrieval service)." % mode
+            )
+        if os.environ.get("METAFLOW_HUGGINGFACE_AUTH_PROVIDER") != "vendor-token":
+            raise RuntimeError(
+                "HUGGINGFACE_DEMO_MODE=%r requires METAFLOW_HUGGINGFACE_AUTH_PROVIDER=vendor-token "
+                "(use demos/huggingface/run_huggingface_demo.sh so the script sets it)."
+                % mode
+            )
+
+
+_validate_demo_mode(_DEMO_MODE)
 
 from metaflow import FlowSpec, step, huggingface, current
 
@@ -95,6 +133,8 @@ _FLOWS = {
     "none": HuggingFaceDemoFlowPublic,
     "download": HuggingFaceDemoFlowDownload,
     "env": HuggingFaceDemoFlowEnv,
+    "vendor": HuggingFaceDemoFlowEnv,
+    "vendor-download": HuggingFaceDemoFlowDownload,
 }
 
 if __name__ == "__main__":

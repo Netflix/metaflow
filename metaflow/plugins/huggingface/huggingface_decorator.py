@@ -1,10 +1,8 @@
 """
-Step decorator for resolving Hugging Face models before user code runs.
+@huggingface step decorator: pluggable auth for HuggingFace models (Part 1).
 
-At task start the decorator downloads snapshots (or fetches metadata only), using a
-pluggable auth provider and ``huggingface_hub``. Step code reads paths or ``ModelInfo``
-from ``current.huggingface``. Pass ``models`` as a list or dict of repo specs; see
-``docs/huggingface.md`` (Behavior) and ``HuggingFaceDecorator`` below.
+Provides current.huggingface.models[key] -> local path. Use models=<list or dict>.
+Uses huggingface_hub for download.
 """
 
 import os
@@ -18,12 +16,9 @@ from metaflow.metaflow_current import current
 
 class HuggingFaceContext:
     """
-    Values exposed as ``current.huggingface`` on ``@huggingface`` steps.
-
-    ``models`` maps each key (repo id or alias) to a local directory path when the
-    decorator downloaded files. ``model_info`` maps each key to a Hugging Face
-    ``ModelInfo`` when the decorator used metadata-only mode. For a given task, the
-    active fields depend on ``metadata_only``; the other mapping is empty.
+    Context object attached to current.huggingface when @huggingface is used.
+    models: key (alias or repo_id) -> local filesystem path (str).
+    model_info: when metadata_only=True, key -> ModelInfo from the Hub (no download).
     """
 
     def __init__(
@@ -104,19 +99,11 @@ def _get_auth_provider():
         None,
     )
     if provider_cls is None:
-        if provider_type == "env":
-            from metaflow.plugins.huggingface.env_auth_provider import (
-                EnvHuggingFaceAuthProvider,
-            )
-
-            return EnvHuggingFaceAuthProvider()
-        raise MetaflowException(
-            "@huggingface: unknown Hugging Face auth provider '%s'. "
-            "Check METAFLOW_HUGGINGFACE_AUTH_PROVIDER / HUGGINGFACE_AUTH_PROVIDER, "
-            "that the provider is registered via HF_AUTH_PROVIDERS_DESC (e.g. in "
-            "metaflow_extensions), and ENABLED_HF_AUTH_PROVIDER if you use an allowlist."
-            % provider_type
+        from metaflow.plugins.huggingface.env_auth_provider import (
+            EnvHuggingFaceAuthProvider,
         )
+
+        return EnvHuggingFaceAuthProvider()
     return provider_cls()
 
 
@@ -157,23 +144,16 @@ def _download_model(
         revision=revision,
         token=token,
         local_dir=local_dir,
+        local_dir_use_symlinks=False,
     )
     if endpoint is not None:
         kwargs["endpoint"] = endpoint
-    try:
-        return snapshot_download(**kwargs)
-    except MetaflowException:
-        raise
-    except Exception as e:
-        raise MetaflowException(
-            "@huggingface: snapshot download failed for %s@%s: %s"
-            % (repo_id, revision, e)
-        ) from e
+    return snapshot_download(**kwargs)
 
 
 def _model_info_404_hint(repo_id: str) -> str:
     return (
-        "Token was obtained but Hugging Face returned 404. "
+        "Token was obtained but the Hub returned 404. "
         "Ensure the token has read access to repo '%s' and is for the correct account "
         "(e.g. enterprise vs open-source)."
     ) % repo_id
@@ -185,12 +165,12 @@ def _get_model_info(
     token: Optional[str],
     endpoint: Optional[str] = None,
 ) -> object:
-    """Fetch model metadata from Hugging Face without downloading files."""
+    """Fetch model metadata from the Hub without downloading files."""
     HfApi = _import_hf_api()
     base_url = endpoint or "https://huggingface.co"
     api = HfApi(token=token, endpoint=base_url)
     try:
-        return api.model_info(repo_id, revision=revision)
+        return api.model_info(repo_id, revision=revision, token=token)
     except Exception as e:
         err_str = str(e).lower()
         if token and (
@@ -209,11 +189,7 @@ def _log_auth_provider(provider_type: str, token: Optional[str]) -> None:
 
 
 def _resolve_auth_token():
-    """Return the Hub API token string, or ``None`` for public-only access.
-
-    Logs which auth provider ran via ``_log_auth_provider``. Exceptions from
-    ``get_token()`` propagate to the caller.
-    """
+    """Return (token, provider_type). Raises MetaflowException on failure."""
     auth_provider = _get_auth_provider()
     provider_type = getattr(auth_provider, "TYPE", "unknown")
     token = auth_provider.get_token()
@@ -222,10 +198,7 @@ def _resolve_auth_token():
 
 
 def _download_to_task_dir(
-    repo_id: str,
-    revision: str,
-    token: Optional[str],
-    endpoint: Optional[str],
+    repo_id: str, revision: str, token: Optional[str], endpoint
 ) -> str:
     base_dir = os.path.join(current.tempdir or "/tmp", "metaflow_huggingface")
     os.makedirs(base_dir, exist_ok=True)
@@ -239,7 +212,7 @@ def _fill_huggingface_maps(
     spec_map: Dict[str, Tuple[str, str]],
     metadata_only: bool,
     token: Optional[str],
-    endpoint: Optional[str],
+    endpoint,
 ) -> Tuple[Dict[str, str], Dict[str, object]]:
     path_map = {}
     info_map = {}
@@ -253,12 +226,11 @@ def _fill_huggingface_maps(
 
 class HuggingFaceDecorator(StepDecorator):
     """
-    Declare which Hugging Face repos this step needs. Resolution and authentication run
-    in ``task_pre_step``; the step body then reads ``current.huggingface``.
-
-    The Hub base URL defaults to ``https://huggingface.co``. Set
-    ``METAFLOW_HUGGINGFACE_ENDPOINT`` only when the API is hosted elsewhere (for example
-    on-prem). Enterprise versus public access follows the token, not a separate setting.
+    Declares HuggingFace models needed for this step. Auth is pluggable;
+    model paths are exposed via current.huggingface.models[key].
+    By default uses https://huggingface.co. Set METAFLOW_HUGGINGFACE_ENDPOINT only if
+    your Hub is hosted at a different URL (custom/on-prem); there is no separate endpoint for
+    enterprise accounts—the token determines the account.
 
     Parameters
     ----------
@@ -269,7 +241,7 @@ class HuggingFaceDecorator(StepDecorator):
         {"llama": "meta-llama/Llama-2-7b@main", "bert": "bert-base-uncased"}.
         Access in step via current.huggingface.models["key"] (key is repo_id or alias).
     metadata_only : bool, optional
-        If True, only fetch model metadata from Hugging Face (no file download).
+        If True, only fetch model metadata from the Hub (no file download).
         Use current.huggingface.model_info["key"] to get the ModelInfo object.
 
     MF Add To Current
