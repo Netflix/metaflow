@@ -16,6 +16,7 @@ from ..packaging_sys.v1 import MetaflowCodeContentV1
 from ..packaging_sys.utils import suffix_filter, walk
 from ..metaflow_config import DEFAULT_PACKAGE_SUFFIXES
 from ..exception import MetaflowException
+from ..system_context import system_context
 from ..user_configs.config_parameters import dump_config_values
 from .. import R
 
