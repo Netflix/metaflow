@@ -2273,6 +2273,10 @@ class Worker(object):
 
             system_context._update(
                 step_name=self.task.step,
+                task_id=self.task.task_id,
+                split_index=self.task.split_index,
+                input_paths=self.task.input_paths,
+                ubf_context=self.task.ubf_context,
                 retry_count=self.task.retries,
                 max_user_code_retries=self.task.user_code_retries,
             )
