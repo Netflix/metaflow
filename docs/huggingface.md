@@ -58,8 +58,8 @@ See `metaflow/plugins/huggingface/example_flow.py` for a minimal runnable flow.
 
 The [demos/huggingface/](../demos/huggingface/) directory contains **`run_huggingface_demo.py`**, a small argparse CLI that exercises the decorator. **How to run it, defaults, the test matrix, and troubleshooting** are documented in **[demos/huggingface/README.md](../demos/huggingface/README.md)** (not duplicated here).
 
-Quick smoke test from the repository root:
+Quick smoke test from the repository root (after `pip install -e .` or `export PYTHONPATH="$PWD"`—see [demos/huggingface/README.md](../demos/huggingface/README.md)):
 
 ```bash
-PYTHONPATH=. python demos/huggingface/run_huggingface_demo.py run --help
+python demos/huggingface/run_huggingface_demo.py run --help
 ```
