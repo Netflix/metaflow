@@ -1,0 +1,8 @@
+localbatch
+pytest
+pytest-timeout
+pytest-cov
+pytest-xdist
+pytest-rerunfailures
+omegaconf
+kubernetes

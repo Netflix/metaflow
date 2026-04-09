@@ -1,0 +1,21 @@
+load('./_result.tiltfile', 'new_result')
+
+def setup_ddb_local(ctx):
+    k8s_yaml(read_file('./tilt/k8s/ddb-local.yaml'))
+    k8s_resource(
+        'ddb-local',
+        port_forwards=['8765:8000'],
+        links=[link('http://localhost:8765', 'DynamoDB Local')],
+        labels=['ddb-local'],
+    )
+
+    k8s_yaml(read_file('./tilt/k8s/ddb-table-init-job.yaml'))
+    k8s_resource('ddb-table-init', resource_deps=['ddb-local'], labels=['ddb-local'])
+
+    return new_result(
+        config={
+            "METAFLOW_SFN_DYNAMO_DB_CLIENT_PARAMS": {"endpoint_url": "http://localhost:8765"},
+            "METAFLOW_SFN_DYNAMO_DB_TABLE": "metaflow-sfn",
+        },
+        config_resources=['ddb-table-init'],
+    )

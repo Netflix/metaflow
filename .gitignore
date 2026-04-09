@@ -39,6 +39,9 @@ stubs/version.py
 # AI tools
 .cursor
 
+# claude code
+.claude/
+
 # Local Hugging Face model cache (demo / dev)
 metaflow_huggingface/
 demos/huggingface/.demo_hf_cache/
