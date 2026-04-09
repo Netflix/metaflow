@@ -11,8 +11,8 @@ the corresponding key. Set ``lazy=False`` to prefetch every listed model in
 
 import os
 import sys
-from collections.abc import Mapping
-from typing import Dict, Iterator, List, Optional, Tuple, Union
+from collections.abc import Mapping as MappingABC
+from typing import Dict, Iterator, List, Mapping, Optional, Tuple, Union
 
 from metaflow.decorators import StepDecorator
 from metaflow.exception import MetaflowException
@@ -38,7 +38,7 @@ class HuggingFaceContext:
         self.model_info = model_info or {}
 
 
-class _LazyRepoMap(Mapping):
+class _LazyRepoMap(MappingABC):
     """Lazily resolves each key in ``spec_map`` to a local path or ``ModelInfo``."""
 
     def __init__(
