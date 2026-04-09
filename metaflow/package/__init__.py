@@ -140,8 +140,6 @@ class MetaflowPackage(object):
         )
         self._create_thread.start()
         if self._flow:
-            from .system_context import system_context
-
             system_context._update(package=self)
 
     # HORRIBLE HACK SO THAT CURRENT COMPUTE IMPLEMENTATIONS CAN STILL
