@@ -6,11 +6,11 @@ This demo is a small runnable flow so you can **try the `@huggingface` decorator
 
 What each **decorator** option means in general—`models`, `metadata_only`, `lazy`, `local_dir`, auth, and configuration—is documented in the main Hugging Face integration doc: **[docs/huggingface.md](../../docs/huggingface.md)**. This README focuses on **how to run the demo**, **what the CLI toggles**, and **where to edit code** (for example Hub repo ids).
 
-The implementation lives entirely in `**[run_huggingface_demo.py](run_huggingface_demo.py)`**. Follow the functions `**_default_model_pairs**`, `**_build_flow_class**`, `**_configure_auth_env**`, and `_execute_hf_demo` there.
+The implementation lives entirely in `**[run_huggingface_demo.py](run_huggingface_demo.py)`**. Follow the functions `**_default_model_pairs`**, `**_build_flow_class**`, `**_configure_auth_env**`, and `_execute_hf_demo` there.
 
 ## Customizing Hub repos and the flow
 
-**Hub repos and aliases are not configurable from the CLI.** They come from `**_default_model_pairs`** and the constants at the top of `[run_huggingface_demo.py](run_huggingface_demo.py)`. Change those helpers or `**_build_flow_class**` if you want different `models` or step logic.
+**Hub repos and aliases are not configurable from the CLI.** They come from `**_default_model_pairs`** and the constants at the top of `[run_huggingface_demo.py](run_huggingface_demo.py)`. Change those helpers or `**_build_flow_class`** if you want different `models` or step logic.
 
 ## Prerequisites
 
@@ -56,5 +56,5 @@ Run from the **repository root**.
 
 - **401 / 404:** Confirm the token has read access to the repo. Enterprise vs open-source is determined by the token, not a separate endpoint (unless you use `METAFLOW_HUGGINGFACE_ENDPOINT` for a custom Hugging Face host).
 - **Built-in `netflix/my-gpt2` missing:** That id is an example used in some forks. Edit `_default_model_pairs` / constants in `[run_huggingface_demo.py](run_huggingface_demo.py)`, or use `--auth public` with the shipped public defaults.
-- `**ModuleNotFoundError: metaflow`:** Fix [Prerequisites](#prerequisites) (install editable or set `PYTHONPATH`).
+- `ModuleNotFoundError: metaflow`: Fix [Prerequisites](#prerequisites) (install editable or set `PYTHONPATH`).
 

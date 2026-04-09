@@ -205,7 +205,6 @@ def _download_model(
         revision=revision,
         token=token,
         local_dir=local_dir,
-        local_dir_use_symlinks=False,
     )
     if endpoint is not None:
         kwargs["endpoint"] = endpoint
@@ -260,7 +259,8 @@ def _resolve_auth_token():
 
 def _resolve_local_dir_base(decorator_local_dir: Optional[str]) -> str:
     """
-    Parent directory for model snapshots: ``<base>/<repo>_<revision>/``.
+    Parent directory for model snapshots: ``<base>/<repo_sanitized>_<revision>/``,
+    with ``/`` in ``repo_id`` replaced by ``--`` (avoids colliding e.g. ``org/model`` vs ``org_model``).
 
     Order: non-empty ``@huggingface(local_dir=...)``, then ``METAFLOW_HUGGINGFACE_LOCAL_DIR``
     / ``HUGGINGFACE_LOCAL_DIR``, else ``<task temp>/metaflow_huggingface``.
@@ -285,7 +285,7 @@ def _download_to_task_dir(
 ) -> str:
     os.makedirs(local_dir_base, exist_ok=True)
     task_subdir = os.path.join(
-        local_dir_base, "%s_%s" % (repo_id.replace("/", "_"), revision)
+        local_dir_base, "%s_%s" % (repo_id.replace("/", "--"), revision)
     )
     return _download_model(repo_id, revision, token, task_subdir, endpoint=endpoint)
 

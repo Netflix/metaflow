@@ -143,7 +143,7 @@ class TestLazyRepoMap(unittest.TestCase):
 
         def fake_download(repo_id, revision, token, endpoint, local_dir_base):
             calls.append((repo_id, revision, local_dir_base))
-            return "/fake/%s" % repo_id.replace("/", "_")
+            return "/fake/%s" % repo_id.replace("/", "--")
 
         with patch.object(hd, "_download_to_task_dir", side_effect=fake_download):
             m = hd._LazyRepoMap(
@@ -154,11 +154,11 @@ class TestLazyRepoMap(unittest.TestCase):
                 "/fakebase",
             )
             self.assertEqual(len(calls), 0)
-            self.assertEqual(m["a"], "/fake/org_m1")
+            self.assertEqual(m["a"], "/fake/org--m1")
             self.assertEqual(len(calls), 1)
-            self.assertEqual(m["a"], "/fake/org_m1")
+            self.assertEqual(m["a"], "/fake/org--m1")
             self.assertEqual(len(calls), 1)
-            self.assertEqual(m["b"], "/fake/org_m2")
+            self.assertEqual(m["b"], "/fake/org--m2")
             self.assertEqual(len(calls), 2)
 
     def test_lazy_unknown_key_raises(self):

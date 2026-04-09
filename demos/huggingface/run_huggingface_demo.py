@@ -234,7 +234,15 @@ def _run_cmd(args: Namespace) -> None:
         sys.exit(2)
 
     _persist_demo_env(args)
-    _execute_hf_demo(args)
+    # Argparse has already consumed our demo flags, but FlowSpec() calls Metaflow's Click
+    # CLI, which re-reads sys.argv. Strip everything after the script so Click only sees
+    # ``run`` (same as ``python thisfile.py run`` with no extra Metaflow options).
+    saved_argv = sys.argv[:]
+    try:
+        sys.argv = [saved_argv[0], "run"]
+        _execute_hf_demo(args)
+    finally:
+        sys.argv = saved_argv
 
 
 def _build_parser() -> argparse.ArgumentParser:

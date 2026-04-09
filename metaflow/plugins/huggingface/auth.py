@@ -3,10 +3,10 @@ Pluggable HuggingFace authentication for the @huggingface decorator.
 
 Implement HuggingFaceAuthProvider and register in HF_AUTH_PROVIDERS_DESC
 to supply tokens from org-specific backends. If no provider is configured,
-the decorator falls back to HF_TOKEN / HUGGING_FACE_HUB_TOKEN environment variables.
+the decorator falls back to HF_TOKEN, HUGGING_FACE_TOKEN, then HUGGING_FACE_HUB_TOKEN.
 
 Built-in provider:
-  - env (default): EnvHuggingFaceAuthProvider, reads HF_TOKEN / HUGGING_FACE_HUB_TOKEN.
+  - env (default): EnvHuggingFaceAuthProvider, reads those env vars in that order.
 
 Custom provider (e.g. another org's token service):
   1. Subclass HuggingFaceAuthProvider, set TYPE = "my-provider", implement get_token().
