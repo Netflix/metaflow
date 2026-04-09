@@ -8,11 +8,13 @@ From the repository root, after ``pip install -e .`` or ``export PYTHONPATH="$PW
   python demos/huggingface/run_huggingface_demo.py run --help
   python demos/huggingface/run_huggingface_demo.py run
 
-See demos/huggingface/README.md for defaults, the testing table, and "Using your own models".
+See demos/huggingface/README.md for how to run the demo and the test matrix; see docs/huggingface.md for
+decorator options (`metadata_only`, `lazy`, `local_dir`, auth, etc.).
 """
 from __future__ import annotations
 
 import argparse
+import json
 import os
 import sys
 from argparse import Namespace
@@ -20,33 +22,14 @@ from typing import Dict, List, Optional, Sequence, Tuple
 
 _DEMO_DIR = os.path.dirname(os.path.abspath(__file__))
 _DEFAULT_DEMO_CACHE = os.path.abspath(os.path.join(_DEMO_DIR, ".demo_hf_cache"))
+# Parent sets this before starting the flow so worker subprocesses rebuild the same @huggingface config.
+_MF_HF_DEMO_ENV = "METAFLOW_HF_DEMO_CONFIG"
 
 # Built-in Netflix private repo (requires HF_TOKEN for download/metadata in practice).
 _DEFAULT_PRIVATE_SPEC = "netflix/my-gpt2@main"
 # Built-in public models for --auth public.
 _DEFAULT_PUBLIC_SPEC = "openai-community/gpt2@main"
 _DEFAULT_SECOND_PUBLIC = "google-bert/bert-base-uncased"
-
-
-def _parse_model_arg(raw: str) -> Tuple[str, str]:
-    """Parse 'alias=org/model' or 'alias=org/model@rev'."""
-    raw = (raw or "").strip()
-    if "=" not in raw:
-        raise argparse.ArgumentTypeError(
-            "Expected KEY=repo_spec (e.g. myllama=meta-llama/Llama-2-7b@main), got %r"
-            % raw
-        )
-    key, spec = raw.split("=", 1)
-    key, spec = key.strip(), spec.strip()
-    if not key or not spec:
-        raise argparse.ArgumentTypeError(
-            "Invalid --model %r: need non-empty key and spec" % raw
-        )
-    return key, spec
-
-
-def _models_from_cli(model_args: Sequence[str]) -> List[Tuple[str, str]]:
-    return [_parse_model_arg(m) for m in model_args]
 
 
 def _default_model_pairs(
@@ -73,32 +56,24 @@ def _resolve_model_list(
     auth: str,
     fetch: str,
     only_read_first_model: bool,
-    model_args: Sequence[str],
 ) -> List[Tuple[str, str]]:
-    if model_args:
-        pairs = _models_from_cli(model_args)
-        if only_read_first_model and len(pairs) != 2:
-            raise SystemExit(
-                "error: --only-read-first-model requires exactly two --model KEY=SPEC entries "
-                "(or omit --model to use the built-in public pair)."
-            )
-        return pairs
     return _default_model_pairs(auth, fetch, only_read_first_model)
 
 
 def _validate_env_token_if_needed(
     args: Namespace, model_pairs: List[Tuple[str, str]]
 ) -> None:
-    """Require HF token only for --auth env when using built-in private demo repos."""
+    """Require HF token for --auth env when pairs match the shipped private demo default."""
     if args.auth != "env":
         return
-    if args.model:
+    expected = _default_model_pairs("env", args.fetch, False)
+    if model_pairs != expected:
         return
     if not (os.environ.get("HF_TOKEN") or os.environ.get("HUGGING_FACE_HUB_TOKEN")):
         sys.stderr.write(
-            "error: --auth env with built-in demo models requires HF_TOKEN or "
-            "HUGGING_FACE_HUB_TOKEN. Use --auth public, pass --model with a public repo, "
-            "or set a token.\n"
+            "error: --auth env with the built-in private demo repo requires HF_TOKEN or "
+            "HUGGING_FACE_HUB_TOKEN. Use --auth public for the public default, set a token, "
+            "or edit Hub repo ids in run_huggingface_demo.py.\n"
         )
         sys.exit(2)
 
@@ -180,23 +155,37 @@ def _print_model_metadata(info) -> None:
     print("Files (siblings):", len(info.siblings) if info.siblings else 0)
 
 
-def _run_cmd(args: Namespace) -> None:
-    only_read_first_model = args.only_read_first_model
-    if only_read_first_model and args.fetch != "metadata":
-        sys.stderr.write("error: --only-read-first-model requires --fetch metadata.\n")
-        sys.exit(2)
-    if only_read_first_model and args.auth != "public":
-        sys.stderr.write("error: --only-read-first-model requires --auth public.\n")
-        sys.exit(2)
-    if only_read_first_model and args.prefetch:
-        sys.stderr.write(
-            "error: --only-read-first-model demonstrates lazy=True; omit --prefetch.\n"
-        )
-        sys.exit(2)
+def _persist_demo_env(args: Namespace) -> None:
+    payload = {
+        "auth": args.auth,
+        "fetch": args.fetch,
+        "only_read_first_model": args.only_read_first_model,
+        "prefetch": args.prefetch,
+        "use_demo_cache": args.use_demo_cache,
+        "local_dir": args.local_dir,
+    }
+    os.environ[_MF_HF_DEMO_ENV] = json.dumps(payload)
 
-    model_pairs = _resolve_model_list(
-        args.auth, args.fetch, only_read_first_model, args.model
-    )
+
+def _load_demo_args_from_env() -> Namespace:
+    raw = os.environ.get(_MF_HF_DEMO_ENV)
+    if not raw:
+        return Namespace(
+            auth="public",
+            fetch="metadata",
+            only_read_first_model=False,
+            prefetch=False,
+            use_demo_cache=False,
+            local_dir=None,
+        )
+    cfg = json.loads(raw)
+    return Namespace(**cfg)
+
+
+def _execute_hf_demo(args: Namespace) -> None:
+    only_read_first_model = args.only_read_first_model
+
+    model_pairs = _resolve_model_list(args.auth, args.fetch, only_read_first_model)
 
     _validate_env_token_if_needed(args, model_pairs)
     _configure_auth_env(args.auth)
@@ -230,6 +219,24 @@ def _run_cmd(args: Namespace) -> None:
     flow_cls()
 
 
+def _run_cmd(args: Namespace) -> None:
+    only_read_first_model = args.only_read_first_model
+    if only_read_first_model and args.fetch != "metadata":
+        sys.stderr.write("error: --only-read-first-model requires --fetch metadata.\n")
+        sys.exit(2)
+    if only_read_first_model and args.auth != "public":
+        sys.stderr.write("error: --only-read-first-model requires --auth public.\n")
+        sys.exit(2)
+    if only_read_first_model and args.prefetch:
+        sys.stderr.write(
+            "error: --only-read-first-model demonstrates lazy=True; omit --prefetch.\n"
+        )
+        sys.exit(2)
+
+    _persist_demo_env(args)
+    _execute_hf_demo(args)
+
+
 def _build_parser() -> argparse.ArgumentParser:
     epilog = """
 defaults (if you run: %(prog)s run with no flags)
@@ -238,19 +245,15 @@ defaults (if you run: %(prog)s run with no flags)
   lazy=True for @huggingface (each repo resolved on first access unless --prefetch)
   Models: built-in public gpt2 metadata-only demo (no token).
 
-Using your own models
-  Pass one or more --model KEY=SPEC where SPEC is org/model or org/model@revision.
-  Examples:
-    %(prog)s run --auth public --fetch metadata --model m=distilbert-base-uncased
-    %(prog)s run --auth env --fetch download --model my=org/private-model@main
-  For a gated/private repo, use --auth env and set HF_TOKEN / HUGGING_FACE_HUB_TOKEN as in docs.
+To use different Hub repos or aliases, edit _default_model_pairs / constants in this file
+(see demos/huggingface/README.md).
 
-Built-in demo repos (when --model is omitted)
+Built-in demo repos (selected by --auth)
   --auth public: openai-community/gpt2@main (with --only-read-first-model, a second public model is also listed).
   --auth env: %(private)s
 
 Both --auth public and --auth env set METAFLOW_HUGGINGFACE_AUTH_PROVIDER to env; they only
-differ in which built-in repos are used when --model is omitted (see above).
+differ in which built-in repos are used (see above).
 """ % {
         "prog": os.path.basename(sys.argv[0]),
         "private": _DEFAULT_PRIVATE_SPEC,
@@ -273,7 +276,7 @@ differ in which built-in repos are used when --model is omitted (see above).
         "--auth",
         choices=("public", "env"),
         default="public",
-        help="Selects built-in demo repos when --model is omitted. Both choices use the "
+        help="Selects built-in demo repos (see epilog). Both choices use the "
         "env auth provider (METAFLOW_HUGGINGFACE_AUTH_PROVIDER=env). public: public Hub "
         "defaults; env: private example repo (HF_TOKEN / HUGGING_FACE_HUB_TOKEN). "
         "Default: %(default)s.",
@@ -309,16 +312,7 @@ differ in which built-in repos are used when --model is omitted (see above).
         dest="only_read_first_model",
         help="List two Hub models on @huggingface but only read model_info for the first "
         "alias (second repo is never fetched while lazy=True). Requires --auth public "
-        "--fetch metadata; pass two --model KEY=SPEC or use built-in public pair.",
-    )
-    run.add_argument(
-        "--model",
-        action="append",
-        dest="model",
-        default=[],
-        metavar="KEY=SPEC",
-        help="Declare a model (repeatable). Example: --model llama=meta-llama/Llama-2-7b@main. "
-        "If omitted, built-in demo repos are used (see --help epilog).",
+        "--fetch metadata; uses the built-in two-model public pair.",
     )
     run.set_defaults(func=_run_cmd)
 
@@ -332,5 +326,23 @@ def main(argv: Optional[Sequence[str]] = None) -> None:
     args.func(args)
 
 
+def _metaflow_worker_entry() -> None:
+    """Reconstruct the flow when Metaflow re-invokes this file (e.g. ``local step ...``)."""
+    _execute_hf_demo(_load_demo_args_from_env())
+
+
 if __name__ == "__main__":
-    main()
+    argv = sys.argv[1:]
+    if argv and argv[0] == "run":
+        main()
+    elif not argv:
+        sys.stderr.write(
+            "usage: %s run [--help | ...]\n" % os.path.basename(sys.argv[0])
+        )
+        sys.stderr.write(
+            "This script is also re-invoked by Metaflow for worker tasks; start with "
+            "`run` for the demo CLI.\n"
+        )
+        sys.exit(2)
+    else:
+        _metaflow_worker_entry()
