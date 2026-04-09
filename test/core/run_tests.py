@@ -13,7 +13,7 @@ from multiprocessing import Pool
 
 from metaflow._vendor import click
 from metaflow.cli import start
-from metaflow.cli_components.run_cmds import run as metaflow_run_click_command
+from metaflow.cli_components.run_cmds import run
 
 skip_api_executor = False
 
@@ -151,7 +151,7 @@ def run_test(formatter, context, debug, checks, env_base, executor):
         top_level_options = context["top_options"]
         top_level_dict = construct_arg_dict(param_opts, top_level_options)
 
-        _, _, param_opts, _, _ = extract_all_params(metaflow_run_click_command)
+        _, _, param_opts, _, _ = extract_all_params(run)
         run_level_options = context["run_options"]
         run_level_dict = construct_arg_dict(param_opts, run_level_options)
         run_level_dict["run_id_file"] = "run-id"
@@ -607,12 +607,6 @@ def run_test_cases(args):
     type=int,
     help="Number of parallel tests to run. By default, " "tests are run sequentially.",
 )
-@click.option(
-    "--failed-dump",
-    default=None,
-    type=click.Path(writable=True, dir_okay=False),
-    help="On failure, write JSON details of failed cases to this path.",
-)
 def cli(
     tests=None,
     contexts=None,
@@ -620,7 +614,6 @@ def cli(
     num_parallel=None,
     debug=False,
     inherit_env=False,
-    failed_dump=None,
 ):
     parse = lambda x: {t.lower() for t in x.split(",") if t}
 
@@ -634,12 +627,6 @@ def cli(
     )
 
     if failed:
-        if failed_dump:
-            with open(failed_dump, "w") as dump_f:
-                json.dump(
-                    [{"id": fail_id, "path": path} for fail_id, path in failed],
-                    dump_f,
-                )
         log("The following tests failed:")
         for fail, path in failed:
             if debug:

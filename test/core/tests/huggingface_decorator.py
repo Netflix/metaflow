@@ -189,7 +189,7 @@ class TestResolveLocalDirBase(unittest.TestCase):
         import metaflow.plugins.huggingface.huggingface_decorator as hd
         from metaflow.metaflow_current import current
 
-        with patch.object(current, "_tempdir", "/var/mf_tmp"):
+        with patch.object(current, "tempdir", "/var/mf_tmp"):
             with patch.object(mc, "HUGGINGFACE_LOCAL_DIR", None):
                 p = hd._resolve_local_dir_base(None)
         self.assertEqual(p, os.path.join("/var/mf_tmp", "metaflow_huggingface"))
