@@ -35,7 +35,7 @@ Integration reference (installation, API, configuration, custom auth): **[docs/h
 **This branch** also registers **`vendor-token`** and the demo accepts **`--auth vendor`** for Netflix internal token retrieval. See **`docs/netflix/NETFLIX_HUGGINGFACE_VENDOR_TOKEN.md`**. Example:
 
 ```bash
-PYTHONPATH=. python demos/huggingface/run_huggingface_demo.py run --auth vendor --fetch metadata
+python demos/huggingface/run_huggingface_demo.py run --auth vendor --fetch metadata
 ```
 
 The OSS PR branch documents only **`public`** and **`env`** in this README; **`vendor`** exists only here.

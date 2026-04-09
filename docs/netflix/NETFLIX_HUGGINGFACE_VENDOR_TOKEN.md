@@ -27,8 +27,10 @@ export METAFLOW_HUGGINGFACE_AUTH_PROVIDER=vendor-token
 With this branch checked out, the argparse demo supports **`--auth vendor`** (in addition to `public` and `env`). From the repo root:
 
 ```bash
-PYTHONPATH=. python demos/huggingface/run_huggingface_demo.py run --auth vendor --fetch metadata
+python demos/huggingface/run_huggingface_demo.py run --auth vendor --fetch metadata
 ```
+
+(Same `pip install -e .` or `export PYTHONPATH="$PWD"` prerequisite as [demos/huggingface/README.md](../../demos/huggingface/README.md).)
 
 Optional override: `export METAFLOW_HUGGINGFACE_VENDOR_TOKEN_URL=...` if you are not using the default in `metaflow_config.py`. Requires Metatron (see Dependencies).
 
