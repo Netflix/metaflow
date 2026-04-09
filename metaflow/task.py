@@ -859,7 +859,6 @@ class MetaflowTask(object):
                 from .system_context import system_context
 
                 system_context._update(
-                    step_name=step_name,
                     run_id=run_id,
                     input_paths=input_paths,
                     task_id=task_id,
@@ -879,7 +878,7 @@ class MetaflowTask(object):
                     else:
                         metadata = self.metadata
                     if deco.task_pre_step_ctx is not None:
-                        deco.task_pre_step_ctx()
+                        deco.task_pre_step_ctx(step_name)
                     else:
                         deco.task_pre_step(
                             step_name,
@@ -903,7 +902,7 @@ class MetaflowTask(object):
                     # fallback code if the user code has failed too many
                     # times.
                     if deco.task_decorate_ctx is not None:
-                        step_func = deco.task_decorate_ctx(step_func)
+                        step_func = deco.task_decorate_ctx(step_name, step_func)
                     else:
                         step_func = deco.task_decorate(
                             step_func,
@@ -921,7 +920,7 @@ class MetaflowTask(object):
                 from_start("MetaflowTask: step function executed")
                 for deco in decorators:
                     if deco.task_step_completed_ctx is not None:
-                        deco.task_step_completed_ctx()
+                        deco.task_step_completed_ctx(step_name)
                     else:
                         deco.task_post_step(
                             step_name,
@@ -946,7 +945,7 @@ class MetaflowTask(object):
                 exception_handled = False
                 for deco in decorators:
                     if deco.task_step_completed_ctx is not None:
-                        res = deco.task_step_completed_ctx(exception=ex)
+                        res = deco.task_step_completed_ctx(step_name, exception=ex)
                     else:
                         res = deco.task_exception(
                             ex,
@@ -1016,7 +1015,7 @@ class MetaflowTask(object):
                 # queryable through the client API / datastore
                 for deco in decorators:
                     if deco.task_finished_ctx is not None:
-                        deco.task_finished_ctx(self.flow._task_ok)
+                        deco.task_finished_ctx(step_name, self.flow._task_ok)
                     else:
                         deco.task_finished(
                             step_name,

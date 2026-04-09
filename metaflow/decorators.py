@@ -349,16 +349,16 @@ class StepDecorator(Decorator):
     # via self.system_ctx instead of positional args.
     #
     # Signatures:
-    #   step_init_ctx(self)
-    #   package_init_ctx(self)
-    #   runtime_init_ctx(self)
-    #   runtime_task_created_ctx(self)
-    #   runtime_step_cli_ctx(self, cli_args)
-    #   runtime_finished_ctx(self, exception)
-    #   task_pre_step_ctx(self)
-    #   task_decorate_ctx(self, step_func) -> step_func
-    #   task_step_completed_ctx(self, exception=None) -> bool or None
-    #   task_finished_ctx(self, is_task_ok)
+    #   step_init_ctx(self, step_name)
+    #   package_init_ctx(self, step_name)
+    #   runtime_init_ctx(self, step_name)
+    #   runtime_task_created_ctx(self, step_name)
+    #   runtime_step_cli_ctx(self, step_name, cli_args)
+    #   runtime_finished_ctx(self, step_name, exception)
+    #   task_pre_step_ctx(self, step_name)
+    #   task_decorate_ctx(self, step_name, step_func) -> step_func
+    #   task_step_completed_ctx(self, step_name, exception=None) -> bool or None
+    #   task_finished_ctx(self, step_name, is_task_ok)
     # ------------------------------------------------------------------
     step_init_ctx = None
     package_init_ctx = None
@@ -919,8 +919,6 @@ def _init_step_decorators(
     from .system_context import system_context
 
     for step in flow:
-        # Update singleton for this step.
-        system_context._update(step_name=step.__name__)
         system_context.register_step_decorators(step.__name__, list(step.decorators))
         for deco in step.decorators:
             if _should_skip_decorator_for_spin(
@@ -928,7 +926,7 @@ def _init_step_decorators(
             ):
                 continue
             if deco.step_init_ctx is not None:
-                deco.step_init_ctx()
+                deco.step_init_ctx(step.__name__)
             else:
                 deco.step_init(
                     flow,
@@ -960,7 +958,6 @@ def _process_late_attached_decorator(
                 deco.external_init()
 
     for s in flow:
-        system_context._update(step_name=s.__name__)
         system_context.register_step_decorators(s.__name__, list(s.decorators))
 
         for deco in s.decorators:
@@ -970,7 +967,7 @@ def _process_late_attached_decorator(
                 ):
                     continue
                 if deco.step_init_ctx is not None:
-                    deco.step_init_ctx()
+                    deco.step_init_ctx(s.__name__)
                 else:
                     deco.step_init(
                         flow,

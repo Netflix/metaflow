@@ -106,8 +106,6 @@ class SystemContext:
         self._metadata = None
         self._logger = None
 
-        # Step-level information -- available for all step-decorators in all phases
-        self._step_name = None
         # Inter-decorator shared state (keyed by step_name)
         self._shared = {}  # { step_name: { namespace: { key: value } } }
         self._step_decorators = {}  # { step_name: [StepDecorator, ...] }
@@ -192,11 +190,6 @@ class SystemContext:
         return self._metadata
 
     @property
-    def step_name(self) -> Optional[str]:
-        """Current step name (available after ``step_init``)."""
-        return self._step_name
-
-    @property
     def input_paths(self) -> Optional[List[str]]:
         """List of input pathspec strings (available after ``runtime_task_created``)."""
         return self._input_paths
@@ -259,29 +252,25 @@ class SystemContext:
         """Register the list of decorator instances for a step."""
         self._step_decorators[step_name] = list(decorators)
 
-    def get_step_decorators(self, step_name: Optional[str] = None) -> List[Any]:
-        """
-        Return the decorator instances for a step.
-
-        If *step_name* is None, uses the current step.
-        """
-        if step_name is None:
-            step_name = self._step_name
+    def get_step_decorators(self, step_name: str) -> List[Any]:
+        """Return the decorator instances for a step."""
         return list(self._step_decorators.get(step_name, []))
 
     # ------------------------------------------------------------------
     # Inter-decorator shared state
     # ------------------------------------------------------------------
 
-    def publish(self, namespace: str, key: str, value: Any) -> None:
+    def publish(self, step_name: str, namespace: str, key: str, value: Any) -> None:
         """
         Publish a value for other decorators to read.
 
         By convention, use the decorator's ``name`` as the namespace to avoid
-        collisions. The value is scoped to the current step.
+        collisions. The value is scoped to the given step.
 
         Parameters
         ----------
+        step_name : str
+            The step this value is scoped to.
         namespace : str
             Typically the publishing decorator's name.
         key : str
@@ -289,19 +278,23 @@ class SystemContext:
         value : any
             The value to publish.
         """
-        step = self._step_name
+        step = step_name
         if step not in self._shared:
             self._shared[step] = {}
         if namespace not in self._shared[step]:
             self._shared[step][namespace] = {}
         self._shared[step][namespace][key] = value
 
-    def get_published(self, namespace: str, key: str, default: Any = None) -> Any:
+    def get_published(
+        self, step_name: str, namespace: str, key: str, default: Any = None
+    ) -> Any:
         """
         Read a value published by another decorator.
 
         Parameters
         ----------
+        step_name : str
+            The step to look up.
         namespace : str
             The publishing decorator's namespace.
         key : str
@@ -313,15 +306,19 @@ class SystemContext:
         -------
         any
         """
-        step = self._step_name
+        step = step_name
         return self._shared.get(step, {}).get(namespace, {}).get(key, default)
 
-    def has_published(self, namespace: str, key: Optional[str] = None) -> bool:
+    def has_published(
+        self, step_name: str, namespace: str, key: Optional[str] = None
+    ) -> bool:
         """
         Check whether a decorator has published data.
 
         Parameters
         ----------
+        step_name : str
+            The step to look up.
         namespace : str
         key : str or None
             If None, checks whether the namespace exists at all.
@@ -330,25 +327,27 @@ class SystemContext:
         -------
         bool
         """
-        step = self._step_name
+        step = step_name
         step_shared = self._shared.get(step, {})
         if key is None:
             return namespace in step_shared
         return key in step_shared.get(namespace, {})
 
-    def get_all_published(self, namespace: str) -> Dict[str, Any]:
+    def get_all_published(self, step_name: str, namespace: str) -> Dict[str, Any]:
         """
         Return all key-value pairs published under a namespace.
 
         Parameters
         ----------
+        step_name : str
+            The step to look up.
         namespace : str
 
         Returns
         -------
         dict
         """
-        step = self._step_name
+        step = step_name
         return dict(self._shared.get(step, {}).get(namespace, {}))
 
     # ------------------------------------------------------------------

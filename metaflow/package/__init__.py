@@ -139,6 +139,10 @@ class MetaflowPackage(object):
             daemon=True,
         )
         self._create_thread.start()
+        if self._flow:
+            from .system_context import system_context
+
+            system_context._update(package=self)
 
     # HORRIBLE HACK SO THAT CURRENT COMPUTE IMPLEMENTATIONS CAN STILL
     # DO pkg.blob. Ideally, this goes away and blob_with_timeout becomes
@@ -527,12 +531,10 @@ class MetaflowPackage(object):
         try:
             # Can be called without a flow (Function)
             if self._flow:
-                system_context._update(package=self)
                 for step in self._flow:
-                    system_context._update(step_name=step.__name__)
                     for deco in step.decorators:
                         if deco.package_init_ctx is not None:
-                            deco.package_init_ctx()
+                            deco.package_init_ctx(step.__name__)
                         else:
                             deco.package_init(
                                 self._flow, step.__name__, self._environment
