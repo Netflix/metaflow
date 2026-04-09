@@ -1808,7 +1808,7 @@ class Task(object):
             self.new_attempt()
             system_context._update(
                 step_name=self.step,
-                task_id=task_id,
+                task_id=self.task_id,
                 split_index=split_index,
                 is_cloned=self._is_cloned,
                 ubf_context=ubf_context,
