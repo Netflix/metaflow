@@ -2,10 +2,11 @@
 """
 CLI demo for the @huggingface decorator (argparse).
 
-From the repository root (PYTHONPATH must include the repo root):
+From the repository root, after ``pip install -e .`` or ``export PYTHONPATH="$PWD"``
+(see demos/huggingface/README.md):
 
-  PYTHONPATH=. python demos/huggingface/run_huggingface_demo.py run --help
-  PYTHONPATH=. python demos/huggingface/run_huggingface_demo.py run
+  python demos/huggingface/run_huggingface_demo.py run --help
+  python demos/huggingface/run_huggingface_demo.py run
 
 See demos/huggingface/README.md for defaults, the testing table, and "Using your own models".
 """

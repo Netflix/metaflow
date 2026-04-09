@@ -24,7 +24,7 @@ How to test locally
    python metaflow/plugins/huggingface/example_flow.py run
    (Optional: set HF_TOKEN, HUGGING_FACE_TOKEN, or HUGGING_FACE_HUB_TOKEN for gated models.)
 
-5. Demo CLI: PYTHONPATH=. python demos/huggingface/run_huggingface_demo.py run --help (see demos/huggingface/README.md).
+5. Demo CLI: python demos/huggingface/run_huggingface_demo.py run --help after pip install -e . or export PYTHONPATH (see demos/huggingface/README.md).
 """
 
 import os
