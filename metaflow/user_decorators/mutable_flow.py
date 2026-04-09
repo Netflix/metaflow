@@ -254,35 +254,6 @@ class MutableFlow:
         )
         return False
 
-    def _add_flow_mutator(
-        self, d: "user_flow_decorator.FlowMutator"
-    ) -> "user_flow_decorator.FlowMutator":
-        """Register a FlowMutator instance and prepare it for execution.
-
-        Appends to both the merged list (for the current iteration) and the
-        underlying _self_data (for cache rebuild safety). Calls external_init()
-        so the mutator is ready before its pre_mutate is called by the ongoing
-        iteration loop.
-        """
-        from ..flowspec import FlowStateItems
-
-        d.statically_defined = self._statically_defined
-        d.inserted_by = self._inserted_by
-        d._flow_cls = self._flow_cls
-
-        # Append to the merged list (the one being iterated in the pre_mutate
-        # loop) so the new mutator's pre_mutate is called naturally.
-        merged_mutators = self._flow_cls._flow_state[FlowStateItems.FLOW_MUTATORS]
-        merged_mutators.append(d)
-        # Also append to the underlying _self_data so a cache rebuild
-        # includes this mutator. We use _self_data directly (not the
-        # self_data property) to avoid clearing the merged cache.
-        self._flow_cls._flow_state._self_data[FlowStateItems.FLOW_MUTATORS].append(d)
-
-        # external_init must be called before pre_mutate runs
-        d.external_init()
-        return d
-
     def add_decorator(
         self,
         deco_type: Union[
@@ -444,6 +415,84 @@ class MutableFlow:
             else:
                 raise ValueError("Invalid duplicates value: %s" % duplicates)
 
+        def _add_flow_mutator(flow_mutator):
+            flow_mutator.statically_defined = self._statically_defined
+            flow_mutator.inserted_by = self._inserted_by
+            flow_mutator._flow_cls = self._flow_cls
+
+            def _do_add():
+                # Append to the merged list (the one being iterated in the
+                # pre_mutate loop) so the new mutator's pre_mutate is called
+                # naturally by the ongoing iteration.
+                merged_mutators = self._flow_cls._flow_state[
+                    FlowStateItems.FLOW_MUTATORS
+                ]
+                merged_mutators.append(flow_mutator)
+                # Also append to the underlying _self_data so a cache rebuild
+                # includes this mutator. We use _self_data directly (not the
+                # self_data property) to avoid clearing the merged cache.
+                self._flow_cls._flow_state._self_data[
+                    FlowStateItems.FLOW_MUTATORS
+                ].append(flow_mutator)
+                # external_init must be called before pre_mutate runs
+                flow_mutator.external_init()
+                debug.userconf_exec(
+                    "Mutable flow adding flow mutator '%s'"
+                    % flow_mutator.decorator_name
+                )
+                return flow_mutator
+
+            # Check for existing mutator with the same decorator_name
+            existing = [
+                m
+                for m in self._flow_cls._flow_state[FlowStateItems.FLOW_MUTATORS]
+                if hasattr(m, "decorator_name")
+                and m.decorator_name == flow_mutator.decorator_name
+            ]
+
+            if not existing:
+                return _do_add()
+            elif duplicates == MutableFlow.IGNORE:
+                debug.userconf_exec(
+                    "Mutable flow ignoring flow mutator '%s' "
+                    "(already exists and duplicates are ignored)"
+                    % flow_mutator.decorator_name
+                )
+                return None
+            elif duplicates == MutableFlow.OVERRIDE:
+                debug.userconf_exec(
+                    "Mutable flow overriding flow mutator '%s' "
+                    "(removing existing mutator and adding new one)"
+                    % flow_mutator.decorator_name
+                )
+                # Remove from both the merged list and _self_data
+                merged = self._flow_cls._flow_state[FlowStateItems.FLOW_MUTATORS]
+                for m in existing:
+                    if m in merged:
+                        merged.remove(m)
+                self_list = self._flow_cls._flow_state._self_data[
+                    FlowStateItems.FLOW_MUTATORS
+                ]
+                for m in existing:
+                    if m in self_list:
+                        self_list.remove(m)
+                return _do_add()
+            elif duplicates == MutableFlow.ERROR:
+                if self._statically_defined:
+                    raise MetaflowException(
+                        "Duplicate FlowMutator '%s' on flow"
+                        % flow_mutator.decorator_name
+                    )
+                else:
+                    debug.userconf_exec(
+                        "Mutable flow ignoring flow mutator '%s' "
+                        "(already exists and non statically defined)"
+                        % flow_mutator.decorator_name
+                    )
+                return None
+            else:
+                raise ValueError("Invalid duplicates value: %s" % duplicates)
+
         # Check if this is a FlowMutator class or instance
         from .user_flow_decorator import FlowMutator
 
@@ -458,12 +507,12 @@ class MutableFlow:
             if isinstance(flow_deco, FlowMutator):
                 # String resolved to a FlowMutator instance — route it through
                 # the FlowMutator addition path
-                return self._add_flow_mutator(flow_deco)
+                return _add_flow_mutator(flow_deco)
             return _add_flow_decorator(flow_deco)
 
         if isinstance(deco_type, type) and issubclass(deco_type, FlowMutator):
             d = deco_type(*deco_args, **deco_kwargs)
-            return self._add_flow_mutator(d)
+            return _add_flow_mutator(d)
 
         # Validate deco_type
         if (
