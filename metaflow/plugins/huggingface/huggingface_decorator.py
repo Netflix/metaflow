@@ -1,5 +1,5 @@
 """
-@huggingface step decorator: pluggable auth for HuggingFace models (Part 1).
+@huggingface step decorator: pluggable auth for HuggingFace models.
 
 Provides current.huggingface.models[key] -> local path. Use models=<list or dict>.
 Uses huggingface_hub for download.
@@ -249,7 +249,7 @@ def _log_auth_provider(provider_type: str, token: Optional[str]) -> None:
 
 
 def _resolve_auth_token():
-    """Return (token, provider_type). Raises MetaflowException on failure."""
+    """Return the token from the configured auth provider, or None."""
     auth_provider = _get_auth_provider()
     provider_type = getattr(auth_provider, "TYPE", "unknown")
     token = auth_provider.get_token()
@@ -336,7 +336,9 @@ class HuggingFaceDecorator(StepDecorator):
         the mapping still resolves every entry when lazy is True).
     local_dir : str, optional
         Absolute or relative path to the **parent** directory for downloaded snapshots.
-        Each model is stored under ``<local_dir>/<repo_id_with_underscores>_<revision>/``.
+        Each model is stored under
+        ``<local_dir>/<repo_id with '/' replaced by '--'>_<revision>/`` (avoids collisions
+        between e.g. ``org/model`` and a repo literally named ``org_model``).
         If omitted, uses ``METAFLOW_HUGGINGFACE_LOCAL_DIR`` / ``HUGGINGFACE_LOCAL_DIR`` when
         set, otherwise ``<task tempdir>/metaflow_huggingface``.
 

@@ -63,7 +63,7 @@ def inspect(self):
 - **models**: a **list** of repo specs (`"org/model"` or `"org/model@revision"`) or a **dict** mapping your alias to a repo spec. With a list, keys in `current.huggingface.models` are the repo ids; with a dict, keys are your aliases.
 - **metadata_only**: if `True`, only Hub metadata is fetched. Use `current.huggingface.model_info["alias"]` for the `ModelInfo` object. If `False`, use `current.huggingface.models["alias"]` for local paths.
 - **lazy**: defaults to `True` (resolve each model on first key access). If `False`, every listed model is prefetched in `task_pre_step` before your step body runs.
-- **local_dir**: optional **parent** directory for snapshots (each model gets a subdirectory derived from repo and revision). If omitted, resolution order is: this argument → `METAFLOW_HUGGINGFACE_LOCAL_DIR` / `HUGGINGFACE_LOCAL_DIR` → [`<task temp>/metaflow_huggingface`](#default-download-location).
+- **local_dir**: optional **parent** directory for snapshots. Each model gets a subdirectory named from the repo id and revision, with `/` in the repo id replaced by `--` (so `org/model` and a repo id `org_model` do not map to the same folder). If omitted, resolution order is: this argument → `METAFLOW_HUGGINGFACE_LOCAL_DIR` / `HUGGINGFACE_LOCAL_DIR` → [`<task temp>/metaflow_huggingface`](#default-download-location).
 
 > **Note:** Auth tokens and environment variables are covered under [Configuration](#configuration).
 

@@ -326,7 +326,7 @@ Example — `@huggingface` decorator unit tests:
 
 ```bash
 cd test/core
-PYTHONPATH=`pwd`/../../ python -m unittest tests.huggingface_decorator.TestHuggingFaceParsing -v
+PYTHONPATH=`pwd`/../../:`pwd` python -m unittest tests.huggingface_decorator -v
 ```
 
 ### Data/S3 Tests
