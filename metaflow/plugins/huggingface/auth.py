@@ -10,10 +10,14 @@ Built-in provider:
 
 Custom provider (e.g. another org's token service):
   1. Subclass HuggingFaceAuthProvider, set TYPE = "my-provider", implement get_token().
-  2. Register via a Metaflow extension: in your plugin module set
-     HF_AUTH_PROVIDERS_DESC = [("my-provider", "mymodule.MyAuthProvider")] and
-     TOGGLE_HF_AUTH_PROVIDER = [("my-provider", "mymodule.MyAuthProvider")].
-  3. Set METAFLOW_HUGGINGFACE_AUTH_PROVIDER=my-provider (or in config).
+  2. Register via a Metaflow extension: set
+     HF_AUTH_PROVIDERS_DESC = [("my-provider", "mymodule.MyAuthProvider")].
+     That is enough for discovery; when ENABLED_HF_AUTH_PROVIDER is unset, every
+     registered provider name is enabled by default.
+  3. Optionally set TOGGLE_HF_AUTH_PROVIDER to a list of strings only if you need to
+     adjust that default roster (e.g. ["-env"] to disable the built-in env provider).
+     Entries are plugin names, or "-name" / "+name" to remove or add—never tuples.
+  4. Set METAFLOW_HUGGINGFACE_AUTH_PROVIDER=my-provider (or in config) to select yours.
   See metaflow/plugins/__init__.py HF_AUTH_PROVIDERS_DESC and extension_support/plugins.py.
 """
 
