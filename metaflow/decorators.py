@@ -345,8 +345,9 @@ class StepDecorator(Decorator):
     # ------------------------------------------------------------------
     # Simplified hook variants — override in subclasses to use self.system_ctx.
     # When not None, each takes precedence over the corresponding legacy hook.
-    # All context (flow, graph, step_name, run_id, task_id, etc.) is available
-    # via self.system_ctx instead of positional args.
+    # All context (flow, graph, run_id, task_id, etc.) is available
+    # via self.system_ctx instead of positional args. Only step_name remains
+    # as a positional argument.
     #
     # Signatures:
     #   step_init_ctx(self, step_name)
