@@ -132,6 +132,10 @@ class MetaflowPackage(object):
         self._blob_url = None
         self._blob = None
 
+        # Update package in the system context -- it will be available
+        # in all hooks going forward including the ones called in the
+        # thread that is used to create the package asynchronously.
+        system_context._update(package=self)
         # We launch a thread to create the package asynchronously and upload
         # it opportunistically
         self._create_thread = threading.Thread(
@@ -139,8 +143,6 @@ class MetaflowPackage(object):
             daemon=True,
         )
         self._create_thread.start()
-        if self._flow:
-            system_context._update(package=self)
 
     # HORRIBLE HACK SO THAT CURRENT COMPUTE IMPLEMENTATIONS CAN STILL
     # DO pkg.blob. Ideally, this goes away and blob_with_timeout becomes
