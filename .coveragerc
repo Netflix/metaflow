@@ -1,0 +1,29 @@
+[run]
+source = metaflow
+branch = true
+parallel = true
+omit =
+    metaflow/tutorials/*
+    */test/*
+    */__pycache__/*
+
+[report]
+show_missing = true
+skip_covered = false
+skip_empty = true
+precision = 1
+
+[html]
+directory = htmlcov
+title = Metaflow UX Test Coverage
+
+[xml]
+output = coverage.xml
+
+[paths]
+# Allow coverage combine to reconcile paths across GHA jobs
+# (all jobs check out to the same GITHUB_WORKSPACE path so this is a no-op
+# in practice, but makes local combine easier if paths differ)
+source =
+    metaflow/
+    */metaflow/
