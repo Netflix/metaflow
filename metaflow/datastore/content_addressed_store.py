@@ -109,7 +109,7 @@ class ContentAddressedStore(object):
                 if not self._storage_impl.is_file([path])[0]:
                     # only process blobs that don't exist already in the
                     # backing datastore
-                    meta = {"cas_raw": raw, "cas_version": 2}
+                    meta = {"cas_raw": raw, "cas_version": 2 if not raw else 1}
                     if raw:
                         yield path, (BytesIO(blob), meta)
                     else:
