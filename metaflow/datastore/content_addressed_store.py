@@ -4,6 +4,8 @@ from collections import namedtuple
 from hashlib import sha1
 from io import BytesIO
 
+import lz4.frame
+
 from ..exception import MetaflowInternalError
 from .exceptions import DataException
 
@@ -107,11 +109,11 @@ class ContentAddressedStore(object):
                 if not self._storage_impl.is_file([path])[0]:
                     # only process blobs that don't exist already in the
                     # backing datastore
-                    meta = {"cas_raw": raw, "cas_version": 1}
+                    meta = {"cas_raw": raw, "cas_version": 2}
                     if raw:
                         yield path, (BytesIO(blob), meta)
                     else:
-                        yield path, (self._pack_v1(blob), meta)
+                        yield path, (self._pack_v2(blob), meta)
 
         # We don't actually want to overwrite but by saying =True, we avoid
         # checking again saving some operations. We are already sure we are not
@@ -217,6 +219,15 @@ class ContentAddressedStore(object):
     def _unpack_v1(self, blob):
         with gzip.GzipFile(fileobj=blob, mode="rb") as f:
             return f.read()
+
+    def _pack_v2(self, blob):
+        buf = BytesIO()
+        buf.write(lz4.frame.compress(blob))
+        buf.seek(0)
+        return buf
+
+    def _unpack_v2(self, blob):
+        return lz4.frame.decompress(blob.read())
 
 
 class BlobCache(object):
