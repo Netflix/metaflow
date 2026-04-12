@@ -102,7 +102,7 @@ class ArgoEvent(object):
             If True, events are created on a best effort basis - errors are silently ignored.
         """
 
-        if payload == None:
+        if payload is None:
             payload = {}
         # Publish event iff forced or running on Argo Workflows
         if force or os.environ.get("ARGO_WORKFLOW_TEMPLATE"):
