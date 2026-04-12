@@ -1,8 +1,11 @@
+import sys
 import tempfile
 import typing
 import inspect
 from typing import TypeVar, Optional
 from unittest.mock import Mock, patch
+
+import pytest
 
 from metaflow.cmd.develop.stub_generator import StubGenerator
 
@@ -95,7 +98,8 @@ class TestStubGenerator:
             assert "<class '" not in result
             assert "typing.Dict" in result
             assert "typing.List" in result
-            assert "typing.Optional" in result
+            # Python 3.9 expands Optional[X] to Union[X, None]
+            assert "typing.Optional" in result or "typing.Union" in result
             assert "test.module.TestClass" in result
 
     def test_get_element_name_callable_with_class_args(self):
@@ -306,6 +310,9 @@ class TestStubGenerator:
             assert "typing.ClassVar" in result
             assert "test.module.TestClass" in result
 
+    @pytest.mark.skipif(
+        sys.version_info < (3, 8), reason="typing.Final not available in Python 3.7"
+    )
     def test_get_element_name_final(self):
         """Test Final types"""
         final_type = typing.Final[TestClass]
