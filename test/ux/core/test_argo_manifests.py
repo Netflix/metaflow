@@ -69,9 +69,8 @@ def _get_compile_env():
         os.path.join(os.path.dirname(__file__), "..", "..", "..")
     )
     env["PYTHONPATH"] = repo_root + os.pathsep + env.get("PYTHONPATH", "")
-    # Clear devstack-specific profile so tests work outside the devstack too.
-    env.pop("METAFLOW_PROFILE", None)
-    env.pop("METAFLOW_HOME", None)
+    # Keep METAFLOW_HOME/METAFLOW_PROFILE if set (e.g. devstack config that
+    # provides S3/cloud datastore settings needed by --only-json).
     return env
 
 
@@ -108,6 +107,10 @@ def _compile_flow_to_json(flow_path, **extra_tl_args):
         if "ConnectionRefusedError" in stderr or "ConnectionError" in stderr:
             pytest.skip(
                 "Argo backend not configured (connection refused to metadata service)"
+            )
+        if "requires --datastore=" in stderr:
+            pytest.skip(
+                "Cloud datastore not configured (--only-json requires s3/azure/gs)"
             )
         pytest.fail(f"Compilation failed:\nstderr: {stderr}\nstdout: {stdout}")
 
