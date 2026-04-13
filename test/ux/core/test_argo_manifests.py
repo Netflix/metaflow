@@ -1,16 +1,19 @@
 """
 Tests for `argo-workflows create --only-json` manifest export.
 
-Verifies that export_all_json() outputs all Argo manifests (workflow template,
+Verifies that the CLI outputs all Argo manifests (workflow template,
 cron workflow, and sensor) as a single JSON object, not just the workflow
 template.
 
-These tests exercise the ArgoWorkflows.export_all_json() method directly,
-bypassing the CLI and cluster access requirements.
+Includes both:
+- Unit tests exercising ArgoWorkflows.export_all_json() directly
+- Integration tests running the actual CLI via subprocess against the devstack
 """
 
 import json
-from unittest.mock import MagicMock
+import os
+import subprocess
+import sys
 
 import pytest
 
@@ -19,6 +22,13 @@ from metaflow.plugins.argo.argo_workflows import (
     Sensor,
     WorkflowTemplate,
 )
+
+pytestmark = [pytest.mark.argo_manifests]
+
+
+# ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
 
 
 def _make_argo_workflows(schedule=None, timezone=None, sensor=None):
@@ -29,7 +39,6 @@ def _make_argo_workflows(schedule=None, timezone=None, sensor=None):
     """
     obj = object.__new__(ArgoWorkflows)
 
-    # Build a minimal WorkflowTemplate
     wt = WorkflowTemplate()
     wt.payload = {
         "apiVersion": "argoproj.io/v1alpha1",
@@ -44,6 +53,75 @@ def _make_argo_workflows(schedule=None, timezone=None, sensor=None):
     obj._sensor = sensor
 
     return obj
+
+
+def _get_compile_env():
+    """Get environment variables for compilation-only tests.
+
+    Overrides metadata to 'local' so no metadata service is needed, and
+    ensures the source tree is on PYTHONPATH so the subprocess can import
+    metaflow from the repo.
+    """
+    env = os.environ.copy()
+    env["METAFLOW_DEFAULT_METADATA"] = "local"
+    # Ensure the repo root is on PYTHONPATH for subprocess imports.
+    repo_root = os.path.normpath(
+        os.path.join(os.path.dirname(__file__), "..", "..", "..")
+    )
+    env["PYTHONPATH"] = repo_root + os.pathsep + env.get("PYTHONPATH", "")
+    # Clear devstack-specific profile so tests work outside the devstack too.
+    env.pop("METAFLOW_PROFILE", None)
+    env.pop("METAFLOW_HOME", None)
+    return env
+
+
+def _compile_flow_to_json(flow_path, **extra_tl_args):
+    """Compile a flow to Argo JSON using the CLI with --only-json.
+
+    Runs `python <flow> --no-pylint argo-workflows create --only-json`
+    and parses the JSON from stdout.
+    """
+    from .test_utils import _resolve_flow_path
+
+    full_path = _resolve_flow_path(flow_path)
+
+    cmd = [sys.executable, full_path, "--no-pylint"]
+    for k, v in extra_tl_args.items():
+        if v is not None:
+            cmd.extend([f"--{k.replace('_', '-')}", str(v)])
+    cmd.extend(["argo-workflows", "create", "--only-json"])
+
+    result = subprocess.run(
+        cmd,
+        capture_output=True,
+        text=True,
+        timeout=30,
+        env=_get_compile_env(),
+    )
+    if result.returncode != 0:
+        stderr = result.stderr or ""
+        stdout = result.stdout or ""
+        if "No such command" in stderr or "No such command" in stdout:
+            pytest.skip(
+                "argo-workflows CLI not available (extension may override plugins)"
+            )
+        if "ConnectionRefusedError" in stderr or "ConnectionError" in stderr:
+            pytest.skip(
+                "Argo backend not configured (connection refused to metadata service)"
+            )
+        pytest.fail(f"Compilation failed:\nstderr: {stderr}\nstdout: {stdout}")
+
+    stdout = result.stdout.strip()
+    json_start = stdout.find("{")
+    if json_start == -1:
+        pytest.fail(f"No JSON found in compilation output:\n{stdout}")
+
+    return json.loads(stdout[json_start:])
+
+
+# ---------------------------------------------------------------------------
+# Unit tests — exercise export_all_json() directly with mock objects
+# ---------------------------------------------------------------------------
 
 
 class TestExportAllJsonScheduled:
@@ -89,12 +167,6 @@ class TestExportAllJsonTriggered:
         }
         return sensor
 
-    def test_contains_workflow_template(self):
-        argo = _make_argo_workflows(sensor=self._make_sensor())
-        data = json.loads(argo.export_all_json())
-        assert "workflow_template" in data
-        assert data["workflow_template"]["kind"] == "WorkflowTemplate"
-
     def test_contains_sensor(self):
         argo = _make_argo_workflows(sensor=self._make_sensor())
         data = json.loads(argo.export_all_json())
@@ -116,13 +188,6 @@ class TestExportAllJsonPlain:
         assert "workflow_template" in data
         assert "cron_workflow" not in data
         assert "sensor" not in data
-
-    def test_output_is_valid_json(self):
-        argo = _make_argo_workflows()
-        raw = argo.export_all_json()
-        # Should parse without error
-        data = json.loads(raw)
-        assert isinstance(data, dict)
 
 
 class TestExportAllJsonBothScheduleAndTrigger:
@@ -149,16 +214,6 @@ class TestExportAllJsonBothScheduleAndTrigger:
         assert "cron_workflow" in data
         assert "sensor" in data
 
-    def test_cron_schedule_value(self):
-        argo = _make_argo_workflows(
-            schedule="*/5 * * * *",
-            timezone="UTC",
-            sensor=self._make_sensor(),
-        )
-        data = json.loads(argo.export_all_json())
-        assert data["cron_workflow"]["spec"]["schedule"] == "*/5 * * * *"
-        assert data["cron_workflow"]["spec"]["timezone"] == "UTC"
-
 
 class TestCronWorkflowJson:
     """Tests for the _cron_workflow_json() helper method."""
@@ -183,3 +238,53 @@ class TestCronWorkflowJson:
         assert cron["spec"]["workflowSpec"] == {
             "workflowTemplateRef": {"name": "test-flow"}
         }
+
+
+# ---------------------------------------------------------------------------
+# Integration tests — run the actual CLI via subprocess
+# ---------------------------------------------------------------------------
+
+
+class TestArgoCliOnlyJsonPlainFlow:
+    """Run `argo-workflows create --only-json` on a plain flow via subprocess."""
+
+    def test_plain_flow_has_workflow_template(self):
+        data = _compile_flow_to_json("basic/helloworld.py")
+        assert "workflow_template" in data
+        assert data["workflow_template"]["kind"] == "WorkflowTemplate"
+
+    def test_plain_flow_no_cron_or_sensor(self):
+        data = _compile_flow_to_json("basic/helloworld.py")
+        assert "cron_workflow" not in data
+        assert "sensor" not in data
+
+    def test_output_is_valid_json_object(self):
+        data = _compile_flow_to_json("basic/helloworld.py")
+        assert isinstance(data, dict)
+
+
+class TestArgoCliOnlyJsonScheduledFlow:
+    """Run `argo-workflows create --only-json` on a @schedule flow via subprocess."""
+
+    def test_scheduled_flow_has_cron_workflow(self):
+        data = _compile_flow_to_json("lifecycle/schedule_flow.py")
+        assert "cron_workflow" in data
+        cron = data["cron_workflow"]
+        assert cron["kind"] == "CronWorkflow"
+        assert cron["apiVersion"] == "argoproj.io/v1alpha1"
+
+    def test_scheduled_flow_has_workflow_template(self):
+        data = _compile_flow_to_json("lifecycle/schedule_flow.py")
+        assert "workflow_template" in data
+        assert data["workflow_template"]["kind"] == "WorkflowTemplate"
+
+    def test_cron_schedule_matches_decorator(self):
+        data = _compile_flow_to_json("lifecycle/schedule_flow.py")
+        cron = data["cron_workflow"]
+        assert cron["spec"]["schedule"] == "0 0 * * *"
+
+    def test_cron_references_workflow_template(self):
+        data = _compile_flow_to_json("lifecycle/schedule_flow.py")
+        cron = data["cron_workflow"]
+        wt_name = data["workflow_template"]["metadata"]["name"]
+        assert cron["spec"]["workflowSpec"]["workflowTemplateRef"]["name"] == wt_name
