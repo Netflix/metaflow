@@ -120,6 +120,13 @@ class ProjectDecorator(FlowDecorator):
                 and options[op] != self.defaults[op]
                 and self.attributes[op] != options[op]
             ):
+                # Exception if:
+                #  - the user provides a value in the attributes field
+                #  - AND the user provided a value in the command line (non default)
+                #  - AND the values are different
+                # Note that this won't raise an error if the user provided the default
+                # value in the command line and provided one in attribute but although
+                # slightly inconsistent, it is not incorrect.
                 raise MetaflowException(
                     "You cannot pass %s as both a command-line argument and an attribute "
                     "of the @project decorator." % op
