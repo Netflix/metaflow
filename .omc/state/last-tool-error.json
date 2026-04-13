@@ -1,7 +1,0 @@
-{
-  "tool_name": "Bash",
-  "tool_input_preview": "{\"command\":\"git checkout -b npow/core-deployer-changes-clean origin/master && git cherry-pick 6976d5e0\",\"description\":\"Cherry-pick core deployer changes\"}",
-  "error": "Exit code 1\nSwitched to a new branch 'npow/core-deployer-changes-clean'\nbranch 'npow/core-deployer-changes-clean' set up to track 'origin/master'.\nAuto-merging metaflow/metaflow_config.py\nCONFLICT (content): Merge conflict in metaflow/metaflow_config.py\nAuto-merging metaflow/plugins/__init__.py\nerror: could not apply 6976d5e0... feat: add deployer API for airflow, config params for sfn/batch/k8s, local emulator compatibility\nhint: After resolving the conflicts, mark them with\nhint: \"git add/rm <...",
-  "timestamp": "2026-04-13T23:05:09.816Z",
-  "retry_count": 1
-}
