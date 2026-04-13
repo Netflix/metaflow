@@ -773,6 +773,19 @@ class MetaflowTask(object):
             "trace_id": trace_id or None,
         }
 
+        monitor_tags = {
+            k: v
+            for k, v in {
+                "step_name": step_name,
+                "project_name": current.get("project_name"),
+                "branch_name": current.get("branch_name"),
+                "is_production": current.get("is_production"),
+                "is_user_branch": current.get("is_user_branch"),
+            }.items()
+            if v is not None
+        }
+        self.monitor.send(Message(MessageTypes.MUST_SEND, monitor_tags))
+
         from_start("MetaflowTask: task metadata initialized")
         start = time.time()
         self.metadata.start_task_heartbeat(self.flow.name, run_id, step_name, task_id)
