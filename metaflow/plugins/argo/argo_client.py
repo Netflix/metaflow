@@ -279,27 +279,39 @@ class ArgoClient(object):
                 json.loads(e.body)["message"] if e.body is not None else e.reason
             )
 
-    def trigger_workflow_template(self, name, usertype, username, parameters={}):
+    def trigger_workflow_template(
+        self, name, usertype, username, parameters={}, tags=None
+    ):
         client = self._client.get()
+        # Build the list of workflow parameters from user-provided flow parameters.
+        workflow_params = [
+            {"name": k, "value": json.dumps(v)} for k, v in parameters.items()
+        ]
+        # Pass trigger-time tags as a reserved workflow parameter so that
+        # running steps can read them via the METAFLOW_TRIGGER_TAGS env var.
+        if tags:
+            workflow_params.append(
+                {"name": "metaflow-trigger-tags", "value": json.dumps(tags)}
+            )
+
+        annotations = {
+            "metaflow/triggered_by_user": json.dumps(
+                {"type": usertype, "name": username}
+            )
+        }
+        if tags:
+            annotations["metaflow/trigger_tags"] = json.dumps(tags)
+
         body = {
             "apiVersion": "argoproj.io/v1alpha1",
             "kind": "Workflow",
             "metadata": {
                 "generateName": name + "-",
-                "annotations": {
-                    "metaflow/triggered_by_user": json.dumps(
-                        {"type": usertype, "name": username}
-                    )
-                },
+                "annotations": annotations,
             },
             "spec": {
                 "workflowTemplateRef": {"name": name},
-                "arguments": {
-                    "parameters": [
-                        {"name": k, "value": json.dumps(v)}
-                        for k, v in parameters.items()
-                    ]
-                },
+                "arguments": {"parameters": workflow_params},
             },
         }
         try:

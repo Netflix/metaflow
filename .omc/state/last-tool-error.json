@@ -1,0 +1,7 @@
+{
+  "tool_name": "Bash",
+  "tool_input_preview": "{\"command\":\"grep -c \\\"<<<<<<\\\" metaflow/plugins/aws/step_functions/step_functions.py && python -m black metaflow/plugins/aws/step_functions/step_functions.py --check 2>&1\",\"description\":\"Verify clean ...",
+  "error": "Exit code 1\n0",
+  "timestamp": "2026-04-13T22:04:29.301Z",
+  "retry_count": 1
+}

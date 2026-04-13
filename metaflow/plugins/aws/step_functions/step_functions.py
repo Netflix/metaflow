@@ -189,7 +189,7 @@ class StepFunctions(object):
         return response
 
     @classmethod
-    def trigger(cls, name, parameters):
+    def trigger(cls, name, parameters, tags=None):
         try:
             state_machine = StepFunctionsClient().get(name)
         except Exception as e:
@@ -202,7 +202,15 @@ class StepFunctions(object):
             )
 
         # Dump parameters into `Parameters` input field.
-        input = json.dumps({"Parameters": json.dumps(parameters)})
+        # Always include TriggerTags (defaulting to empty list) in the
+        # execution input. The state machine propagates this field through
+        # every step so that trigger-time tags are applied to all tasks.
+        input = json.dumps(
+            {
+                "Parameters": json.dumps(parameters),
+                "TriggerTags": json.dumps(tags if tags else []),
+            }
+        )
         # AWS Step Functions limits input to be 32KiB, but AWS Batch
         # has its own limitation of 30KiB for job specification length.
         # Reserving 10KiB for rest of the job specification leaves 20KiB
@@ -617,6 +625,11 @@ class StepFunctions(object):
             # start step to all subsequent tasks.
             attrs["metaflow.run_id.$"] = "$$.Execution.Name"
 
+            # Propagate trigger-time tags from execution input to all steps.
+            # The trigger command always includes TriggerTags in the input.
+            attrs["metaflow.trigger_tags.$"] = "$.TriggerTags"
+            env["METAFLOW_TRIGGER_TAGS"] = "$.TriggerTags"
+
             # Initialize parameters for the flow in the `start` step.
             parameters = self._process_parameters()
             if parameters:
@@ -677,6 +690,11 @@ class StepFunctions(object):
                 )
                 # Inherit the run id from the parent and pass it along to children.
                 attrs["metaflow.run_id.$"] = "$.Parameters.['metaflow.run_id']"
+                # Propagate trigger-time tags from the parent.
+                attrs["metaflow.trigger_tags.$"] = (
+                    "$.Parameters.['metaflow.trigger_tags']"
+                )
+                env["METAFLOW_TRIGGER_TAGS"] = "$.Parameters.['metaflow.trigger_tags']"
             else:
                 # Set appropriate environment variables for runtime replacement.
                 if len(node.in_funcs) == 1:
@@ -687,6 +705,13 @@ class StepFunctions(object):
                     env["METAFLOW_PARENT_TASK_ID"] = "$.JobId"
                     # Inherit the run id from the parent and pass it along to children.
                     attrs["metaflow.run_id.$"] = "$.Parameters.['metaflow.run_id']"
+                    # Propagate trigger-time tags from the parent.
+                    attrs["metaflow.trigger_tags.$"] = (
+                        "$.Parameters.['metaflow.trigger_tags']"
+                    )
+                    env["METAFLOW_TRIGGER_TAGS"] = (
+                        "$.Parameters.['metaflow.trigger_tags']"
+                    )
                 else:
                     # Generate the input paths in a quasi-compressed format.
                     # See util.decompress_list for why this is written the way
@@ -698,6 +723,13 @@ class StepFunctions(object):
                     )
                     # Inherit the run id from the parent and pass it along to children.
                     attrs["metaflow.run_id.$"] = "$.[0].Parameters.['metaflow.run_id']"
+                    # Propagate trigger-time tags from the first branch.
+                    attrs["metaflow.trigger_tags.$"] = (
+                        "$.[0].Parameters.['metaflow.trigger_tags']"
+                    )
+                    env["METAFLOW_TRIGGER_TAGS"] = (
+                        "$.[0].Parameters.['metaflow.trigger_tags']"
+                    )
                     for idx, _ in enumerate(node.in_funcs):
                         env["METAFLOW_PARENT_%s_TASK_ID" % idx] = "$.[%s].JobId" % idx
                         env["METAFLOW_PARENT_%s_STEP" % idx] = (

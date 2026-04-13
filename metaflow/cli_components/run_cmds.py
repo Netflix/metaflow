@@ -182,6 +182,24 @@ def common_run_options(func):
     return wrapper
 
 
+def _get_origin_run_tags(flow_name, origin_run_id):
+    """
+    Retrieve user tags from the origin run for tag propagation on resume.
+
+    Returns a list of user tags, or an empty list if the origin run
+    cannot be found or has no tags.
+    """
+    try:
+        from ..client.core import Run
+
+        origin_run = Run("%s/%s" % (flow_name, origin_run_id), _namespace_check=False)
+        return list(origin_run.user_tags)
+    except Exception:
+        # If we can't read the origin run's tags (e.g. metadata service
+        # unavailable), we proceed without propagating tags.
+        return []
+
+
 @click.option(
     "--origin-run-id",
     default=None,
@@ -237,14 +255,21 @@ def resume(
     resume_identifier=None,
     runner_attribute_file=None,
 ):
-    before_run(obj, tags, decospecs)
-
     if origin_run_id is None:
         origin_run_id = get_latest_run_id(obj.echo, obj.flow.name)
         if origin_run_id is None:
             raise CommandException(
                 "A previous run id was not found. Specify --origin-run-id."
             )
+
+    # Propagate user tags from the origin run to the resumed run.
+    # This ensures that tags set during the original run (e.g. via
+    # current.run.add_tag()) are carried over to the resumed run.
+    origin_tags = _get_origin_run_tags(obj.flow.name, origin_run_id)
+    if origin_tags:
+        tags = tuple(set(tags or ()) | set(origin_tags))
+
+    before_run(obj, tags, decospecs)
 
     if step_to_rerun is None:
         steps_to_rerun = set()
