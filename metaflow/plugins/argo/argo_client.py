@@ -324,7 +324,7 @@ class ArgoClient(object):
 
         if ARGO_WORKFLOWS_USE_SCHEDULES:
             schedules_key = "schedules"
-            schedules_val = [schedule]
+            schedules_val = [schedule] if schedule else schedule
         else:
             schedules_key = "schedule"
             schedules_val = schedule
