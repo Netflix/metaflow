@@ -774,7 +774,7 @@ class MetaflowTask(object):
         }
 
         monitor_tags = {
-            k: v
+            k: str(v)
             for k, v in {
                 "step_name": step_name,
                 "project_name": current.get("project_name"),
