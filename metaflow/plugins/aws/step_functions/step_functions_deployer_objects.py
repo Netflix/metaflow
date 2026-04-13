@@ -162,6 +162,7 @@ class StepFunctionsDeployedFlow(DeployedFlow):
                 d.metadata = metadata
 
         return cls(deployer=d)
+
     @classmethod
     def get_triggered_run(
         cls, identifier: str, run_id: str, metadata: Optional[str] = None
