@@ -1,6 +1,9 @@
 import json
 
-from metaflow.metaflow_config import ARGO_EVENTS_SENSOR_NAMESPACE
+from metaflow.metaflow_config import (
+    ARGO_EVENTS_SENSOR_NAMESPACE,
+    ARGO_WORKFLOWS_USE_SCHEDULES,
+)
 from metaflow.exception import MetaflowException
 from metaflow.plugins.kubernetes.kubernetes_client import KubernetesClient
 
@@ -318,6 +321,13 @@ class ArgoClient(object):
     def schedule_workflow_template(self, name, schedule=None, timezone=None):
         # Unfortunately, Kubernetes client does not handle optimistic
         # concurrency control by itself unlike kubectl
+
+        if ARGO_WORKFLOWS_USE_SCHEDULES:
+            schedules_key = "schedules"
+            schedules_val = [schedule]
+        else:
+            schedules_key = "schedule"
+            schedules_val = schedule
         client = self._client.get()
         body = {
             "apiVersion": "argoproj.io/v1alpha1",
@@ -325,7 +335,7 @@ class ArgoClient(object):
             "metadata": {"name": name},
             "spec": {
                 "suspend": schedule is None,
-                "schedule": schedule,
+                schedules_key: schedules_val,
                 "timezone": timezone,
                 "failedJobsHistoryLimit": 10000,  # default is unfortunately 1
                 "successfulJobsHistoryLimit": 10000,  # default is unfortunately 3

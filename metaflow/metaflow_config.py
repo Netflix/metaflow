@@ -474,7 +474,9 @@ ARGO_EVENTS_SENSOR_NAMESPACE = from_conf(
 # Prefix for namespaced events (used by @trigger with namespaced=True)
 NAMESPACED_EVENTS_PREFIX = from_conf("NAMESPACED_EVENTS_PREFIX", "mfns")
 
+# Additional argo workflows options
 ARGO_WORKFLOWS_UI_URL = from_conf("ARGO_WORKFLOWS_UI_URL")
+ARGO_WORKFLOWS_USE_SCHEDULES = from_conf("ARGO_WORKFLOWS_USE_SCHEDULES", True)
 
 ##
 # Airflow Configuration
