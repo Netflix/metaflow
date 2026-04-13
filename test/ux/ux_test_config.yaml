@@ -35,10 +35,6 @@ backends:
     cluster: null
     decospec: "batch:image=python:3.9"
     enabled: true
-    # xfail: requires core changes from npow/core-deployer-changes (step_functions.py
-    # sfn-local compatibility fixes: ResultSelector on Parallel states, no ProcessorConfig
-    # on Map states). Remove once that PR is merged into master.
-    xfail_reason: "requires npow/core-deployer-changes (sfn-local compatibility fixes in step_functions.py)"
 
   # Apache Airflow + Kubernetes (devstack: minikube + airflow helm chart)
   - name: airflow-kubernetes
@@ -46,8 +42,4 @@ backends:
     cluster: default
     decospec: "kubernetes:image=python:3.9"
     enabled: true
-    # xfail: requires AirflowDeployer from npow/core-deployer-changes (__init__.py
-    # registration + airflow_deployer.py + airflow_client.py).
-    # Remove once that PR is merged into master.
-    xfail_reason: "requires npow/core-deployer-changes (AirflowDeployer not yet in core)"
 
