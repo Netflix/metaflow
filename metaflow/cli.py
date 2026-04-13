@@ -577,6 +577,7 @@ def start(
         flow_datastore=ctx.obj.flow_datastore,
         metadata=ctx.obj.metadata,
         logger=ctx.obj.logger,
+        echo=ctx.obj.echo,
     )
 
     # It is important to initialize flow decorators early as some of the
