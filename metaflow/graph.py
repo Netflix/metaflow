@@ -253,7 +253,7 @@ class DAGNode(object):
 
 
 class SyntheticDAGNode(DAGNode):
-    """DAGNode for FunctionSpec — sets fields directly, no AST parsing."""
+    """DAGNode for AlgoSpec — sets fields directly, no AST parsing."""
 
     def __init__(self, func, decos=None, doc=None):
         self.name = "call"
@@ -294,7 +294,7 @@ class SyntheticDAGNode(DAGNode):
 class FlowGraph(object):
     def __init__(self, flow):
         self.name = flow.__name__
-        self.is_function_spec = getattr(flow, "is_function_spec", False)
+        self.is_algo_spec = getattr(flow, "is_algo_spec", False)
         self.nodes = self._create_nodes(flow)
         self.doc = deindent_docstring(flow.__doc__)
         # nodes sorted in topological order.
@@ -324,11 +324,11 @@ class FlowGraph(object):
                 )
                 nodes[element] = node
 
-        # FunctionSpec: synthesize a single "call" node
-        if not nodes and self.is_function_spec:
+        # AlgoSpec: synthesize a single "call" node
+        if not nodes and self.is_algo_spec:
             call_method = getattr(flow, "call", None)
             if call_method is not None:
-                decos = list(getattr(flow, "_function_spec_decos", []))
+                decos = list(getattr(flow, "_algo_spec_decos", []))
                 nodes["call"] = SyntheticDAGNode(
                     call_method, decos=decos, doc=call_method.__doc__
                 )
@@ -390,7 +390,7 @@ class FlowGraph(object):
 
         if "start" in self:
             traverse(self["start"], [], [], [])
-        elif self.is_function_spec and "call" in self:
+        elif self.is_algo_spec and "call" in self:
             traverse(self["call"], [], [], [])
 
         # fix the order of in_funcs
@@ -438,7 +438,7 @@ class FlowGraph(object):
                         '  shape = "hexagon" '
                         '  style = "filled" fillcolor = "lightgreen" ];'
                     ).format(node, condition=condition_label)
-                elif self.is_function_spec and node.name == "call":
+                elif self.is_algo_spec and node.name == "call":
                     yield (
                         '"{0.name}"'
                         '[ label = <<b>call</b><br/>'
@@ -517,8 +517,8 @@ class FlowGraph(object):
                 d["matching_join"] = node.matching_join
             return d
 
-        # FunctionSpec: single-node graph, no start/end
-        if self.is_function_spec and "call" in self:
+        # AlgoSpec: single-node graph, no start/end
+        if self.is_algo_spec and "call" in self:
             node = self.nodes["call"]
             steps_info["call"] = node_to_dict("call", node)
             return steps_info, ["call"]

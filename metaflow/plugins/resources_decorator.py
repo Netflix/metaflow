@@ -46,11 +46,11 @@ class ResourcesDecorator(StepDecorator):
 
 class NflxResources(FlowDecorator):
     """
-    Class-level resource declaration for FunctionSpec.
+    Class-level resource declaration for AlgoSpec.
 
     Flow decorator -- applied via standard _base_flow_decorator path
-    (works because FunctionSpec IS-A FlowSpec). Attributes are
-    propagated to the synthesized "call" node by FunctionSpecMeta
+    (works because AlgoSpec IS-A FlowSpec). Attributes are
+    propagated to the synthesized "call" node by AlgoSpecMeta
     so that runtime step_init/task_pre_step/task_post_step hooks fire.
 
     Parameters
@@ -79,11 +79,11 @@ class NflxResources(FlowDecorator):
     def flow_init(
         self, flow, graph, environment, flow_datastore, metadata, logger, echo, options
     ):
-        if not getattr(flow, "is_function_spec", False):
+        if not getattr(flow, "is_algo_spec", False):
             from metaflow.exception import MetaflowException
 
             raise MetaflowException(
-                "@nflx_resources can only be applied to FunctionSpec subclasses, "
+                "@nflx_resources can only be applied to AlgoSpec subclasses, "
                 "not %s. Use @resources on individual @step methods for FlowSpec."
                 % type(flow).__name__
             )

@@ -1,12 +1,12 @@
 """
-FunctionSpec -- a single-computation unit within Metaflow.
+AlgoSpec -- a single-computation unit within Metaflow.
 
-FunctionSpec is a FlowSpec subclass with a degenerate graph: one
+AlgoSpec is a FlowSpec subclass with a degenerate graph: one
 synthesized "call" node (no start, no end, no self.next()). All
 Metaflow infrastructure -- Parameters, flow decorators, CLI, configs --
-works unchanged because FunctionSpec IS-A FlowSpec.
+works unchanged because AlgoSpec IS-A FlowSpec.
 
-All divergent paths are gated on is_function_spec = True.
+All divergent paths are gated on is_algo_spec = True.
 
 Lifecycle:
     init()  -- called once per worker (model loading)
@@ -18,11 +18,11 @@ import atexit
 from .flowspec import FlowSpec, FlowSpecMeta, FlowStateItems
 
 
-class FunctionSpecMeta(FlowSpecMeta):
-    """Metaclass for FunctionSpec.
+class AlgoSpecMeta(FlowSpecMeta):
+    """Metaclass for AlgoSpec.
 
     Extends FlowSpecMeta with:
-    - _registry: collects all user-defined FunctionSpec subclasses
+    - _registry: collects all user-defined AlgoSpec subclasses
     - One-shot atexit handler on first subclass creation
     - Propagation of flow-level NflxResources to the synthesized call node
     """
@@ -31,31 +31,31 @@ class FunctionSpecMeta(FlowSpecMeta):
     _atexit_registered = False
 
     def __init__(cls, name, bases, attrs):
-        if name == "FunctionSpec":
+        if name == "AlgoSpec":
             type.__init__(cls, name, bases, attrs)
             return
 
         super().__init__(name, bases, attrs)
 
-        if cls.call is FunctionSpec.call:
+        if cls.call is AlgoSpec.call:
             from .exception import MetaflowException
 
             raise MetaflowException(
                 "%s must implement call(). "
-                "FunctionSpec subclasses require a call() method." % name
+                "AlgoSpec subclasses require a call() method." % name
             )
 
         _propagate_flow_decorators_to_call_node(cls)
 
-        FunctionSpecMeta._registry.append(cls)
+        AlgoSpecMeta._registry.append(cls)
 
-        if not FunctionSpecMeta._atexit_registered:
-            atexit.register(FunctionSpecMeta._on_exit)
-            FunctionSpecMeta._atexit_registered = True
+        if not AlgoSpecMeta._atexit_registered:
+            atexit.register(AlgoSpecMeta._on_exit)
+            AlgoSpecMeta._atexit_registered = True
 
     @staticmethod
     def _on_exit():
-        FunctionSpecMeta._registry.clear()
+        AlgoSpecMeta._registry.clear()
 
 
 def _propagate_flow_decorators_to_call_node(cls):
@@ -77,22 +77,22 @@ def _propagate_flow_decorators_to_call_node(cls):
         )
         call_node.decorators.append(deco)
 
-    cls._function_spec_decos = list(call_node.decorators)
+    cls._algo_spec_decos = list(call_node.decorators)
 
 
-class FunctionSpec(FlowSpec, metaclass=FunctionSpecMeta):
+class AlgoSpec(FlowSpec, metaclass=AlgoSpecMeta):
     """Base class for single-computation algo specifications.
 
     Subclass this instead of FlowSpec when your algorithm is a single
     init() + call() unit with no multi-step DAG.
     """
 
-    is_function_spec = True
+    is_algo_spec = True
 
     _NON_PARAMETERS = FlowSpec._NON_PARAMETERS | {
         "init",
         "call",
-        "is_function_spec",
+        "is_algo_spec",
     }
 
     def init(self):

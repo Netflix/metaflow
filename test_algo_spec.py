@@ -1,26 +1,26 @@
 """
-Test FunctionSpec -- minimal example for deployment validation.
+Test AlgoSpec -- minimal example for deployment validation.
 
 Computes the square of an input number. Validates:
-- FunctionSpec graph construction (single "call" node)
+- AlgoSpec graph construction (single "call" node)
 - Parameter binding
 - @nflx_resources as a flow decorator
 - Maestro deployment (init + call lifecycle)
 
 Usage:
-    python test_function_spec.py show
-    python test_function_spec.py check
-    python test_function_spec.py maestro create --name square-model-test --cluster test --only-json
+    python test_algo_spec.py show
+    python test_algo_spec.py check
+    python test_algo_spec.py maestro create --name square-model-test --cluster test --only-json
 """
 
 from metaflow import Parameter
-from metaflow.functionspec import FunctionSpec
+from metaflow.algospec import AlgoSpec
 from metaflow import nflx_resources
 
 
 @nflx_resources(cpu=2, memory=4096)
-class SquareModel(FunctionSpec):
-    """Squares a number. Minimal FunctionSpec for deployment testing."""
+class SquareModel(AlgoSpec):
+    """Squares a number. Minimal AlgoSpec for deployment testing."""
 
     multiplier = Parameter(
         "multiplier",
