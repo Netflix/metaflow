@@ -10,6 +10,7 @@ import metaflow.tracing as tracing
 from metaflow._vendor import click
 
 from . import decorators, lint, metaflow_version, parameters, plugins
+from .system_context import _phase_from_cli_args, system_context
 from .cli_args import cli_args
 from .cli_components.utils import LazyGroup, LazyPluginCommandCollection
 from .datastore import FlowDataStore, TaskDataStoreSet
@@ -562,6 +563,21 @@ def start(
     _system_monitor.init_system_monitor(ctx.obj.flow.name, ctx.obj.monitor)
 
     decorators._init(ctx.obj.flow)
+
+    # Populate the system context singleton for this process. The phase is
+    # determined by which CLI subcommand is being invoked (e.g. "run" → LAUNCH,
+    # "step" → TASK, "batch" → TRAMPOLINE).
+    saved_args = getattr(ctx, "saved_args", None)
+    phase = _phase_from_cli_args(saved_args)
+    system_context._update(
+        phase=phase,
+        flow=ctx.obj.flow,
+        graph=ctx.obj.graph,
+        environment=ctx.obj.environment,
+        flow_datastore=ctx.obj.flow_datastore,
+        metadata=ctx.obj.metadata,
+        logger=ctx.obj.logger,
+    )
 
     # It is important to initialize flow decorators early as some of the
     # things they provide may be used by some of the objects initialized after.
