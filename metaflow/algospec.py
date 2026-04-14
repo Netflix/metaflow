@@ -60,10 +60,14 @@ class AlgoSpecMeta(FlowSpecMeta):
         from .graph import FlowGraph
 
         cls._graph = FlowGraph(cls)
-        # AlgoSpec has no @step methods — _steps must be empty so
-        # _process_config_decorators doesn't try to read .config_decorators
-        # off a plain method.
-        cls._steps = []
+        # Use the SyntheticDAGNode itself as the "step" — it has .decorators
+        # and .name, which is all _attach_decorators_to_step needs. This lets
+        # runtime decorator attachment (e.g. @titus via DEFAULT_DECOSPECS)
+        # work the same as for normal FlowSpec steps.
+        if cls._graph.is_algo_spec and "call" in cls._graph:
+            cls._steps = [cls._graph["call"]]
+        else:
+            cls._steps = []
 
     @staticmethod
     def _on_exit():

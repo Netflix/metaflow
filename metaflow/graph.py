@@ -257,6 +257,9 @@ class SyntheticDAGNode(DAGNode):
 
     def __init__(self, func, decos=None, doc=None):
         self.name = "call"
+        # _init_step_decorators and _attach_decorators_to_step access
+        # step.__name__, so we mirror the function attribute.
+        self.__name__ = "call"
         self.func_lineno = 0
         self.source_file = inspect.getsourcefile(func)
         if self.source_file:
