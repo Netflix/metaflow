@@ -1003,9 +1003,7 @@ def step(
 ) -> Callable[[FlowSpecDerived, Any, StepFlag], None]: ...
 
 
-def step(
-    f: Union[Callable[[FlowSpecDerived], None], Callable[[FlowSpecDerived, Any], None]],
-):
+def step(f=None, *, start=False, end=False):
     """
     Marks a method in a FlowSpec as a Metaflow Step. Note that this
     decorator needs to be placed as close to the method as possible (ie:
@@ -1029,20 +1027,34 @@ def step(
 
     Parameters
     ----------
-    f : Union[Callable[[FlowSpecDerived], None], Callable[[FlowSpecDerived, Any], None]]
-        Function to make into a Metaflow Step
+    f : callable, optional
+        Function to make into a Metaflow Step.
+    start : bool, default False
+        Mark this step as the entry point of the flow.
+    end : bool, default False
+        Mark this step as the terminal step of the flow.
 
     Returns
     -------
-    Union[Callable[[FlowSpecDerived, StepFlag], None], Callable[[FlowSpecDerived, Any, StepFlag], None]]
+    callable
         Function that is a Metaflow Step
     """
-    f.is_step = True
-    f.decorators = []
-    f.config_decorators = []
-    f.wrappers = []
-    f.name = f.__name__
-    return f
+
+    def decorator(fn):
+        fn.is_step = True
+        fn.is_start = start
+        fn.is_end = end
+        fn.decorators = []
+        fn.config_decorators = []
+        fn.wrappers = []
+        fn.name = fn.__name__
+        return fn
+
+    if f is not None:
+        # Called as @step (no args) — backward compatible
+        return decorator(f)
+    # Called as @step(start=True, end=True)
+    return decorator
 
 
 def _import_plugin_decorators(globals_dict):
