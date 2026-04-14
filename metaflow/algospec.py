@@ -25,9 +25,10 @@ class AlgoSpecMeta(FlowSpecMeta):
     - _registry: collects all user-defined AlgoSpec subclasses
     - One-shot atexit handler on first subclass creation
 
-    NflxResources propagation to the call node happens in
-    NflxResources.flow_init (correct timing -- after decorators
-    are collected, before Maestro builds the workflow).
+    Key design: decorators live on the call METHOD (like @step does for
+    FlowSpec functions). SyntheticDAGNode reads from the method. This
+    means _attach_decorators modifies the method's list, and when
+    _init_graph is called again, the new SyntheticDAGNode picks them up.
     """
 
     _registry = []
@@ -35,10 +36,18 @@ class AlgoSpecMeta(FlowSpecMeta):
 
     def __init__(cls, name, bases, attrs):
         if name == "AlgoSpec":
-            # Let FlowSpecMeta set up _flow_state (needed by subclass MRO walk).
-            # Graph building works fine -- SyntheticDAGNode handles the base call().
             super().__init__(name, bases, attrs)
             return
+
+        # Stamp call with @step-like attributes BEFORE super().__init__,
+        # which calls _init_graph -> SyntheticDAGNode reads from these.
+        call_fn = attrs.get("call")
+        if call_fn is not None and callable(call_fn):
+            call_fn.is_step = True
+            call_fn.decorators = []
+            call_fn.wrappers = []
+            call_fn.config_decorators = []
+            call_fn.name = "call"
 
         super().__init__(name, bases, attrs)
 
@@ -60,12 +69,11 @@ class AlgoSpecMeta(FlowSpecMeta):
         from .graph import FlowGraph
 
         cls._graph = FlowGraph(cls)
-        # Use the SyntheticDAGNode itself as the "step" — it has .decorators
-        # and .name, which is all _attach_decorators_to_step needs. This lets
-        # runtime decorator attachment (e.g. @titus via DEFAULT_DECOSPECS)
-        # work the same as for normal FlowSpec steps.
-        if cls._graph.is_algo_spec and "call" in cls._graph:
-            cls._steps = [cls._graph["call"]]
+        # _steps contains the call method (stamped with .decorators etc.)
+        # so _attach_decorators works. Same pattern as FlowSpec where
+        # _steps contains @step-decorated functions.
+        if cls._graph.is_algo_spec:
+            cls._steps = [cls.call]
         else:
             cls._steps = []
 
@@ -82,6 +90,8 @@ class AlgoSpec(FlowSpec, metaclass=AlgoSpecMeta):
     """
 
     is_algo_spec = True
+
+    _EPHEMERAL = FlowSpec._EPHEMERAL | {"is_algo_spec"}
 
     _NON_PARAMETERS = FlowSpec._NON_PARAMETERS | {
         "init",

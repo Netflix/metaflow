@@ -480,6 +480,8 @@ class NativeRuntime(object):
 
         if step == "_parameters" or self._skip_decorator_hooks:
             decos = []
+        elif getattr(self._flow, "is_algo_spec", False) and step == "call":
+            decos = self._flow._graph["call"].decorators
         else:
             decos = getattr(self._flow, step).decorators
 
@@ -766,10 +768,15 @@ class NativeRuntime(object):
             self._run_queue = []
             self._active_tasks[0] = 0
         else:
+            first_step = (
+                "call"
+                if getattr(self._flow, "is_algo_spec", False)
+                else "start"
+            )
             if self._params_task:
-                self._queue_push("start", {"input_paths": [self._params_task.path]})
+                self._queue_push(first_step, {"input_paths": [self._params_task.path]})
             else:
-                self._queue_push("start", {})
+                self._queue_push(first_step, {})
 
         progress_tstamp = time.time()
         with tempfile.NamedTemporaryFile(mode="w", encoding="utf-8") as config_file:

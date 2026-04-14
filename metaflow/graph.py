@@ -269,9 +269,12 @@ class SyntheticDAGNode(DAGNode):
             except (OSError, TypeError):
                 pass
 
-        self.decorators = decos or []
-        self.wrappers = []
-        self.config_decorators = []
+        # Read from the function's step attributes (set by AlgoSpecMeta)
+        # so decorators survive _init_graph rebuilds — same pattern as
+        # DAGNode reading from func.decorators for @step functions.
+        self.decorators = getattr(func, "decorators", None) or decos or []
+        self.wrappers = getattr(func, "wrappers", None) or []
+        self.config_decorators = getattr(func, "config_decorators", None) or []
         self.doc = deindent_docstring(doc or "")
         self.parallel_step = False
 
@@ -331,9 +334,8 @@ class FlowGraph(object):
         if not nodes and self.is_algo_spec:
             call_method = getattr(flow, "call", None)
             if call_method is not None:
-                decos = list(getattr(flow, "_algo_spec_decos", []))
                 nodes["call"] = SyntheticDAGNode(
-                    call_method, decos=decos, doc=call_method.__doc__
+                    call_method, doc=call_method.__doc__
                 )
 
         return nodes
