@@ -1,7 +1,7 @@
 import os
 import shlex
 import subprocess
-import sys
+import tempfile
 
 
 def test_metaflow_completion_script_smoke():
@@ -10,7 +10,6 @@ def test_metaflow_completion_script_smoke():
     completion_script = os.path.join(repo_root, "metaflow-complete.sh")
 
     # Use a temporary executable named `metaflow` so click reads _METAFLOW_COMPLETE.
-    wrapper_path = os.path.join(repo_root, ".tmp-test-metaflow-cli")
     wrapper_code = (
         "#!/usr/bin/env python3\n"
         "import os\n"
@@ -20,11 +19,12 @@ def test_metaflow_completion_script_smoke():
         "start()\n"
     )
 
-    with open(wrapper_path, "w") as f:
-        f.write(wrapper_code)
-    os.chmod(wrapper_path, 0o755)
-
     try:
+        fd, wrapper_path = tempfile.mkstemp(prefix="metaflow-cli-", dir=repo_root)
+        with os.fdopen(fd, "w") as f:
+            f.write(wrapper_code)
+        os.chmod(wrapper_path, 0o755)
+
         bash_script = f"""
 set -euo pipefail
 source {shlex.quote(completion_script)}
@@ -35,7 +35,7 @@ _metaflow_completion {shlex.quote(wrapper_path)}
 printf "%s\\n" "${{COMPREPLY[@]}}"
 """
         result = subprocess.run(
-            ["bash", "-lc", bash_script],
+            ["bash", "-c", bash_script],
             capture_output=True,
             text=True,
             check=True,
