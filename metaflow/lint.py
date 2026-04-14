@@ -100,6 +100,8 @@ def check_step_names(graph):
 @linter.ensure_fundamentals
 @linter.check
 def check_num_args(graph):
+    if getattr(graph, "is_algo_spec", False):
+        return
     msg0 = (
         "Step {0.name} has too many arguments. Normal steps take only "
         "'self' as an argument. Join steps take 'self' and 'inputs'."

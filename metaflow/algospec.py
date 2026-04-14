@@ -15,7 +15,7 @@ Lifecycle:
 
 import atexit
 
-from .flowspec import FlowSpec, FlowSpecMeta, FlowStateItems
+from .flowspec import FlowSpec, FlowSpecMeta
 
 
 class AlgoSpecMeta(FlowSpecMeta):
@@ -24,7 +24,10 @@ class AlgoSpecMeta(FlowSpecMeta):
     Extends FlowSpecMeta with:
     - _registry: collects all user-defined AlgoSpec subclasses
     - One-shot atexit handler on first subclass creation
-    - Propagation of flow-level NflxResources to the synthesized call node
+
+    NflxResources propagation to the call node happens in
+    NflxResources.flow_init (correct timing -- after decorators
+    are collected, before Maestro builds the workflow).
     """
 
     _registry = []
@@ -32,7 +35,9 @@ class AlgoSpecMeta(FlowSpecMeta):
 
     def __init__(cls, name, bases, attrs):
         if name == "AlgoSpec":
-            type.__init__(cls, name, bases, attrs)
+            # Let FlowSpecMeta set up _flow_state (needed by subclass MRO walk).
+            # Graph building works fine -- SyntheticDAGNode handles the base call().
+            super().__init__(name, bases, attrs)
             return
 
         super().__init__(name, bases, attrs)
@@ -45,39 +50,24 @@ class AlgoSpecMeta(FlowSpecMeta):
                 "AlgoSpec subclasses require a call() method." % name
             )
 
-        _propagate_flow_decorators_to_call_node(cls)
-
         AlgoSpecMeta._registry.append(cls)
 
         if not AlgoSpecMeta._atexit_registered:
             atexit.register(AlgoSpecMeta._on_exit)
             AlgoSpecMeta._atexit_registered = True
 
+    def _init_graph(cls):
+        from .graph import FlowGraph
+
+        cls._graph = FlowGraph(cls)
+        # AlgoSpec has no @step methods — _steps must be empty so
+        # _process_config_decorators doesn't try to read .config_decorators
+        # off a plain method.
+        cls._steps = []
+
     @staticmethod
     def _on_exit():
         AlgoSpecMeta._registry.clear()
-
-
-def _propagate_flow_decorators_to_call_node(cls):
-    """Convert flow-level NflxResources into a step-level ResourcesDecorator
-    on the synthesized call node, so runtime hooks fire normally."""
-
-    if not hasattr(cls, "_graph") or "call" not in cls._graph:
-        return
-
-    call_node = cls._graph["call"]
-    flow_decos = cls._flow_state.get(FlowStateItems.FLOW_DECORATORS, {})
-
-    nflx_res = flow_decos.get("nflx_resources")
-    if nflx_res:
-        from .plugins.resources_decorator import ResourcesDecorator
-
-        deco = ResourcesDecorator(
-            attributes=nflx_res[0].attributes, statically_defined=True
-        )
-        call_node.decorators.append(deco)
-
-    cls._algo_spec_decos = list(call_node.decorators)
 
 
 class AlgoSpec(FlowSpec, metaclass=AlgoSpecMeta):

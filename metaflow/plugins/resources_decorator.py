@@ -87,3 +87,14 @@ class NflxResources(FlowDecorator):
                 "not %s. Use @resources on individual @step methods for FlowSpec."
                 % type(flow).__name__
             )
+
+        # Propagate to the synthesized call node as a step-level
+        # ResourcesDecorator so Maestro/runtime see it on node.decorators.
+        # This runs after all decorators are collected (correct timing —
+        # metaclass __init__ runs before decorators, so propagation there
+        # would find an empty decorator list).
+        if "call" in graph:
+            deco = ResourcesDecorator(
+                attributes=dict(self.attributes), statically_defined=True
+            )
+            graph["call"].decorators.append(deco)
