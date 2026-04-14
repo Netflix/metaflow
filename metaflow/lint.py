@@ -58,22 +58,32 @@ def check_reserved_words(graph):
 @linter.ensure_fundamentals
 @linter.check
 def check_basic_steps(graph):
-    msg = "Add %s *%s* step in your flow."
-    for prefix, node in (("a", "start"), ("an", "end")):
-        if node not in graph:
-            raise LintWarn(msg % (prefix, node))
+    if graph.start_step is None:
+        raise LintWarn(
+            "Your flow must have a step named 'start', or exactly one "
+            "step decorated with @step(start=True)."
+        )
+    if graph.end_step is None:
+        raise LintWarn(
+            "Your flow must have a step named 'end', or exactly one "
+            "step decorated with @step(end=True)."
+        )
 
 
 @linter.ensure_static_graph
 @linter.check
 def check_that_end_is_end(graph):
-    msg0 = "The *end* step should not have a step.next() transition. " "Just remove it."
-    msg1 = (
-        "The *end* step should not be a join step (it gets an extra "
-        "argument). Add a join step before it."
+    if graph.end_step is None or graph.start_step == graph.end_step:
+        return  # single-step graph or missing end — handled elsewhere
+    node = graph[graph.end_step]
+    msg0 = (
+        "The terminal step *%s* should not have a self.next() transition. "
+        "Just remove it." % graph.end_step
     )
-
-    node = graph["end"]
+    msg1 = (
+        "The terminal step *%s* should not be a join step (it gets an extra "
+        "argument). Add a join step before it." % graph.end_step
+    )
 
     if node.has_tail_next or node.invalid_tail_next:
         raise LintWarn(msg0, node.tail_next_lineno, node.source_file)
@@ -96,6 +106,8 @@ def check_step_names(graph):
 @linter.ensure_fundamentals
 @linter.check
 def check_num_args(graph):
+    if graph.start_step == graph.end_step:
+        return  # single-step graph
     msg0 = (
         "Step {0.name} has too many arguments. Normal steps take only "
         "'self' as an argument. Join steps take 'self' and 'inputs'."
@@ -192,11 +204,13 @@ def check_for_acyclicity(graph):
 @linter.ensure_static_graph
 @linter.check
 def check_for_orphans(graph):
+    if graph.start_step is None:
+        return
     msg = (
-        "Step *{0.name}* is unreachable from the start step. Add "
-        "self.next({0.name}) in another step or remove *{0.name}*."
+        "Step *{0.name}* is unreachable from the entry step *%s*. Add "
+        "self.next({0.name}) in another step or remove *{0.name}*." % graph.start_step
     )
-    seen = set(["start"])
+    seen = set([graph.start_step])
 
     def traverse(node):
         for n in node.out_funcs:
@@ -204,7 +218,7 @@ def check_for_orphans(graph):
                 seen.add(n)
                 traverse(graph[n])
 
-    traverse(graph["start"])
+    traverse(graph[graph.start_step])
     nodeset = frozenset(n.name for n in graph)
     orphans = nodeset - seen
     if orphans:
@@ -215,9 +229,11 @@ def check_for_orphans(graph):
 @linter.ensure_static_graph
 @linter.check
 def check_split_join_balance(graph):
+    if graph.start_step is None or graph.end_step is None:
+        return
     msg0 = (
-        "Step *end* reached before a split started at step(s) *{roots}* "
-        "were joined. Add a join step before *end*."
+        "The terminal step *{end}* was reached before a split started at "
+        "step(s) *{roots}* were joined. Add a join step before *{end}*."
     )
     msg1 = (
         "Step *{0.name}* seems like a join step (it takes an extra input "
@@ -253,7 +269,9 @@ def check_split_join_balance(graph):
                 _, split_roots = split_stack.pop()
                 roots = ", ".join(split_roots)
                 raise LintWarn(
-                    msg0.format(roots=roots), node.func_lineno, node.source_file
+                    msg0.format(roots=roots, end=graph.end_step),
+                    node.func_lineno,
+                    node.source_file,
                 )
         elif node.type == "join":
             new_stack = split_stack
@@ -301,7 +319,7 @@ def check_split_join_balance(graph):
                 continue
             traverse(graph[n], new_stack)
 
-    traverse(graph["start"], [])
+    traverse(graph[graph.start_step], [])
 
 
 @linter.ensure_static_graph
