@@ -9,6 +9,8 @@ if TYPE_CHECKING:
     import metaflow.flowspec
     import metaflow.parameters
     import metaflow.user_decorators.mutable_step
+    import metaflow.decorators
+    import metaflow.user_decorators.user_flow_decorator as user_flow_decorator
 
 
 class MutableFlow:
@@ -254,14 +256,16 @@ class MutableFlow:
 
     def add_decorator(
         self,
-        deco_type: Union[partial, str],
+        deco_type: Union[partial, "user_flow_decorator.FlowMutator", str],
         deco_args: Optional[List[Any]] = None,
         deco_kwargs: Optional[Dict[str, Any]] = None,
         duplicates: int = IGNORE,
-    ) -> None:
+    ) -> Optional[
+        Union["metaflow.decorators.FlowDecorator", "user_flow_decorator.FlowMutator"]
+    ]:
         """
-        Add a Metaflow flow-decorator to a flow. You can only add decorators in the
-        `pre_mutate` method.
+        Add a Metaflow flow-decorator or a FlowMutator to a flow. You can only add
+        decorators in the `pre_mutate` method.
 
         You can either add the decorator itself or its decorator specification for it
         (the same you would get back from decorator_specs). You can also mix and match
@@ -298,12 +302,15 @@ class MutableFlow:
             if the newly added decorator is *static* (ie: defined directly in the code).
             If not, it is ignored.
 
+        You can also add a FlowMutator class. The new FlowMutator will have its
+        ``external_init()`` called immediately and its ``pre_mutate`` will be called
+        as part of the ongoing iteration (Python's ``for`` over a list sees appended items).
+
         Parameters
         ----------
-        deco_type : Union[partial, str]
-            The decorator class to add to this flow. If using a string, you cannot specify
-            additional arguments as all argument will be parsed from the decorator
-            specification.
+        deco_type : Union[partial, FlowMutator, str]
+            The decorator class to add to this flow. Can be a FlowDecorator partial,
+            a FlowMutator subclass, or a string decorator specification.
         deco_args : List[Any], optional, default None
             Positional arguments to pass to the decorator.
         deco_kwargs : Dict[str, Any], optional, default None
@@ -313,6 +320,11 @@ class MutableFlow:
             - `MutableFlow.IGNORE`: Ignore the decorator if it already exists.
             - `MutableFlow.ERROR`: Raise an error if the decorator already exists.
             - `MutableFlow.OVERRIDE`: Remove the existing decorator and add this one.
+
+        Returns
+        -------
+        Optional[Union[FlowDecorator, FlowMutator]]
+            The decorator that was added or None if none was added due to duplicate handling.
 
         """
         if not self._pre_mutate:
@@ -358,6 +370,7 @@ class MutableFlow:
                 debug.userconf_exec(
                     "Mutable flow adding flow decorator '%s'" % deco_type
                 )
+                return flow_deco
 
             # self._flow_cls._flow_state[FlowStateItems.FLOW_DECORATORS] is a  dictionary of form :
             # <deco_name> : [deco_instance, deco_instance, ...]
@@ -365,13 +378,14 @@ class MutableFlow:
             existing_deco = [d for d in flow_decos if d == flow_deco.name]
 
             if flow_deco.allow_multiple or not existing_deco:
-                _do_add()
+                return _do_add()
             elif duplicates == MutableFlow.IGNORE:
                 # If we ignore, we do not add the decorator
                 debug.userconf_exec(
                     "Mutable flow ignoring flow decorator '%s'"
                     "(already exists and duplicates are ignored)" % flow_deco.name
                 )
+                return None
             elif duplicates == MutableFlow.OVERRIDE:
                 # If we override, we remove the existing decorator and add this one
                 debug.userconf_exec(
@@ -382,7 +396,7 @@ class MutableFlow:
                 self._flow_cls._flow_state[FlowStateItems.FLOW_DECORATORS] = {
                     d: flow_decos[d] for d in flow_decos if d != flow_deco.name
                 }
-                _do_add()
+                return _do_add()
             elif duplicates == MutableFlow.ERROR:
                 # If we error, we raise an exception
                 if self._statically_defined:
@@ -392,6 +406,7 @@ class MutableFlow:
                         "Mutable flow ignoring flow decorator '%s' "
                         "(already exists and non statically defined)" % flow_deco.name
                     )
+                return None
             else:
                 raise ValueError("Invalid duplicates value: %s" % duplicates)
 
@@ -403,8 +418,33 @@ class MutableFlow:
                     "Cannot specify additional arguments when adding a flow decorator "
                     "using a decospec that already contains arguments"
                 )
-            _add_flow_decorator(flow_deco)
-            return
+            return _add_flow_decorator(flow_deco)
+
+        # Check if this is a FlowMutator class
+        from .user_flow_decorator import FlowMutator
+
+        if isinstance(deco_type, type) and issubclass(deco_type, FlowMutator):
+            from ..flowspec import FlowStateItems
+
+            d = deco_type(*deco_args, **deco_kwargs)
+            d.statically_defined = self._statically_defined
+            d.inserted_by = self._inserted_by
+            d._flow_cls = self._flow_cls
+
+            # Append to the merged list (the one being iterated in the pre_mutate
+            # loop) so the new mutator's pre_mutate is called naturally.
+            merged_mutators = self._flow_cls._flow_state[FlowStateItems.FLOW_MUTATORS]
+            merged_mutators.append(d)
+            # Also append to the underlying _self_data so a cache rebuild
+            # includes this mutator. We use _self_data directly (not the
+            # self_data property) to avoid clearing the merged cache.
+            self._flow_cls._flow_state._self_data[FlowStateItems.FLOW_MUTATORS].append(
+                d
+            )
+
+            # external_init must be called before pre_mutate runs
+            d.external_init()
+            return d
 
         # Validate deco_type
         if (
@@ -412,10 +452,10 @@ class MutableFlow:
             or len(deco_type.args) != 1
             or not issubclass(deco_type.args[0], FlowDecorator)
         ):
-            raise TypeError("add_decorator takes a FlowDecorator")
+            raise TypeError("add_decorator takes a FlowDecorator or FlowMutator")
 
         deco_type = deco_type.args[0]
-        _add_flow_decorator(
+        return _add_flow_decorator(
             deco_type(
                 attributes=deco_kwargs,
                 statically_defined=self._statically_defined,

@@ -142,6 +142,10 @@ class UserStepDecoratorBase(metaclass=UserStepDecoratorMeta):
         self._kwargs = {}
         # If nothing is set, the user statically defined the decorator
         self._special_kwargs = {"_statically_defined": True, "_inserted_by": None}
+        # Prevent multiple init calls -- this allows a decorator to be both a StepMutator
+        # and a StepDecorator. This is not a "solution" for the diamond inheritance issue
+        # but more for the fact that we call external_init from two places
+        self._ran_init = False
         for k, v in kwargs.items():
             if k in ("_statically_defined", "_inserted_by"):
                 # These are special arguments that we do not want to pass to the step
@@ -232,6 +236,8 @@ class UserStepDecoratorBase(metaclass=UserStepDecoratorMeta):
     ):
         from metaflow.user_decorators.mutable_step import MutableStep
 
+        # We can safely check in any of the step_field because if this decorator is
+        # registered on multiple step fields, it will be found in all of them.
         existing_deco = [
             d
             for d in getattr(step, self._step_field)
@@ -253,15 +259,17 @@ class UserStepDecoratorBase(metaclass=UserStepDecoratorMeta):
                 "Overriding decorator %s on step %s from %s"
                 % (self, step.__name__, inserted_by)
             )
-            setattr(
-                step,
-                self._step_field,
-                [
-                    d
-                    for d in getattr(step, self._step_field)
-                    if d.decorator_name != self.decorator_name
-                ],
-            )
+            # Clean-up all step fields if we appear in multiple of them.
+            for field in self._all_step_fields():
+                setattr(
+                    step,
+                    field,
+                    [
+                        d
+                        for d in getattr(step, field)
+                        if d.decorator_name != self.decorator_name
+                    ],
+                )
             self(step, _statically_defined=statically_defined, _inserted_by=inserted_by)
         elif duplicates == MutableStep.ERROR:
             if statically_defined:
@@ -293,17 +301,19 @@ class UserStepDecoratorBase(metaclass=UserStepDecoratorMeta):
         self.statically_defined = self._special_kwargs["_statically_defined"]
         self.inserted_by = self._special_kwargs["_inserted_by"]
 
-        # Collect all distinct _step_field values from the MRO so that a class
-        # inheriting from both UserStepDecorator and StepMutator is registered
-        # in both step.wrappers and step.config_decorators.
+        # Register the decorator with all the step fields it supports
+        for field in self._all_step_fields():
+            getattr(self._my_step, field).append(self)
+
+        return self._my_step
+
+    def _all_step_fields(self) -> List[str]:
         seen_fields = set()
         for cls in type(self).__mro__:
             field = cls.__dict__.get("_step_field")
             if field is not None and field not in seen_fields:
                 seen_fields.add(field)
-                getattr(self._my_step, field).append(self)
-
-        return self._my_step
+        return list(seen_fields)
 
     def __str__(self):
         return str(self.__class__)
@@ -390,6 +400,8 @@ class UserStepDecoratorBase(metaclass=UserStepDecoratorMeta):
         pass
 
     def external_init(self):
+        if self._ran_init:
+            return
         # You can use config values in the arguments to a UserStepDecoratorBase
         # so we resolve those as well
         self._args = [resolve_delayed_evaluator(arg) for arg in self._args]
@@ -404,6 +416,7 @@ class UserStepDecoratorBase(metaclass=UserStepDecoratorMeta):
                 )
         if "init" in self.__class__.__dict__:
             self.init(*self._args, **self._kwargs)
+        self._ran_init = True
 
 
 class UserStepDecorator(UserStepDecoratorBase):

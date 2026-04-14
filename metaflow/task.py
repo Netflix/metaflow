@@ -108,12 +108,12 @@ class MetaflowTask(object):
             if not fake_next_call_args:
                 if input_obj is None:
                     if wrapped_func:
-                        fake_next_call_args = wrapped_func(self.flow)
+                        fake_next_call_args = wrapped_func(self.flow) or None
                     else:
                         step_function()
                 else:
                     if wrapped_func:
-                        fake_next_call_args = wrapped_func(self.flow, input_obj)
+                        fake_next_call_args = wrapped_func(self.flow, input_obj) or None
                     else:
                         step_function(input_obj)
         except Exception as ex:
