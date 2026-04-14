@@ -252,9 +252,49 @@ class DAGNode(object):
         )
 
 
+class SyntheticDAGNode(DAGNode):
+    """DAGNode for FunctionSpec — sets fields directly, no AST parsing."""
+
+    def __init__(self, func, decos=None, doc=None):
+        self.name = "call"
+        self.func_lineno = 0
+        self.source_file = inspect.getsourcefile(func)
+        if self.source_file:
+            try:
+                _, lineno = inspect.getsourcelines(func)
+                self.func_lineno = lineno
+            except (OSError, TypeError):
+                pass
+
+        self.decorators = decos or []
+        self.wrappers = []
+        self.config_decorators = []
+        self.doc = deindent_docstring(doc or "")
+        self.parallel_step = False
+
+        self.tail_next_lineno = 0
+        self.type = "linear"
+        self.out_funcs = []
+        self.has_tail_next = False
+        self.invalid_tail_next = False
+        self.num_args = 0
+        self.switch_cases = {}
+        self.condition = None
+        self.foreach_param = None
+        self.num_parallel = 0
+        self.parallel_foreach = False
+
+        self.in_funcs = set()
+        self.split_parents = []
+        self.split_branches = []
+        self.matching_join = None
+        self.is_inside_foreach = False
+
+
 class FlowGraph(object):
     def __init__(self, flow):
         self.name = flow.__name__
+        self.is_function_spec = getattr(flow, "is_function_spec", False)
         self.nodes = self._create_nodes(flow)
         self.doc = deindent_docstring(flow.__doc__)
         # nodes sorted in topological order.
@@ -283,6 +323,16 @@ class FlowGraph(object):
                     lineno,
                 )
                 nodes[element] = node
+
+        # FunctionSpec: synthesize a single "call" node
+        if not nodes and self.is_function_spec:
+            call_method = getattr(flow, "call", None)
+            if call_method is not None:
+                decos = list(getattr(flow, "_function_spec_decos", []))
+                nodes["call"] = SyntheticDAGNode(
+                    call_method, decos=decos, doc=call_method.__doc__
+                )
+
         return nodes
 
     def _postprocess(self):
@@ -340,6 +390,8 @@ class FlowGraph(object):
 
         if "start" in self:
             traverse(self["start"], [], [], [])
+        elif self.is_function_spec and "call" in self:
+            traverse(self["call"], [], [], [])
 
         # fix the order of in_funcs
         for node in self.nodes.values():
@@ -386,6 +438,14 @@ class FlowGraph(object):
                         '  shape = "hexagon" '
                         '  style = "filled" fillcolor = "lightgreen" ];'
                     ).format(node, condition=condition_label)
+                elif self.is_function_spec and node.name == "call":
+                    yield (
+                        '"{0.name}"'
+                        '[ label = <<b>call</b><br/>'
+                        '<font point-size="9">init() + call()</font>> '
+                        '  fontname = "Helvetica" '
+                        '  shape = "record" ];'
+                    ).format(node)
                 else:
                     nodetype = "join" if node.num_args > 1 else node.type
                     yield '"{0.name}"' '[ label = <<b>{0.name}</b> | <font point-size="10">{type}</font>> ' '  fontname = "Helvetica" ' '  shape = "record" ];'.format(
@@ -456,6 +516,12 @@ class FlowGraph(object):
             if node.matching_join:
                 d["matching_join"] = node.matching_join
             return d
+
+        # FunctionSpec: single-node graph, no start/end
+        if self.is_function_spec and "call" in self:
+            node = self.nodes["call"]
+            steps_info["call"] = node_to_dict("call", node)
+            return steps_info, ["call"]
 
         def populate_block(start_name, end_name):
             cur_name = start_name

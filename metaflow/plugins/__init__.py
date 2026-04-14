@@ -78,6 +78,7 @@ FLOW_DECORATORS_DESC = [
     ("pypi_base", ".pypi.pypi_decorator.PyPIFlowDecorator"),
     ("conda_base", ".pypi.conda_decorator.CondaFlowDecorator"),
     ("exit_hook", ".exit_hook.exit_hook_decorator.ExitHookDecorator"),
+    ("nflx_resources", ".resources_decorator.NflxResources"),
 ]
 
 # Add environments here

@@ -58,6 +58,8 @@ def check_reserved_words(graph):
 @linter.ensure_fundamentals
 @linter.check
 def check_basic_steps(graph):
+    if getattr(graph, "is_function_spec", False):
+        return
     msg = "Add %s *%s* step in your flow."
     for prefix, node in (("a", "start"), ("an", "end")):
         if node not in graph:
@@ -67,6 +69,8 @@ def check_basic_steps(graph):
 @linter.ensure_static_graph
 @linter.check
 def check_that_end_is_end(graph):
+    if getattr(graph, "is_function_spec", False):
+        return
     msg0 = "The *end* step should not have a step.next() transition. " "Just remove it."
     msg1 = (
         "The *end* step should not be a join step (it gets an extra "
@@ -118,6 +122,8 @@ def check_num_args(graph):
 @linter.ensure_static_graph
 @linter.check
 def check_static_transitions(graph):
+    if getattr(graph, "is_function_spec", False):
+        return
     msg = (
         "Step *{0.name}* is missing a self.next() transition to "
         "the next step. Add a self.next() as the last line in the "
@@ -192,6 +198,8 @@ def check_for_acyclicity(graph):
 @linter.ensure_static_graph
 @linter.check
 def check_for_orphans(graph):
+    if getattr(graph, "is_function_spec", False):
+        return
     msg = (
         "Step *{0.name}* is unreachable from the start step. Add "
         "self.next({0.name}) in another step or remove *{0.name}*."
@@ -215,6 +223,8 @@ def check_for_orphans(graph):
 @linter.ensure_static_graph
 @linter.check
 def check_split_join_balance(graph):
+    if getattr(graph, "is_function_spec", False):
+        return
     msg0 = (
         "Step *end* reached before a split started at step(s) *{roots}* "
         "were joined. Add a join step before *end*."

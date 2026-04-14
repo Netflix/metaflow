@@ -1,4 +1,4 @@
-from metaflow.decorators import StepDecorator
+from metaflow.decorators import StepDecorator, FlowDecorator
 
 
 class ResourcesDecorator(StepDecorator):
@@ -42,3 +42,48 @@ class ResourcesDecorator(StepDecorator):
         "memory": "4096",
         "shared_memory": None,
     }
+
+
+class NflxResources(FlowDecorator):
+    """
+    Class-level resource declaration for FunctionSpec.
+
+    Flow decorator -- applied via standard _base_flow_decorator path
+    (works because FunctionSpec IS-A FlowSpec). Attributes are
+    propagated to the synthesized "call" node by FunctionSpecMeta
+    so that runtime step_init/task_pre_step/task_post_step hooks fire.
+
+    Parameters
+    ----------
+    cpu : int, default 1
+        Number of CPUs required.
+    gpu : int, optional, default None
+        Number of GPUs required.
+    disk : int, optional, default None
+        Disk size (in MB) required. Only applies on Kubernetes.
+    memory : int, default 4096
+        Memory size (in MB) required.
+    shared_memory : int, optional, default None
+        The value for the size (in MiB) of the /dev/shm volume.
+    """
+
+    name = "nflx_resources"
+    defaults = {
+        "cpu": "1",
+        "gpu": None,
+        "disk": None,
+        "memory": "4096",
+        "shared_memory": None,
+    }
+
+    def flow_init(
+        self, flow, graph, environment, flow_datastore, metadata, logger, echo, options
+    ):
+        if not getattr(flow, "is_function_spec", False):
+            from metaflow.exception import MetaflowException
+
+            raise MetaflowException(
+                "@nflx_resources can only be applied to FunctionSpec subclasses, "
+                "not %s. Use @resources on individual @step methods for FlowSpec."
+                % type(flow).__name__
+            )
