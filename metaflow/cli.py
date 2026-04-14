@@ -561,8 +561,6 @@ def start(
     ctx.obj.monitor.start()
     _system_monitor.init_system_monitor(ctx.obj.flow.name, ctx.obj.monitor)
 
-    decorators._init(ctx.obj.flow)
-
     # Populate the system context singleton for this process. The phase is
     # determined by which CLI subcommand is being invoked (e.g. "run" → LAUNCH,
     # "step" → TASK, "batch" → TRAMPOLINE).
