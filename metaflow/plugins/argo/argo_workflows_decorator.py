@@ -65,7 +65,7 @@ class ArgoWorkflowsInternalDecorator(StepDecorator):
             # size of the metadata field yet! However we don't really need this
             # metadata outside of the start step so we can save a few bytes in the
             # db.
-            if step_name == "start":
+            if step_name == graph.start_step:
                 meta["execution-triggers"] = json.dumps(triggers)
 
         meta["argo-workflow-template"] = os.environ["ARGO_WORKFLOW_TEMPLATE"]

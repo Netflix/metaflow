@@ -48,7 +48,17 @@ def deindent_docstring(doc):
 
 class DAGNode(object):
     def __init__(
-        self, func_ast, decos, wrappers, config_decorators, doc, source_file, lineno
+        self,
+        func_ast,
+        decos,
+        wrappers,
+        config_decorators,
+        doc,
+        source_file,
+        lineno,
+        is_start_step=False,
+        is_end_step=False,
+        node_info=None,
     ):
         self.name = func_ast.name
         self.source_file = source_file
@@ -60,6 +70,12 @@ class DAGNode(object):
         self.config_decorators = config_decorators
         self.doc = deindent_docstring(doc)
         self.parallel_step = any(getattr(deco, "IS_PARALLEL", False) for deco in decos)
+        # Explicit start/end annotations from @step(start=True) / @step(end=True)
+        self.is_start_step = is_start_step
+        self.is_end_step = is_end_step
+        # Generic metadata dict for extensions to attach extra info to this node.
+        # Serialized to _graph_info via to_pod; live references accessible via flow._graph.
+        self.node_info = node_info or {}
 
         # these attributes are populated by _parse
         self.tail_next_lineno = 0
@@ -140,10 +156,9 @@ class DAGNode(object):
         self.num_args = len(func_ast.args.args)
         tail = func_ast.body[-1]
 
-        # end doesn't need a transition
-        if self.name == "end":
-            # TYPE: end
-            self.type = "end"
+        # Note: type assignment for start/end steps is handled by
+        # FlowGraph._identify_start_end() based on graph structure,
+        # not by name.
 
         # ensure that the tail an expression
         if not isinstance(tail, ast.Expr):
@@ -212,10 +227,10 @@ class DAGNode(object):
                     self.type = "split"
                     self.invalid_tail_next = False
                 elif len(self.out_funcs) == 1:
-                    # TYPE: linear
-                    if self.name == "start":
-                        self.type = "start"
-                    elif self.num_args > 1:
+                    # TYPE: linear (or join)
+                    # Note: "start" type is assigned later by
+                    # FlowGraph._identify_start_end() based on structure.
+                    if self.num_args > 1:
                         self.type = "join"
                     else:
                         self.type = "linear"
@@ -259,8 +274,64 @@ class FlowGraph(object):
         self.doc = deindent_docstring(flow.__doc__)
         # nodes sorted in topological order.
         self.sorted_nodes = []
+        self._identify_start_end()
         self._traverse_graph()
         self._postprocess()
+
+    def _identify_start_end(self):
+        """
+        Determine the start and end steps.
+
+        Uses explicit ``@step(start=True)`` / ``@step(end=True)`` annotations
+        if present.  Falls back to looking for steps named ``"start"`` /
+        ``"end"`` for backward compatibility.
+
+        Sets ``self.start_step`` and ``self.end_step`` to step name strings,
+        or ``None`` if the graph is malformed (validated later by lint).
+        Also assigns the ``"start"`` and ``"end"`` node types.
+        """
+        # 1. Look for explicit annotations
+        annotated_start = [
+            name
+            for name, node in self.nodes.items()
+            if node.is_start_step and not name.startswith("_")
+        ]
+        annotated_end = [
+            name
+            for name, node in self.nodes.items()
+            if node.is_end_step and not name.startswith("_")
+        ]
+
+        # 2. Determine start step (annotation first, then name fallback)
+        if len(annotated_start) == 1:
+            self.start_step = annotated_start[0]
+        elif len(annotated_start) == 0:
+            self.start_step = "start" if "start" in self.nodes else None
+        else:
+            self.start_step = None  # Multiple annotated — lint will catch
+
+        # 3. Determine end step (annotation first, then name fallback)
+        if len(annotated_end) == 1:
+            self.end_step = annotated_end[0]
+        elif len(annotated_end) == 0:
+            self.end_step = "end" if "end" in self.nodes else None
+        else:
+            self.end_step = None  # Multiple annotated — lint will catch
+
+        # 4. Assign types based on identified start/end.
+        # Only upgrade "linear" → "start" for the entry point; do NOT override
+        # "split", "foreach", etc. since those types are needed for
+        # split/join balance checking.
+        if self.start_step and self.start_step == self.end_step:
+            # Single-step flow: terminal node that is also the entry point
+            self.nodes[self.start_step].type = "end"
+        else:
+            if self.start_step:
+                node = self.nodes[self.start_step]
+                if node.type in (None, "linear"):
+                    node.type = "start"
+            if self.end_step:
+                self.nodes[self.end_step].type = "end"
 
     def _create_nodes(self, flow):
         nodes = {}
@@ -281,6 +352,9 @@ class FlowGraph(object):
                     func.__doc__,
                     source_file,
                     lineno,
+                    is_start_step=getattr(func, "is_start_step", False),
+                    is_end_step=getattr(func, "is_end_step", False),
+                    node_info=getattr(func, "node_info", None),
                 )
                 nodes[element] = node
         return nodes
@@ -338,8 +412,8 @@ class FlowGraph(object):
                             split_branches + ([n] if add_split_branch else []),
                         )
 
-        if "start" in self:
-            traverse(self["start"], [], [], [])
+        if self.start_step and self.start_step in self:
+            traverse(self[self.start_step], [], [], [])
 
         # fix the order of in_funcs
         for node in self.nodes.values():
@@ -445,6 +519,7 @@ class FlowGraph(object):
                     for deco in chain(node.wrappers, node.config_decorators)
                 ],
                 "next": node.out_funcs,
+                "node_info": to_pod(node.node_info),
             }
             if d["type"] == "split-foreach":
                 d["foreach_artifact"] = node.foreach_param
@@ -493,9 +568,15 @@ class FlowGraph(object):
                         break
             return resulting_list
 
-        graph_structure = populate_block("start", "end")
+        if self.start_step == self.end_step:
+            # Single-step flow
+            graph_structure = []
+        else:
+            graph_structure = populate_block(self.start_step, self.end_step)
 
-        steps_info["end"] = node_to_dict("end", self.nodes["end"])
-        graph_structure.append("end")
+        steps_info[self.end_step] = node_to_dict(
+            self.end_step, self.nodes[self.end_step]
+        )
+        graph_structure.append(self.end_step)
 
         return steps_info, graph_structure

@@ -478,10 +478,10 @@ class StepFunctions(object):
                 )
             return workflow
 
-        workflow = Workflow(self.name).start_at("start")
+        workflow = Workflow(self.name).start_at(self.graph.start_step)
         if self.workflow_timeout:
             workflow.timeout_seconds(self.workflow_timeout)
-        return _visit(self.graph["start"], workflow)
+        return _visit(self.graph[self.graph.start_step], workflow)
 
     def _cron(self):
         schedule = self.flow._flow_decorators.get("schedule")
@@ -597,7 +597,7 @@ class StepFunctions(object):
         # Store production token within the `start` step, so that subsequent
         # `step-functions create` calls can perform a rudimentary authorization
         # check.
-        if node.name == "start":
+        if node.name == self.graph.start_step:
             attrs["metaflow.production_token"] = self.production_token
 
         # Add env vars from the optional @environment decorator.
@@ -610,7 +610,7 @@ class StepFunctions(object):
         if S3_ENDPOINT_URL is not None:
             env["METAFLOW_S3_ENDPOINT_URL"] = S3_ENDPOINT_URL
 
-        if node.name == "start":
+        if node.name == self.graph.start_step:
             # metaflow.run_id maps to AWS Step Functions State Machine Execution in all
             # cases except for when within a for-each construct that relies on
             # Distributed Map. To work around this issue, we pass the run id from the
@@ -956,7 +956,7 @@ class StepFunctions(object):
             "--with=step_functions_internal",
         ]
 
-        if node.name == "start":
+        if node.name == self.graph.start_step:
             # We need a separate unique ID for the special _parameters task
             task_id_params = "%s-params" % task_id
             # Export user-defined parameters into runtime environment
