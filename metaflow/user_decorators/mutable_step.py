@@ -327,7 +327,7 @@ class MutableStep:
                 raise MetaflowException(
                     "Adding step mutator '%s' from %s is only allowed in the "
                     "`pre_mutate` method and not the `mutate` method"
-                    % (step_deco.decorator_name, self._inserted_by)
+                    % (deco_type.decorator_name, self._inserted_by)
                 )
             debug.userconf_exec(
                 "Mutable step adding decorator %s to step %s"
