@@ -31,6 +31,7 @@
     class CorrectFlow2(FlowSpec):
       ...
   out: |
+    .*note: "project" defined here
     main:3: error: .*incompatible type.*expected "str"\s+\[arg-type\]
     main:4: error: .*Too many positional arguments for "project"\s+\[misc\]
     main:7: error: .*Too many positional arguments for "project"\s+\[misc\]

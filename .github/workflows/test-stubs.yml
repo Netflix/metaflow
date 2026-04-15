@@ -43,7 +43,7 @@ jobs:
       run: |
         python3 -m pip install --upgrade pip setuptools
         if python3 -c "import sys; exit(0 if sys.version_info >= (3,10) else 1)"; then
-          python3 -m pip install pytest build "mypy<1.9" "pytest-mypy-plugins>=4"
+          python3 -m pip install pytest build "mypy<1.9" "pytest-mypy-plugins==4.0.0"
         else
           python3 -m pip install pytest build "mypy<1.9" "pytest-mypy-plugins<4"
         fi
