@@ -925,6 +925,11 @@ def _init_step_decorators(
                 cached_skip_decorators.add(deco.name)
                 continue
             deco.external_init()
+        # Also call external_init on UserStepDecorator wrappers. The _ran_init
+        # guard in external_init handles dual-inherit decorators that already
+        # had external_init called via config_decorators in _process_config_decorators.
+        for deco in step.wrappers or []:
+            deco.external_init()
     for step in flow:
         for deco in step.decorators:
             if deco.name in cached_skip_decorators:
