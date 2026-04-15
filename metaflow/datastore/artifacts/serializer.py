@@ -1,4 +1,4 @@
-from abc import abstractmethod
+from abc import ABCMeta, abstractmethod
 from collections import namedtuple
 
 
@@ -23,6 +23,9 @@ class SerializedBlob(object):
         If None, auto-detected from value type: str -> reference, bytes -> new data.
     compress_method : str
         Compression method for new blobs. Ignored for references. Default "gzip".
+        NOTE: Not yet wired into the save path — ContentAddressedStore currently
+        always applies gzip. This field is forward-looking for when per-blob
+        compression control is needed (e.g., multi-blob IOType support).
     """
 
     def __init__(self, value, is_reference=None, compress_method="gzip"):
@@ -43,7 +46,7 @@ class SerializedBlob(object):
         return not self.is_reference
 
 
-class SerializerStore(type):
+class SerializerStore(ABCMeta):
     """
     Metaclass for ArtifactSerializer that auto-registers subclasses by TYPE.
 

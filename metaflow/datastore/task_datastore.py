@@ -372,6 +372,11 @@ class TaskDataStore(object):
 
                 # For now, serializers produce a single blob per artifact.
                 # Multi-blob support will be added when IOType lands.
+                if not blobs:
+                    raise DataException(
+                        "Serializer %s returned no blobs for artifact '%s'"
+                        % (serializer.__name__, name)
+                    )
                 artifact_names.append(name)
                 yield blobs[0].value
 
