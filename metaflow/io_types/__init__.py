@@ -4,3 +4,4 @@ from .json_type import Json
 from .enum_type import Enum
 from .struct_type import Struct
 from .collections import List, Map
+from .tensor_type import Tensor
