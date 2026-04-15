@@ -582,6 +582,8 @@ def to_pod(value):
         return [to_pod(v) for v in value]
     if isinstance(value, DeployTimeField):
         return value.print_representation
+    if callable(value):
+        return getattr(value, "__qualname__", str(value))
     return str(value)
 
 

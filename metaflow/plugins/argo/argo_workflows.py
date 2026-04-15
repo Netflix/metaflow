@@ -1238,7 +1238,7 @@ class ArgoWorkflows(object):
 
             # helper variable for recursive conditional inputs
             has_foreach_inputs = False
-            if node.name == "start":
+            if node.name == self.graph.start_step:
                 # Start node has no dependencies.
                 dag_task = DAGTask(self._sanitize(node.name)).template(
                     self._sanitize(node.name)
@@ -1940,7 +1940,9 @@ class ArgoWorkflows(object):
             for daemon_template in self._daemon_templates()
         ]
 
-        templates, dag_tasks = _visit(node=self.graph["start"], dag_tasks=daemon_tasks)
+        templates, dag_tasks = _visit(
+            node=self.graph[self.graph.start_step], dag_tasks=daemon_tasks
+        )
         # Add the DAG template only after fully traversing the graph so we are guaranteed to have all the dag_tasks collected.
         templates.append(
             Template(self.flow.name).dag(DAGTemplate().fail_fast().tasks(dag_tasks))
@@ -1992,7 +1994,7 @@ class ArgoWorkflows(object):
             # input paths and parallel join will derive input paths based on a
             # formulaic approach using `num-parallel` and `task-id-entropy`.
             if not (
-                node.name == "start"
+                node.name == self.graph.start_step
                 or (node.type == "join" and self.graph[node.in_funcs[0]].parallel_step)
             ):
                 # For parallel joins we don't pass the INPUT_PATHS but are dynamically constructed.
@@ -2155,7 +2157,7 @@ class ArgoWorkflows(object):
                 % self.auto_emit_argo_events,
             ]
 
-            if node.name == "start":
+            if node.name == self.graph.start_step:
                 # Execute `init` before any step of the workflow executes
                 task_id_params = "%s-params" % task_id
                 init = (
@@ -2452,7 +2454,7 @@ class ArgoWorkflows(object):
             # input paths and parallel join will derive input paths based on a
             # formulaic approach.
             if not (
-                node.name == "start"
+                node.name == self.graph.start_step
                 or (node.type == "join" and self.graph[node.in_funcs[0]].parallel_step)
             ):
                 inputs.append(Parameter("input-paths"))
@@ -2506,7 +2508,7 @@ class ArgoWorkflows(object):
             outputs = []
             # @parallel steps will not have a task-id as an output parameter since task-ids
             # are derived at runtime.
-            if not (node.name == "end" or node.parallel_step):
+            if not (node.name == self.graph.end_step or node.parallel_step):
                 outputs = [Parameter("task-id").valueFrom({"path": "/mnt/out/task_id"})]
 
             # If this step is a split-switch one, we need to output the switch step name
@@ -2978,7 +2980,7 @@ class ArgoWorkflows(object):
     def _lifecycle_hook_from_deco(self, deco):
         from kubernetes import client as kubernetes_sdk
 
-        start_step = [step for step in self.graph if step.name == "start"][0]
+        start_step = self.graph[self.graph.start_step]
         # We want to grab the base image used by the start step, as this is known to be pullable from within the cluster,
         # and it might contain the required libraries, allowing us to start up faster.
         start_kube_deco = [
@@ -3125,7 +3127,7 @@ class ArgoWorkflows(object):
     def _error_msg_capture_hook_templates(self):
         from kubernetes import client as kubernetes_sdk
 
-        start_step = [step for step in self.graph if step.name == "start"][0]
+        start_step = self.graph[self.graph.start_step]
         # We want to grab the base image used by the start step, as this is known to be pullable from within the cluster,
         # and it might contain the required libraries, allowing us to start up faster.
         resources = dict(
@@ -3688,7 +3690,7 @@ class ArgoWorkflows(object):
 
         # We want to grab the base image used by the start step, as this is known to be pullable from within the cluster,
         # and it might contain the required libraries, allowing us to start up faster.
-        start_step = next(step for step in self.flow if step.name == "start")
+        start_step = self.graph[self.graph.start_step]
         resources = dict(
             [deco for deco in start_step.decorators if deco.name == "kubernetes"][
                 0

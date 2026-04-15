@@ -2121,8 +2121,9 @@ class Step(MetaflowObject):
             Parent step
         """
         graph_info = self.task["_graph_info"].data
+        start_step = graph_info.get("start_step", "start")
 
-        if self.id != "start":
+        if self.id != start_step:
             flow, run, _ = self.path_components
             for node_name, attributes in graph_info["steps"].items():
                 if self.id in attributes["next"]:
@@ -2139,8 +2140,9 @@ class Step(MetaflowObject):
             Child step
         """
         graph_info = self.task["_graph_info"].data
+        end_step = graph_info.get("end_step", "end")
 
-        if self.id != "end":
+        if self.id != end_step:
             flow, run, _ = self.path_components
             for next_step in graph_info["steps"][self.id]["next"]:
                 yield Step(f"{flow}/{run}/{next_step}", _namespace_check=False)
@@ -2153,7 +2155,7 @@ class Run(MetaflowObject):
     Attributes
     ----------
     data : MetaflowData
-        a shortcut to run['end'].task.data, i.e. data produced by this run.
+        A shortcut to the terminal step's task data produced by this run.
     successful : bool
         True if the run completed successfully.
     finished : bool
@@ -2165,7 +2167,7 @@ class Run(MetaflowObject):
     trigger : MetaflowTrigger
         Information about event(s) that triggered this run (if present). See `MetaflowTrigger`.
     end_task : Task
-        `Task` for the end step (if it is present already).
+        `Task` for the terminal step (if it is present already).
     """
 
     _NAME = "run"
@@ -2175,6 +2177,25 @@ class Run(MetaflowObject):
     def _iter_filter(self, x):
         # exclude _parameters step
         return x.id[0] != "_"
+
+    @property
+    def _graph_endpoints(self):
+        """
+        Returns (start_step_name, end_step_name) from _parameters metadata.
+
+        Falls back to ("start", "end") for runs that predate structural
+        inference (backward compatibility).
+        """
+        if not hasattr(self, "_cached_endpoints"):
+            start, end = "start", "end"
+            try:
+                params_meta = self["_parameters"].task.metadata_dict
+                start = params_meta.get("start_step", "start")
+                end = params_meta.get("end_step", "end")
+            except Exception:
+                pass
+            self._cached_endpoints = (start, end)
+        return self._cached_endpoints
 
     def steps(self, *tags: str) -> Iterator[Step]:
         """
@@ -2298,17 +2319,18 @@ class Run(MetaflowObject):
     @property
     def end_task(self) -> Optional[Task]:
         """
-        Returns the Task corresponding to the 'end' step.
+        Returns the Task corresponding to the terminal step.
 
-        This returns None if the end step does not yet exist.
+        This returns None if the terminal step does not yet exist.
 
         Returns
         -------
         Task, optional
-            The 'end' task
+            The terminal step's task
         """
         try:
-            end_step = self["end"]
+            _, end_step_name = self._graph_endpoints
+            end_step = self[end_step_name]
         except KeyError:
             return None
 
@@ -2481,8 +2503,9 @@ class Run(MetaflowObject):
         Trigger, optional
             Container of triggering events
         """
-        if "start" in self and self["start"].task:
-            meta = self["start"].task.metadata_dict.get("execution-triggers")
+        start_step, _ = self._graph_endpoints
+        if start_step in self and self[start_step].task:
+            meta = self[start_step].task.metadata_dict.get("execution-triggers")
             if meta:
                 return Trigger(json.loads(meta))
         return None
