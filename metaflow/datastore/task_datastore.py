@@ -1,6 +1,5 @@
 from collections import defaultdict
 import json
-import pickle
 import sys
 import time
 
@@ -117,12 +116,12 @@ class TaskDataStore(object):
         self._parent = flow_datastore
         self._persist = persist
 
-        # The GZIP encodings are for backward compatibility
-        self._encodings = {"pickle-v2", "gzip+pickle-v2"}
-        ver = sys.version_info[0] * 10 + sys.version_info[1]
-        if ver >= 36:
-            self._encodings.add("pickle-v4")
-            self._encodings.add("gzip+pickle-v4")
+        # Import here to ensure serializers are registered via the plugin system.
+        # The import of metaflow.plugins triggers PickleSerializer (and any
+        # extension serializers) to register with SerializerStore.
+        from .artifacts.serializer import SerializerStore
+
+        self._serializers = SerializerStore.get_ordered_serializers()
 
         self._is_done_set = False
 
@@ -347,38 +346,37 @@ class TaskDataStore(object):
         """
         artifact_names = []
 
-        def pickle_iter():
+        def serialize_iter():
             for name, obj in artifacts_iter:
-                encode_type = "gzip+pickle-v4"
-                if encode_type in self._encodings:
-                    try:
-                        blob = pickle.dumps(obj, protocol=4)
-                    except TypeError as e:
-                        raise UnpicklableArtifactException(name) from e
-                else:
-                    try:
-                        blob = pickle.dumps(obj, protocol=2)
-                        encode_type = "gzip+pickle-v2"
-                    except (SystemError, OverflowError) as e:
-                        raise DataException(
-                            "Artifact *%s* is very large (over 2GB). "
-                            "You need to use Python 3.6 or newer if you want to "
-                            "serialize large objects." % name
-                        ) from e
-                    except TypeError as e:
-                        raise UnpicklableArtifactException(name) from e
+                # Find the first serializer that can handle this object
+                serializer = None
+                for s in self._serializers:
+                    if s.can_serialize(obj):
+                        serializer = s
+                        break
+                if serializer is None:
+                    raise UnpicklableArtifactException(name)
+
+                try:
+                    blobs, metadata = serializer.serialize(obj)
+                except TypeError as e:
+                    raise UnpicklableArtifactException(name) from e
 
                 self._info[name] = {
-                    "size": len(blob),
-                    "type": str(type(obj)),
-                    "encoding": encode_type,
+                    "size": metadata.size,
+                    "type": metadata.type,
+                    "encoding": metadata.encoding,
                 }
+                if metadata.serializer_info:
+                    self._info[name]["serializer_info"] = metadata.serializer_info
 
+                # For now, serializers produce a single blob per artifact.
+                # Multi-blob support will be added when IOType lands.
                 artifact_names.append(name)
-                yield blob
+                yield blobs[0].value
 
         # Use the content-addressed store to store all artifacts
-        save_result = self._ca_store.save_blobs(pickle_iter(), len_hint=len_hint)
+        save_result = self._ca_store.save_blobs(serialize_iter(), len_hint=len_hint)
         for name, result in zip(artifact_names, save_result):
             self._objects[name] = result.key
 
@@ -408,38 +406,50 @@ class TaskDataStore(object):
         Iterator[(string, object)] :
             An iterator over objects retrieved.
         """
+        from .artifacts.serializer import SerializationMetadata
+
         if not self._info:
             raise DataException(
                 "Datastore for task '%s' does not have the required metadata to "
                 "load artifacts" % self._path
             )
         to_load = defaultdict(list)
+        deserializers = {}  # name -> serializer class
         for name in names:
-            info = self._info.get(name)
-            # We use gzip+pickle-v2 as this is the oldest/most compatible.
-            # This datastore will always include the proper encoding version so
-            # this is just to be able to read very old artifacts
-            if info:
-                encode_type = info.get("encoding", "gzip+pickle-v2")
-            else:
-                encode_type = "gzip+pickle-v2"
-            if encode_type not in self._encodings:
+            info = self._info.get(name, {})
+            metadata = SerializationMetadata(
+                type=info.get("type", "object"),
+                size=info.get("size", 0),
+                # Default to gzip+pickle-v2 for very old artifacts without encoding
+                encoding=info.get("encoding", "gzip+pickle-v2"),
+                serializer_info=info.get("serializer_info", {}),
+            )
+
+            # Find deserializer via metadata
+            deserializer = None
+            for s in self._serializers:
+                if s.can_deserialize(metadata):
+                    deserializer = s
+                    break
+            if deserializer is None:
                 raise DataException(
-                    "Python 3.6 or later is required to load artifact '%s'" % name
+                    "No deserializer found for artifact '%s' "
+                    "(encoding: %s)" % (name, metadata.encoding)
                 )
-            else:
-                to_load[self._objects[name]].append(name)
-        # At this point, we load what we don't have from the CAS
-        # We assume that if we have one "old" style artifact, all of them are
-        # like that which is an easy assumption to make since artifacts are all
-        # stored by the same implementation of the datastore for a given task.
+            deserializers[name] = (deserializer, metadata)
+            to_load[self._objects[name]].append(name)
+
+        # Load blobs from CAS and deserialize
         for key, blob in self._ca_store.load_blobs(to_load.keys()):
-            names = to_load[key]
-            for name in names:
-                # We unpickle everytime to have fully distinct objects (the user
+            loaded_names = to_load[key]
+            for name in loaded_names:
+                deserializer, metadata = deserializers[name]
+                # Deserialize each time to have fully distinct objects (the user
                 # would not expect two artifacts with different names to actually
                 # be aliases of one another)
-                yield name, pickle.loads(blob)
+                yield name, deserializer.deserialize(
+                    [blob], metadata, context=None
+                )
 
     @require_mode("r")
     def get_artifact_sizes(self, names):
