@@ -190,6 +190,7 @@ TL_PLUGINS_DESC = [
 # Add artifact serializers here. Ordering is by PRIORITY (lower = tried first).
 # PickleSerializer is the universal fallback (PRIORITY=9999).
 ARTIFACT_SERIALIZERS_DESC = [
+    ("iotype", ".datastores.serializers.iotype_serializer.IOTypeSerializer"),
     ("pickle", ".datastores.serializers.pickle_serializer.PickleSerializer"),
 ]
 
