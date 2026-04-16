@@ -3,7 +3,6 @@ from ..airflow_utils import SensorNames
 from ..exception import AirflowException
 from datetime import timedelta
 
-
 AIRFLOW_STATES = dict(
     QUEUED="queued",
     RUNNING="running",

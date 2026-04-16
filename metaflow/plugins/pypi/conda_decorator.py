@@ -43,6 +43,7 @@ class CondaStepDecorator(StepDecorator):
 
     _metaflow_home = None
     _addl_env_vars = None
+    disabled = False
 
     # To define conda channels for the whole solve, users can specify
     # CONDA_CHANNELS in their environment. For pinning specific packages to specific
@@ -247,6 +248,8 @@ class CondaStepDecorator(StepDecorator):
         self, cli_args, retry_count, max_user_code_retries, ubf_context
     ):
         if self.disabled:
+            return
+        if self.__class__._metaflow_home is None:
             return
         # Ensure local installation of Metaflow is visible to user code
         python_path = self.__class__._metaflow_home.name

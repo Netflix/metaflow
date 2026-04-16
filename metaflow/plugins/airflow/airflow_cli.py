@@ -1,4 +1,5 @@
 import base64
+import json
 import os
 import re
 import sys
@@ -212,6 +213,13 @@ def airflow(obj, name=None):
     show_default=True,
     help="Worker pool for Airflow DAG execution.",
 )
+@click.option(
+    "--deployer-attribute-file",
+    default=None,
+    type=str,
+    hidden=True,
+    help="Write the DAG name and metadata to the file specified. Used internally for Metaflow's Deployer API.",
+)
 @click.pass_obj
 def create(
     obj,
@@ -225,6 +233,7 @@ def create(
     max_workers=None,
     workflow_timeout=None,
     worker_pool=None,
+    deployer_attribute_file=None,
 ):
     if os.path.abspath(sys.argv[0]) == os.path.abspath(file):
         raise MetaflowException(
@@ -262,10 +271,84 @@ def create(
     with open(file, "w") as f:
         f.write(flow.compile())
 
+    if deployer_attribute_file:
+        with open(deployer_attribute_file, "w", encoding="utf-8") as f:
+            json.dump(
+                {
+                    "name": obj.dag_name,
+                    "flow_name": obj.flow.name,
+                    "metadata": obj.metadata.metadata_str(),
+                },
+                f,
+            )
+
     obj.echo(
         "DAG *{dag_name}* "
         "for flow *{name}* compiled to "
         "Airflow successfully.\n".format(dag_name=obj.dag_name, name=current.flow_name),
+        bold=True,
+    )
+
+
+@airflow.command(help="Trigger a new run of this Airflow DAG.")
+@click.option(
+    "--run-id-file",
+    default=None,
+    show_default=True,
+    type=str,
+    help="Write the DAG run ID to the file specified.",
+)
+@click.option(
+    "--deployer-attribute-file",
+    default=None,
+    type=str,
+    hidden=True,
+    help="Write the run metadata and pathspec to the file specified. Used internally for Metaflow's Deployer API.",
+)
+@click.pass_obj
+def trigger(obj, run_id_file=None, deployer_attribute_file=None):
+    from metaflow.metaflow_config import (
+        AIRFLOW_REST_API_URL,
+        AIRFLOW_REST_API_USERNAME,
+        AIRFLOW_REST_API_PASSWORD,
+    )
+    from .airflow_client import AirflowClient
+
+    if not AIRFLOW_REST_API_URL:
+        raise MetaflowException(
+            "METAFLOW_AIRFLOW_REST_API_URL is not set. Cannot trigger Airflow DAG run."
+        )
+
+    client = AirflowClient(
+        AIRFLOW_REST_API_URL,
+        username=AIRFLOW_REST_API_USERNAME,
+        password=AIRFLOW_REST_API_PASSWORD,
+    )
+
+    dag_id = obj.dag_name
+    dag_run = client.trigger_dag_run(dag_id)
+    dag_run_id = dag_run.get("dag_run_id") or dag_run.get("run_id", "")
+
+    if run_id_file:
+        with open(run_id_file, "w") as f:
+            f.write(dag_run_id)
+
+    if deployer_attribute_file:
+        with open(deployer_attribute_file, "w", encoding="utf-8") as f:
+            json.dump(
+                {
+                    "name": dag_run_id,
+                    "dag_id": dag_id,
+                    "metadata": obj.metadata.metadata_str(),
+                    "pathspec": obj.flow.name,
+                },
+                f,
+            )
+
+    obj.echo(
+        "DAG *{dag_id}* triggered on Airflow (run-id *{run_id}*).".format(
+            dag_id=dag_id, run_id=dag_run_id
+        ),
         bold=True,
     )
 

@@ -12,6 +12,7 @@ from metaflow.exception import MetaflowException
 from metaflow.metaflow_config import (
     EVENTS_SFN_ACCESS_IAM_ROLE,
     S3_ENDPOINT_URL,
+    SFN_CLIENT_PARAMS,
     SFN_DYNAMO_DB_TABLE,
     SFN_EXECUTION_LOG_GROUP_ARN,
     SFN_IAM_ROLE,
@@ -82,6 +83,12 @@ class StepFunctions(object):
         # https://aws.amazon.com/blogs/aws/step-functions-distributed-map-a-serverless-solution-for-large-scale-parallel-data-processing/
         self.use_distributed_map = use_distributed_map
 
+        # Detect sfn-local (local emulator) by checking if the SFN endpoint is
+        # localhost.  sfn-local v2 does not support ProcessorConfig in Map states,
+        # so we omit it when targeting the local emulator.
+        _sfn_endpoint = (SFN_CLIENT_PARAMS or {}).get("endpoint_url", "")
+        self._is_sfn_local = any(h in _sfn_endpoint for h in ("localhost", "127.0.0.1"))
+
         # S3 command upload configuration
         self.compress_state_machine = compress_state_machine
 
@@ -142,6 +149,9 @@ class StepFunctions(object):
 
     def schedule(self):
         # Scheduling is currently enabled via AWS Event Bridge.
+        # If no cron schedule is defined, nothing to do.
+        if not self._cron:
+            return
         if EVENTS_SFN_ACCESS_IAM_ROLE is None:
             raise StepFunctionsSchedulingException(
                 "No IAM role found for AWS "
@@ -343,7 +353,7 @@ class StepFunctions(object):
                 State(node.name)
                 .batch(self._batch(node))
                 .output_path(
-                    "$.['JobId', " "'Parameters', " "'Index', " "'SplitParentTaskId']"
+                    "$['JobId', " "'Parameters', " "'Index', " "'SplitParentTaskId']"
                 )
             )
             # End the (sub)workflow if we have reached the end of the flow or
@@ -370,6 +380,13 @@ class StepFunctions(object):
                             self.graph[n], Workflow(n).start_at(n), node.matching_join
                         )
                     )
+                # Add a ResultSelector that converts the Parallel output array into
+                # a named dict keyed by branch step name.  This avoids array indexing
+                # ($[n].x) in downstream states, which is not supported by
+                # sfn-local v2.0.0.  Instead, branches are accessed as $.step_name.x.
+                branch.result_selector(
+                    {"%s.$" % n: "$[%d]" % i for i, n in enumerate(node.out_funcs)}
+                )
                 workflow.add_state(branch)
                 # Continue the traversal from the matching_join.
                 _visit(self.graph[node.matching_join], workflow, exit_node)
@@ -388,7 +405,14 @@ class StepFunctions(object):
                 workflow.add_state(cardinality_state.next(iterator_name))
                 workflow.add_state(
                     Map(iterator_name)
-                    .items_path("$.Result.Item.for_each_cardinality.NS")
+                    # sfn-local serializes DynamoDB Number Set type as "Ns" (camelCase)
+                    # instead of the standard "NS" (uppercase). Use Ns for sfn-local,
+                    # NS for real AWS SFN.
+                    .items_path(
+                        "$.Result.Item.for_each_cardinality.Ns"
+                        if self._is_sfn_local
+                        else "$.Result.Item.for_each_cardinality.NS"
+                    )
                     .parameter("JobId.$", "$.JobId")
                     .parameter("SplitParentTaskId.$", "$.JobId")
                     .parameter("Parameters.$", "$.Parameters")
@@ -401,10 +425,18 @@ class StepFunctions(object):
                     .iterator(
                         _visit(
                             self.graph[node.out_funcs[0]],
-                            Workflow(node.out_funcs[0])
-                            .start_at(node.out_funcs[0])
-                            .mode(
-                                "DISTRIBUTED" if self.use_distributed_map else "INLINE"
+                            (
+                                Workflow(node.out_funcs[0]).start_at(node.out_funcs[0])
+                                # sfn-local v2 does not support ProcessorConfig
+                                # in Map states; omit it for the local emulator.
+                                if self._is_sfn_local
+                                else Workflow(node.out_funcs[0])
+                                .start_at(node.out_funcs[0])
+                                .mode(
+                                    "DISTRIBUTED"
+                                    if self.use_distributed_map
+                                    else "INLINE"
+                                )
                             ),
                             node.matching_join,
                         )
@@ -432,7 +464,7 @@ class StepFunctions(object):
                             else (None, None)
                         )
                     )
-                    .output_path("$" if self.use_distributed_map else "$.[0]")
+                    .output_path("$" if self.use_distributed_map else "$[0]")
                 )
                 if self.use_distributed_map:
                     workflow.add_state(
@@ -464,7 +496,7 @@ class StepFunctions(object):
                             .parameter("Bucket.$", "$.Body.DestinationBucket")
                             .parameter("Key.$", "$.Body.ResultFiles.SUCCEEDED[0].Key")
                         )
-                        .output_path("$.[0]")
+                        .output_path("$[0]")
                     )
 
                 # Continue the traversal from the matching_join.
@@ -676,7 +708,7 @@ class StepFunctions(object):
                     "$.Parameters.split_parent_task_id_%s" % node.split_parents[-1]
                 )
                 # Inherit the run id from the parent and pass it along to children.
-                attrs["metaflow.run_id.$"] = "$.Parameters.['metaflow.run_id']"
+                attrs["metaflow.run_id.$"] = "$.Parameters['metaflow.run_id']"
             else:
                 # Set appropriate environment variables for runtime replacement.
                 if len(node.in_funcs) == 1:
@@ -686,7 +718,7 @@ class StepFunctions(object):
                     )
                     env["METAFLOW_PARENT_TASK_ID"] = "$.JobId"
                     # Inherit the run id from the parent and pass it along to children.
-                    attrs["metaflow.run_id.$"] = "$.Parameters.['metaflow.run_id']"
+                    attrs["metaflow.run_id.$"] = "$.Parameters['metaflow.run_id']"
                 else:
                     # Generate the input paths in a quasi-compressed format.
                     # See util.decompress_list for why this is written the way
@@ -696,13 +728,18 @@ class StepFunctions(object):
                         "${METAFLOW_PARENT_%s_TASK_ID}" % (idx, idx)
                         for idx, _ in enumerate(node.in_funcs)
                     )
-                    # Inherit the run id from the parent and pass it along to children.
-                    attrs["metaflow.run_id.$"] = "$.[0].Parameters.['metaflow.run_id']"
-                    for idx, _ in enumerate(node.in_funcs):
-                        env["METAFLOW_PARENT_%s_TASK_ID" % idx] = "$.[%s].JobId" % idx
-                        env["METAFLOW_PARENT_%s_STEP" % idx] = (
-                            "$.[%s].Parameters.step_name" % idx
+                    # Use the context object reference for the run id.  The Parallel
+                    # state's ResultSelector transforms the output array to a named
+                    # dict ($.step_name.x), so branch outputs are accessed via the
+                    # step name rather than $[n].x array indexing (unsupported by
+                    # sfn-local v2.0.0).
+                    attrs["metaflow.run_id.$"] = "$$.Execution.Name"
+                    for idx, branch_name in enumerate(node.in_funcs):
+                        env["METAFLOW_PARENT_%s_TASK_ID" % idx] = (
+                            "$.%s.JobId" % branch_name
                         )
+                        # Step name is known at compile time (it's the branch name).
+                        env["METAFLOW_PARENT_%s_STEP" % idx] = branch_name
             env["METAFLOW_INPUT_PATHS"] = input_paths
 
             if node.is_inside_foreach:
@@ -745,7 +782,7 @@ class StepFunctions(object):
                         for parent in node.split_parents:
                             if self.graph[parent].type == "foreach":
                                 attrs["split_parent_task_id_%s.$" % parent] = (
-                                    "$.[0].Parameters.split_parent_task_id_%s" % parent
+                                    "$[0].Parameters.split_parent_task_id_%s" % parent
                                 )
                 else:
                     for parent in node.split_parents:
@@ -1124,16 +1161,18 @@ class State(object):
         # set retry strategy for AWS Batch job submission to account for the
         # measily 50 jobs / second queue admission limit which people can
         # run into very quickly.
-        self.retry_strategy(
-            {
-                "ErrorEquals": ["Batch.AWSBatchException"],
-                "BackoffRate": 2,
-                "IntervalSeconds": 2,
-                "MaxDelaySeconds": 60,
-                "MaxAttempts": 10,
-                "JitterStrategy": "FULL",
-            }
-        )
+        retry = {
+            "ErrorEquals": ["Batch.AWSBatchException"],
+            "BackoffRate": 2,
+            "IntervalSeconds": 2,
+            "MaxAttempts": 10,
+        }
+        # sfn-local v2.0.0 does not support MaxDelaySeconds or JitterStrategy.
+        _sfn_endpoint = (SFN_CLIENT_PARAMS or {}).get("endpoint_url", "")
+        if not any(h in _sfn_endpoint for h in ("localhost", "127.0.0.1")):
+            retry["MaxDelaySeconds"] = 60
+            retry["JitterStrategy"] = "FULL"
+        self.retry_strategy(retry)
         return self
 
     def dynamo_db(self, table_name, primary_key, values):
@@ -1190,6 +1229,10 @@ class Parallel(object):
 
     def result_path(self, result_path):
         self.payload["ResultPath"] = result_path
+        return self
+
+    def result_selector(self, selector):
+        self.payload["ResultSelector"] = selector
         return self
 
 
