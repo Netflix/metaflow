@@ -175,6 +175,42 @@ class MutableStep:
                 return dict(kwargs)
         return None
 
+    def replace_decorator(
+        self,
+        name: str,
+        updates: Dict[str, Any],
+        reject_if: Optional[List[str]] = None,
+    ) -> None:
+        """
+        Replace a decorator's kwargs, merging with any existing values.
+
+        If the decorator already exists, its kwargs are merged with `updates`
+        (updates take precedence) and the old decorator is replaced. If it does
+        not exist, a new one is added with `updates` as kwargs.
+
+        Parameters
+        ----------
+        name : str
+            The decorator name (e.g. "titus", "resources").
+        updates : Dict[str, Any]
+            Keyword arguments to set or override on the decorator.
+        reject_if : List[str], optional
+            If the existing decorator has any of these keys set to a non-None
+            value, raise MetaflowException. Use this to declare incompatible
+            options.
+        """
+        existing = self.get_decorator_kwargs(name) or {}
+        if reject_if:
+            for key in reject_if:
+                if existing.get(key) is not None:
+                    raise MetaflowException(
+                        "Cannot use @%s with %s=%r when combined with this decorator."
+                        % (name, key, existing[key])
+                    )
+        existing.update(updates)
+        self.remove_decorator(name)
+        self.add_decorator(name, deco_kwargs=existing)
+
     def add_decorator(
         self,
         deco_type: Union[partial, UserStepDecoratorBase, str],
