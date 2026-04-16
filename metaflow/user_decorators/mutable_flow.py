@@ -82,6 +82,20 @@ class MutableFlow:
                 r.extend(deco.get_args_kwargs())
                 yield tuple(r)
 
+    def has_decorator(self, name: str) -> bool:
+        """Check whether this flow has at least one decorator with the given name."""
+        for deco_name, _fq, _args, _kwargs in self.decorator_specs:
+            if deco_name == name:
+                return True
+        return False
+
+    def get_decorator_kwargs(self, name: str) -> Optional[Dict[str, Any]]:
+        """Return the kwargs of the first flow decorator with the given name, or None."""
+        for deco_name, _fq, _args, kwargs in self.decorator_specs:
+            if deco_name == name:
+                return dict(kwargs)
+        return None
+
     @property
     def configs(self) -> Generator[Tuple[str, ConfigValue], None, None]:
         """
