@@ -166,6 +166,24 @@ class MutableStep:
                 return dict(kwargs)
         return None
 
+    def get_all_decorator_kwargs(self, name: str) -> List[Dict[str, Any]]:
+        """
+        Return a list of kwargs dicts for all decorators with the given name.
+
+        If no decorators with the given name exist, returns an empty list.
+
+        Parameters
+        ----------
+        name : str
+            The decorator name to look for.
+
+        Returns
+        -------
+        List[Dict[str, Any]]
+            A list of keyword argument dicts, one per matching decorator.
+        """
+        return [dict(kwargs) for deco_name, _fq, _args, kwargs in self.decorator_specs if deco_name == name]
+
     def replace_decorator(
         self,
         name: str,
