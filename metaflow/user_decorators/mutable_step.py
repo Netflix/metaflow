@@ -18,7 +18,6 @@ from .user_step_decorator import StepMutator, UserStepDecoratorBase
 
 if TYPE_CHECKING:
     import metaflow.decorators
-    import metaflow.decorators
     import metaflow.flowspec
 
 
