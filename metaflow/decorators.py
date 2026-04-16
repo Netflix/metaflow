@@ -372,13 +372,28 @@ class StepDecorator(Decorator):
     task_step_completed_ctx = None  # coalesces task_post_step + task_exception
     task_finished_ctx = None
 
+    def check_step_conflicts(self, decorators):
+        """
+        Validate this decorator against all other decorators on the same step.
+
+        Called automatically during step_init, before the decorator's own
+        step_init logic runs. Override in subclasses to declare conflicts.
+        Raise MetaflowException if an incompatible combination is detected.
+
+        Parameters
+        ----------
+        decorators : list
+            All decorators on this step (including self).
+        """
+        pass
+
     def step_init(
         self, flow, graph, step_name, decorators, environment, flow_datastore, logger
     ):
         """
         Called when all decorators have been created for this step
         """
-        pass
+        self.check_step_conflicts(decorators)
 
     def package_init(self, flow, step_name, environment):
         """
