@@ -172,6 +172,34 @@ class MutableFlow:
                     inserted_by=self._inserted_by,
                 )
 
+    def get_step(
+        self, name: str
+    ) -> "metaflow.user_decorators.mutable_step.MutableStep":
+        """
+        Look up a step by name.
+
+        Parameters
+        ----------
+        name : str
+            The name of the step to look up.
+
+        Returns
+        -------
+        MutableStep
+            The mutable step proxy.
+
+        Raises
+        ------
+        MetaflowException
+            If no step with the given name exists in this flow.
+        """
+        for step_name, step_proxy in self.steps:
+            if step_name == name:
+                return step_proxy
+        raise MetaflowException(
+            "Step '%s' not found in flow '%s'." % (name, self._flow_cls.__name__)
+        )
+
     def add_parameter(
         self, name: str, value: "metaflow.parameters.Parameter", overwrite: bool = False
     ) -> None:
