@@ -125,6 +125,47 @@ class MutableStep:
             r.extend(deco.get_args_kwargs())
             yield tuple(r)
 
+    def has_decorator(self, name: str) -> bool:
+        """
+        Check whether this step has at least one decorator with the given name.
+
+        Parameters
+        ----------
+        name : str
+            The decorator name to look for.
+
+        Returns
+        -------
+        bool
+            True if a decorator with the given name exists on this step.
+        """
+        for deco_name, _fq, _args, _kwargs in self.decorator_specs:
+            if deco_name == name:
+                return True
+        return False
+
+    def get_decorator_kwargs(self, name: str) -> Optional[Dict[str, Any]]:
+        """
+        Return the keyword arguments of the first decorator with the given name,
+        or None if no such decorator exists.
+
+        If the decorator appears multiple times, returns the kwargs of the first match.
+
+        Parameters
+        ----------
+        name : str
+            The decorator name to look for.
+
+        Returns
+        -------
+        Optional[Dict[str, Any]]
+            The keyword arguments dict, or None if not found.
+        """
+        for deco_name, _fq, _args, kwargs in self.decorator_specs:
+            if deco_name == name:
+                return dict(kwargs)
+        return None
+
     def add_decorator(
         self,
         deco_type: Union[partial, UserStepDecoratorBase, str],
