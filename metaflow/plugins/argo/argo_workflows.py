@@ -460,6 +460,11 @@ class ArgoWorkflows(object):
         if schedule:
             # Remove the field "Year" if it exists
             schedule = schedule[0]
+            if schedule.schedule is None:
+                # @schedule decorator is present but all scheduling flags are
+                # falsy (e.g. @schedule(daily=False)). Treat this the same as
+                # no decorator — do not create a CronWorkflow.
+                return None, None
             return " ".join(schedule.schedule.split()[:5]), schedule.timezone
         return None, None
 
@@ -482,7 +487,7 @@ class ArgoWorkflows(object):
 
     def trigger_explanation(self):
         # Trigger explanation for cron workflows
-        if self.flow._flow_decorators.get("schedule"):
+        if self._schedule is not None:
             return (
                 "This workflow triggers automatically via the CronWorkflow *%s*."
                 % self.name
@@ -1822,10 +1827,9 @@ class ArgoWorkflows(object):
                                     if not self._is_conditional_join_node(
                                         self.graph[node.matching_join]
                                     )
-                                    else
                                     # Note: If the nodes leading to the join are conditional, then we need to use an expression to pick the outputs from the task that executed.
                                     # ref for operators: https://github.com/expr-lang/expr/blob/master/docs/language-definition.md
-                                    {
+                                    else {
                                         "expression": "get((%s)?.parameters, 'task-id')"
                                         % " ?? ".join(
                                             f"tasks['{self._sanitize(func)}']?.outputs"
@@ -2062,7 +2066,7 @@ class ArgoWorkflows(object):
                 )
                 task_str = "(t-%s)" % _task_id_base
 
-            task_id_expr = "export METAFLOW_TASK_ID=" "%s" % task_str
+            task_id_expr = "export METAFLOW_TASK_ID=%s" % task_str
             task_id = "$METAFLOW_TASK_ID"
 
             # Resolve retry strategy.
@@ -2415,7 +2419,7 @@ class ArgoWorkflows(object):
                     env[
                         "METAFLOW_ARGO_EVENT_PAYLOAD_%s_%s"
                         % (event["type"], event["sanitized_name"])
-                    ] = ("{{workflow.parameters.%s}}" % event["sanitized_name"])
+                    ] = "{{workflow.parameters.%s}}" % event["sanitized_name"]
 
             # Map S3 upload headers to environment variables
             if S3_SERVER_SIDE_ENCRYPTION is not None:
@@ -3862,7 +3866,8 @@ class ArgoWorkflows(object):
                 .annotations(self._base_annotations)
             )
             .spec(
-                SensorSpec().template(
+                SensorSpec()
+                .template(
                     # Sensor template.
                     SensorTemplate()
                     .metadata(
@@ -4023,7 +4028,8 @@ class ArgoWorkflows(object):
                             # @trigger(options={"reset_at": {"cron": , "timezone": }})
                             # timezone is IANA standard, e.g. America/Los_Angeles
                             # TODO: Introduce "end_of_day", "end_of_hour" ..
-                        ).conditions_reset(
+                        )
+                        .conditions_reset(
                             cron=self.trigger_options.get("reset_at", {}).get("cron"),
                             timezone=self.trigger_options.get("reset_at", {}).get(
                                 "timezone"
@@ -4037,11 +4043,11 @@ class ArgoWorkflows(object):
                 # source name.
                 .dependencies(
                     # Event dependencies don't entertain dots
-                    EventDependency(event["sanitized_name"]).event_name(
-                        ARGO_EVENTS_EVENT
-                    )
+                    EventDependency(event["sanitized_name"])
+                    .event_name(ARGO_EVENTS_EVENT)
                     # TODO: Alternatively fetch this from @trigger config options
-                    .event_source_name(ARGO_EVENTS_EVENT_SOURCE).filters(
+                    .event_source_name(ARGO_EVENTS_EVENT_SOURCE)
+                    .filters(
                         # Ensure that event name matches and all required parameter
                         # fields are present in the payload. There is a possibility of
                         # dependency on an event where none of the fields are required.
