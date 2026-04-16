@@ -92,27 +92,47 @@ jobs:
           fail-on-error: false
 
   ux-tests:
-    name: "${{ matrix.backend }}"
+    name: "${{ matrix.id }}"
     strategy:
       fail-fast: false
       matrix:
         include:
-          - backend: local
+          - id: local
+            backend: local
             services: "minio,postgresql,metadata-service"
             workers: 4
             memory: 6144
             timeout: 900
-          - backend: argo-kubernetes
+          - id: argo-kubernetes
+            backend: argo-kubernetes
             services: "minio,postgresql,metadata-service,argo-workflows"
             workers: 2
             memory: 6144
             timeout: 900
-          - backend: airflow-kubernetes
+          - id: argo-kubernetes-v3.7
+            backend: argo-kubernetes
+            argo_chart: "0.47.5"
+            argo_image: "v3.7.13"
+            services: "minio,postgresql,metadata-service,argo-workflows"
+            workers: 2
+            memory: 6144
+            timeout: 900
+          - id: argo-kubernetes-v4.0
+            backend: argo-kubernetes
+            argo_chart: "1.0.9"
+            argo_image: "v4.0.4"
+            services: "minio,postgresql,metadata-service,argo-workflows"
+            workers: 2
+            memory: 6144
+            timeout: 900
+          - id: airflow-kubernetes
+            backend: airflow-kubernetes
             services: "minio,postgresql,metadata-service,airflow"
             workers: 1
             memory: 7168
             timeout: 1200
-          - backend: sfn-batch
+          - id: sfn-batch
+            backend: sfn-batch
             services: "minio,postgresql,metadata-service,localbatch,ddb-local,sfn-local"
             workers: 2
             memory: 6144
@@ -163,8 +183,8 @@ jobs:
         uses: actions/cache/restore@v4
         with:
           path: /tmp/minikube-image-cache
-          key: minikube-images-${{ matrix.backend }}-${{ hashFiles('devtools/Tiltfile') }}
-          restore-keys: minikube-images-${{ matrix.backend }}-
+          key: minikube-images-${{ matrix.id }}-${{ hashFiles('devtools/Tiltfile') }}
+          restore-keys: minikube-images-${{ matrix.id }}-
 
       - name: Pre-load cached images into minikube
         if: steps.image-cache.outputs.cache-hit == 'true'
@@ -176,9 +196,9 @@ jobs:
           path: |
             ~/.cache/helm
             ~/.local/share/tilt-dev/.helm
-          key: helm-charts-${{ matrix.backend }}-${{ hashFiles('devtools/Tiltfile', 'devtools/tilt/*.tiltfile') }}
+          key: helm-charts-${{ matrix.id }}-${{ hashFiles('devtools/Tiltfile', 'devtools/tilt/*.tiltfile') }}
           restore-keys: |
-            helm-charts-${{ matrix.backend }}-
+            helm-charts-${{ matrix.id }}-
             helm-charts-
 
       - name: Set up Helm
@@ -221,9 +241,16 @@ jobs:
 
       - name: Start devstack
         working-directory: devtools
-        run: ci/start-devstack.sh
+        run: |
+          # Only export Argo version overrides when explicitly set in the matrix,
+          # otherwise let the Tiltfile defaults apply.
+          [ -n "$ARGO_CHART" ] && export ARGO_WORKFLOWS_HELM_CHART_VERSION="$ARGO_CHART"
+          [ -n "$ARGO_IMAGE" ] && export ARGO_WORKFLOWS_IMAGE_TAG="$ARGO_IMAGE"
+          ci/start-devstack.sh
         env:
           SERVICES: ${{ matrix.services }}
+          ARGO_CHART: ${{ matrix.argo_chart }}
+          ARGO_IMAGE: ${{ matrix.argo_image }}
 
       - name: Pre-pull python:3.9 into minikube
         if: matrix.backend != 'local' && matrix.backend != 'sfn-batch'
@@ -238,7 +265,7 @@ jobs:
         uses: actions/cache/save@v4
         with:
           path: /tmp/minikube-image-cache
-          key: minikube-images-${{ matrix.backend }}-${{ hashFiles('devtools/Tiltfile') }}
+          key: minikube-images-${{ matrix.id }}-${{ hashFiles('devtools/Tiltfile') }}
 
       - name: Start minikube tunnel
         run: |
@@ -266,7 +293,7 @@ jobs:
             kubectl delete pods --field-selector=status.phase=Failed --all-namespaces 2>/dev/null || true
           done &
 
-      - name: Run UX tests — ${{ matrix.backend }}
+      - name: Run UX tests — ${{ matrix.id }}
         run: |
           AWS_SHARED_CREDENTIALS_FILE="" \
           PYTHONPATH=$PWD \
@@ -283,13 +310,13 @@ jobs:
             --cov-report=xml:coverage.xml \
             --cov-report=html:htmlcov \
             --cov-branch \
-            --junit-xml=junit-${{ matrix.backend }}.xml
+            --junit-xml=junit-${{ matrix.id }}.xml
 
       - name: Upload coverage data
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: coverage-${{ matrix.backend }}
+          name: coverage-${{ matrix.id }}
           path: |
             .coverage
             coverage.xml
@@ -301,8 +328,8 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: junit-${{ matrix.backend }}
-          path: junit-${{ matrix.backend }}.xml
+          name: junit-${{ matrix.id }}
+          path: junit-${{ matrix.id }}.xml
           if-no-files-found: ignore
 
       - name: Publish test results
@@ -310,8 +337,8 @@ jobs:
         continue-on-error: true
         uses: dorny/test-reporter@d61b558e8df85cb60d09ca3e5b09653b4477cea7  # v1
         with:
-          name: "Test Results — ${{ matrix.backend }}"
-          path: junit-${{ matrix.backend }}.xml
+          name: "Test Results — ${{ matrix.id }}"
+          path: junit-${{ matrix.id }}.xml
           reporter: java-junit
           fail-on-error: false
 
@@ -331,7 +358,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: tilt-logs-${{ matrix.backend }}
+          name: tilt-logs-${{ matrix.id }}
           path: /tmp/tilt.log
           if-no-files-found: ignore
 
