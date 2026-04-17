@@ -5,7 +5,24 @@ from metaflow.datastore.artifacts.serializer import (
     SerializationMetadata,
     SerializedBlob,
     SerializerStore,
+    STORAGE,
+    WIRE,
 )
+
+
+# Snapshot the registry before this module's classes are defined. Module-level
+# test serializers (_HighPrioritySerializer, ...) self-register at class
+# definition time; the module-scoped fixture below removes them at teardown so
+# other test modules see an unpolluted registry.
+_PRE_IMPORT_SNAPSHOT = dict(SerializerStore._all_serializers)
+
+
+@pytest.fixture(scope="module", autouse=True)
+def _restore_serializer_registry():
+    yield
+    SerializerStore._all_serializers.clear()
+    SerializerStore._all_serializers.update(_PRE_IMPORT_SNAPSHOT)
+    SerializerStore._ordered_cache = None
 
 
 # ---------------------------------------------------------------------------
@@ -106,34 +123,33 @@ def test_base_class_not_registered():
 
 def test_re_registration_overwrites():
     """A second class with the same TYPE overwrites the first (notebook-friendly)."""
+    original = SerializerStore._all_serializers["test_high"]
+    try:
 
-    class _ReplacementSerializer(ArtifactSerializer):
-        TYPE = "test_high"  # same as _HighPrioritySerializer
-        PRIORITY = 1
+        class _ReplacementSerializer(ArtifactSerializer):
+            TYPE = "test_high"  # same as _HighPrioritySerializer
+            PRIORITY = 1
 
-        @classmethod
-        def can_serialize(cls, obj):
-            return False
+            @classmethod
+            def can_serialize(cls, obj):
+                return False
 
-        @classmethod
-        def can_deserialize(cls, metadata):
-            return False
+            @classmethod
+            def can_deserialize(cls, metadata):
+                return False
 
-        @classmethod
-        def serialize(cls, obj):
-            raise NotImplementedError
+            @classmethod
+            def serialize(cls, obj):
+                raise NotImplementedError
 
-        @classmethod
-        def deserialize(cls, blobs, metadata, context):
-            raise NotImplementedError
+            @classmethod
+            def deserialize(cls, blobs, metadata, context):
+                raise NotImplementedError
 
-    # New registration wins
-    assert SerializerStore._all_serializers["test_high"] is _ReplacementSerializer
-    # But registration order is preserved (only one entry for "test_high")
-    assert SerializerStore._registration_order.count("test_high") == 1
-
-    # Restore original for other tests
-    SerializerStore._all_serializers["test_high"] = _HighPrioritySerializer
+        assert SerializerStore._all_serializers["test_high"] is _ReplacementSerializer
+    finally:
+        SerializerStore._all_serializers["test_high"] = original
+        SerializerStore._ordered_cache = None
 
 
 def test_priority_ordering():
@@ -146,12 +162,10 @@ def test_priority_ordering():
 def test_registration_order_tiebreaker():
     """When PRIORITY is equal, registration order breaks the tie."""
     ordered = SerializerStore.get_ordered_serializers()
-    # _SamePrioritySerializer has PRIORITY=100 (same as default)
-    # Any other serializer with PRIORITY=100 registered before it should come first
     priority_100 = [s for s in ordered if s.PRIORITY == 100]
     if len(priority_100) > 1:
-        order = SerializerStore._registration_order
-        indices = [order.index(s.TYPE) for s in priority_100]
+        registration_order = list(SerializerStore._all_serializers)
+        indices = [registration_order.index(s.TYPE) for s in priority_100]
         assert indices == sorted(indices)
 
 
@@ -176,12 +190,12 @@ def test_high_priority_before_low():
 
 def test_metadata_fields():
     meta = SerializationMetadata(
-        type="dict",
+        obj_type="dict",
         size=1024,
         encoding="pickle-v4",
         serializer_info={"key": "value"},
     )
-    assert meta.type == "dict"
+    assert meta.obj_type == "dict"
     assert meta.size == 1024
     assert meta.encoding == "pickle-v4"
     assert meta.serializer_info == {"key": "value"}
@@ -225,16 +239,6 @@ def test_blob_explicit_is_reference_override():
     assert blob.needs_save is True
 
 
-def test_blob_compress_method_default():
-    blob = SerializedBlob(b"data")
-    assert blob.compress_method == "gzip"
-
-
-def test_blob_compress_method_custom():
-    blob = SerializedBlob(b"data", compress_method="raw")
-    assert blob.compress_method == "raw"
-
-
 def test_blob_value_preserved():
     data = b"\x00\x01\x02\x03"
     blob = SerializedBlob(data)
@@ -250,3 +254,69 @@ def test_blob_rejects_invalid_types():
     for bad_value in [123, 3.14, None, [], {}]:
         with pytest.raises(TypeError, match="must be str or bytes"):
             SerializedBlob(bad_value)
+
+
+# ---------------------------------------------------------------------------
+# Wire vs storage format dispatch
+# ---------------------------------------------------------------------------
+
+
+class _DualFormatSerializer(ArtifactSerializer):
+    """Toy serializer that implements both formats for str objects."""
+
+    TYPE = "test_dual_format"
+    PRIORITY = 40
+
+    @classmethod
+    def can_serialize(cls, obj):
+        return isinstance(obj, str)
+
+    @classmethod
+    def can_deserialize(cls, metadata):
+        return metadata.encoding == "test_dual_format"
+
+    @classmethod
+    def serialize(cls, obj, format=STORAGE):
+        if format == WIRE:
+            return obj
+        blob = obj.encode("utf-8")
+        return (
+            [SerializedBlob(blob)],
+            SerializationMetadata("str", len(blob), "test_dual_format", {}),
+        )
+
+    @classmethod
+    def deserialize(cls, data, metadata=None, context=None, format=STORAGE):
+        if format == WIRE:
+            return data
+        return data[0].decode("utf-8")
+
+
+def test_format_constants():
+    assert STORAGE == "storage"
+    assert WIRE == "wire"
+
+
+def test_dual_format_storage_roundtrip():
+    blobs, meta = _DualFormatSerializer.serialize("hello")
+    assert meta.encoding == "test_dual_format"
+    assert _DualFormatSerializer.deserialize(
+        [b.value for b in blobs], metadata=meta
+    ) == "hello"
+
+
+def test_dual_format_wire_roundtrip():
+    wire = _DualFormatSerializer.serialize("hello", format=WIRE)
+    assert isinstance(wire, str)
+    assert _DualFormatSerializer.deserialize(wire, format=WIRE) == "hello"
+
+
+def test_pickle_serializer_rejects_wire():
+    from metaflow.plugins.datastores.serializers.pickle_serializer import (
+        PickleSerializer,
+    )
+
+    with pytest.raises(NotImplementedError):
+        PickleSerializer.serialize(42, format=WIRE)
+    with pytest.raises(NotImplementedError):
+        PickleSerializer.deserialize("42", format=WIRE)

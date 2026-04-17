@@ -1,9 +1,16 @@
+import inspect
 from abc import ABCMeta, abstractmethod
 from collections import namedtuple
 
 
+# Serialization formats. STORAGE produces (blobs, metadata) for the datastore;
+# WIRE produces a str for CLI args, protobuf payloads, and cross-process IPC.
+STORAGE = "storage"
+WIRE = "wire"
+
+
 SerializationMetadata = namedtuple(
-    "SerializationMetadata", ["type", "size", "encoding", "serializer_info"]
+    "SerializationMetadata", ["obj_type", "size", "encoding", "serializer_info"]
 )
 
 
@@ -21,20 +28,14 @@ class SerializedBlob(object):
         The blob data (bytes) or a reference key (str).
     is_reference : bool, optional
         If None, auto-detected from value type: str -> reference, bytes -> new data.
-    compress_method : str
-        Compression method for new blobs. Ignored for references. Default "gzip".
-        NOTE: Not yet wired into the save path — ContentAddressedStore currently
-        always applies gzip. This field is forward-looking for when per-blob
-        compression control is needed (e.g., multi-blob IOType support).
     """
 
-    def __init__(self, value, is_reference=None, compress_method="gzip"):
+    def __init__(self, value, is_reference=None):
         if not isinstance(value, (str, bytes)):
             raise TypeError(
                 "SerializedBlob value must be str or bytes, got %s" % type(value).__name__
             )
         self.value = value
-        self.compress_method = compress_method
         if is_reference is None:
             self.is_reference = isinstance(value, str)
         else:
@@ -55,27 +56,57 @@ class SerializerStore(ABCMeta):
     """
 
     _all_serializers = {}
-    _registration_order = []
+    _ordered_cache = None
 
     def __init__(cls, name, bases, namespace):
         super().__init__(name, bases, namespace)
-        if cls.TYPE is not None:
-            if cls.TYPE not in SerializerStore._all_serializers:
-                SerializerStore._registration_order.append(cls.TYPE)
-            SerializerStore._all_serializers[cls.TYPE] = cls
+        # Skip the abstract base and any subclass that didn't implement all
+        # abstract methods — registering a partially-abstract class would
+        # blow up only at dispatch time.
+        if cls.TYPE is None or inspect.isabstract(cls):
+            return
+        SerializerStore._all_serializers[cls.TYPE] = cls
+        SerializerStore._ordered_cache = None
 
     @staticmethod
     def get_ordered_serializers():
         """
         Return serializer classes sorted by (PRIORITY, registration_order).
 
-        This ordering is deterministic for a given set of loaded serializers.
+        Python 3.7+ dicts preserve insertion order, so enumerating
+        ``_all_serializers.values()`` yields registration order. A stable sort
+        on PRIORITY preserves that tiebreaker.
+
+        Serializers registered via the lazy registry are materialized here
+        too: each registered class is imported on demand and folded into the
+        dispatch order. Without this step, a lazy
+        ``register_serializer_for_type`` call would be silently ignored
+        at dispatch time.
         """
-        order = SerializerStore._registration_order
-        return sorted(
-            SerializerStore._all_serializers.values(),
-            key=lambda s: (s.PRIORITY, order.index(s.TYPE)),
-        )
+        # Imported locally to avoid a circular import between this module and
+        # ``lazy_registry`` (which depends on the ArtifactSerializer ABC).
+        from .lazy_registry import iter_registered_configs, load_serializer_class
+
+        lazy_classes = []
+        for cfg in iter_registered_configs():
+            cls = load_serializer_class(cfg.canonical_type)
+            if cls is not None:
+                lazy_classes.append(cls)
+
+        if SerializerStore._ordered_cache is None or lazy_classes:
+            # De-duplicate: lazy classes typically also self-register via the
+            # metaclass, but when loaded outside normal import flow they may
+            # not. ``dict.fromkeys`` preserves first-seen order while dropping
+            # duplicates.
+            combined = list(
+                dict.fromkeys(
+                    list(SerializerStore._all_serializers.values()) + lazy_classes
+                )
+            )
+            SerializerStore._ordered_cache = sorted(
+                combined, key=lambda s: s.PRIORITY
+            )
+        return SerializerStore._ordered_cache
 
 
 class ArtifactSerializer(object, metaclass=SerializerStore):
@@ -135,36 +166,49 @@ class ArtifactSerializer(object, metaclass=SerializerStore):
 
     @classmethod
     @abstractmethod
-    def serialize(cls, obj):
+    def serialize(cls, obj, format=STORAGE):
         """
-        Serialize obj to blobs and metadata. Must be side-effect-free.
+        Serialize obj. Must be side-effect-free: this method may be invoked
+        multiple times (caching, retries, parallel dispatch) and must not
+        perform I/O, mutate global state, or register the object elsewhere.
+        Side effects that need to happen at persist time belong in hooks,
+        not in the serializer.
 
         Parameters
         ----------
         obj : Any
             The Python object to serialize.
+        format : str
+            Either ``STORAGE`` (default) or ``WIRE``.
+            - ``STORAGE`` returns a tuple ``(List[SerializedBlob], SerializationMetadata)``
+              for persisting through the datastore.
+            - ``WIRE`` returns a ``str`` representation for CLI args, protobuf
+              payloads, and cross-process IPC. Serializers that cannot provide
+              a wire encoding should raise ``NotImplementedError``.
 
         Returns
         -------
-        tuple
-            (List[SerializedBlob], SerializationMetadata)
+        tuple or str
         """
         raise NotImplementedError
 
     @classmethod
     @abstractmethod
-    def deserialize(cls, blobs, metadata, context):
+    def deserialize(cls, data, metadata=None, context=None, format=STORAGE):
         """
-        Deserialize blobs back to a Python object.
+        Deserialize back to a Python object.
 
         Parameters
         ----------
-        blobs : List[bytes]
-            The raw blob data.
-        metadata : SerializationMetadata
-            Metadata stored alongside the artifact.
-        context : Any
+        data : Union[List[bytes], str]
+            ``List[bytes]`` when ``format=STORAGE``; ``str`` when ``format=WIRE``.
+        metadata : SerializationMetadata, optional
+            Metadata stored alongside the artifact. Required for STORAGE,
+            ignored for WIRE.
+        context : Any, optional
             Optional context for deserialization (e.g., task vs client loading).
+        format : str
+            Either ``STORAGE`` (default) or ``WIRE``.
 
         Returns
         -------

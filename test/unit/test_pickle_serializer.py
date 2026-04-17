@@ -113,7 +113,7 @@ def test_serialize_metadata_encoding():
 
 def test_serialize_metadata_type():
     _, meta = PickleSerializer.serialize([1, 2, 3])
-    assert "list" in meta.type
+    assert "list" in meta.obj_type
 
 
 def test_serialize_metadata_size():
@@ -126,11 +126,6 @@ def test_serialize_metadata_size():
 def test_serialize_metadata_serializer_info_empty():
     _, meta = PickleSerializer.serialize("hello")
     assert meta.serializer_info == {}
-
-
-def test_serialize_compress_method():
-    blobs, _ = PickleSerializer.serialize(42)
-    assert blobs[0].compress_method == "gzip"
 
 
 # ---------------------------------------------------------------------------
