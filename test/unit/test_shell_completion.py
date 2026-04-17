@@ -19,6 +19,7 @@ def test_metaflow_completion_script_smoke():
         "start()\n"
     )
 
+    wrapper_path = None
     try:
         fd, wrapper_path = tempfile.mkstemp(prefix="metaflow-cli-", dir=repo_root)
         with os.fdopen(fd, "w") as f:
@@ -42,10 +43,11 @@ printf "%s\\n" "${{COMPREPLY[@]}}"
             env={**os.environ, "PYTHONPATH": repo_root},
         )
     finally:
-        try:
-            os.remove(wrapper_path)
-        except OSError:
-            pass
+        if wrapper_path is not None:
+            try:
+                os.remove(wrapper_path)
+            except OSError:
+                pass
 
     completions = {line.strip() for line in result.stdout.splitlines() if line.strip()}
     expected_commands = {"configure", "develop", "help", "status", "tutorials", "code"}
