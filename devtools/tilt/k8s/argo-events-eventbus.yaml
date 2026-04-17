@@ -1,0 +1,17 @@
+apiVersion: argoproj.io/v1alpha1
+kind: EventBus
+metadata:
+  name: default
+  namespace: default
+spec:
+  jetstream:
+    version: "2.9.15"
+    replicas: 3
+    containerTemplate:
+      resources:
+        limits:
+          cpu: 100m
+          memory: 128Mi
+        requests:
+          cpu: 100m
+          memory: 128Mi
