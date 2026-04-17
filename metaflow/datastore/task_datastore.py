@@ -14,6 +14,7 @@ from ..metadata_provider import DataArtifact, MetaDatum
 from ..parameters import Parameter
 from ..util import Path, is_stringish, to_fileobj
 
+from .artifacts.serializer import SerializationMetadata, SerializerStore
 from .exceptions import DataException, UnpicklableArtifactException
 
 _included_file_type = "<class 'metaflow.includefile.IncludedFile'>"
@@ -116,12 +117,13 @@ class TaskDataStore(object):
         self._parent = flow_datastore
         self._persist = persist
 
-        # Import here to ensure serializers are registered via the plugin system.
-        # The import of metaflow.plugins triggers PickleSerializer (and any
-        # extension serializers) to register with SerializerStore.
-        from .artifacts.serializer import SerializerStore
-
-        self._serializers = SerializerStore.get_ordered_serializers()
+        # ``_serializers`` is a property that dispatches through
+        # ``SerializerStore.get_ordered_serializers()`` on each access. The
+        # lookup is cheap (cached inside the store) and picks up serializers
+        # registered via the lazy import hook after this instance was
+        # constructed — otherwise long-lived datastores (notebooks, client
+        # sessions) would silently miss any extension registered after init.
+        self._serializers_override = None
 
         self._is_done_set = False
 
@@ -198,6 +200,19 @@ class TaskDataStore(object):
 
         else:
             raise DataException("Unknown datastore mode: '%s'" % self._mode)
+
+    @property
+    def _serializers(self):
+        if self._serializers_override is not None:
+            return self._serializers_override
+        return SerializerStore.get_ordered_serializers()
+
+    @_serializers.setter
+    def _serializers(self, value):
+        # Tests override the dispatch list directly for isolation; preserve
+        # that escape hatch without losing the dynamic registry behavior
+        # in production.
+        self._serializers_override = value
 
     @property
     def pathspec(self):
@@ -355,7 +370,12 @@ class TaskDataStore(object):
                         serializer = s
                         break
                 if serializer is None:
-                    raise UnpicklableArtifactException(name)
+                    raise DataException(
+                        "No serializer claimed artifact '%s' (type: %s). "
+                        "The PickleSerializer fallback normally handles all "
+                        "objects — check that it is installed and enabled."
+                        % (name, type(obj).__name__)
+                    )
 
                 try:
                     blobs, metadata = serializer.serialize(obj)
@@ -364,18 +384,26 @@ class TaskDataStore(object):
 
                 self._info[name] = {
                     "size": metadata.size,
-                    "type": metadata.type,
+                    "type": metadata.obj_type,
                     "encoding": metadata.encoding,
                 }
                 if metadata.serializer_info:
                     self._info[name]["serializer_info"] = metadata.serializer_info
 
-                # For now, serializers produce a single blob per artifact.
-                # Multi-blob support will be added when IOType lands.
                 if not blobs:
                     raise DataException(
                         "Serializer %s returned no blobs for artifact '%s'"
                         % (serializer.__name__, name)
+                    )
+                if len(blobs) > 1:
+                    # The datastore currently stores a single blob per
+                    # artifact. Silently dropping blobs[1:] would corrupt
+                    # multi-blob IOType extensions (e.g. chunked tensors) on
+                    # load. Fail loudly until multi-blob support lands.
+                    raise DataException(
+                        "Serializer %s returned %d blobs for artifact '%s'; "
+                        "only single-blob serializers are supported."
+                        % (serializer.__name__, len(blobs), name)
                     )
                 artifact_names.append(name)
                 yield blobs[0].value
@@ -411,8 +439,6 @@ class TaskDataStore(object):
         Iterator[(string, object)] :
             An iterator over objects retrieved.
         """
-        from .artifacts.serializer import SerializationMetadata
-
         if not self._info:
             raise DataException(
                 "Datastore for task '%s' does not have the required metadata to "
@@ -423,7 +449,7 @@ class TaskDataStore(object):
         for name in names:
             info = self._info.get(name, {})
             metadata = SerializationMetadata(
-                type=info.get("type", "object"),
+                obj_type=info.get("type", "object"),
                 size=info.get("size", 0),
                 # Default to gzip+pickle-v2 for very old artifacts without encoding
                 encoding=info.get("encoding", "gzip+pickle-v2"),
@@ -437,9 +463,17 @@ class TaskDataStore(object):
                     deserializer = s
                     break
             if deserializer is None:
+                source_hint = ""
+                serializer_source = metadata.serializer_info.get("source")
+                if serializer_source:
+                    source_hint = (
+                        " The artifact was written by '%s' — the "
+                        "corresponding extension may not be installed."
+                        % serializer_source
+                    )
                 raise DataException(
-                    "No deserializer found for artifact '%s' "
-                    "(encoding: %s)" % (name, metadata.encoding)
+                    "No deserializer claimed artifact '%s' (encoding: %s)."
+                    "%s" % (name, metadata.encoding, source_hint)
                 )
             deserializers[name] = (deserializer, metadata)
             to_load[self._objects[name]].append(name)

@@ -4,6 +4,8 @@ from metaflow.datastore.artifacts.serializer import (
     ArtifactSerializer,
     SerializationMetadata,
     SerializedBlob,
+    STORAGE,
+    WIRE,
 )
 
 
@@ -13,6 +15,9 @@ class PickleSerializer(ArtifactSerializer):
 
     This is the universal fallback — can_serialize always returns True.
     PRIORITY is set to 9999 so custom serializers are always tried first.
+    Pickle produces binary bytes, so only the STORAGE format is supported;
+    callers that need a wire representation should pick a serializer that
+    implements it (e.g. an IOType- or JSON-based one in an extension).
     """
 
     TYPE = "pickle"
@@ -31,19 +36,28 @@ class PickleSerializer(ArtifactSerializer):
         return metadata.encoding in cls._ENCODINGS
 
     @classmethod
-    def serialize(cls, obj):
+    def serialize(cls, obj, format=STORAGE):
+        if format == WIRE:
+            raise NotImplementedError(
+                "PickleSerializer does not support the WIRE format; pickle "
+                "produces opaque binary bytes that are not safe to pass as "
+                "CLI args or inline IPC payloads."
+            )
         blob = pickle.dumps(obj, protocol=4)
-        encoding = "pickle-v4"
         return (
-            [SerializedBlob(blob, is_reference=False, compress_method="gzip")],
+            [SerializedBlob(blob, is_reference=False)],
             SerializationMetadata(
-                type=str(type(obj)),
+                obj_type=str(type(obj)),
                 size=len(blob),
-                encoding=encoding,
+                encoding="pickle-v4",
                 serializer_info={},
             ),
         )
 
     @classmethod
-    def deserialize(cls, blobs, metadata, context):
-        return pickle.loads(blobs[0])
+    def deserialize(cls, data, metadata=None, context=None, format=STORAGE):
+        if format == WIRE:
+            raise NotImplementedError(
+                "PickleSerializer does not support the WIRE format."
+            )
+        return pickle.loads(data[0])

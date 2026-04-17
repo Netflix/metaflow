@@ -133,7 +133,7 @@ def test_custom_serializer_takes_priority(task_datastore):
             return (
                 [SerializedBlob(blob, is_reference=False)],
                 SerializationMetadata(
-                    type="str",
+                    obj_type="str",
                     size=len(blob),
                     encoding="test_json_str",
                     serializer_info={"format": "json-utf8"},
@@ -165,11 +165,8 @@ def test_custom_serializer_takes_priority(task_datastore):
         assert loaded["msg"] == "hello"
         assert loaded["num"] == 42
     finally:
-        # Clean up: remove from registry to avoid polluting other tests
         SerializerStore._all_serializers.pop("test_json_str", None)
-        SerializerStore._registration_order = [
-            t for t in SerializerStore._registration_order if t != "test_json_str"
-        ]
+        SerializerStore._ordered_cache = None
 
 
 # ---------------------------------------------------------------------------
@@ -210,3 +207,44 @@ def test_backward_compat_no_encoding(task_datastore):
     # Should still load
     loaded = dict(task_datastore.load_artifacts(["ancient"]))
     assert loaded["ancient"] == 99
+
+
+# ---------------------------------------------------------------------------
+# Dynamic registry: lazy registrations reach long-lived datastores
+# ---------------------------------------------------------------------------
+
+
+def test_post_init_registration_reaches_existing_datastore(task_datastore):
+    """A serializer registered AFTER the datastore was constructed must still
+    be visible. Without the dynamic ``_serializers`` property, lazy imports
+    (e.g. ``import torch`` after ``TaskDataStore.__init__``) would be silently
+    ignored for that instance.
+    """
+    # Drop the test override so the property falls back to the live registry.
+    task_datastore._serializers = None
+
+    class _PostInitSerializer(ArtifactSerializer):
+        TYPE = "test_post_init_registration"
+        PRIORITY = 5
+
+        @classmethod
+        def can_serialize(cls, obj):
+            return False
+
+        @classmethod
+        def can_deserialize(cls, metadata):
+            return False
+
+        @classmethod
+        def serialize(cls, obj, format="storage"):
+            raise NotImplementedError
+
+        @classmethod
+        def deserialize(cls, data, metadata=None, context=None, format="storage"):
+            raise NotImplementedError
+
+    try:
+        assert _PostInitSerializer in task_datastore._serializers
+    finally:
+        SerializerStore._all_serializers.pop("test_post_init_registration", None)
+        SerializerStore._ordered_cache = None
