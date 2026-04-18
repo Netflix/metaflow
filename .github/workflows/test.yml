@@ -52,6 +52,9 @@ jobs:
       run: |
         python3 -m pip install --upgrade pip setuptools
         python3 -m pip install tox numpy
+    
+    - name: Check metadata consistency
+      run: python scripts/check_metadata.py
 
     - name: Execute Python tests
       run: tox
