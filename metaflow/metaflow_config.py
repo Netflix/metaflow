@@ -711,7 +711,18 @@ try:
                     d1 = f1(python_version, datastore_type)
                     d2 = f2(python_version, datastore_type)
                     for k, v in d2.items():
-                        d1[k] = v if k not in d1 else ",".join([d1[k], v])
+                        # An empty string means "any version" — treat it as a
+                        # no-op on either side of the merge instead of joining
+                        # with a comma. Joining "" with ">=X" produced ",>=X"
+                        # (or ">=X,") which downstream formatters turn into
+                        # malformed specs like `pkg==,>=X` that the conda
+                        # solver rejects with "Empty version".
+                        existing = d1.get(k, "")
+                        if not existing:
+                            d1[k] = v
+                        elif v:
+                            d1[k] = ",".join([existing, v])
+                        # else: v is empty — keep existing specifier
                     return d1
 
                 globals()[n] = _new_get_pinned_conda_libs
