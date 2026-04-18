@@ -62,10 +62,9 @@ Please ensure your local environment matches one of the supported versions.
 Metaflow includes limited support for R components. However:
 
 - Most development and testing workflows are Python-focused
-- R support may not be fully covered in CI
+- R changes are validated in CI via the dedicated `R` job in `.github/workflows/test.yml`
 
-Contributors working on R-related features should validate changes locally.
-
+Contributors working on R-related features should still validate changes locally before opening a PR.
 ---
 
 ### CI Validation
