@@ -85,6 +85,8 @@ Before submitting a PR, contributors should run:
 ```bash
 pip install -e .
 pytest
+```
+
 **That's it!** Now read the requirements below before submitting your PR.
 
 ## PR Requirements (READ THIS FIRST)
