@@ -51,7 +51,7 @@ To help contributors get started quickly, below is a summary of supported enviro
 ### Python Support
 Metaflow primarily supports Python versions:
 
-- Python 3.9+
+- Python 3.7+
 - Recommended: Python 3.10 or newer
 
 Please ensure your local environment matches one of the supported versions.
