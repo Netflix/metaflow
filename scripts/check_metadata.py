@@ -38,27 +38,36 @@ def main():
     version = read_version_file()
 
     errors = []
+    checks_performed = 0
 
-    # Compare package name
-    if cfg["name"] and py["name"] and cfg["name"] != py["name"]:
-        errors.append(
-            f"Name mismatch: setup.cfg='{cfg['name']}' vs setup.py='{py['name']}'"
-        )
+    # Check name ONLY if present in both
+    if cfg["name"] is not None and py["name"] is not None:
+        checks_performed += 1
+        if cfg["name"] != py["name"]:
+            errors.append(
+                f"Name mismatch: setup.cfg='{cfg['name']}' vs setup.py='{py['name']}'"
+            )
 
-    # Compare version
-    if cfg["version"] and version and cfg["version"] != version:
-        errors.append(
-            f"Version mismatch: setup.cfg='{cfg['version']}' vs version.py='{version}'"
-        )
+    # Check version ONLY if present in cfg
+    if cfg["version"] is not None:
+        checks_performed += 1
+        if cfg["version"] != version:
+            errors.append(
+                f"Version mismatch: setup.cfg='{cfg['version']}' vs version.py='{version}'"
+            )
+
+    # If nothing to check → warn instead of false pass
+    if checks_performed == 0:
+        print("⚠️ No overlapping metadata fields found to validate.")
+        sys.exit(0)
 
     if errors:
-        print(" Metadata consistency check FAILED:\n")
+        print("❌ Metadata consistency check FAILED:\n")
         for err in errors:
             print(f"- {err}")
         sys.exit(1)
 
-    print(" Metadata consistency check PASSED")
-
+    print("✅ Metadata consistency check PASSED")
 
 if __name__ == "__main__":
     main()
