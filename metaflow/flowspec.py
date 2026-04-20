@@ -325,6 +325,70 @@ class FlowSpec(metaclass=FlowSpecMeta):
 
                 cli.main(self)
 
+    @classmethod
+    def main(cls):
+        """
+        Entry point for files with one or more FlowSpec subclasses.
+
+        Usage in ``__main__``::
+
+            if __name__ == "__main__":
+                FlowSpec.main()
+
+        The flow name can always be specified as the first argument::
+
+            python myflows.py MyFlow run --param value
+
+        If only one FlowSpec is registered, the name is optional::
+
+            python myflow.py run --param value
+        """
+        import sys
+
+        registry = type(cls)._registry
+        if not registry:
+            raise RuntimeError("No FlowSpec subclasses found.")
+
+        flow_cls = None
+        flow_name = None
+
+        # Check if the first CLI arg matches a registered flow name
+        if len(sys.argv) >= 2 and sys.argv[1] in registry:
+            flow_name = sys.argv[1]
+            flow_cls = registry[flow_name]
+            # Remove the flow name from argv so Click sees normal args
+            sys.argv = [sys.argv[0]] + sys.argv[2:]
+        elif len(registry) == 1:
+            # Single flow — name is optional
+            flow_cls = next(iter(registry.values()))
+        else:
+            # Multiple flows and no valid name given
+            available = ", ".join(sorted(registry.keys()))
+            print(
+                "Multiple flows defined. Specify which to run:\n\n"
+                "  python %s <flow_name> [command] [options]\n\n"
+                "Available flows: %s" % (sys.argv[0], available),
+                file=sys.stderr,
+            )
+            sys.exit(1)
+
+        # When a flow name was explicitly provided, include it in the
+        # entrypoint so child processes (step execution) also route to
+        # the correct flow. We also set an environment variable so that
+        # other subprocess launchers (e.g., card renderer) can include
+        # the flow name in their commands.
+        flow = flow_cls(use_cli=False)
+        if flow_name is not None:
+            entrypoint = [sys.executable, sys.argv[0], flow_name]
+            os.environ["METAFLOW_MULTIFLOW_NAME"] = flow_name
+        else:
+            entrypoint = None  # default: [python, script.py]
+
+        with parameters.flow_context(flow.__class__) as _:
+            from . import cli
+
+            cli.main(flow, entrypoint=entrypoint)
+
     @property
     def script_name(self) -> str:
         """

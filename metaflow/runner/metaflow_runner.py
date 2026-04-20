@@ -350,6 +350,7 @@ class Runner(metaclass=RunnerMeta):
         env: Optional[Dict[str, str]] = None,
         cwd: Optional[str] = None,
         file_read_timeout: int = 3600,
+        flow_name: Optional[str] = None,
         **kwargs,
     ):
         # these imports are required here and not at the top
@@ -395,8 +396,17 @@ class Runner(metaclass=RunnerMeta):
         self.cwd = cwd or os.getcwd()
         self.file_read_timeout = file_read_timeout
         self.spm = SubprocessManager()
+        self.flow_name = flow_name
         self.top_level_kwargs = kwargs
-        self.api = MetaflowAPI.from_cli(self.flow_file, start)
+        self.api = MetaflowAPI.from_cli(self.flow_file, start, flow_name=flow_name)
+
+    def _cmd(self, command):
+        """Build the full subprocess command, injecting flow_name if needed."""
+        cmd = [sys.executable, *command]
+        if self.flow_name is not None:
+            # Insert flow name after [python, script.py, ...] → [python, script.py, FlowName, ...]
+            cmd = [cmd[0], cmd[1], self.flow_name] + cmd[2:]
+        return cmd
 
     def __enter__(self) -> "Runner":
         return self
@@ -463,7 +473,7 @@ class Runner(metaclass=RunnerMeta):
                 )
 
             pid = self.spm.run_command(
-                [sys.executable, *command],
+                self._cmd(command),
                 env=self.env_vars,
                 cwd=self.cwd,
                 show_output=self.show_output,
@@ -535,7 +545,7 @@ class Runner(metaclass=RunnerMeta):
                 )
 
             pid = self.spm.run_command(
-                [sys.executable, *command],
+                self._cmd(command),
                 env=self.env_vars,
                 cwd=self.cwd,
                 show_output=self.show_output,
@@ -572,7 +582,7 @@ class Runner(metaclass=RunnerMeta):
                 )
 
             pid = self.spm.run_command(
-                [sys.executable, *command],
+                self._cmd(command),
                 env=self.env_vars,
                 cwd=self.cwd,
                 show_output=self.show_output,
@@ -611,7 +621,7 @@ class Runner(metaclass=RunnerMeta):
                 )
 
             pid = await self.spm.async_run_command(
-                [sys.executable, *command],
+                self._cmd(command),
                 env=self.env_vars,
                 cwd=self.cwd,
             )
@@ -649,7 +659,7 @@ class Runner(metaclass=RunnerMeta):
                 )
 
             pid = await self.spm.async_run_command(
-                [sys.executable, *command],
+                self._cmd(command),
                 env=self.env_vars,
                 cwd=self.cwd,
             )
@@ -693,7 +703,7 @@ class Runner(metaclass=RunnerMeta):
                 )
 
             pid = await self.spm.async_run_command(
-                [sys.executable, *command],
+                self._cmd(command),
                 env=self.env_vars,
                 cwd=self.cwd,
             )

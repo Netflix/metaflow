@@ -142,6 +142,11 @@ class CardCreator:
             executable,
             sys.argv[0],
         ]
+        # In multi-flow files (FlowSpec.main()), the flow name must be
+        # included so the subprocess routes to the correct flow.
+        multiflow_name = os.environ.get("METAFLOW_MULTIFLOW_NAME")
+        if multiflow_name:
+            cmd.append(multiflow_name)
 
         cmd += self._top_level_options + [
             "card",

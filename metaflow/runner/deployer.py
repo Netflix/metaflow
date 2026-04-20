@@ -79,6 +79,7 @@ class DeployerMeta(type):
                     env=self.env,
                     cwd=self.cwd,
                     file_read_timeout=self.file_read_timeout,
+                    flow_name=self.flow_name,
                     **self.top_level_kwargs,
                 )
 
@@ -130,6 +131,7 @@ class Deployer(metaclass=DeployerMeta):
         env: Optional[Dict] = None,
         cwd: Optional[str] = None,
         file_read_timeout: int = 3600,
+        flow_name: Optional[str] = None,
         **kwargs,
     ):
         # Convert flow_file to absolute path if it's relative
@@ -143,6 +145,7 @@ class Deployer(metaclass=DeployerMeta):
         self.env = env
         self.cwd = cwd
         self.file_read_timeout = file_read_timeout
+        self.flow_name = flow_name
         self.top_level_kwargs = kwargs
 
 

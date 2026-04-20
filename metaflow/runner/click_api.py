@@ -218,7 +218,7 @@ def get_inspect_param_obj(p: Union[click.Argument, click.Option], kind: str):
 loaded_modules = {}
 
 
-def extract_flow_class_from_file(flow_file: str) -> FlowSpec:
+def extract_flow_class_from_file(flow_file: str, flow_name: str = None) -> FlowSpec:
     if not os.path.exists(flow_file):
         raise FileNotFoundError("Flow file not present at '%s'" % flow_file)
 
@@ -248,7 +248,7 @@ def extract_flow_class_from_file(flow_file: str) -> FlowSpec:
         classes = inspect.getmembers(
             module, lambda x: inspect.isclass(x) or isinstance(x, FlowMutator)
         )
-        flow_cls = None
+        all_flow_classes = {}
 
         for _, kls in classes:
             if isinstance(kls, FlowMutator):
@@ -258,15 +258,28 @@ def extract_flow_class_from_file(flow_file: str) -> FlowSpec:
                 and kls.__module__ == module_name
                 and issubclass(kls, FlowSpec)
             ):
-                if flow_cls is not None and flow_cls != kls:
-                    raise MetaflowException(
-                        "Multiple FlowSpec classes found in %s" % flow_file
-                    )
-                flow_cls = kls
+                all_flow_classes[kls.__name__] = kls
 
-        if flow_cls is None:
+        if not all_flow_classes:
             raise MetaflowException("No FlowSpec class found in %s" % flow_file)
-        return flow_cls
+
+        if flow_name is not None:
+            if flow_name not in all_flow_classes:
+                available = ", ".join(sorted(all_flow_classes.keys()))
+                raise MetaflowException(
+                    "Flow '%s' not found in %s. Available: %s"
+                    % (flow_name, flow_file, available)
+                )
+            return all_flow_classes[flow_name]
+
+        if len(all_flow_classes) == 1:
+            return next(iter(all_flow_classes.values()))
+
+        raise MetaflowException(
+            "Multiple FlowSpec classes found in %s. "
+            "Specify flow_name to select one. Available: %s"
+            % (flow_file, ", ".join(sorted(all_flow_classes.keys())))
+        )
     finally:
         # Only remove from path if we added it
         if path_was_added:
@@ -300,8 +313,10 @@ class MetaflowAPI(object):
         return self._API_NAME
 
     @classmethod
-    def from_cli(cls, flow_file: str, cli_collection: Callable) -> Callable:
-        flow_cls = extract_flow_class_from_file(flow_file)
+    def from_cli(
+        cls, flow_file: str, cli_collection: Callable, flow_name: str = None
+    ) -> Callable:
+        flow_cls = extract_flow_class_from_file(flow_file, flow_name=flow_name)
 
         with flow_context(flow_cls) as _:
             cli_collection, config_input = config_options_with_config_input(
