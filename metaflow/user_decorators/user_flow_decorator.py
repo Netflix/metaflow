@@ -124,6 +124,16 @@ class FlowMutator(metaclass=FlowMutatorMeta):
     modify the steps.
     """
 
+    # Class-level opt-in: when True, this mutator guarantees that metaflow
+    # (and any metaflow_extensions it depends on) will be importable in the
+    # remote environment for every step of the flow. If every step is
+    # covered (directly or via such a mutator / flow decorator),
+    # MetaflowPackage can skip bundling the metaflow distribution.
+    provides_metaflow_distribution: bool = False
+
+    def provides_metaflow_distribution_for(self, flow, step) -> bool:
+        return self.provides_metaflow_distribution
+
     def __init__(self, *args, **kwargs):
         from ..flowspec import FlowSpecMeta
 

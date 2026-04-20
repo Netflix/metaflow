@@ -296,12 +296,16 @@ def make_flow(
     obj.graph = obj.flow._graph
     # Save the code package in the flow datastore so that both user code and
     # metaflow package can be retrieved during workflow execution.
+    # Orchestrator glue (set_parameters, _parameters) runs outside any
+    # @conda/@pypi env and must find metaflow in the package itself, so we
+    # always include it on this path.
     obj.package = MetaflowPackage(
         obj.flow,
         obj.environment,
         obj.echo,
         suffixes=obj.package_suffixes,
         flow_datastore=obj.flow_datastore if FEAT_ALWAYS_UPLOAD_CODE_PACKAGE else None,
+        include_mf_distribution=True,
     )
     # This blocks until the package is created
     if FEAT_ALWAYS_UPLOAD_CODE_PACKAGE:

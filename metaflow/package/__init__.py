@@ -52,6 +52,7 @@ class MetaflowPackage(object):
         mfcontent: Optional[MetaflowCodeContent] = None,
         exclude_tl_dirs=None,
         backend: Type[PackagingBackend] = TarPackagingBackend,
+        include_mf_distribution: Optional[bool] = None,
     ):
         self._environment = environment
         self._environment.init_environment(echo)
@@ -94,8 +95,12 @@ class MetaflowPackage(object):
                 return False
 
         if mfcontent is None:
-            self._mfcontent = MetaflowCodeContentV1(criteria=_module_selector)
-
+            if include_mf_distribution is None:
+                include_mf_distribution = self._should_include_mf_distribution(flow)
+            self._mfcontent = MetaflowCodeContentV1(
+                criteria=_module_selector,
+                include_mf_distribution=include_mf_distribution,
+            )
         else:
             self._mfcontent = mfcontent
         # We exclude the environment when packaging as this will be packaged separately.
@@ -518,6 +523,51 @@ class MetaflowPackage(object):
                         f.write(path_or_content)
                 else:
                     os.symlink(path_or_content, new_path)
+
+    @staticmethod
+    def _should_include_mf_distribution(flow) -> bool:
+        """
+        Direct-compute auto-detect: return True (include metaflow) unless every
+        remote step is covered by a decorator declaring it provides metaflow.
+
+        Flow-level decorators (including FlowMutators) cover every step of the
+        flow. Step decorators cover their step. The ``_parameters`` pseudo-step
+        is evaluated in the submitting shell (not remote), so it is skipped.
+
+        The ``METAFLOW_PACKAGE_EXCLUDE_METAFLOW_DISTRIBUTION`` config overrides
+        auto-detection in either direction.
+        """
+        from itertools import chain
+
+        from ..metaflow_config import PACKAGE_EXCLUDE_METAFLOW_DISTRIBUTION
+        from ..util import str_to_bool
+
+        override = str_to_bool(PACKAGE_EXCLUDE_METAFLOW_DISTRIBUTION, strict=True)
+        if override is not None:
+            return not override
+
+        if flow is None:
+            return True  # non-flow (generic) package — keep current behavior
+
+        flow_level = list(
+            chain(
+                chain.from_iterable(flow._flow_decorators.values()),
+                flow._flow_mutators,
+            )
+        )
+
+        for step in flow:
+            if step.name == "_parameters":
+                continue
+            provided_by_flow = any(
+                d.provides_metaflow_distribution_for(flow, step) for d in flow_level
+            )
+            provided_by_step = any(
+                d.provides_metaflow_distribution_for(step) for d in step.decorators
+            )
+            if not (provided_by_flow or provided_by_step):
+                return True
+        return False
 
     @staticmethod
     def _format_size(size_in_bytes):

@@ -42,6 +42,16 @@ DEFAULT_EVENT_LOGGER = from_conf("DEFAULT_EVENT_LOGGER", "nullSidecarLogger")
 DEFAULT_METADATA = from_conf("DEFAULT_METADATA", "local")
 DEFAULT_MONITOR = from_conf("DEFAULT_MONITOR", "nullSidecarMonitor")
 DEFAULT_PACKAGE_SUFFIXES = from_conf("DEFAULT_PACKAGE_SUFFIXES", ".py,.R,.RDS")
+
+# Overrides auto-detection of whether to bundle the metaflow distribution
+# and metaflow_extensions in the code package. Only consulted on direct-
+# compute paths (local run / Titus / Batch / Kubernetes). Orchestrated
+# backends (Argo / Step Functions / Airflow) always include metaflow
+# because their DAG glue runs outside any env-providing decorator.
+# Leave unset for auto-detect.
+PACKAGE_EXCLUDE_METAFLOW_DISTRIBUTION = from_conf(
+    "PACKAGE_EXCLUDE_METAFLOW_DISTRIBUTION", None
+)
 DEFAULT_AWS_CLIENT_PROVIDER = from_conf("DEFAULT_AWS_CLIENT_PROVIDER", "boto3")
 DEFAULT_AZURE_CLIENT_PROVIDER = from_conf(
     "DEFAULT_AZURE_CLIENT_PROVIDER", "azure-default"

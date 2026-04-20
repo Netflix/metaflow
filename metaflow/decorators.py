@@ -250,6 +250,16 @@ class FlowDecorator(Decorator):
     # Signature: flow_init_ctx(self, options)
     flow_init_ctx = None
 
+    # Class-level opt-in: when True, this flow decorator guarantees that
+    # metaflow (and any metaflow_extensions it depends on) will be importable
+    # in the remote environment for every step of the flow. If every step is
+    # covered (directly or via such a flow decorator / mutator),
+    # MetaflowPackage can skip bundling the metaflow distribution.
+    provides_metaflow_distribution: bool = False
+
+    def provides_metaflow_distribution_for(self, flow, step) -> bool:
+        return self.provides_metaflow_distribution
+
     def __init__(self, *args, **kwargs):
         super(FlowDecorator, self).__init__(*args, **kwargs)
 
@@ -371,6 +381,15 @@ class StepDecorator(Decorator):
     task_decorate_ctx = None
     task_step_completed_ctx = None  # coalesces task_post_step + task_exception
     task_finished_ctx = None
+
+    # Class-level opt-in: when True, this step decorator guarantees that
+    # metaflow will be importable in the remote environment for this step
+    # (e.g. because it provisions a conda / pypi environment from the user's
+    # declared dependencies).
+    provides_metaflow_distribution: bool = False
+
+    def provides_metaflow_distribution_for(self, step) -> bool:
+        return self.provides_metaflow_distribution
 
     def step_init(
         self, flow, graph, step_name, decorators, environment, flow_datastore, logger
