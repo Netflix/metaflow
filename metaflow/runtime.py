@@ -50,10 +50,10 @@ from .flowspec import FlowStateItems
 from .mflog import mflog, RUNTIME_LOG_SOURCE
 from .util import to_unicode, compress_list, unicode_type, get_latest_task_pathspec
 from .clone_util import clone_task_helper
+from .system_context import system_context
 from .unbounded_foreach import (
     CONTROL_TASK_TAG,
     UBF_CONTROL,
-    UBF_TASK,
 )
 
 from .user_configs.config_options import ConfigInput
@@ -203,6 +203,8 @@ class SpinRuntime(object):
 
         # Create a new run_id for the spin task
         self.run_id = self._metadata.new_run_id()
+        system_context._update(run_id=self.run_id)
+
         # Raise exception if we have a black listed decorator
         for deco in self._step_func.decorators:
             if deco.name in SPIN_DISALLOWED_DECORATORS:
@@ -211,7 +213,10 @@ class SpinRuntime(object):
                 )
 
         for deco in self.whitelist_decorators:
-            deco.runtime_init(flow, graph, package, self.run_id)
+            if deco.runtime_init_ctx is not None:
+                deco.runtime_init_ctx(self._step_func.name)
+            else:
+                deco.runtime_init(flow, graph, package, self.run_id)
         from_start("SpinRuntime: after init decorators")
 
     @property
@@ -302,7 +307,10 @@ class SpinRuntime(object):
                 raise
             finally:
                 for deco in self.whitelist_decorators:
-                    deco.runtime_finished(exception)
+                    if deco.runtime_finished_ctx is not None:
+                        deco.runtime_finished_ctx(self._step_func.name, exception)
+                    else:
+                        deco.runtime_finished(exception)
 
     def _launch_and_monitor_task(self):
         worker = Worker(
@@ -450,10 +458,16 @@ class NativeRuntime(object):
         # finished.
         self._control_num_splits = {}  # control_task -> num_splits mapping
 
+        # Update the context
+        system_context._update(run_id=self._run_id)
+
         if not self._skip_decorator_hooks:
             for step in flow:
                 for deco in step.decorators:
-                    deco.runtime_init(flow, graph, package, self._run_id)
+                    if deco.runtime_init_ctx is not None:
+                        deco.runtime_init_ctx(step.__name__)
+                    else:
+                        deco.runtime_init(flow, graph, package, self._run_id)
 
     def _new_task(self, step, input_paths=None, **kwargs):
         if input_paths is None:
@@ -943,7 +957,10 @@ class NativeRuntime(object):
                 if not self._skip_decorator_hooks:
                     for step in self._flow:
                         for deco in step.decorators:
-                            deco.runtime_finished(exception)
+                            if deco.runtime_finished_ctx is not None:
+                                deco.runtime_finished_ctx(step.__name__, exception)
+                            else:
+                                deco.runtime_finished(exception)
                 self._run_exit_hooks()
 
         # assert that the terminal step was executed and it was successful
@@ -1817,15 +1834,26 @@ class Task(object):
         # Open the output datastore only if the task is not being cloned.
         if not self._is_cloned:
             self.new_attempt()
+            system_context._update(
+                task_id=self.task_id,
+                split_index=split_index,
+                is_cloned=self._is_cloned,
+                ubf_context=ubf_context,
+                task_datastore=self._ds,
+                input_paths=input_paths,
+            )
             for deco in decos:
-                deco.runtime_task_created(
-                    self._ds,
-                    task_id,
-                    split_index,
-                    input_paths,
-                    self._is_cloned,
-                    ubf_context,
-                )
+                if deco.runtime_task_created_ctx is not None:
+                    deco.runtime_task_created_ctx(self.step)
+                else:
+                    deco.runtime_task_created(
+                        self._ds,
+                        task_id,
+                        split_index,
+                        input_paths,
+                        self._is_cloned,
+                        ubf_context,
+                    )
 
                 # determine the number of retries of this task
                 user_code_retries, error_retries = deco.step_task_retry_count()
@@ -2268,13 +2296,26 @@ class Worker(object):
             args.top_level_options["monitor"] = "nullSidecarMonitor"
         else:
             # decorators may modify the CLIArgs object in-place
+            from .system_context import system_context
+
+            system_context._update(
+                task_id=self.task.task_id,
+                split_index=self.task.split_index,
+                input_paths=self.task.input_paths,
+                ubf_context=self.task.ubf_context,
+                retry_count=self.task.retries,
+                max_user_code_retries=self.task.user_code_retries,
+            )
             for deco in self.task.decos:
-                deco.runtime_step_cli(
-                    args,
-                    self.task.retries,
-                    self.task.user_code_retries,
-                    self.task.ubf_context,
-                )
+                if deco.runtime_step_cli_ctx is not None:
+                    deco.runtime_step_cli_ctx(self.task.step, args)
+                else:
+                    deco.runtime_step_cli(
+                        args,
+                        self.task.retries,
+                        self.task.user_code_retries,
+                        self.task.ubf_context,
+                    )
 
         # Add user configurations using a file to avoid using up too much space on the
         # command line

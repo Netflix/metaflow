@@ -42,7 +42,11 @@ jobs:
     - name: Install Python ${{ matrix.ver }} dependencies
       run: |
         python3 -m pip install --upgrade pip setuptools
-        python3 -m pip install pytest build "mypy<1.9" pytest-mypy-plugins
+        if python3 -c "import sys; exit(0 if sys.version_info >= (3,10) else 1)"; then
+          python3 -m pip install pytest build "mypy<1.9" "pytest-mypy-plugins==4.0.0"
+        else
+          python3 -m pip install pytest build "mypy<1.9" "pytest-mypy-plugins<4"
+        fi
 
     - name: Install metaflow
       run: pip install .
@@ -66,4 +70,10 @@ jobs:
         max_attempts: 2
         timeout_minutes: 3
         retry_on: error
-        command: cd ./stubs && pytest --mypy-ini-file test/mypy_${{ matrix.ver }}.cfg --mypy-only-local-stub && cd -
+        command: |
+          cd ./stubs
+          if python3 -c "import sys; exit(0 if sys.version_info >= (3,10) else 1)"; then
+            pytest --mypy-ini-file test/mypy_${{ matrix.ver }}.cfg
+          else
+            pytest --mypy-ini-file test/mypy_${{ matrix.ver }}.cfg --mypy-only-local-stub
+          fi
