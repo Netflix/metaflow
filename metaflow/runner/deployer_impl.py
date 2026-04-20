@@ -55,6 +55,7 @@ class DeployerImpl(object):
         env: Optional[Dict] = None,
         cwd: Optional[str] = None,
         file_read_timeout: int = 3600,
+        flow_name: Optional[str] = None,
         **kwargs
     ):
         if self.TYPE is None:
@@ -94,8 +95,9 @@ class DeployerImpl(object):
             self.env_vars["METAFLOW_PROFILE"] = profile
 
         self.spm = SubprocessManager()
+        self._flow_name_arg = flow_name
         self.top_level_kwargs = kwargs
-        self.api = MetaflowAPI.from_cli(self.flow_file, start)
+        self.api = MetaflowAPI.from_cli(self.flow_file, start, flow_name=flow_name)
 
     @property
     def to_reload(self) -> List[str]:
@@ -164,8 +166,11 @@ class DeployerImpl(object):
                     self.api, self.top_level_kwargs, self.TYPE, self.deployer_kwargs
                 ).create(deployer_attribute_file=attribute_file_path, **kwargs)
 
+            cmd = [sys.executable, *command]
+            if self._flow_name_arg is not None:
+                cmd = [cmd[0], cmd[1], self._flow_name_arg] + cmd[2:]
             pid = self.spm.run_command(
-                [sys.executable, *command],
+                cmd,
                 env=self.env_vars,
                 cwd=self.cwd,
                 show_output=self.show_output,
