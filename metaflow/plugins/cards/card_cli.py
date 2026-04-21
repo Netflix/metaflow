@@ -649,6 +649,11 @@ def create(
     full_pathspec = "/".join([flowname, pathspec])
 
     graph_dict, _ = ctx.obj.graph.output_steps()
+    graph_payload = {
+        "steps": graph_dict,
+        "start_step": ctx.obj.graph.start_step,
+        "end_step": ctx.obj.graph.end_step,
+    }
 
     if card_uuid is None:
         card_uuid = str(uuid.uuid4()).replace("-", "")
@@ -702,12 +707,12 @@ def create(
                 mf_card = filtered_card(
                     options=options,
                     components=component_arr,
-                    graph=graph_dict,
+                    graph=graph_payload,
                     flow=ctx.obj.flow,
                 )
             else:
                 mf_card = filtered_card(
-                    components=component_arr, graph=graph_dict, flow=ctx.obj.flow
+                    components=component_arr, graph=graph_payload, flow=ctx.obj.flow
                 )
         except TypeError as e:
             if render_error_card:

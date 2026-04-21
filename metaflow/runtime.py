@@ -514,27 +514,36 @@ class NativeRuntime(object):
         if not self._params_task.is_cloned:
             self._params_task.persist(self._flow)
 
-        # Register start/end step metadata on _parameters task so the
-        # client can determine graph endpoints without loading _graph_info.
-        self._metadata.register_metadata(
-            self._run_id,
-            "_parameters",
-            self._params_task.task_id,
-            [
-                MetaDatum(
-                    field="start_step",
-                    value=self._graph.start_step,
-                    type="graph_structure",
-                    tags=[],
-                ),
-                MetaDatum(
-                    field="end_step",
-                    value=self._graph.end_step,
-                    type="graph_structure",
-                    tags=[],
-                ),
-            ],
-        )
+            # Register start/end step metadata on _parameters task so the
+            # client can determine graph endpoints without loading _graph_info.
+            # Only write for fresh runs -- cloned tasks carry the original's metadata.
+            try:
+                self._metadata.register_metadata(
+                    self._run_id,
+                    "_parameters",
+                    self._params_task.task_id,
+                    [
+                        MetaDatum(
+                            field="start_step",
+                            value=self._graph.start_step,
+                            type="graph_structure",
+                            tags=[],
+                        ),
+                        MetaDatum(
+                            field="end_step",
+                            value=self._graph.end_step,
+                            type="graph_structure",
+                            tags=[],
+                        ),
+                    ],
+                )
+            except Exception:
+                self._logger(
+                    "Warning: failed to register graph endpoint metadata. "
+                    "The client will fall back to default step names.",
+                    system_msg=True,
+                    bad=True,
+                )
 
         self._is_cloned[self._params_task.path] = self._params_task.is_cloned
 

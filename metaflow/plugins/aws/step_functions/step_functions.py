@@ -240,7 +240,9 @@ class StepFunctions(object):
         workflow = StepFunctionsClient().get(name)
         if workflow is not None:
             try:
-                start = json.loads(workflow["definition"])["States"]["start"]
+                definition = json.loads(workflow["definition"])
+                start_state_name = definition.get("StartAt", "start")
+                start = definition["States"][start_state_name]
                 parameters = start["Parameters"]["Parameters"]
                 return parameters.get("metaflow.owner"), parameters.get(
                     "metaflow.production_token"
@@ -271,10 +273,11 @@ class StepFunctions(object):
             )
         try:
             state_machine_arn = state_machine.get("stateMachineArn")
+            definition = json.loads(state_machine.get("definition"))
+            start_state_name = definition.get("StartAt", "start")
             environment_vars = (
-                json.loads(state_machine.get("definition"))
-                .get("States")
-                .get("start")
+                definition.get("States")
+                .get(start_state_name)
                 .get("Parameters")
                 .get("ContainerOverrides")
                 .get("Environment")

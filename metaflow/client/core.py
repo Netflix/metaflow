@@ -2192,8 +2192,13 @@ class Run(MetaflowObject):
                 params_meta = self["_parameters"].task.metadata_dict
                 start = params_meta.get("start_step", "start")
                 end = params_meta.get("end_step", "end")
-            except Exception:
+            except (KeyError, MetaflowNotFound):
+                # Expected for old runs without _parameters or metadata.
                 pass
+            except Exception:
+                # Transient error (network, metadata service) -- do NOT cache
+                # the fallback so a subsequent access can retry.
+                return (start, end)
             self._cached_endpoints = (start, end)
         return self._cached_endpoints
 

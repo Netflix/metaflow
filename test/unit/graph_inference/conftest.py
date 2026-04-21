@@ -2,7 +2,6 @@ import os
 import pytest
 from metaflow import Runner, Flow
 
-
 FLOWS_DIR = os.path.join(os.path.dirname(__file__), "flows")
 
 
@@ -31,4 +30,8 @@ single_step_run = pytest.fixture(scope="session")(
 
 custom_branch_run = pytest.fixture(scope="session")(
     create_flow_fixture("CustomBranchFlow", "custom_branch_flow.py")
+)
+
+custom_named_card_run = pytest.fixture(scope="session")(
+    create_flow_fixture("CustomNamedCardFlow", "custom_named_card_flow.py")
 )

@@ -11,7 +11,6 @@ from io import BytesIO
 from itertools import takewhile
 from typing import Dict, Any, Tuple, Optional, List, Generator
 
-
 try:
     # python2
     unicode_type = unicode

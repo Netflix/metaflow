@@ -591,10 +591,10 @@ def _base_step_decorator(decotype, *args, **kwargs):
 
         # Step decorator applied to a class with a synthesized step method.
         # Used by extensions that create a single synthetic @step on a
-        # FlowSpec subclass. _step_spec_step_name is set by the
-        # extension's metaclass.
-        if isinstance(func, type) and hasattr(func, "_step_spec_step_name"):
-            step_func = getattr(func, func._step_spec_step_name)
+        # FlowSpec subclass. _function_spec_step_name is set by the
+        # extension's metaclass (e.g. FunctionSpecMeta).
+        if isinstance(func, type) and hasattr(func, "_function_spec_step_name"):
+            step_func = getattr(func, func._function_spec_step_name)
             if hasattr(step_func, "is_step"):
                 step_func.decorators.append(
                     decotype(attributes=kwargs, statically_defined=True)

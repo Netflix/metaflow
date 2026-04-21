@@ -164,21 +164,11 @@ class _FlowState(MutableMapping):
 
 
 class FlowSpecMeta(type):
-    _registry = {}  # {class_name: class} for all FlowSpec/StepSpec subclasses
-
-    # Names of base classes that should NOT be registered or have their
-    # graph/attrs initialized.  Subclasses of FlowSpecMeta (like StepSpecMeta)
-    # can extend this set.
-    _base_class_names = frozenset({"FlowSpec"})
-
     def __init__(cls, name, bases, attrs):
         super().__init__(name, bases, attrs)
-        # Check against the metaclass's own _base_class_names — this
-        # allows StepSpecMeta to add "StepSpec" to the set.
-        if name in type(cls)._base_class_names:
+        if name == "FlowSpec":
             return
 
-        type(cls)._registry[name] = cls
         cls._init_attrs()
 
     def _init_attrs(cls):

@@ -9,148 +9,240 @@ These tests actually execute flows with non-standard step names and verify:
 - Single-step flows execute end-to-end
 """
 
+import json
+from importlib.util import module_from_spec, spec_from_file_location
+from pathlib import Path
 
-class TestCustomNamedFlow:
-    """Tests for a linear flow with custom step names (begin/middle/finish)."""
+import pytest
+from metaflow.events import Trigger
+from metaflow.plugins.cards.card_modules.basic import (
+    DefaultCardJSON,
+    transform_flow_graph,
+)
 
-    def test_flow_completes(self, custom_named_run):
-        assert custom_named_run.successful
-        assert custom_named_run.finished
-
-    def test_graph_info_has_endpoints(self, custom_named_run):
-        """_graph_info should contain start_step and end_step fields."""
-        graph_info = custom_named_run["_parameters"].task["_graph_info"].data
-        assert graph_info["start_step"] == "begin"
-        assert graph_info["end_step"] == "finish"
-
-    def test_parameters_metadata_has_endpoints(self, custom_named_run):
-        """_parameters task metadata should contain start_step and end_step."""
-        meta = custom_named_run["_parameters"].task.metadata_dict
-        assert meta.get("start_step") == "begin"
-        assert meta.get("end_step") == "finish"
-
-    def test_graph_endpoints_property(self, custom_named_run):
-        """Run._graph_endpoints should return correct names."""
-        start, end = custom_named_run._graph_endpoints
-        assert start == "begin"
-        assert end == "finish"
-
-    def test_end_task(self, custom_named_run):
-        """Run.end_task should return the 'finish' step's task."""
-        end_task = custom_named_run.end_task
-        assert end_task is not None
-        assert end_task["x"].data == 3
-
-    def test_steps_present(self, custom_named_run):
-        """All custom-named steps should be present in the run."""
-        step_names = {s.id for s in custom_named_run}
-        assert step_names == {"begin", "middle", "finish"}
-
-    def test_parent_steps(self, custom_named_run):
-        """parent_steps should yield correct parents for each step."""
-        begin_parents = list(custom_named_run["begin"].parent_steps)
-        assert begin_parents == []
-
-        middle_parents = [s.id for s in custom_named_run["middle"].parent_steps]
-        assert middle_parents == ["begin"]
-
-        finish_parents = [s.id for s in custom_named_run["finish"].parent_steps]
-        assert finish_parents == ["middle"]
-
-    def test_child_steps(self, custom_named_run):
-        """child_steps should yield correct children for each step."""
-        begin_children = [s.id for s in custom_named_run["begin"].child_steps]
-        assert begin_children == ["middle"]
-
-        middle_children = [s.id for s in custom_named_run["middle"].child_steps]
-        assert middle_children == ["finish"]
-
-        finish_children = list(custom_named_run["finish"].child_steps)
-        assert finish_children == []
+FLOWS_DIR = Path(__file__).resolve().parent / "flows"
 
 
-class TestSingleStepFlow:
-    """Tests for a single-step flow where start == end."""
-
-    def test_flow_completes(self, single_step_run):
-        assert single_step_run.successful
-        assert single_step_run.finished
-
-    def test_graph_info_start_equals_end(self, single_step_run):
-        """In a single-step flow, start_step and end_step should be the same."""
-        graph_info = single_step_run["_parameters"].task["_graph_info"].data
-        assert graph_info["start_step"] == "only"
-        assert graph_info["end_step"] == "only"
-        assert graph_info["start_step"] == graph_info["end_step"]
-
-    def test_parameters_metadata(self, single_step_run):
-        meta = single_step_run["_parameters"].task.metadata_dict
-        assert meta.get("start_step") == "only"
-        assert meta.get("end_step") == "only"
-
-    def test_end_task(self, single_step_run):
-        """end_task should return the single step's task."""
-        end_task = single_step_run.end_task
-        assert end_task is not None
-        assert end_task["x"].data == 42
-
-    def test_single_step_present(self, single_step_run):
-        step_names = {s.id for s in single_step_run}
-        assert step_names == {"only"}
-
-    def test_parent_child_steps_empty(self, single_step_run):
-        """Single step should have no parents and no children."""
-        parents = list(single_step_run["only"].parent_steps)
-        children = list(single_step_run["only"].child_steps)
-        assert parents == []
-        assert children == []
+def _find_components_by_type(node, component_type):
+    if isinstance(node, dict):
+        if node.get("type") == component_type:
+            yield node
+        for value in node.values():
+            yield from _find_components_by_type(value, component_type)
+    elif isinstance(node, list):
+        for item in node:
+            yield from _find_components_by_type(item, component_type)
 
 
-class TestCustomBranchFlow:
-    """Tests for a branching flow with custom step names."""
-
-    def test_flow_completes(self, custom_branch_run):
-        assert custom_branch_run.successful
-        assert custom_branch_run.finished
-
-    def test_graph_info_endpoints(self, custom_branch_run):
-        graph_info = custom_branch_run["_parameters"].task["_graph_info"].data
-        assert graph_info["start_step"] == "entry"
-        assert graph_info["end_step"] == "done"
-
-    def test_end_task(self, custom_branch_run):
-        end_task = custom_branch_run.end_task
-        assert end_task is not None
-
-    def test_branch_merge_data(self, custom_branch_run):
-        """Data should flow through branches correctly."""
-        merge_task = custom_branch_run["merge"].task
-        assert sorted(merge_task["vals"].data) == ["a", "b"]
-
-    def test_steps_present(self, custom_branch_run):
-        step_names = {s.id for s in custom_branch_run}
-        assert step_names == {"entry", "a", "b", "merge", "done"}
-
-    def test_entry_has_two_children(self, custom_branch_run):
-        children = [s.id for s in custom_branch_run["entry"].child_steps]
-        assert sorted(children) == ["a", "b"]
-
-    def test_merge_has_two_parents(self, custom_branch_run):
-        parents = [s.id for s in custom_branch_run["merge"].parent_steps]
-        assert sorted(parents) == ["a", "b"]
+def _load_flow(flow_file, flow_class_name):
+    spec = spec_from_file_location(flow_class_name, FLOWS_DIR / flow_file)
+    module = module_from_spec(spec)
+    assert spec.loader is not None
+    spec.loader.exec_module(module)
+    return getattr(module, flow_class_name)(use_cli=False)
 
 
-class TestAnnotatedFlowExecution:
-    """Test that @step(start=True)/@step(end=True) works in actual execution."""
+# ---------------------------------------------------------------------------
+# Custom named flow (begin/middle/finish)
+# ---------------------------------------------------------------------------
 
-    def test_custom_named_flow_completes(self, custom_named_run):
-        """custom_named_flow.py now uses annotations."""
-        assert custom_named_run.successful
 
-    def test_single_step_flow_completes(self, single_step_run):
-        """single_step_flow.py now uses @step(start=True, end=True)."""
-        assert single_step_run.successful
+def test_custom_named_flow_completes(custom_named_run):
+    assert custom_named_run.successful
+    assert custom_named_run.finished
 
-    def test_custom_branch_flow_completes(self, custom_branch_run):
-        """custom_branch_flow.py now uses annotations."""
-        assert custom_branch_run.successful
+
+def test_custom_named_graph_info_has_endpoints(custom_named_run):
+    graph_info = custom_named_run["_parameters"].task["_graph_info"].data
+    assert graph_info["start_step"] == "begin"
+    assert graph_info["end_step"] == "finish"
+
+
+def test_custom_named_parameters_metadata_has_endpoints(custom_named_run):
+    meta = custom_named_run["_parameters"].task.metadata_dict
+    assert meta.get("start_step") == "begin"
+    assert meta.get("end_step") == "finish"
+
+
+def test_custom_named_graph_endpoints_property(custom_named_run):
+    start, end = custom_named_run._graph_endpoints
+    assert start == "begin"
+    assert end == "finish"
+
+
+def test_custom_named_end_task(custom_named_run):
+    end_task = custom_named_run.end_task
+    assert end_task is not None
+    assert end_task["x"].data == 3
+
+
+def test_custom_named_steps_present(custom_named_run):
+    step_names = {s.id for s in custom_named_run}
+    assert step_names == {"begin", "middle", "finish"}
+
+
+def test_custom_named_parent_steps(custom_named_run):
+    assert list(custom_named_run["begin"].parent_steps) == []
+    assert [s.id for s in custom_named_run["middle"].parent_steps] == ["begin"]
+    assert [s.id for s in custom_named_run["finish"].parent_steps] == ["middle"]
+
+
+def test_custom_named_child_steps(custom_named_run):
+    assert [s.id for s in custom_named_run["begin"].child_steps] == ["middle"]
+    assert [s.id for s in custom_named_run["middle"].child_steps] == ["finish"]
+    assert list(custom_named_run["finish"].child_steps) == []
+
+
+# ---------------------------------------------------------------------------
+# Single-step flow (start == end)
+# ---------------------------------------------------------------------------
+
+
+def test_single_step_flow_completes(single_step_run):
+    assert single_step_run.successful
+    assert single_step_run.finished
+
+
+def test_single_step_graph_info_start_equals_end(single_step_run):
+    graph_info = single_step_run["_parameters"].task["_graph_info"].data
+    assert graph_info["start_step"] == "only"
+    assert graph_info["end_step"] == "only"
+    assert graph_info["start_step"] == graph_info["end_step"]
+
+
+def test_single_step_parameters_metadata(single_step_run):
+    meta = single_step_run["_parameters"].task.metadata_dict
+    assert meta.get("start_step") == "only"
+    assert meta.get("end_step") == "only"
+
+
+def test_single_step_end_task(single_step_run):
+    end_task = single_step_run.end_task
+    assert end_task is not None
+    assert end_task["x"].data == 42
+
+
+def test_single_step_present(single_step_run):
+    assert {s.id for s in single_step_run} == {"only"}
+
+
+def test_single_step_parent_child_empty(single_step_run):
+    assert list(single_step_run["only"].parent_steps) == []
+    assert list(single_step_run["only"].child_steps) == []
+
+
+# ---------------------------------------------------------------------------
+# Custom branch flow (entry/a/b/merge/done)
+# ---------------------------------------------------------------------------
+
+
+def test_branch_flow_completes(custom_branch_run):
+    assert custom_branch_run.successful
+    assert custom_branch_run.finished
+
+
+def test_branch_graph_info_endpoints(custom_branch_run):
+    graph_info = custom_branch_run["_parameters"].task["_graph_info"].data
+    assert graph_info["start_step"] == "entry"
+    assert graph_info["end_step"] == "done"
+
+
+def test_branch_end_task(custom_branch_run):
+    assert custom_branch_run.end_task is not None
+
+
+def test_branch_merge_data(custom_branch_run):
+    merge_task = custom_branch_run["merge"].task
+    assert sorted(merge_task["vals"].data) == ["a", "b"]
+
+
+def test_branch_steps_present(custom_branch_run):
+    assert {s.id for s in custom_branch_run} == {"entry", "a", "b", "merge", "done"}
+
+
+def test_branch_entry_has_two_children(custom_branch_run):
+    children = [s.id for s in custom_branch_run["entry"].child_steps]
+    assert sorted(children) == ["a", "b"]
+
+
+def test_branch_merge_has_two_parents(custom_branch_run):
+    parents = [s.id for s in custom_branch_run["merge"].parent_steps]
+    assert sorted(parents) == ["a", "b"]
+
+
+# ---------------------------------------------------------------------------
+# Trigger integration
+# ---------------------------------------------------------------------------
+
+
+def test_trigger_from_runs_uses_custom_terminal_step(custom_named_run):
+    trigger = Trigger.from_runs([custom_named_run])
+
+    assert trigger.event is not None
+    assert trigger.event.name == "metaflow.%s.finish" % custom_named_run.parent.id
+    assert trigger.event.id == custom_named_run.end_task.pathspec
+    assert trigger.run.pathspec == custom_named_run.pathspec
+
+
+# ---------------------------------------------------------------------------
+# Card graph transform
+# ---------------------------------------------------------------------------
+
+
+def test_transform_flow_graph_supports_explicit_endpoints():
+    graph = {
+        "start_step": "begin",
+        "end_step": "finish",
+        "steps": {
+            "begin": {"type": "start", "next": ["middle"], "doc": "begin"},
+            "middle": {"type": "linear", "next": ["finish"], "doc": "middle"},
+            "finish": {"type": "end", "next": [], "doc": "finish"},
+        },
+    }
+
+    transformed = transform_flow_graph(graph)
+
+    assert transformed["start_step"] == "begin"
+    assert transformed["end_step"] == "finish"
+    assert set(transformed["steps"]) == {"begin", "middle", "finish"}
+    assert transformed["steps"]["begin"]["type"] == "start"
+    assert transformed["steps"]["middle"]["box_next"] is False
+    assert transformed["steps"]["finish"]["type"] == "end"
+
+
+def test_transform_flow_graph_keeps_legacy_start_end_detection():
+    graph = {
+        "start": {"type": "start", "next": ["end"], "doc": ""},
+        "end": {"type": "end", "next": [], "doc": ""},
+    }
+
+    transformed = transform_flow_graph(graph)
+
+    assert transformed["start_step"] == "start"
+    assert transformed["end_step"] == "end"
+    assert set(transformed["steps"]) == {"start", "end"}
+
+
+# ---------------------------------------------------------------------------
+# Cards integration
+# ---------------------------------------------------------------------------
+
+
+def test_default_card_includes_custom_graph_endpoints(custom_named_card_run):
+    flow = _load_flow("custom_named_card_flow.py", "CustomNamedCardFlow")
+    graph = custom_named_card_run["_parameters"].task["_graph_info"].data
+    card_data = json.loads(
+        DefaultCardJSON(graph=graph, flow=flow).render(
+            custom_named_card_run["begin"].task
+        )
+    )
+
+    dag_components = list(_find_components_by_type(card_data["components"], "dag"))
+    assert len(dag_components) == 1
+
+    dag_data = dag_components[0]["data"]
+    assert dag_data["start_step"] == "begin"
+    assert dag_data["end_step"] == "finish"
+    assert set(dag_data["steps"]) == {"begin", "middle", "finish"}
+    assert "start" not in dag_data["steps"]
+    assert "end" not in dag_data["steps"]

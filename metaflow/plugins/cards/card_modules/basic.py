@@ -12,7 +12,22 @@ JS_PATH = os.path.join(ABS_DIR_PATH, "main.js")
 CSS_PATH = os.path.join(ABS_DIR_PATH, "bundle.css")
 
 
-def transform_flow_graph(step_info):
+def transform_flow_graph(graph):
+    if (
+        isinstance(graph, dict)
+        and "steps" in graph
+        and "start_step" in graph
+        and "end_step" in graph
+        and isinstance(graph["steps"], dict)
+    ):
+        step_info = graph["steps"]
+        start_step = graph.get("start_step")
+        end_step = graph.get("end_step")
+    else:
+        step_info = graph
+        start_step = "start" if "start" in graph else None
+        end_step = "end" if "end" in graph else None
+
     def node_to_type(node_type):
         if node_type in ["linear", "start", "end", "join"]:
             return node_type
@@ -47,7 +62,11 @@ def transform_flow_graph(step_info):
 
         graph_dict[stepname] = node_info
 
-    return graph_dict
+    return {
+        "steps": graph_dict,
+        "start_step": start_step,
+        "end_step": end_step,
+    }
 
 
 def read_file(path):

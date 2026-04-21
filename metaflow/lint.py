@@ -59,14 +59,57 @@ def check_reserved_words(graph):
 @linter.check
 def check_basic_steps(graph):
     if graph.start_step is None:
+        annotated = [
+            name
+            for name, node in graph.nodes.items()
+            if node.is_start_step and not name.startswith("_")
+        ]
+        if len(annotated) > 1:
+            raise LintWarn(
+                "Multiple steps annotated with @step(start=True): %s. "
+                "Exactly one is allowed." % ", ".join(sorted(annotated))
+            )
         raise LintWarn(
             "Your flow must have exactly one start step. Either name a step "
             "'start' or use @step(start=True)."
         )
     if graph.end_step is None:
+        annotated = [
+            name
+            for name, node in graph.nodes.items()
+            if node.is_end_step and not name.startswith("_")
+        ]
+        if len(annotated) > 1:
+            raise LintWarn(
+                "Multiple steps annotated with @step(end=True): %s. "
+                "Exactly one is allowed." % ", ".join(sorted(annotated))
+            )
         raise LintWarn(
             "Your flow must have exactly one end step. Either name a step "
             "'end' or use @step(end=True)."
+        )
+
+
+@linter.ensure_fundamentals
+@linter.check
+def check_annotation_name_conflict(graph):
+    """Detect conflict between @step(start/end=True) and legacy step names."""
+    if (
+        graph.start_step is not None
+        and graph.start_step != "start"
+        and "start" in graph.nodes
+    ):
+        raise LintWarn(
+            "Ambiguous start step: step '%s' is annotated with @step(start=True) "
+            "but a step named 'start' also exists. Remove the 'start' name or "
+            "the @step(start=True) annotation." % graph.start_step
+        )
+
+    if graph.end_step is not None and graph.end_step != "end" and "end" in graph.nodes:
+        raise LintWarn(
+            "Ambiguous end step: step '%s' is annotated with @step(end=True) "
+            "but a step named 'end' also exists. Remove the 'end' name or "
+            "the @step(end=True) annotation." % graph.end_step
         )
 
 
