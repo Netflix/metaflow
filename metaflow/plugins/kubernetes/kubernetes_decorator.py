@@ -575,6 +575,8 @@ class KubernetesDecorator(StepDecorator):
             self._save_logs_sidecar.start()
 
             # Start spot termination monitor sidecar.
+            # TODO: A nicer way to pass the main process id to a Sidecar, in order to allow sidecars to send signals back to the main process.
+            os.environ["MF_MAIN_PID"] = str(os.getpid())
             current._update_env(
                 {"spot_termination_notice": "/tmp/spot_termination_notice"}
             )
