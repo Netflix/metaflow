@@ -65,7 +65,11 @@ class DAGNode(object):
         if func_ast is None and name is None:
             raise ValueError("name is required when func_ast is None")
 
-        self.name = func_ast.name if func_ast is not None else name
+        # Prefer explicit `name` (the attribute name under which the step was
+        # discovered) over the AST-derived `def` name. This matters when a
+        # metaclass renames a function via __name__ — the attribute name is
+        # what getattr(cls, node.name) later looks up in FlowSpec._init_graph.
+        self.name = name if name is not None else func_ast.name
         self.source_file = source_file
         # lineno is the start line of decorators in source_file
         # func_ast.lineno is lines from decorators start to def of function
@@ -397,6 +401,7 @@ class FlowGraph(object):
                         is_start_step=is_start,
                         is_end_step=is_end,
                         node_info=getattr(func, "node_info", None),
+                        name=element,
                     )
                 nodes[element] = node
         return nodes
