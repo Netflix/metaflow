@@ -35,24 +35,6 @@ gum style "Select services to deploy (press enter to select all):" \
 
 pretty_print() {
   local items=("$@")
-  
-  if [ "${#items[@]}" -eq 1 ]; then
-    echo "${items[0]}"
-    return
-  fi
-
-  if [ "${#items[@]}" -eq 2 ]; then
-    echo "${items[0]} and ${items[1]}"
-    return
-  fi
-
-  local last_item="${items[-1]}"
-  unset 'items[-1]'
-  echo "$(IFS=,; echo "${items[*]}"), and $last_item"
-}
-
-pretty_print() {
-  local items=("$@")
   local length=${#items[@]}
 
   if [ "$length" -eq 0 ]; then
