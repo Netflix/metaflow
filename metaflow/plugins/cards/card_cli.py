@@ -161,9 +161,13 @@ def resolve_card(
 @contextmanager
 def timeout(time):
     # Register a function to raise a TimeoutError on the signal.
-    signal.signal(signal.SIGALRM, raise_timeout)
-    # Schedule the signal to be sent after ``time``.
-    signal.alarm(time)
+import sys
+   if sys.platform == "win32":
+       raise RuntimeError(
+           "Card timeout is not supported on Windows (SIGALRM is POSIX-only)."
+       )
+   signal.signal(signal.SIGALRM, raise_timeout)
+   signal.alarm(time)
 
     try:
         yield
