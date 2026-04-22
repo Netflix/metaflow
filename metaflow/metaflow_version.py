@@ -106,13 +106,20 @@ def format_git_describe(git_str, public=False):
     if git_str is None:
         return None
     splits = git_str.split("-")
-    if len(splits) == 4:
-        # Formatted as <tag>-<post>-<hash>-dirty
-        tag, post, h = splits[:3]
-        dirty = "-" + splits[3]
+    if len(splits) < 3:
+        # Unparseable; caller falls back to __version__ on None.
+        return None
+    # The rightmost tokens are always <post>-<hash>, optionally followed by
+    # "dirty". Everything before is the tag, which may itself contain dashes
+    # (e.g. v1.0-rc.1). Parsing from the right lets dashed tags round-trip
+    # instead of overflowing the unpack.
+    if splits[-1] == "dirty":
+        tag = "-".join(splits[:-3])
+        post, h = splits[-3:-1]
+        dirty = "-dirty"
     else:
-        # Formatted as <tag>-<post>-<hash>
-        tag, post, h = splits
+        tag = "-".join(splits[:-2])
+        post, h = splits[-2:]
         dirty = ""
     if post == "0":
         if public:
