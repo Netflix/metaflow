@@ -45,7 +45,7 @@ SERVICES_OVERRIDE=localbatch,minio make up
 | `sfn-local` | AWS Step Functions Local | ddb-local | 8082 |
 | `azurite` | Azure Blob / Queue / Table emulator | — | 10000–10002 |
 | `fake-gcs-server` | Google Cloud Storage emulator | — | 4443 |
-| `airflow` | Apache Airflow (LocalExecutor) | — | 8090 (UI / REST API) |
+| `airflow` | Apache Airflow (LocalExecutor) | postgresql | 8090 (UI / REST API) |
 
 Dependencies are resolved automatically — selecting `sfn-local` in the picker also starts `ddb-local`.
 
