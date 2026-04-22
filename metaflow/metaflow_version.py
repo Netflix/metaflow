@@ -13,7 +13,6 @@ from os import path, name, environ, listdir
 from metaflow.extension_support import update_package_info
 from metaflow.meta_files import read_info_file
 
-
 # True/False correspond to the value `public`` in get_version
 _version_cache = {True: None, False: None}
 
@@ -114,6 +113,9 @@ def format_git_describe(git_str, public=False):
     # (e.g. v1.0-rc.1). Parsing from the right lets dashed tags round-trip
     # instead of overflowing the unpack.
     if splits[-1] == "dirty":
+        if len(splits) < 4:
+            # Dirty suffix adds one token, so we need at least 4 total.
+            return None
         tag = "-".join(splits[:-3])
         post, h = splits[-3:-1]
         dirty = "-dirty"
