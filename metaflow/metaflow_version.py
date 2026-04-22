@@ -146,8 +146,14 @@ def read_info_version():
 def make_public_version(version_string):
     """
     Takes a complex Metaflow version string and returns its public portion.
-    Preserves dashes that belong to the tag itself and only strips Metaflow's
-    private git/dirty suffixes and local extension metadata.
+    Strips Metaflow's private suffixes -- ``-git<hash>`` produced by
+    ``format_git_describe`` and the optional ``-dirty`` marker -- plus any
+    PEP 440 local-version segment (``+...``).
+
+    The result is a canonical PEP 440 public version iff the source tag
+    itself was canonical. A non-canonical tag such as ``v1.0-rc.1`` will
+    survive intact rather than being silently truncated; downstream
+    consumers that require strict PEP 440 will reject it at their layer.
     """
     base_version = version_string.split("+", 1)[0]
     return re.sub(r"(?:-git[0-9a-f]+)?(?:-dirty)?$", "", base_version)
