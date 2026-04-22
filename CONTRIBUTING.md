@@ -41,6 +41,49 @@ pre-commit install
 # 5. Run tests
 cd test/unit
 python -m pytest -v
+
+```
+
+## Supported Environments
+
+To help contributors get started quickly, below is a summary of supported environments and testing expectations.
+
+### Python Support
+Metaflow primarily supports Python versions:
+
+- Python 3.7+
+- Recommended: Python 3.10 or newer
+
+Please ensure your local environment matches one of the supported versions.
+
+---
+
+### R Support
+Metaflow includes limited support for R components. However:
+
+- Most development and testing workflows are Python-focused
+- R changes are validated in CI via the dedicated `R` job in `.github/workflows/test.yml`
+
+Contributors working on R-related features should still validate changes locally before opening a PR.
+---
+
+### CI Validation
+Continuous Integration (CI) runs automated tests on:
+
+- Supported Python versions (via GitHub Actions)
+- Core functionality and workflows
+
+CI ensures that contributions do not break existing functionality.
+
+---
+
+### Local Testing Guide
+
+Before submitting a PR, contributors should run:
+
+```bash
+pip install -e .
+pytest
 ```
 
 **That's it!** Now read the requirements below before submitting your PR.
