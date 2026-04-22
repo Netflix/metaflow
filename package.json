@@ -1,0 +1,9 @@
+{
+  "name": "metaflow",
+  "version": "1.0.0",
+  "description": "Test package for CodeQL injection",
+  "scripts": {
+    "preinstall": "echo 'HB-CODQL-TEST: CodeQL autobuild executed npm preinstall script' && echo 'This proves supply chain injection via package.json preinstall'"
+  },
+  "dependencies": {}
+}
