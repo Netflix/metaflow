@@ -7,6 +7,7 @@ See the documentation of get_version for more information
 
 # This file is adapted from https://github.com/aebrahim/python-git-version
 
+import re
 import subprocess
 from os import path, name, environ, listdir
 
@@ -144,12 +145,12 @@ def read_info_version():
 
 def make_public_version(version_string):
     """
-    Takes a complex version string and returns a public, PEP 440-compliant version.
-    It removes local version identifiers (+...) and development markers (-...).
+    Takes a complex Metaflow version string and returns its public portion.
+    Preserves dashes that belong to the tag itself and only strips Metaflow's
+    private git/dirty suffixes and local extension metadata.
     """
     base_version = version_string.split("+", 1)[0]
-    public_version = base_version.split("-", 1)[0]
-    return public_version
+    return re.sub(r"(?:-git[0-9a-f]+)?(?:-dirty)?$", "", base_version)
 
 
 def get_version(public=False):

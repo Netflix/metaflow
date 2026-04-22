@@ -1,6 +1,7 @@
 import pytest
 
-from metaflow.metaflow_version import format_git_describe
+import metaflow.metaflow_version as metaflow_version
+from metaflow.metaflow_version import format_git_describe, make_public_version
 
 
 @pytest.mark.parametrize(
@@ -50,3 +51,39 @@ def test_format_git_describe_parses_known_shapes(git_str, public, expected):
 )
 def test_format_git_describe_returns_none_for_unparseable(git_str):
     assert format_git_describe(git_str) is None
+
+
+@pytest.mark.parametrize(
+    "version_string,expected",
+    [
+        # Plain tag, no suffixes to strip.
+        ("2.19.22", "2.19.22"),
+        # Non-dashed tag with private git suffix, optionally dirty.
+        ("2.19.22.post5-git4ff334e", "2.19.22.post5"),
+        ("2.19.22.post5-git4ff334e-dirty", "2.19.22.post5"),
+        # Dashed tag alone — must survive the strip.
+        ("v1.0-rc.1", "v1.0-rc.1"),
+        # Dashed tag with private git suffix — post-release must be retained.
+        ("v1.0-rc.1.post12-gitabcdef0", "v1.0-rc.1.post12"),
+        ("v1.0-rc.1.post12-gitabcdef0-dirty", "v1.0-rc.1.post12"),
+        # PEP 440 local-version (+…) identifier is stripped alongside.
+        ("v1.0-rc.1.post12-gitabcdef0+ext(foo)", "v1.0-rc.1.post12"),
+    ],
+)
+def test_make_public_version_strips_only_private_suffixes(version_string, expected):
+    assert make_public_version(version_string) == expected
+
+
+def test_get_version_public_from_info_preserves_dashed_tags(monkeypatch):
+    # Exercise the INFO-file code path in get_version: when the recorded
+    # version comes from an installed/remote environment and the caller asks
+    # for the public form, dashed tags must survive the public-version
+    # derivation rather than being truncated at the first dash.
+    monkeypatch.setattr(metaflow_version, "_version_cache", {True: None, False: None})
+    monkeypatch.setattr(
+        metaflow_version,
+        "read_info_version",
+        lambda: "v1.0-rc.1.post12-gitabcdef0+ext(foo)",
+    )
+
+    assert metaflow_version.get_version(public=True) == "v1.0-rc.1.post12"
