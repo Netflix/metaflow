@@ -390,7 +390,12 @@ class MutableFlow:
                 "Adding flow-decorator '%s' from %s is only allowed in the `pre_mutate` "
                 "method and not the `mutate` method"
                 % (
-                    deco_type if isinstance(deco_type, str) else deco_type.name,
+                    (
+                        deco_type
+                        if isinstance(deco_type, str)
+                        else getattr(deco_type, "name", None)
+                        or getattr(deco_type, "decorator_name", deco_type)
+                    ),
                     self._inserted_by,
                 )
             )
