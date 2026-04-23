@@ -46,6 +46,33 @@ def deindent_docstring(doc):
         return ""
 
 
+# ---------------------------------------------------------------------------
+# Note on "sourceless" DAGNodes (used by FunctionSpec)
+# ---------------------------------------------------------------------------
+# FunctionSpec is an upcoming FlowSpec-like construct, currently shipped as an
+# out-of-tree extension, that represents a single-computation spec (one
+# `@step(start=True, end=True)` method synthesized by a metaclass). Because
+# the synthetic step is built dynamically (typically via compile()+exec()),
+# `inspect.getsourcelines()` on the resulting function fails and we cannot
+# feed it to ast.parse().
+#
+# To support FunctionSpec without pulling it into core, DAGNode accepts
+# optional `name` and `num_args` kwargs and tolerates `func_ast=None`:
+# callers that have an AST (the common @step path) use the AST branch;
+# callers that don't (FunctionSpec-style synthesized single steps) supply
+# the attributes directly. This is safe for single-step flows because they
+# have no `self.next()` transitions to analyze.
+#
+# `FunctionSpecMeta` sets `_function_spec_step_name` on the generated class
+# so step decorators applied at the class level (e.g. `@retry`) can find the
+# synthetic step. See also `_create_sourceless_single_step_node` below and
+# `_base_step_decorator` in decorators.py.
+#
+# These hooks may become unnecessary if FunctionSpec is folded into core;
+# they are intentionally minimal and narrowly scoped for now.
+# ---------------------------------------------------------------------------
+
+
 class DAGNode(object):
     def __init__(
         self,
@@ -62,6 +89,10 @@ class DAGNode(object):
         name=None,
         num_args=None,
     ):
+        # `name` and `num_args` are optional fallbacks used when `func_ast`
+        # is None (e.g. for FunctionSpec-synthesized steps — see the module
+        # comment above). The normal @step path always passes a `func_ast`
+        # and both values are derived from it.
         if func_ast is None and name is None:
             raise ValueError("name is required when func_ast is None")
 
@@ -95,6 +126,9 @@ class DAGNode(object):
         self.out_funcs = []
         self.has_tail_next = False
         self.invalid_tail_next = False
+        # num_args: derived from the AST by _parse() in the normal @step path;
+        # passed in explicitly by callers that synthesize a step without an AST
+        # (see module comment above).
         self.num_args = 0 if num_args is None else num_args
         self.switch_cases = {}
         self.condition = None
@@ -342,6 +376,11 @@ class FlowGraph(object):
         ``FunctionSpecMeta``), this method builds a DAGNode without AST
         parsing.  This is safe because single-step flows (``start=True,
         end=True``) have no ``self.next()`` transitions to analyze.
+
+        See the module-level comment on DAGNode for the broader FunctionSpec
+        context. This path may be removed once FunctionSpec is folded into
+        core; it's intentionally narrow to keep the core FlowSpec path
+        unaffected.
         """
         code = getattr(func, "__code__", None)
         source_file = inspect.getsourcefile(func) or inspect.getfile(func)
@@ -379,6 +418,10 @@ class FlowGraph(object):
                     source_file = inspect.getsourcefile(func) or inspect.getfile(func)
                     source_lines, lineno = inspect.getsourcelines(func)
                 except OSError:
+                    # No readable source — only tolerated for synthesized
+                    # single-step methods (see DAGNode module comment for
+                    # the FunctionSpec context). Any other @step without a
+                    # source file is genuinely broken, so re-raise.
                     if is_start and is_end:
                         node = self._create_sourceless_single_step_node(
                             element, func, is_start, is_end

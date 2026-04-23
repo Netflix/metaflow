@@ -590,9 +590,17 @@ def _base_step_decorator(decotype, *args, **kwargs):
             func = func._my_step
 
         # Step decorator applied to a class with a synthesized step method.
-        # Used by extensions that create a single synthetic @step on a
-        # FlowSpec subclass. _function_spec_step_name is set by the
-        # extension's metaclass (e.g. FunctionSpecMeta).
+        # This branch exists to support an upcoming FunctionSpec feature
+        # (currently shipped as an out-of-tree extension): its metaclass
+        # (FunctionSpecMeta) creates a single `@step(start=True, end=True)`
+        # method on the class and sets `_function_spec_step_name` to its
+        # attribute name. That lets class-level step decorators like
+        # ``@retry``/``@resources`` forward to the synthetic step.
+        #
+        # The `_function_spec_step_name` attribute is not set anywhere else
+        # in this repo — it is deliberately an extension contract. See the
+        # DAGNode module comment in graph.py for the wider context. This
+        # hook may be removed once FunctionSpec is folded into core.
         if isinstance(func, type) and hasattr(func, "_function_spec_step_name"):
             step_func = getattr(func, func._function_spec_step_name)
             if hasattr(step_func, "is_step"):
