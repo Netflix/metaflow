@@ -479,6 +479,9 @@ class MutableFlow:
             flow_mutator._flow_cls = self._flow_cls
 
             def _do_add():
+                # Call external_init BEFORE appending to lists so that if it
+                # fails the mutator is not left half-registered.
+                flow_mutator.external_init()
                 # Append to the merged list (the one being iterated in the
                 # pre_mutate loop) so the new mutator's pre_mutate is called
                 # naturally by the ongoing iteration.
@@ -492,8 +495,6 @@ class MutableFlow:
                 self._flow_cls._flow_state._self_data[
                     FlowStateItems.FLOW_MUTATORS
                 ].append(flow_mutator)
-                # external_init must be called before pre_mutate runs
-                flow_mutator.external_init()
                 debug.userconf_exec(
                     "Mutable flow adding flow mutator '%s'"
                     % flow_mutator.decorator_name
@@ -501,14 +502,14 @@ class MutableFlow:
                 return flow_mutator
 
             # Check for existing mutator with the same decorator_name
-            existing = [
-                m
+            existing_ids = {
+                id(m)
                 for m in self._flow_cls._flow_state[FlowStateItems.FLOW_MUTATORS]
                 if hasattr(m, "decorator_name")
                 and m.decorator_name == flow_mutator.decorator_name
-            ]
+            }
 
-            if not existing:
+            if not existing_ids:
                 return _do_add()
             elif duplicates == MutableFlow.IGNORE:
                 debug.userconf_exec(
@@ -523,17 +524,15 @@ class MutableFlow:
                     "(removing existing mutator and adding new one)"
                     % flow_mutator.decorator_name
                 )
-                # Remove from both the merged list and _self_data
+                # Filter out existing entries from both merged and _self_data.
+                # Use slice-assignment on merged to mutate in place (the outer
+                # pre_mutate for-loop holds a reference to this list object).
                 merged = self._flow_cls._flow_state[FlowStateItems.FLOW_MUTATORS]
-                for m in existing:
-                    if m in merged:
-                        merged.remove(m)
+                merged[:] = [m for m in merged if id(m) not in existing_ids]
                 self_list = self._flow_cls._flow_state._self_data[
                     FlowStateItems.FLOW_MUTATORS
                 ]
-                for m in existing:
-                    if m in self_list:
-                        self_list.remove(m)
+                self_list[:] = [m for m in self_list if id(m) not in existing_ids]
                 return _do_add()
             elif duplicates == MutableFlow.ERROR:
                 if self._statically_defined:
