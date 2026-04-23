@@ -47,3 +47,29 @@ def test_json_deeply_nested():
     s = j.serialize(format="wire")
     j2 = Json.deserialize(s, format="wire")
     assert j2.value == data
+
+
+def test_json_hashable_with_dict_value():
+    """Json wrapping a dict must be hashable. The base class default
+    ``hash((type(self), self._value))`` raises TypeError for unhashable
+    values, so Json overrides it with a wire-format-based hash.
+    """
+    j = Json({"a": 1, "b": [2, 3]})
+    # No TypeError.
+    h = hash(j)
+    assert isinstance(h, int)
+
+    # Equal values must hash equal — even when insertion order differs.
+    j2 = Json({"b": [2, 3], "a": 1})
+    assert j == j2
+    assert hash(j) == hash(j2)
+
+    # Works inside a set.
+    assert {Json({"x": 1}), Json({"x": 1})} == {Json({"x": 1})}
+
+
+def test_json_hashable_with_list_value():
+    j = Json([1, 2, 3])
+    h = hash(j)
+    assert isinstance(h, int)
+    assert hash(Json([1, 2, 3])) == hash(j)

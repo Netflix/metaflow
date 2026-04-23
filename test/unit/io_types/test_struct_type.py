@@ -179,6 +179,38 @@ def test_struct_plain_dict_value():
     assert s2.value == {"x": 1, "y": "hello"}
 
 
+def test_struct_hashable_with_unhashable_dataclass():
+    """Struct wrapping a dataclass with mutable fields (list, dict) must be
+    hashable. The base ``hash((type, _value))`` raises TypeError because
+    dataclasses with mutable fields are unhashable; Struct overrides
+    ``__hash__`` with a canonical-JSON-based hash.
+    """
+
+    @dataclass
+    class WithList:
+        x: int
+        items: list = dataclasses.field(default_factory=list)
+
+    s = Struct(WithList(x=1, items=[1, 2, 3]))
+    h = hash(s)
+    assert isinstance(h, int)
+
+    # Hash/eq contract: equal values hash equal.
+    s2 = Struct(WithList(x=1, items=[1, 2, 3]))
+    assert s == s2
+    assert hash(s) == hash(s2)
+
+    # Wrapping a plain dict also hashes without TypeError.
+    s3 = Struct({"a": [1, 2], "b": {"nested": True}})
+    assert isinstance(hash(s3), int)
+
+
+def test_struct_descriptor_is_hashable():
+    """Struct() (no value) must still be hashable via the _UNSET sentinel."""
+    s = Struct()
+    assert isinstance(hash(s), int)
+
+
 def test_struct_descriptor_uses_unset_sentinel():
     """Struct() (no value) must behave as a pure descriptor via the same
     _UNSET sentinel the base IOType uses. Two empty descriptors should be

@@ -140,3 +140,19 @@ class Struct(IOType):
             return cls(_reconstruct(dc_type, data), dataclass_type=dc_type)
         # Fallback: return as plain dict wrapped in Struct
         return cls(data)
+
+    def __hash__(self):
+        # ``_value`` is typically a dataclass instance or dict (often
+        # unhashable), so the base class ``hash((type, _value))`` raises
+        # TypeError. Hash the canonical JSON representation of the flattened
+        # value instead — stable across equal values and consistent with
+        # ``__eq__`` (equal dataclasses/dicts flatten to identical sorted-key
+        # JSON).
+        if self._value is _UNSET:
+            return hash((type(self), _UNSET))
+        return hash(
+            (
+                type(self),
+                json.dumps(self._to_dict(), separators=(",", ":"), sort_keys=True),
+            )
+        )
