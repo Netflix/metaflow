@@ -6,6 +6,15 @@ import os
 FLOWS_DIR = os.path.join(os.path.dirname(__file__), "flows")
 
 
+def pytest_addoption(parser):
+    parser.addoption(
+        "--use-latest",
+        action="store_true",
+        default=False,
+        help="Use the latest run of each flow instead of running them",
+    )
+
+
 def create_flow_fixture(flow_name, flow_file, run_params=None, runner_params=None):
     """
     Factory function to create flow fixtures with common logic.
