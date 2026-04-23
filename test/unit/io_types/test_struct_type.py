@@ -32,6 +32,15 @@ class NestedData:
     sub: dict  # container — stays a dict on reconstruction
 
 
+@dataclass
+class WithInitFalse:
+    a: int
+    computed: int = dataclasses.field(init=False, default=0)
+
+    def __post_init__(self):
+        self.computed = self.a * 10
+
+
 def test_struct_wire_round_trip():
     s = Struct(SimpleData(name="test", count=5, score=3.14, active=True))
     wire = s.serialize(format="wire")
@@ -138,6 +147,28 @@ def test_struct_security_rejects_dataclass_instance():
         assert fake.sink_instance.called_with == {}
     finally:
         sys.modules.pop("_struct_security_probe", None)
+
+
+def test_struct_init_false_field_round_trip():
+    """Dataclasses with ``field(init=False)`` must round-trip without
+    TypeError. ``dataclasses.asdict`` includes init=False fields in its
+    output, but passing them to the generated ``__init__`` raises
+    ``TypeError: __init__() got an unexpected keyword argument``. The
+    reconstructor must skip them in kwargs and restore their values via
+    ``setattr`` after construction.
+    """
+    original = WithInitFalse(a=5)
+    assert original.computed == 50
+    # Mutate the computed field after construction to prove the
+    # serialized value (not __post_init__'s recomputation) survives.
+    original.computed = 99
+
+    s = Struct(original)
+    blobs, meta = s.serialize(format="storage")
+    s2 = Struct.deserialize([b.value for b in blobs], format="storage", metadata=meta)
+    assert type(s2.value) is WithInitFalse
+    assert s2.value.a == 5
+    assert s2.value.computed == 99
 
 
 def test_struct_plain_dict_value():

@@ -15,24 +15,39 @@ def _reconstruct(dc_type, data):
     raw JSON-decoded values; callers that need rich container reconstruction
     should wrap the field explicitly (e.g. in a ``List`` IOType shipped by
     an extension).
+
+    Fields declared with ``field(init=False, ...)`` are not accepted by the
+    generated ``__init__``, but ``dataclasses.asdict`` emits them. Pass only
+    init-eligible fields as kwargs, then ``setattr`` the remainder so the
+    serialized values are not lost to defaults or ``__post_init__``.
     """
     try:
         hints = typing.get_type_hints(dc_type)
     except Exception:
         hints = {}
     kwargs = {}
+    post_init_fields = []
     for f in dataclasses.fields(dc_type):
-        raw = data.get(f.name)
+        if f.name not in data:
+            continue
+        raw = data[f.name]
         annotation = hints.get(f.name, f.type)
         if (
             isinstance(annotation, type)
             and dataclasses.is_dataclass(annotation)
             and isinstance(raw, dict)
         ):
-            kwargs[f.name] = _reconstruct(annotation, raw)
+            value = _reconstruct(annotation, raw)
         else:
-            kwargs[f.name] = raw
-    return dc_type(**kwargs)
+            value = raw
+        if f.init:
+            kwargs[f.name] = value
+        else:
+            post_init_fields.append((f.name, value))
+    instance = dc_type(**kwargs)
+    for name, value in post_init_fields:
+        setattr(instance, name, value)
+    return instance
 
 
 class Struct(IOType):
