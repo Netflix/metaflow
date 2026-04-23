@@ -622,9 +622,15 @@ class ErrorCard(MetaflowCard):
 
     RELOAD_POLICY = MetaflowCard.RELOAD_POLICY_ONCHANGE
 
-    def __init__(self, options={}, components=[], graph=None, **kwargs):
+    def __init__(
+        self, options={}, components=[], graph=None, graph_info=None, **kwargs
+    ):
         self._only_repr = True
-        self._graph = None if graph is None else transform_flow_graph(graph)
+        # Prefer graph_info (carries start_step/end_step metadata) when available
+        _graph_source = graph_info if graph_info is not None else graph
+        self._graph = (
+            None if _graph_source is None else transform_flow_graph(_graph_source)
+        )
         self._components = components
 
     def reload_content_token(self, task, data):
@@ -683,11 +689,15 @@ class DefaultCardJSON(MetaflowCard):
         options=dict(only_repr=True),
         components=[],
         graph=None,
+        graph_info=None,
         flow=None,
         **kwargs
     ):
         self._only_repr = True
-        self._graph = None if graph is None else transform_flow_graph(graph)
+        _graph_source = graph_info if graph_info is not None else graph
+        self._graph = (
+            None if _graph_source is None else transform_flow_graph(_graph_source)
+        )
         self._flow = flow
         if "only_repr" in options:
             self._only_repr = options["only_repr"]
@@ -719,13 +729,17 @@ class DefaultCard(MetaflowCard):
         options=dict(only_repr=True),
         components=[],
         graph=None,
+        graph_info=None,
         flow=None,
         **kwargs
     ):
         self._only_repr = True
         # Default max artifact size uses the global MAX_ARTIFACT_SIZE constant (200MB)
         self._max_artifact_size = MAX_ARTIFACT_SIZE
-        self._graph = None if graph is None else transform_flow_graph(graph)
+        _graph_source = graph_info if graph_info is not None else graph
+        self._graph = (
+            None if _graph_source is None else transform_flow_graph(_graph_source)
+        )
         self._flow = flow
         if "only_repr" in options:
             self._only_repr = options["only_repr"]

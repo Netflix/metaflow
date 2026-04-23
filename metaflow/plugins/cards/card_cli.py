@@ -649,7 +649,11 @@ def create(
     full_pathspec = "/".join([flowname, pathspec])
 
     graph_dict, _ = ctx.obj.graph.output_steps()
-    graph_payload = {
+    # Backward-compat: `graph` keeps the old shape (dict of step_name -> info)
+    # so third-party card modules that expect the pre-annotation format continue
+    # to work. New cards should use `graph_info` which carries start/end
+    # metadata needed for flows with custom-named entry/terminal steps.
+    graph_info = {
         "steps": graph_dict,
         "start_step": ctx.obj.graph.start_step,
         "end_step": ctx.obj.graph.end_step,
@@ -703,16 +707,33 @@ def create(
         # then check for render_error_card and accordingly
         # store the exception as a string or raise the exception
         try:
+            # Probe for `graph_info` support so we can stay backward compatible
+            # with third-party card modules whose __init__ only accepts `graph`.
+            import inspect as _inspect
+
+            try:
+                accepts_graph_info = (
+                    "graph_info" in _inspect.signature(filtered_card).parameters
+                )
+            except (TypeError, ValueError):
+                accepts_graph_info = False
+
+            extra_kwargs = {"graph_info": graph_info} if accepts_graph_info else {}
+
             if options is not None:
                 mf_card = filtered_card(
                     options=options,
                     components=component_arr,
-                    graph=graph_payload,
+                    graph=graph_dict,
                     flow=ctx.obj.flow,
+                    **extra_kwargs,
                 )
             else:
                 mf_card = filtered_card(
-                    components=component_arr, graph=graph_payload, flow=ctx.obj.flow
+                    components=component_arr,
+                    graph=graph_dict,
+                    flow=ctx.obj.flow,
+                    **extra_kwargs,
                 )
         except TypeError as e:
             if render_error_card:
