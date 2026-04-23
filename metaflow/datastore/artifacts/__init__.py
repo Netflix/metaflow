@@ -1,10 +1,9 @@
 from .serializer import (
     ArtifactSerializer,
+    SerializationFormat,
     SerializationMetadata,
     SerializedBlob,
     SerializerStore,
-    STORAGE,
-    WIRE,
 )
 from .lazy_registry import (
     SerializerConfig,

@@ -1,12 +1,25 @@
 import inspect
 from abc import ABCMeta, abstractmethod
 from collections import namedtuple
+from enum import Enum
+from typing import Any, List, Optional, Tuple, Union
 
 
-# Serialization formats. STORAGE produces (blobs, metadata) for the datastore;
-# WIRE produces a str for CLI args, protobuf payloads, and cross-process IPC.
-STORAGE = "storage"
-WIRE = "wire"
+class SerializationFormat(str, Enum):
+    """
+    Serialization format for :class:`ArtifactSerializer`.
+
+    ``STORAGE`` produces ``(blobs, metadata)`` for the datastore persist path;
+    ``WIRE`` produces a ``str`` for CLI args, protobuf payloads, and
+    cross-process IPC.
+
+    This subclasses ``str`` so that existing equality checks and JSON / artifact
+    metadata round-trips continue to work with the underlying ``"storage"`` /
+    ``"wire"`` values.
+    """
+
+    STORAGE = "storage"
+    WIRE = "wire"
 
 
 SerializationMetadata = namedtuple(
@@ -33,7 +46,8 @@ class SerializedBlob(object):
     def __init__(self, value, is_reference=None):
         if not isinstance(value, (str, bytes)):
             raise TypeError(
-                "SerializedBlob value must be str or bytes, got %s" % type(value).__name__
+                "SerializedBlob value must be str or bytes, got %s"
+                % type(value).__name__
             )
         self.value = value
         if is_reference is None:
@@ -57,6 +71,12 @@ class SerializerStore(ABCMeta):
 
     _all_serializers = {}
     _ordered_cache = None
+    # Lazy-registry classes we have already materialized (imported and folded
+    # into the dispatch order). Tracking them separately lets
+    # ``get_ordered_serializers`` skip the cache rebuild when no new lazy
+    # configs have become loadable since the last call.
+    _materialized_lazy_classes = []
+    _materialized_lazy_types = set()
 
     def __init__(cls, name, bases, namespace):
         super().__init__(name, bases, namespace)
@@ -79,33 +99,39 @@ class SerializerStore(ABCMeta):
 
         Serializers registered via the lazy registry are materialized here
         too: each registered class is imported on demand and folded into the
-        dispatch order. Without this step, a lazy
-        ``register_serializer_for_type`` call would be silently ignored
-        at dispatch time.
+        dispatch order. Already-materialized lazy classes are remembered so
+        that steady-state calls (no new lazy classes became importable) hit
+        the cached ordered list — otherwise a single lazy config would force
+        a rebuild on every call.
         """
         # Imported locally to avoid a circular import between this module and
         # ``lazy_registry`` (which depends on the ArtifactSerializer ABC).
         from .lazy_registry import iter_registered_configs, load_serializer_class
 
-        lazy_classes = []
+        newly_materialized = False
         for cfg in iter_registered_configs():
+            if cfg.canonical_type in SerializerStore._materialized_lazy_types:
+                continue
             cls = load_serializer_class(cfg.canonical_type)
-            if cls is not None:
-                lazy_classes.append(cls)
+            if cls is None:
+                # Target module not imported yet; try again next call.
+                continue
+            SerializerStore._materialized_lazy_types.add(cfg.canonical_type)
+            SerializerStore._materialized_lazy_classes.append(cls)
+            newly_materialized = True
 
-        if SerializerStore._ordered_cache is None or lazy_classes:
+        if SerializerStore._ordered_cache is None or newly_materialized:
             # De-duplicate: lazy classes typically also self-register via the
             # metaclass, but when loaded outside normal import flow they may
             # not. ``dict.fromkeys`` preserves first-seen order while dropping
             # duplicates.
             combined = list(
                 dict.fromkeys(
-                    list(SerializerStore._all_serializers.values()) + lazy_classes
+                    list(SerializerStore._all_serializers.values())
+                    + SerializerStore._materialized_lazy_classes
                 )
             )
-            SerializerStore._ordered_cache = sorted(
-                combined, key=lambda s: s.PRIORITY
-            )
+            SerializerStore._ordered_cache = sorted(combined, key=lambda s: s.PRIORITY)
         return SerializerStore._ordered_cache
 
 
@@ -132,7 +158,7 @@ class ArtifactSerializer(object, metaclass=SerializerStore):
 
     @classmethod
     @abstractmethod
-    def can_serialize(cls, obj):
+    def can_serialize(cls, obj: Any) -> bool:
         """
         Return True if this serializer can handle the given object.
 
@@ -149,7 +175,7 @@ class ArtifactSerializer(object, metaclass=SerializerStore):
 
     @classmethod
     @abstractmethod
-    def can_deserialize(cls, metadata):
+    def can_deserialize(cls, metadata: SerializationMetadata) -> bool:
         """
         Return True if this serializer can deserialize given the metadata.
 
@@ -166,7 +192,11 @@ class ArtifactSerializer(object, metaclass=SerializerStore):
 
     @classmethod
     @abstractmethod
-    def serialize(cls, obj, format=STORAGE):
+    def serialize(
+        cls,
+        obj: Any,
+        format: SerializationFormat = SerializationFormat.STORAGE,
+    ) -> Union[Tuple[List["SerializedBlob"], SerializationMetadata], str]:
         """
         Serialize obj. Must be side-effect-free: this method may be invoked
         multiple times (caching, retries, parallel dispatch) and must not
@@ -178,8 +208,9 @@ class ArtifactSerializer(object, metaclass=SerializerStore):
         ----------
         obj : Any
             The Python object to serialize.
-        format : str
-            Either ``STORAGE`` (default) or ``WIRE``.
+        format : SerializationFormat
+            Either ``SerializationFormat.STORAGE`` (default) or
+            ``SerializationFormat.WIRE``.
             - ``STORAGE`` returns a tuple ``(List[SerializedBlob], SerializationMetadata)``
               for persisting through the datastore.
             - ``WIRE`` returns a ``str`` representation for CLI args, protobuf
@@ -194,7 +225,12 @@ class ArtifactSerializer(object, metaclass=SerializerStore):
 
     @classmethod
     @abstractmethod
-    def deserialize(cls, data, metadata=None, context=None, format=STORAGE):
+    def deserialize(
+        cls,
+        data: Union[List[bytes], str],
+        metadata: Optional[SerializationMetadata] = None,
+        format: SerializationFormat = SerializationFormat.STORAGE,
+    ) -> Any:
         """
         Deserialize back to a Python object.
 
@@ -205,10 +241,9 @@ class ArtifactSerializer(object, metaclass=SerializerStore):
         metadata : SerializationMetadata, optional
             Metadata stored alongside the artifact. Required for STORAGE,
             ignored for WIRE.
-        context : Any, optional
-            Optional context for deserialization (e.g., task vs client loading).
-        format : str
-            Either ``STORAGE`` (default) or ``WIRE``.
+        format : SerializationFormat
+            Either ``SerializationFormat.STORAGE`` (default) or
+            ``SerializationFormat.WIRE``.
 
         Returns
         -------

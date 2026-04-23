@@ -33,9 +33,7 @@ def test_config_requires_canonical_type_and_dotted_serializer():
 
 
 def test_config_splits_serializer_path():
-    cfg = SerializerConfig(
-        canonical_type="builtins.dict", serializer="pkg.mod.Cls"
-    )
+    cfg = SerializerConfig(canonical_type="builtins.dict", serializer="pkg.mod.Cls")
     assert cfg.serializer_module == "pkg.mod"
     assert cfg.serializer_class == "Cls"
 
@@ -55,9 +53,7 @@ def test_already_imported_type_registers_eagerly():
         canonical_type="builtins.dict",
         serializer="test_lazy_serializer_registry.DictSerializer",
     )
-    assert any(
-        c.canonical_type == "builtins.dict" for c in iter_registered_configs()
-    )
+    assert any(c.canonical_type == "builtins.dict" for c in iter_registered_configs())
     # Hook should not be installed since dict was already imported.
     assert _interceptor not in sys.meta_path
 
@@ -84,15 +80,13 @@ def test_deferred_registration_fires_on_import(tmp_path, monkeypatch):
     assert _interceptor in sys.meta_path
     # No config registered yet.
     assert not any(
-        c.canonical_type == "_lazy_probe.ProbeClass"
-        for c in iter_registered_configs()
+        c.canonical_type == "_lazy_probe.ProbeClass" for c in iter_registered_configs()
     )
 
     import _lazy_probe  # noqa: F401
 
     assert any(
-        c.canonical_type == "_lazy_probe.ProbeClass"
-        for c in iter_registered_configs()
+        c.canonical_type == "_lazy_probe.ProbeClass" for c in iter_registered_configs()
     )
 
 
@@ -200,7 +194,7 @@ def test_lazy_registered_serializer_reaches_dispatch(monkeypatch):
             return [SerializedBlob(blob)], SerializationMetadata("x", 0, "x", {})
 
         @classmethod
-        def deserialize(cls, data, metadata=None, context=None, format="storage"):
+        def deserialize(cls, data, metadata=None, format="storage"):
             return None
 
     # Remove it so lazy-registry has to pull it in.
@@ -224,3 +218,11 @@ def test_lazy_registered_serializer_reaches_dispatch(monkeypatch):
         SerializerStore._all_serializers.clear()
         SerializerStore._all_serializers.update(snapshot)
         SerializerStore._ordered_cache = None
+        SerializerStore._materialized_lazy_classes[:] = [
+            c
+            for c in SerializerStore._materialized_lazy_classes
+            if getattr(c, "TYPE", None) != "test_lazy_probe"
+        ]
+        SerializerStore._materialized_lazy_types.discard(
+            "_lazy_probe_mod._LazyProbeSerializer"
+        )
