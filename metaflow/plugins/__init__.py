@@ -187,6 +187,13 @@ TL_PLUGINS_DESC = [
     ("conda_environment_yml_parser", ".pypi.parsers.conda_environment_yml_parser"),
 ]
 
+# Add artifact serializers here. Ordering is by PRIORITY (lower = tried first).
+# PickleSerializer is the universal fallback (PRIORITY=9999).
+ARTIFACT_SERIALIZERS_DESC = [
+    ("iotype", ".datastores.serializers.iotype_serializer.IOTypeSerializer"),
+    ("pickle", ".datastores.serializers.pickle_serializer.PickleSerializer"),
+]
+
 process_plugins(globals())
 
 
@@ -228,6 +235,7 @@ if sys.version_info >= (3, 7):
     DEPLOYER_IMPL_PROVIDERS = resolve_plugins("deployer_impl_provider")
 
 TL_PLUGINS = resolve_plugins("tl_plugin")
+ARTIFACT_SERIALIZERS = resolve_plugins("artifact_serializer")
 
 from .cards.card_modules import MF_EXTERNAL_CARDS
 

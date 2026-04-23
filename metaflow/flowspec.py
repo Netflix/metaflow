@@ -516,6 +516,8 @@ class FlowSpec(metaclass=FlowSpecMeta):
 
         graph_info = {
             "file": os.path.basename(os.path.abspath(sys.argv[0])),
+            "start_step": graph.start_step,
+            "end_step": graph.end_step,
             "parameters": parameters_info,
             "constants": constants_info,
             "steps": steps_info,
