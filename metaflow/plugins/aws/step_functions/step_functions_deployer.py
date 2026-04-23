@@ -77,7 +77,7 @@ class StepFunctionsDeployer(DeployerImpl):
             Use AWS Step Functions Distributed Map instead of Inline Map for defining foreach
             tasks in Amazon State Language.
         compress_state_machine : bool, optional, default False
-            Compress AWS Step Functions state machine to fit within the 8K limit.
+            Compress AWS Step Functions state machine to fit within AWS limits.
 
         deployer_attribute_file : str, optional, default None
             Write the workflow name to the specified file. Used internally for Metaflow's Deployer API.

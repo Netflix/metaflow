@@ -145,7 +145,7 @@ def step_functions(obj, name=None):
     "--compress-state-machine/--no-compress-state-machine",
     is_flag=True,
     default=SFN_COMPRESS_STATE_MACHINE,
-    help="Compress AWS Step Functions state machine to fit within the 8K limit.",
+    help="Compress AWS Step Functions state machine to fit within AWS limits.",
 )
 @click.option(
     "--deployer-attribute-file",
