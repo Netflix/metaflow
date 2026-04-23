@@ -275,12 +275,20 @@ class StepFunctions(object):
             state_machine_arn = state_machine.get("stateMachineArn")
             definition = json.loads(state_machine.get("definition"))
             start_state_name = definition.get("StartAt", "start")
+            # Explicit guards rather than chained .get() so we produce
+            # readable errors if the state machine has an unexpected shape
+            # (e.g., deployed by something other than Metaflow).
+            states = definition.get("States") or {}
+            start_state = states.get(start_state_name)
+            if start_state is None:
+                raise StepFunctionsException(
+                    "State machine *%s* has no state named *%s* in its "
+                    "States block." % (state_machine_name, start_state_name)
+                )
             environment_vars = (
-                definition.get("States")
-                .get(start_state_name)
-                .get("Parameters")
-                .get("ContainerOverrides")
-                .get("Environment")
+                start_state.get("Parameters", {})
+                .get("ContainerOverrides", {})
+                .get("Environment", [])
             )
             parameters = {
                 item.get("Name"): item.get("Value") for item in environment_vars

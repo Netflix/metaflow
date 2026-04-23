@@ -166,10 +166,15 @@ class ArgoWorkflowsInternalDecorator(StepDecorator):
                     "metaflow.%s.end" % current.get("project_flow_name", flow.name)
                 )
 
+            # Note on idempotency: we publish one ArgoEvent per name in
+            # event_names (1 for most steps, 2 for custom-named end steps
+            # due to the ".end" alias). Retries of the same task will
+            # re-publish the same event(s); the `id` payload (current.pathspec)
+            # is stable across retries so Argo Events-side filtering can
+            # dedupe if needed. When adding fields below, only add to the
+            # payload — don't mutate existing values.
             for event_name in event_names:
                 event = ArgoEvent(name=event_name)
-                # There should only be one event generated even when the task is retried.
-                # Take care to only add to the list and not modify existing values.
                 event.add_to_payload("id", current.pathspec)
                 event.add_to_payload("pathspec", current.pathspec)
                 event.add_to_payload("flow_name", flow.name)

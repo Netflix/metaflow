@@ -2181,10 +2181,16 @@ class Run(MetaflowObject):
     @property
     def _graph_endpoints(self):
         """
-        Returns (start_step_name, end_step_name) from _parameters metadata.
+        Returns (start_step_name, end_step_name) from ``_parameters`` task
+        metadata.
 
-        Falls back to ("start", "end") for runs that predate structural
-        inference (backward compatibility).
+        The metadata is written by ``persist_constants``, which every
+        runtime path calls before any step executes — the native runtime
+        directly, and orchestrators (Argo Workflows, Airflow, Step
+        Functions) through the ``init`` command they insert into their
+        generated command line. Falls back to the literal
+        ``("start", "end")`` for old runs that predate custom endpoint
+        support.
         """
         if not hasattr(self, "_cached_endpoints"):
             start, end = "start", "end"

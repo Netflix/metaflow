@@ -64,14 +64,29 @@ class Trigger(object):
             if end_task is None:
                 continue
             valid_runs.append(run_obj)
+            end_step_name = end_task.parent.id
             meta.append(
                 {
                     "type": "run",
                     "timestamp": run_obj.finished_at,
-                    "name": "metaflow.%s.%s" % (run_obj.parent.id, end_task.parent.id),
+                    "name": "metaflow.%s.%s" % (run_obj.parent.id, end_step_name),
                     "id": end_task.pathspec,
                 }
             )
+            # For custom-named end steps, also emit the well-known ".end"
+            # alias so downstream code that filters on "metaflow.<flow>.end"
+            # keeps matching. This mirrors the dual-emit in
+            # argo_workflows_decorator.py so the Argo publish path and the
+            # programmatic Trigger.from_runs path stay symmetric.
+            if end_step_name != "end":
+                meta.append(
+                    {
+                        "type": "run",
+                        "timestamp": run_obj.finished_at,
+                        "name": "metaflow.%s.end" % run_obj.parent.id,
+                        "id": end_task.pathspec,
+                    }
+                )
 
         trigger = Trigger(meta)
         trigger._runs = valid_runs
