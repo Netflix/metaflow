@@ -165,7 +165,7 @@ def test_serialize_metadata_serializer_info_empty():
 def test_round_trip(obj):
     blobs, meta = PickleSerializer.serialize(obj)
     raw_blobs = [b.value for b in blobs]
-    result = PickleSerializer.deserialize(raw_blobs, meta, context=None)
+    result = PickleSerializer.deserialize(raw_blobs, meta)
     assert result == obj
 
 
@@ -181,6 +181,6 @@ def test_round_trip_custom_class():
     obj = _CustomObj(42)
     blobs, meta = PickleSerializer.serialize(obj)
     raw_blobs = [b.value for b in blobs]
-    result = PickleSerializer.deserialize(raw_blobs, meta, context=None)
+    result = PickleSerializer.deserialize(raw_blobs, meta)
     assert result == obj
     assert result.x == 42

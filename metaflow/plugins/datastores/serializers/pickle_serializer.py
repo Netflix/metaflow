@@ -2,10 +2,9 @@ import pickle
 
 from metaflow.datastore.artifacts.serializer import (
     ArtifactSerializer,
+    SerializationFormat,
     SerializationMetadata,
     SerializedBlob,
-    STORAGE,
-    WIRE,
 )
 
 
@@ -36,8 +35,8 @@ class PickleSerializer(ArtifactSerializer):
         return metadata.encoding in cls._ENCODINGS
 
     @classmethod
-    def serialize(cls, obj, format=STORAGE):
-        if format == WIRE:
+    def serialize(cls, obj, format=SerializationFormat.STORAGE):
+        if format == SerializationFormat.WIRE:
             raise NotImplementedError(
                 "PickleSerializer does not support the WIRE format; pickle "
                 "produces opaque binary bytes that are not safe to pass as "
@@ -55,8 +54,8 @@ class PickleSerializer(ArtifactSerializer):
         )
 
     @classmethod
-    def deserialize(cls, data, metadata=None, context=None, format=STORAGE):
-        if format == WIRE:
+    def deserialize(cls, data, metadata=None, format=SerializationFormat.STORAGE):
+        if format == SerializationFormat.WIRE:
             raise NotImplementedError(
                 "PickleSerializer does not support the WIRE format."
             )

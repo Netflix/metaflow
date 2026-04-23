@@ -141,8 +141,8 @@ def test_custom_serializer_takes_priority(task_datastore):
             )
 
         @classmethod
-        def deserialize(cls, blobs, metadata, context):
-            return json.loads(blobs[0].decode("utf-8"))
+        def deserialize(cls, data, metadata=None, format="storage"):
+            return json.loads(data[0].decode("utf-8"))
 
     # Explicitly set serializers: custom first, then pickle fallback.
     # Don't use get_ordered_serializers() to avoid pollution from other test files.
@@ -240,11 +240,94 @@ def test_post_init_registration_reaches_existing_datastore(task_datastore):
             raise NotImplementedError
 
         @classmethod
-        def deserialize(cls, data, metadata=None, context=None, format="storage"):
+        def deserialize(cls, data, metadata=None, format="storage"):
             raise NotImplementedError
 
     try:
         assert _PostInitSerializer in task_datastore._serializers
     finally:
         SerializerStore._all_serializers.pop("test_post_init_registration", None)
+        SerializerStore._ordered_cache = None
+
+
+# ---------------------------------------------------------------------------
+# Blob-count validation must happen before ``_info`` is mutated
+# ---------------------------------------------------------------------------
+
+
+def test_info_not_populated_when_serializer_returns_no_blobs(task_datastore):
+    """
+    Regression for the "_info[name] poisoned on validation failure" bug: if a
+    serializer returns an empty blob list, ``save_artifacts`` must raise
+    without leaving partial metadata in ``_info``.
+    """
+    from metaflow.datastore.exceptions import DataException
+
+    class _EmptyBlobSerializer(ArtifactSerializer):
+        TYPE = "test_empty_blob"
+        PRIORITY = 5
+
+        @classmethod
+        def can_serialize(cls, obj):
+            return True
+
+        @classmethod
+        def can_deserialize(cls, metadata):
+            return False
+
+        @classmethod
+        def serialize(cls, obj, format="storage"):
+            return (
+                [],
+                SerializationMetadata("x", 0, "test_empty_blob", {}),
+            )
+
+        @classmethod
+        def deserialize(cls, data, metadata=None, format="storage"):
+            raise NotImplementedError
+
+    task_datastore._serializers = [_EmptyBlobSerializer, PickleSerializer]
+    try:
+        with pytest.raises(DataException, match="returned no blobs"):
+            task_datastore.save_artifacts(iter([("bad", object())]))
+        assert "bad" not in task_datastore._info
+    finally:
+        SerializerStore._all_serializers.pop("test_empty_blob", None)
+        SerializerStore._ordered_cache = None
+
+
+def test_info_not_populated_when_serializer_returns_multi_blob(task_datastore):
+    """Same guarantee as above for the multi-blob rejection path."""
+    from metaflow.datastore.exceptions import DataException
+
+    class _MultiBlobSerializer(ArtifactSerializer):
+        TYPE = "test_multi_blob"
+        PRIORITY = 5
+
+        @classmethod
+        def can_serialize(cls, obj):
+            return True
+
+        @classmethod
+        def can_deserialize(cls, metadata):
+            return False
+
+        @classmethod
+        def serialize(cls, obj, format="storage"):
+            return (
+                [SerializedBlob(b"a"), SerializedBlob(b"b")],
+                SerializationMetadata("x", 2, "test_multi_blob", {}),
+            )
+
+        @classmethod
+        def deserialize(cls, data, metadata=None, format="storage"):
+            raise NotImplementedError
+
+    task_datastore._serializers = [_MultiBlobSerializer, PickleSerializer]
+    try:
+        with pytest.raises(DataException, match="single-blob serializers"):
+            task_datastore.save_artifacts(iter([("bad", object())]))
+        assert "bad" not in task_datastore._info
+    finally:
+        SerializerStore._all_serializers.pop("test_multi_blob", None)
         SerializerStore._ordered_cache = None
