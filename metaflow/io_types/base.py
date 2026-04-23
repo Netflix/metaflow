@@ -26,6 +26,18 @@ from metaflow.datastore.artifacts.serializer import STORAGE, WIRE
 
 _UNSET = object()
 
+# Registry of concrete IOType subclasses keyed by their ``type_name``. Populated
+# by ``IOType.__init_subclass__``. The datastore encodes each artifact's
+# ``type_name`` in its ``SerializationMetadata.encoding`` (``iotype:<name>``),
+# so ``IOTypeSerializer.deserialize`` can recover the class without the
+# metadata service having to persist the Python module+class path.
+_TYPE_REGISTRY = {}
+
+
+def get_iotype_by_name(type_name):
+    """Return the IOType subclass registered under ``type_name``, or None."""
+    return _TYPE_REGISTRY.get(type_name)
+
 
 class IOType(object, metaclass=ABCMeta):
     """
@@ -44,6 +56,17 @@ class IOType(object, metaclass=ABCMeta):
     """
 
     type_name = None  # e.g. "text", "json", "int64" — set by subclasses.
+
+    def __init_subclass__(cls, **kwargs):
+        super().__init_subclass__(**kwargs)
+        # Register concrete subclasses so IOTypeSerializer can recover them
+        # from just the ``type_name`` suffix of a stored artifact's encoding.
+        # Abstract intermediates (``type_name`` is still None) don't register.
+        # Last-write-wins: production code is expected to declare each
+        # ``type_name`` on exactly one class; test-local subclasses that reuse
+        # a name harmlessly overwrite each other.
+        if cls.type_name:
+            _TYPE_REGISTRY[cls.type_name] = cls
 
     def __init__(self, value=_UNSET):
         self._value = value
