@@ -372,63 +372,13 @@ class StepDecorator(Decorator):
     task_step_completed_ctx = None  # coalesces task_post_step + task_exception
     task_finished_ctx = None
 
-    @staticmethod
-    def find_decorator_attrs(flow_cls, step_name, deco_name, **exclude):
-        """
-        Find a step decorator's attributes at runtime.
-
-        Returns the attributes dict of the first matching decorator, or None.
-        Use ``exclude`` to skip decorators with specific attribute values,
-        e.g. ``find_decorator_attrs(cls, step, "resources", node_type="head")``
-        skips any @resources with node_type="head".
-
-        Parameters
-        ----------
-        flow_cls : type
-            The FlowSpec class.
-        step_name : str
-            The step function name.
-        deco_name : str
-            The decorator name to find.
-        **exclude
-            Attribute key-value pairs to skip.
-
-        Returns
-        -------
-        dict or None
-            The decorator's attributes, or None if not found.
-        """
-        for deco in getattr(flow_cls, step_name).decorators:
-            if deco.name == deco_name:
-                if exclude and any(
-                    deco.attributes.get(k) == v for k, v in exclude.items()
-                ):
-                    continue
-                return deco.attributes
-        return None
-
-    def check_step_conflicts(self, decorators):
-        """
-        Validate this decorator against all other decorators on the same step.
-
-        Called automatically during step_init, before the decorator's own
-        step_init logic runs. Override in subclasses to declare conflicts.
-        Raise MetaflowException if an incompatible combination is detected.
-
-        Parameters
-        ----------
-        decorators : list
-            All decorators on this step (including self).
-        """
-        pass
-
     def step_init(
         self, flow, graph, step_name, decorators, environment, flow_datastore, logger
     ):
         """
         Called when all decorators have been created for this step
         """
-        self.check_step_conflicts(decorators)
+        pass
 
     def package_init(self, flow, step_name, environment):
         """

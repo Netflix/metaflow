@@ -134,6 +134,16 @@ class MutableStep:
             r.extend(deco.get_args_kwargs())
             yield tuple(r)
 
+    def _match_name(self, deco_name: str, deco_fq: str, query: str) -> bool:
+        """Return True if *query* matches either the short or fully-qualified name.
+
+        A query containing a period is compared against the fully-qualified name;
+        otherwise it is compared against the short name.
+        """
+        if "." in query:
+            return deco_fq == query
+        return deco_name == query
+
     def has_decorator(self, name: str) -> bool:
         """
         Check whether this step has at least one decorator with the given name.
@@ -141,93 +151,39 @@ class MutableStep:
         Parameters
         ----------
         name : str
-            The decorator name to look for.
+            The decorator name (short) or fully qualified name (contains a period).
 
         Returns
         -------
         bool
             True if a decorator with the given name exists on this step.
         """
-        for deco_name, _fq, _args, _kwargs in self.decorator_specs:
-            if deco_name == name:
+        for deco_name, deco_fq, _args, _kwargs in self.decorator_specs:
+            if self._match_name(deco_name, deco_fq, name):
                 return True
         return False
 
-    def get_decorator_kwargs(self, name: str) -> Optional[Dict[str, Any]]:
-        """
-        Return the keyword arguments of the first decorator with the given name,
-        or None if no such decorator exists.
-
-        If the decorator appears multiple times, returns the kwargs of the first match.
+    def get_decorator_specs(
+        self, name: str
+    ) -> List[Tuple[str, str, List[Any], Dict[str, Any]]]:
+        """Return all spec tuples matching the given name.
 
         Parameters
         ----------
         name : str
-            The decorator name to look for.
+            The decorator name (short) or fully qualified name (contains a period).
 
         Returns
         -------
-        Optional[Dict[str, Any]]
-            The keyword arguments dict, or None if not found.
+        List[Tuple[str, str, List[Any], Dict[str, Any]]]
+            A list of (short_name, fq_name, args, kwargs) tuples. Empty list if
+            no decorators match.
         """
-        for deco_name, _fq, _args, kwargs in self.decorator_specs:
-            if deco_name == name:
-                return dict(kwargs)
-        return None
-
-    def get_all_decorator_kwargs(self, name: str) -> List[Dict[str, Any]]:
-        """
-        Return a list of kwargs dicts for all decorators with the given name.
-
-        If no decorators with the given name exist, returns an empty list.
-
-        Parameters
-        ----------
-        name : str
-            The decorator name to look for.
-
-        Returns
-        -------
-        List[Dict[str, Any]]
-            A list of keyword argument dicts, one per matching decorator.
-        """
-        return [dict(kwargs) for deco_name, _fq, _args, kwargs in self.decorator_specs if deco_name == name]
-
-    def replace_decorator(
-        self,
-        name: str,
-        updates: Dict[str, Any],
-        reject_if: Optional[List[str]] = None,
-    ) -> None:
-        """
-        Replace a decorator's kwargs, merging with any existing values.
-
-        If the decorator already exists, its kwargs are merged with `updates`
-        (updates take precedence) and the old decorator is replaced. If it does
-        not exist, a new one is added with `updates` as kwargs.
-
-        Parameters
-        ----------
-        name : str
-            The decorator name (e.g. "titus", "resources").
-        updates : Dict[str, Any]
-            Keyword arguments to set or override on the decorator.
-        reject_if : List[str], optional
-            If the existing decorator has any of these keys set to a non-None
-            value, raise MetaflowException. Use this to declare incompatible
-            options.
-        """
-        existing = self.get_decorator_kwargs(name) or {}
-        if reject_if:
-            for key in reject_if:
-                if existing.get(key) is not None:
-                    raise MetaflowException(
-                        "Cannot use @%s with %s=%r when combined with this decorator."
-                        % (name, key, existing[key])
-                    )
-        existing.update(updates)
-        self.remove_decorator(name)
-        self.add_decorator(name, deco_kwargs=existing)
+        return [
+            (deco_name, deco_fq, list(args), dict(kwargs))
+            for deco_name, deco_fq, args, kwargs in self.decorator_specs
+            if self._match_name(deco_name, deco_fq, name)
+        ]
 
     def add_decorator(
         self,

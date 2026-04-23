@@ -60,17 +60,15 @@ class MutableFlow:
         Yields
         ------
         str, str, List[Any], Dict[str, Any]
-            A tuple containing the decorator name, it's fully qualified name,
+            A tuple containing the decorator name, its fully qualified name,
             a list of positional arguments, and a dictionary of keyword arguments.
         """
         from metaflow.flowspec import FlowStateItems
+        from .user_flow_decorator import FlowMutator, FlowMutatorMeta
 
         flow_decos = self._flow_cls._flow_state[FlowStateItems.FLOW_DECORATORS]
         for decos in flow_decos.values():
             for deco in decos:
-                # 3.7 does not support yield foo, *bar syntax so we
-                # work around
-
                 r = [
                     deco.name,
                     "%s.%s"
@@ -82,19 +80,51 @@ class MutableFlow:
                 r.extend(deco.get_args_kwargs())
                 yield tuple(r)
 
+        for deco in self._flow_cls._flow_state[FlowStateItems.FLOW_MUTATORS]:
+            if isinstance(deco, FlowMutator):
+                short_name = FlowMutatorMeta.get_decorator_name(deco.__class__)
+                r = [
+                    short_name or deco.__class__.__name__,
+                    deco.decorator_name,
+                    list(deco._args),
+                    dict(deco._kwargs),
+                ]
+                yield tuple(r)
+
     def has_decorator(self, name: str) -> bool:
-        """Check whether this flow has at least one decorator with the given name."""
-        for deco_name, _fq, _args, _kwargs in self.decorator_specs:
-            if deco_name == name:
+        """Check whether this flow has at least one decorator with the given name.
+
+        Parameters
+        ----------
+        name : str
+            The decorator name (short) or fully qualified name (contains a period).
+        """
+        for deco_name, deco_fq, _args, _kwargs in self.decorator_specs:
+            if self._match_name(deco_name, deco_fq, name):
                 return True
         return False
 
-    def get_decorator_kwargs(self, name: str) -> Optional[Dict[str, Any]]:
-        """Return the kwargs of the first flow decorator with the given name, or None."""
-        for deco_name, _fq, _args, kwargs in self.decorator_specs:
-            if deco_name == name:
-                return dict(kwargs)
-        return None
+    def get_decorator_specs(
+        self, name: str
+    ) -> List[Tuple[str, str, List[Any], Dict[str, Any]]]:
+        """Return all spec tuples matching the given name.
+
+        Parameters
+        ----------
+        name : str
+            The decorator name (short) or fully qualified name (contains a period).
+
+        Returns
+        -------
+        List[Tuple[str, str, List[Any], Dict[str, Any]]]
+            A list of (short_name, fq_name, args, kwargs) tuples. Empty list if
+            no decorators match.
+        """
+        return [
+            (deco_name, deco_fq, list(args), dict(kwargs))
+            for deco_name, deco_fq, args, kwargs in self.decorator_specs
+            if self._match_name(deco_name, deco_fq, name)
+        ]
 
     @property
     def configs(self) -> Generator[Tuple[str, ConfigValue], None, None]:
@@ -122,6 +152,9 @@ class MutableFlow:
         ```
         can be used to add an environment decorator to the `start` step.
 
+        If you want to access a particular configuration value, you can use the getattr
+        method or simply <MutableFlow>.step_name.
+
         Yields
         ------
         Tuple[str, ConfigValue]
@@ -143,6 +176,9 @@ class MutableFlow:
     ) -> Generator[Tuple[str, "metaflow.parameters.Parameter"], None, None]:
         """
         Iterate over all the parameters in this flow.
+
+        If you want to access a particular parameter, you can use the getattr method or
+        simply <MutableFlow>.step_name.
 
         Yields
         ------
@@ -167,6 +203,9 @@ class MutableFlow:
         Iterate over all the steps in this flow. The order of the steps
         returned is not guaranteed.
 
+        If you want to access a particular step, you can use the getattr method or simply
+        <MutableFlow>.step_name.
+
         Yields
         ------
         Tuple[str, MutableStep]
@@ -185,34 +224,6 @@ class MutableFlow:
                     statically_defined=self._statically_defined,
                     inserted_by=self._inserted_by,
                 )
-
-    def get_step(
-        self, name: str
-    ) -> "metaflow.user_decorators.mutable_step.MutableStep":
-        """
-        Look up a step by name.
-
-        Parameters
-        ----------
-        name : str
-            The name of the step to look up.
-
-        Returns
-        -------
-        MutableStep
-            The mutable step proxy.
-
-        Raises
-        ------
-        MetaflowException
-            If no step with the given name exists in this flow.
-        """
-        for step_name, step_proxy in self.steps:
-            if step_name == name:
-                return step_proxy
-        raise MetaflowException(
-            "Step '%s' not found in flow '%s'." % (name, self._flow_cls.__name__)
-        )
 
     def add_parameter(
         self, name: str, value: "metaflow.parameters.Parameter", overwrite: bool = False
@@ -585,6 +596,9 @@ class MutableFlow:
         Note that if multiple decorators share the same decorator specification
         (very rare), they will all be removed.
 
+        FlowMutators cannot be removed because they are processed during iteration.
+        Attempting to remove a FlowMutator will raise an error.
+
         You can only remove decorators in the `pre_mutate` method.
 
         Parameters
@@ -605,12 +619,29 @@ class MutableFlow:
 
         # Prevent circular import
         from metaflow.flowspec import FlowStateItems
+        from .user_flow_decorator import FlowMutator, FlowMutatorMeta
 
         if not self._pre_mutate:
             raise MetaflowException(
                 "Removing flow-decorator '%s' from %s is only allowed in the `pre_mutate` "
                 "method and not the `mutate` method" % (deco_name, self._inserted_by)
             )
+
+        # Check if the name matches a FlowMutator — these cannot be removed
+        # because the pre_mutate loop is iterating over them.
+        for deco in self._flow_cls._flow_state[FlowStateItems.FLOW_MUTATORS]:
+            if isinstance(deco, FlowMutator):
+                if self._match_name(
+                    FlowMutatorMeta.get_decorator_name(deco.__class__)
+                    or deco.__class__.__name__,
+                    deco.decorator_name,
+                    deco_name,
+                ):
+                    raise MetaflowException(
+                        "Cannot remove FlowMutator '%s'. FlowMutators are processed "
+                        "during iteration and cannot be removed. Only FlowDecorators "
+                        "(e.g. @project, @schedule) can be removed." % deco_name
+                    )
 
         do_all = deco_args is None and deco_kwargs is None
         did_remove = False
@@ -642,6 +673,16 @@ class MutableFlow:
         else:
             del flow_decos[deco_name]
         return did_remove
+
+    def _match_name(self, deco_name: str, deco_fq: str, query: str) -> bool:
+        """Return True if *query* matches either the short or fully-qualified name.
+
+        A query containing a period is compared against the fully-qualified name;
+        otherwise it is compared against the short name.
+        """
+        if "." in query:
+            return deco_fq == query
+        return deco_name == query
 
     def __getattr__(self, name):
         # We allow direct access to the steps, configs and parameters but nothing else
