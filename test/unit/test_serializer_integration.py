@@ -141,7 +141,7 @@ def test_custom_serializer_takes_priority(task_datastore):
             )
 
         @classmethod
-        def deserialize(cls, blobs, metadata, context):
+        def deserialize(cls, blobs, metadata):
             return json.loads(blobs[0].decode("utf-8"))
 
     # Explicitly set serializers: custom first, then pickle fallback.
@@ -240,7 +240,7 @@ def test_post_init_registration_reaches_existing_datastore(task_datastore):
             raise NotImplementedError
 
         @classmethod
-        def deserialize(cls, data, metadata=None, context=None, format="storage"):
+        def deserialize(cls, data, metadata=None, format="storage"):
             raise NotImplementedError
 
     try:

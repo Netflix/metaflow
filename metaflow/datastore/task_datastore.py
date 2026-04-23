@@ -117,12 +117,9 @@ class TaskDataStore(object):
         self._parent = flow_datastore
         self._persist = persist
 
-        # ``_serializers`` is a property that dispatches through
-        # ``SerializerStore.get_ordered_serializers()`` on each access. The
-        # lookup is cheap (cached inside the store) and picks up serializers
-        # registered via the lazy import hook after this instance was
-        # constructed — otherwise long-lived datastores (notebooks, client
-        # sessions) would silently miss any extension registered after init.
+        # Tests assign ``self._serializers = [...]`` to pin the dispatch list
+        # for isolation. When set, the ``_serializers`` property returns this
+        # override instead of consulting the global registry.
         self._serializers_override = None
 
         self._is_done_set = False
@@ -203,6 +200,12 @@ class TaskDataStore(object):
 
     @property
     def _serializers(self):
+        # Dispatch through ``SerializerStore.get_ordered_serializers()`` on
+        # each access. The lookup is cheap (cached inside the store) and
+        # picks up serializers registered via the lazy import hook after
+        # this instance was constructed — otherwise long-lived datastores
+        # (notebooks, client sessions) would silently miss any extension
+        # registered after init.
         if self._serializers_override is not None:
             return self._serializers_override
         return SerializerStore.get_ordered_serializers()
@@ -402,7 +405,9 @@ class TaskDataStore(object):
                     # load. Fail loudly until multi-blob support lands.
                     raise DataException(
                         "Serializer %s returned %d blobs for artifact '%s'; "
-                        "only single-blob serializers are supported."
+                        "only single-blob serializers are supported at this "
+                        "time. If you have a need for multi blob "
+                        "serializers, please reach out to the Metaflow team."
                         % (serializer.__name__, len(blobs), name)
                     )
                 artifact_names.append(name)
@@ -472,8 +477,14 @@ class TaskDataStore(object):
                         % serializer_source
                     )
                 raise DataException(
-                    "No deserializer claimed artifact '%s' (encoding: %s)."
-                    "%s" % (name, metadata.encoding, source_hint)
+                    "No deserializer claimed artifact '%s' (encoding: %s, "
+                    "serializer_info: %r).%s"
+                    % (
+                        name,
+                        metadata.encoding,
+                        metadata.serializer_info,
+                        source_hint,
+                    )
                 )
             deserializers[name] = (deserializer, metadata)
             to_load[self._objects[name]].append(name)
@@ -486,9 +497,7 @@ class TaskDataStore(object):
                 # Deserialize each time to have fully distinct objects (the user
                 # would not expect two artifacts with different names to actually
                 # be aliases of one another)
-                yield name, deserializer.deserialize(
-                    [blob], metadata, context=None
-                )
+                yield name, deserializer.deserialize([blob], metadata)
 
     @require_mode("r")
     def get_artifact_sizes(self, names):

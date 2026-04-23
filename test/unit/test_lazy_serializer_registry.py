@@ -200,7 +200,7 @@ def test_lazy_registered_serializer_reaches_dispatch(monkeypatch):
             return [SerializedBlob(blob)], SerializationMetadata("x", 0, "x", {})
 
         @classmethod
-        def deserialize(cls, data, metadata=None, context=None, format="storage"):
+        def deserialize(cls, data, metadata=None, format="storage"):
             return None
 
     # Remove it so lazy-registry has to pull it in.

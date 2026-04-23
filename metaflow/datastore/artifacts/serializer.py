@@ -1,12 +1,32 @@
 import inspect
 from abc import ABCMeta, abstractmethod
 from collections import namedtuple
+from enum import Enum
+from typing import Any, List, Optional, Tuple, Type, Union
 
 
-# Serialization formats. STORAGE produces (blobs, metadata) for the datastore;
-# WIRE produces a str for CLI args, protobuf payloads, and cross-process IPC.
-STORAGE = "storage"
-WIRE = "wire"
+class SerializationFormat(str, Enum):
+    """
+    Representation a serializer produces or consumes.
+
+    - ``STORAGE`` yields ``(List[SerializedBlob], SerializationMetadata)`` for
+      the datastore save path.
+    - ``WIRE`` yields a ``str`` for CLI args, protobuf payloads, and
+      cross-process IPC.
+
+    Subclassing ``str`` keeps ``SerializationFormat.STORAGE == "storage"``
+    True, so existing call sites that compare against the string literal
+    keep working without a migration.
+    """
+
+    STORAGE = "storage"
+    WIRE = "wire"
+
+
+# Module-level aliases kept so call sites can write ``format=STORAGE`` without
+# importing the enum itself.
+STORAGE = SerializationFormat.STORAGE
+WIRE = SerializationFormat.WIRE
 
 
 SerializationMetadata = namedtuple(
@@ -30,7 +50,11 @@ class SerializedBlob(object):
         If None, auto-detected from value type: str -> reference, bytes -> new data.
     """
 
-    def __init__(self, value, is_reference=None):
+    def __init__(
+        self,
+        value: Union[str, bytes],
+        is_reference: Optional[bool] = None,
+    ):
         if not isinstance(value, (str, bytes)):
             raise TypeError(
                 "SerializedBlob value must be str or bytes, got %s" % type(value).__name__
@@ -42,7 +66,7 @@ class SerializedBlob(object):
             self.is_reference = is_reference
 
     @property
-    def needs_save(self):
+    def needs_save(self) -> bool:
         """True if this blob contains new bytes that need to be stored."""
         return not self.is_reference
 
@@ -69,7 +93,7 @@ class SerializerStore(ABCMeta):
         SerializerStore._ordered_cache = None
 
     @staticmethod
-    def get_ordered_serializers():
+    def get_ordered_serializers() -> List[Type["ArtifactSerializer"]]:
         """
         Return serializer classes sorted by (PRIORITY, registration_order).
 
@@ -127,12 +151,12 @@ class ArtifactSerializer(object, metaclass=SerializerStore):
         PickleSerializer uses 9999 as the universal fallback.
     """
 
-    TYPE = None
-    PRIORITY = 100
+    TYPE: Optional[str] = None
+    PRIORITY: int = 100
 
     @classmethod
     @abstractmethod
-    def can_serialize(cls, obj):
+    def can_serialize(cls, obj: Any) -> bool:
         """
         Return True if this serializer can handle the given object.
 
@@ -149,7 +173,7 @@ class ArtifactSerializer(object, metaclass=SerializerStore):
 
     @classmethod
     @abstractmethod
-    def can_deserialize(cls, metadata):
+    def can_deserialize(cls, metadata: SerializationMetadata) -> bool:
         """
         Return True if this serializer can deserialize given the metadata.
 
@@ -166,7 +190,11 @@ class ArtifactSerializer(object, metaclass=SerializerStore):
 
     @classmethod
     @abstractmethod
-    def serialize(cls, obj, format=STORAGE):
+    def serialize(
+        cls,
+        obj: Any,
+        format: SerializationFormat = STORAGE,
+    ) -> Union[Tuple[List[SerializedBlob], SerializationMetadata], str]:
         """
         Serialize obj. Must be side-effect-free: this method may be invoked
         multiple times (caching, retries, parallel dispatch) and must not
@@ -178,7 +206,7 @@ class ArtifactSerializer(object, metaclass=SerializerStore):
         ----------
         obj : Any
             The Python object to serialize.
-        format : str
+        format : SerializationFormat
             Either ``STORAGE`` (default) or ``WIRE``.
             - ``STORAGE`` returns a tuple ``(List[SerializedBlob], SerializationMetadata)``
               for persisting through the datastore.
@@ -194,7 +222,12 @@ class ArtifactSerializer(object, metaclass=SerializerStore):
 
     @classmethod
     @abstractmethod
-    def deserialize(cls, data, metadata=None, context=None, format=STORAGE):
+    def deserialize(
+        cls,
+        data: Union[List[bytes], str],
+        metadata: Optional[SerializationMetadata] = None,
+        format: SerializationFormat = STORAGE,
+    ) -> Any:
         """
         Deserialize back to a Python object.
 
@@ -205,9 +238,7 @@ class ArtifactSerializer(object, metaclass=SerializerStore):
         metadata : SerializationMetadata, optional
             Metadata stored alongside the artifact. Required for STORAGE,
             ignored for WIRE.
-        context : Any, optional
-            Optional context for deserialization (e.g., task vs client loading).
-        format : str
+        format : SerializationFormat
             Either ``STORAGE`` (default) or ``WIRE``.
 
         Returns

@@ -51,7 +51,7 @@ class _HighPrioritySerializer(ArtifactSerializer):
         )
 
     @classmethod
-    def deserialize(cls, blobs, metadata, context):
+    def deserialize(cls, blobs, metadata):
         return blobs[0].decode("utf-8")
 
 
@@ -76,7 +76,7 @@ class _LowPrioritySerializer(ArtifactSerializer):
         )
 
     @classmethod
-    def deserialize(cls, blobs, metadata, context):
+    def deserialize(cls, blobs, metadata):
         return int(blobs[0].decode("utf-8"))
 
 
@@ -99,7 +99,7 @@ class _SamePrioritySerializer(ArtifactSerializer):
         raise NotImplementedError
 
     @classmethod
-    def deserialize(cls, blobs, metadata, context):
+    def deserialize(cls, blobs, metadata):
         raise NotImplementedError
 
 
@@ -143,7 +143,7 @@ def test_re_registration_overwrites():
                 raise NotImplementedError
 
             @classmethod
-            def deserialize(cls, blobs, metadata, context):
+            def deserialize(cls, blobs, metadata):
                 raise NotImplementedError
 
         assert SerializerStore._all_serializers["test_high"] is _ReplacementSerializer
@@ -286,7 +286,7 @@ class _DualFormatSerializer(ArtifactSerializer):
         )
 
     @classmethod
-    def deserialize(cls, data, metadata=None, context=None, format=STORAGE):
+    def deserialize(cls, data, metadata=None, format=STORAGE):
         if format == WIRE:
             return data
         return data[0].decode("utf-8")
@@ -295,6 +295,10 @@ class _DualFormatSerializer(ArtifactSerializer):
 def test_format_constants():
     assert STORAGE == "storage"
     assert WIRE == "wire"
+    # Enum members compare both by identity and against the underlying string.
+    assert STORAGE is STORAGE
+    assert STORAGE.value == "storage"
+    assert WIRE.value == "wire"
 
 
 def test_dual_format_storage_roundtrip():

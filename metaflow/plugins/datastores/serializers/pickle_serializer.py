@@ -55,7 +55,7 @@ class PickleSerializer(ArtifactSerializer):
         )
 
     @classmethod
-    def deserialize(cls, data, metadata=None, context=None, format=STORAGE):
+    def deserialize(cls, data, metadata=None, format=STORAGE):
         if format == WIRE:
             raise NotImplementedError(
                 "PickleSerializer does not support the WIRE format."
