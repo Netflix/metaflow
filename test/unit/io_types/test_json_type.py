@@ -73,3 +73,24 @@ def test_json_hashable_with_list_value():
     h = hash(j)
     assert isinstance(h, int)
     assert hash(Json([1, 2, 3])) == hash(j)
+
+
+def test_json_hash_preserves_numeric_equivalence():
+    """``1 == 1.0 == True`` in Python — equal dicts must hash equal even
+    when they mix numeric types. A naive JSON-string hash renders ``1``
+    and ``1.0`` as distinct strings and violates the hash/eq contract.
+    """
+    a = Json({"x": 1})
+    b = Json({"x": 1.0})
+    assert a == b
+    assert hash(a) == hash(b)
+
+    c = Json({"x": True})
+    d = Json({"x": 1})
+    assert c == d
+    assert hash(c) == hash(d)
+
+    e = Json([1, 2, 3])
+    f = Json([1.0, 2.0, 3.0])
+    assert e == f
+    assert hash(e) == hash(f)

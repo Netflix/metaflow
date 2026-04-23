@@ -39,6 +39,27 @@ def get_iotype_by_name(type_name):
     return _TYPE_REGISTRY.get(type_name)
 
 
+def _make_hashable(value):
+    """
+    Recursively convert a JSON-like value to a hashable form.
+
+    dicts -> frozenset of (key, hashable(value)) pairs.
+    lists -> tuple of hashable elements.
+    Everything else assumed hashable (int, float, bool, str, None, ...).
+
+    Using ``frozenset``/``tuple`` preserves Python's numeric equivalence
+    (``1 == 1.0 == True`` -> equal hashes) that ``json.dumps`` would
+    otherwise break by rendering each as a distinct string. This keeps the
+    ``__eq__`` / ``__hash__`` contract intact when IOType subclasses delegate
+    value equality to the wrapped Python object.
+    """
+    if isinstance(value, dict):
+        return frozenset((k, _make_hashable(v)) for k, v in value.items())
+    if isinstance(value, list):
+        return tuple(_make_hashable(v) for v in value)
+    return value
+
+
 class IOType(object, metaclass=ABCMeta):
     """
     Base class for typed Metaflow artifacts.

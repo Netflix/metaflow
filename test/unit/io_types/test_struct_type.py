@@ -41,6 +41,16 @@ class WithInitFalse:
         self.computed = self.a * 10
 
 
+@dataclass(frozen=True)
+class FrozenWithInitFalse:
+    a: int
+    computed: int = dataclasses.field(init=False, default=0)
+
+    def __post_init__(self):
+        # Frozen dataclasses must use object.__setattr__ to touch fields.
+        object.__setattr__(self, "computed", self.a * 10)
+
+
 def test_struct_wire_round_trip():
     s = Struct(SimpleData(name="test", count=5, score=3.14, active=True))
     wire = s.serialize(format="wire")
@@ -179,11 +189,28 @@ def test_struct_plain_dict_value():
     assert s2.value == {"x": 1, "y": "hello"}
 
 
+def test_struct_frozen_dataclass_with_init_false_field_round_trip():
+    """Frozen dataclasses reject plain ``setattr``. Reconstructing one with
+    an ``init=False`` field must use ``object.__setattr__`` so the
+    serialized value survives, matching how frozen dataclasses initialize
+    such fields in their own ``__post_init__``.
+    """
+    original = FrozenWithInitFalse(a=7)
+    assert original.computed == 70
+
+    s = Struct(original)
+    blobs, meta = s.serialize(format="storage")
+    s2 = Struct.deserialize([b.value for b in blobs], format="storage", metadata=meta)
+    assert type(s2.value) is FrozenWithInitFalse
+    assert s2.value.a == 7
+    assert s2.value.computed == 70
+
+
 def test_struct_hashable_with_unhashable_dataclass():
     """Struct wrapping a dataclass with mutable fields (list, dict) must be
     hashable. The base ``hash((type, _value))`` raises TypeError because
     dataclasses with mutable fields are unhashable; Struct overrides
-    ``__hash__`` with a canonical-JSON-based hash.
+    ``__hash__`` via ``_make_hashable``.
     """
 
     @dataclass
@@ -203,6 +230,18 @@ def test_struct_hashable_with_unhashable_dataclass():
     # Wrapping a plain dict also hashes without TypeError.
     s3 = Struct({"a": [1, 2], "b": {"nested": True}})
     assert isinstance(hash(s3), int)
+
+
+def test_struct_hash_preserves_numeric_equivalence():
+    """Same contract as Json: equal dicts with int/float/bool members must
+    hash equal. Confirms the frozenset/tuple based ``_make_hashable`` is
+    used (not ``json.dumps``, which would render ``1`` and ``1.0`` as
+    distinct strings).
+    """
+    s_int = Struct({"x": 1})
+    s_float = Struct({"x": 1.0})
+    assert s_int == s_float
+    assert hash(s_int) == hash(s_float)
 
 
 def test_struct_descriptor_is_hashable():

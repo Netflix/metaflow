@@ -4,7 +4,7 @@ import json
 import typing
 
 from ..datastore.artifacts.serializer import SerializedBlob
-from .base import IOType, _UNSET
+from .base import IOType, _UNSET, _make_hashable
 
 
 def _reconstruct(dc_type, data):
@@ -18,7 +18,8 @@ def _reconstruct(dc_type, data):
 
     Fields declared with ``field(init=False, ...)`` are not accepted by the
     generated ``__init__``, but ``dataclasses.asdict`` emits them. Pass only
-    init-eligible fields as kwargs, then ``setattr`` the remainder so the
+    init-eligible fields as kwargs, then assign the remainder via
+    ``object.__setattr__`` (which works on frozen dataclasses too) so the
     serialized values are not lost to defaults or ``__post_init__``.
     """
     try:
@@ -45,8 +46,11 @@ def _reconstruct(dc_type, data):
         else:
             post_init_fields.append((f.name, value))
     instance = dc_type(**kwargs)
+    # ``object.__setattr__`` bypasses ``@dataclass(frozen=True)``'s lock,
+    # matching the pattern frozen dataclasses themselves use to populate
+    # ``init=False`` fields inside ``__post_init__``.
     for name, value in post_init_fields:
-        setattr(instance, name, value)
+        object.__setattr__(instance, name, value)
     return instance
 
 
@@ -144,15 +148,10 @@ class Struct(IOType):
     def __hash__(self):
         # ``_value`` is typically a dataclass instance or dict (often
         # unhashable), so the base class ``hash((type, _value))`` raises
-        # TypeError. Hash the canonical JSON representation of the flattened
-        # value instead — stable across equal values and consistent with
-        # ``__eq__`` (equal dataclasses/dicts flatten to identical sorted-key
-        # JSON).
+        # TypeError. Flatten to a dict via ``_to_dict`` then convert to a
+        # frozenset/tuple form that preserves Python's numeric equivalence
+        # (``1 == 1.0 == True`` hash identically), so ``__eq__`` and
+        # ``__hash__`` stay consistent for mixed-type fields.
         if self._value is _UNSET:
             return hash((type(self), _UNSET))
-        return hash(
-            (
-                type(self),
-                json.dumps(self._to_dict(), separators=(",", ":"), sort_keys=True),
-            )
-        )
+        return hash((type(self), _make_hashable(self._to_dict())))
