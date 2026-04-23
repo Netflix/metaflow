@@ -912,17 +912,12 @@ def _init_step_decorators(
 
     # Call the external_init on all step decorators. At this point, we have all the ones
     # the user wants to add through mutators
-    cached_skip_decorators = set()
-
     for step in flow:
         system_context.register_step_decorators(step.__name__, list(step.decorators))
         for deco in step.decorators:
-            if deco.name in cached_skip_decorators:
-                continue
             if _should_skip_decorator_for_spin(
                 deco, is_spin, skip_decorators, logger, "Step decorator"
             ):
-                cached_skip_decorators.add(deco.name)
                 continue
             deco.external_init()
         # Also call external_init on UserStepDecorator wrappers. The _ran_init
@@ -932,7 +927,9 @@ def _init_step_decorators(
             deco.external_init()
     for step in flow:
         for deco in step.decorators:
-            if deco.name in cached_skip_decorators:
+            if _should_skip_decorator_for_spin(
+                deco, is_spin, skip_decorators, logger, "Step decorator"
+            ):
                 continue
             if deco.step_init_ctx is not None:
                 deco.step_init_ctx(step.__name__)
