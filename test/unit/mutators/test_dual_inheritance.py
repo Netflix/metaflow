@@ -5,6 +5,11 @@ class TestDualInheritance:
     def test_flow_completes(self, dual_inherit_run):
         assert dual_inherit_run.successful
 
+    def test_pre_mutate_ran(self, dual_inherit_run):
+        """pre_mutate() should have added the environment variable."""
+        task = dual_inherit_run["start"].task
+        assert task.data.pre_mutate_env_var == "pre_mutate_ran"
+
     def test_mutate_ran(self, dual_inherit_run):
         """mutate() should have added the environment variable."""
         task = dual_inherit_run["start"].task
