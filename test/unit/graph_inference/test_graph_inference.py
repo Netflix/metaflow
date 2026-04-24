@@ -246,3 +246,50 @@ def test_default_card_includes_custom_graph_endpoints(custom_named_card_run):
     assert set(dag_data["steps"]) == {"begin", "middle", "finish"}
     assert "start" not in dag_data["steps"]
     assert "end" not in dag_data["steps"]
+
+
+# ---------------------------------------------------------------------------
+# Composition: single-step flows with Config, stacked decorators, FlowMutator
+# ---------------------------------------------------------------------------
+
+
+def test_single_step_with_config_completes(single_step_with_config_run):
+    """Config-bearing single-step flow runs to completion."""
+    assert single_step_with_config_run.successful
+    assert single_step_with_config_run.finished
+
+
+def test_single_step_with_config_value_flows_to_artifact(single_step_with_config_run):
+    """Config descriptor value is readable from the end task's artifact."""
+    end_task = single_step_with_config_run.end_task
+    assert end_task["v"].data == 7
+
+
+def test_single_step_with_stacked_decos_completes(single_step_with_stacked_decos_run):
+    """Single-step flow with stacked @retry/@resources runs end-to-end."""
+    assert single_step_with_stacked_decos_run.successful
+    assert single_step_with_stacked_decos_run.finished
+
+
+def test_single_step_with_stacked_decos_graph_info(single_step_with_stacked_decos_run):
+    """_graph_info records all stacked decorators on the only step."""
+    graph_info = (
+        single_step_with_stacked_decos_run["_parameters"].task["_graph_info"].data
+    )
+    names = {d["name"] for d in graph_info["steps"]["only"]["decorators"]}
+    assert {"retry", "resources"}.issubset(names)
+
+
+def test_single_step_with_flow_mutator_completes(single_step_with_flow_mutator_run):
+    """FlowMutator-decorated single-step flow runs end-to-end."""
+    assert single_step_with_flow_mutator_run.successful
+    assert single_step_with_flow_mutator_run.finished
+
+
+def test_single_step_with_flow_mutator_applied(single_step_with_flow_mutator_run):
+    """FlowMutator.add_decorator landed @retry on the only step."""
+    graph_info = (
+        single_step_with_flow_mutator_run["_parameters"].task["_graph_info"].data
+    )
+    names = {d["name"] for d in graph_info["steps"]["only"]["decorators"]}
+    assert "retry" in names

@@ -35,3 +35,23 @@ custom_branch_run = pytest.fixture(scope="session")(
 custom_named_card_run = pytest.fixture(scope="session")(
     create_flow_fixture("CustomNamedCardFlow", "custom_named_card_flow.py")
 )
+
+single_step_with_config_run = pytest.fixture(scope="session")(
+    create_flow_fixture(
+        "SingleStepWithConfigFlow", "single_step_with_config_flow.py"
+    )
+)
+
+single_step_with_stacked_decos_run = pytest.fixture(scope="session")(
+    create_flow_fixture(
+        "SingleStepWithStackedDecosFlow",
+        "single_step_with_stacked_decos_flow.py",
+    )
+)
+
+single_step_with_flow_mutator_run = pytest.fixture(scope="session")(
+    create_flow_fixture(
+        "SingleStepWithFlowMutatorFlow",
+        "single_step_with_flow_mutator_flow.py",
+    )
+)

@@ -12,7 +12,8 @@ Verifies that:
 """
 
 import pytest
-from metaflow import FlowSpec, step, Parameter
+from metaflow import Config, FlowMutator, FlowSpec, step, Parameter, retry, resources
+from metaflow.flowspec import FlowStateItems
 from metaflow.lint import linter, LintWarn
 
 # ---------------------------------------------------------------------------
@@ -131,6 +132,48 @@ def _make_dynamic_single_step_flow():
         (FlowSpec,),
         {"__module__": __name__, "only": only},
     )
+
+
+# ---------------------------------------------------------------------------
+# Flow classes: single-step flows composed with configs, decorators, mutators
+# ---------------------------------------------------------------------------
+
+
+class _SingleStepWithConfig(FlowSpec):
+    """Single-step flow with a Config descriptor."""
+
+    cfg = Config("cfg", default_value={"x": 7})
+
+    @step(start=True, end=True)
+    def only(self):
+        self.v = self.cfg["x"]
+
+
+class _SingleStepWithStackedDecos(FlowSpec):
+    """Single-step flow with multiple step decorators stacked."""
+
+    @retry(times=3)
+    @resources(cpu=2, memory=1024)
+    @step(start=True, end=True)
+    def only(self):
+        self.v = 1
+
+
+class _AddRetryMutator(FlowMutator):
+    """Adds @retry to every step. Used to verify mutators reach a single-step flow."""
+
+    def pre_mutate(self, mutable_flow):
+        for _, s in mutable_flow.steps:
+            s.add_decorator(retry, deco_kwargs={"times": 1})
+
+
+@_AddRetryMutator
+class _SingleStepWithFlowMutator(FlowSpec):
+    """Single-step flow with a FlowMutator applied at the class level."""
+
+    @step(start=True, end=True)
+    def only(self):
+        pass
 
 
 # ---------------------------------------------------------------------------
@@ -485,6 +528,42 @@ def test_backward_compat_name_based():
     assert graph.end_step == "end"
     assert graph["start"].is_start_step is False
     assert graph["end"].is_end_step is False
+
+
+# ---------------------------------------------------------------------------
+# Tests: composition with configs, stacked decorators, and flow mutators
+# ---------------------------------------------------------------------------
+
+
+def test_single_step_with_config_descriptor_registered():
+    """Config descriptor is registered on a single-step flow."""
+    graph = _SingleStepWithConfig._graph
+    assert graph.start_step == "only" == graph.end_step
+    names = {name for name, _ in _SingleStepWithConfig._get_parameters()}
+    assert "cfg" in names
+
+
+def test_single_step_with_multiple_step_decorators():
+    """Multiple step decorators stack correctly on a single-step flow."""
+    graph = _SingleStepWithStackedDecos._graph
+    deco_names = {d.name for d in graph["only"].decorators}
+    assert {"retry", "resources"}.issubset(deco_names)
+
+
+def test_single_step_with_flow_mutator_registered():
+    """FlowMutator is registered on a single-step flow at class-definition time.
+
+    pre_mutate only fires when the flow is processed via the CLI layer, so
+    the decorator it adds won't appear on the graph in a unit test. What we
+    can verify here is that the mutator syntax is accepted by a single-step
+    FlowSpec and that it's registered as a flow mutator. End-to-end execution
+    is covered by the matching integration test.
+    """
+    flow_cls = _SingleStepWithFlowMutator._flow_cls
+    graph = flow_cls._graph
+    assert graph.start_step == "only" == graph.end_step
+    mutators = flow_cls._flow_state[FlowStateItems.FLOW_MUTATORS]
+    assert any(isinstance(m, _AddRetryMutator) for m in mutators)
 
 
 # ---------------------------------------------------------------------------
