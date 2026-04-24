@@ -207,6 +207,10 @@ class SerializerStore(ABCMeta):
         """
         entries = []
 
+        # Bucketed by source so each bucket can be passed to
+        # bootstrap_entries with its own source label.
+        by_source = []  # list of (source, entries)
+
         # Core serializers (shipped with Metaflow). Class paths in the core
         # ARTIFACT_SERIALIZERS_DESC are relative to ``metaflow.plugins`` and
         # must be resolved here now that ``artifact_serializer`` is no longer
@@ -215,15 +219,18 @@ class SerializerStore(ABCMeta):
         try:
             from metaflow.plugins import ARTIFACT_SERIALIZERS_DESC as core_desc
 
-            entries.extend(
+            core_entries = [
                 (name, cls._resolve_relative_class_path(path, "metaflow.plugins"))
                 for name, path in core_desc
-            )
+            ]
+            if core_entries:
+                by_source.append(("metaflow", core_entries))
         except ImportError:
             # Possible during partial test imports; skip gracefully.
             pass
 
-        # Extension serializers.
+        # Extension serializers — stamp each with the extension's package name
+        # so load errors can point at the right package to install.
         try:
             from metaflow.extension_support import plugins as ext_plugins
 
@@ -233,10 +240,19 @@ class SerializerStore(ABCMeta):
                     continue
                 ext_pkg = getattr(mod, "__package__", None) or ""
                 ext_desc = mod.__dict__.get("ARTIFACT_SERIALIZERS_DESC", [])
-                entries.extend(
+                ext_entries = [
                     (name, cls._resolve_relative_class_path(path, ext_pkg))
                     for name, path in ext_desc
+                ]
+                if not ext_entries:
+                    continue
+                source = (
+                    getattr(ext_entry, "package_name", None)
+                    or getattr(ext_entry, "tl_package", None)
+                    or ext_pkg
+                    or None
                 )
+                by_source.append((source, ext_entries))
         except Exception:
             # Do not let extension discovery failures kill Metaflow startup.
             pass
@@ -255,7 +271,8 @@ class SerializerStore(ABCMeta):
         except Exception:
             pass
 
-        cls.bootstrap_entries(entries, disabled_names=disabled_names)
+        for source, group in by_source:
+            cls.bootstrap_entries(group, disabled_names=disabled_names, source=source)
 
     @staticmethod
     def _resolve_relative_class_path(class_path, pkg_path):
@@ -281,7 +298,7 @@ class SerializerStore(ABCMeta):
         return prefix + class_path[i - 1 :]
 
     @classmethod
-    def bootstrap_entries(cls, entries, disabled_names=None):
+    def bootstrap_entries(cls, entries, disabled_names=None, source=None):
         """Drive a list of (name, class_path) tuples through the state machine.
 
         Called once at Metaflow startup via ``bootstrap()`` and directly by
@@ -289,6 +306,11 @@ class SerializerStore(ABCMeta):
 
         ``disabled_names``: set of tuple names to mark DISABLED without
         attempting import (from ``-name`` toggles in config).
+        ``source``: human-readable identifier for where these entries came
+        from (e.g. ``"metaflow"`` for core, an extension's ``package_name``
+        for extension-shipped serializers). Stamped on each record and
+        auto-injected into ``serializer_info["source"]`` at save time unless
+        the serializer sets its own value.
         """
         import importlib
         from .diagnostic import SerializerRecord, SerializerState
@@ -296,7 +318,7 @@ class SerializerStore(ABCMeta):
         disabled_names = disabled_names or set()
 
         for name, class_path in entries:
-            rec = SerializerRecord(name=name, class_path=class_path)
+            rec = SerializerRecord(name=name, class_path=class_path, source=source)
             cls._records[name] = rec
 
             if name in disabled_names:
@@ -448,6 +470,19 @@ class SerializerStore(ABCMeta):
         rec.import_trigger = "hook"
         cls._active_serializers.add(serializer_cls)
         cls._ordered_cache = None
+
+    @classmethod
+    def get_source_for(cls, serializer_cls):
+        """Return the ``source`` label attached to a serializer's record, or
+        ``None`` if no record exists. Looked up by ``TYPE`` — tuple names are
+        validated equal to ``TYPE`` at bootstrap time."""
+        target_type = getattr(serializer_cls, "TYPE", None)
+        if target_type is None:
+            return None
+        for rec in cls._records.values():
+            if rec.type == target_type:
+                return rec.source
+        return None
 
     @classmethod
     def _reset_for_tests(cls):

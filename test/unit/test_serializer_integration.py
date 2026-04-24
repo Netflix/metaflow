@@ -98,12 +98,76 @@ def test_distinct_objects_on_load(task_datastore):
     assert loaded["a"] is not loaded["b"]  # distinct instances
 
 
-def test_metadata_has_no_serializer_info_for_pickle(task_datastore):
-    """PickleSerializer returns empty serializer_info, so _info should not contain it."""
+def test_metadata_auto_populates_source_for_pickle(task_datastore):
+    """PickleSerializer returns empty serializer_info, but save_artifacts
+    auto-injects ``source`` from the bootstrap-time record so load errors
+    can tell the user which package provides the missing serializer."""
     task_datastore.save_artifacts(iter([("x", 42)]))
     info = task_datastore._info["x"]
-    # Empty serializer_info should NOT be stored (saves space in metadata)
-    assert "serializer_info" not in info
+    assert info.get("serializer_info", {}).get("source") == "metaflow"
+
+
+def test_author_source_is_not_overridden(task_datastore):
+    """A serializer that sets its own ``source`` in serializer_info should
+    not have it overridden by the auto-injected bootstrap source."""
+    from metaflow.datastore.artifacts import SerializationFormat, SerializerStore
+    from metaflow.datastore.artifacts.diagnostic import (
+        SerializerRecord,
+        SerializerState,
+    )
+
+    class _ExplicitSourceSerializer(ArtifactSerializer):
+        TYPE = "test_explicit_source"
+        PRIORITY = 1
+
+        @classmethod
+        def can_serialize(cls, obj):
+            return isinstance(obj, str)
+
+        @classmethod
+        def can_deserialize(cls, metadata):
+            return metadata.encoding == "test_explicit_source"
+
+        @classmethod
+        def serialize(cls, obj, format=SerializationFormat.STORAGE):
+            blob = obj.encode("utf-8")
+            return (
+                [SerializedBlob(blob, is_reference=False)],
+                SerializationMetadata(
+                    obj_type="str",
+                    size=len(blob),
+                    encoding="test_explicit_source",
+                    serializer_info={"source": "i-picked-this-myself"},
+                ),
+            )
+
+        @classmethod
+        def deserialize(cls, data, metadata=None, format=SerializationFormat.STORAGE):
+            return data[0].decode("utf-8")
+
+    # Seed a record so get_source_for would try to inject "some-extension"
+    # — the author's explicit source should still win.
+    rec = SerializerRecord(
+        name="test_explicit_source",
+        class_path="inline.ExplicitSourceSerializer",
+        state=SerializerState.ACTIVE,
+        type="test_explicit_source",
+        source="some-extension",
+    )
+    SerializerStore._records["test_explicit_source"] = rec
+    SerializerStore._active_serializers.add(_ExplicitSourceSerializer)
+
+    task_datastore._serializers = [_ExplicitSourceSerializer, PickleSerializer]
+
+    try:
+        task_datastore.save_artifacts(iter([("hello", "world")]))
+        info = task_datastore._info["hello"]
+        assert info["serializer_info"]["source"] == "i-picked-this-myself"
+    finally:
+        SerializerStore._records.pop("test_explicit_source", None)
+        SerializerStore._active_serializers.discard(_ExplicitSourceSerializer)
+        SerializerStore._all_serializers.pop("test_explicit_source", None)
+        SerializerStore._ordered_cache = None
 
 
 # ---------------------------------------------------------------------------
