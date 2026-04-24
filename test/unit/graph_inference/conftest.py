@@ -37,9 +37,7 @@ custom_named_card_run = pytest.fixture(scope="session")(
 )
 
 single_step_with_config_run = pytest.fixture(scope="session")(
-    create_flow_fixture(
-        "SingleStepWithConfigFlow", "single_step_with_config_flow.py"
-    )
+    create_flow_fixture("SingleStepWithConfigFlow", "single_step_with_config_flow.py")
 )
 
 single_step_with_stacked_decos_run = pytest.fixture(scope="session")(
