@@ -48,7 +48,7 @@ class PickleSerializer(ArtifactSerializer):
             SerializationMetadata(
                 obj_type=str(type(obj)),
                 size=len(blob),
-                encoding="pickle-v4",
+                encoding="gzip+pickle-v4",
                 serializer_info={},
             ),
         )
