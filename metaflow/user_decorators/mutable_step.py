@@ -453,13 +453,15 @@ class MutableStep:
                 new_deco_list = []
                 for deco in getattr(self._my_step, attr):
                     if deco.decorator_name == canonical_deco_type.decorator_name:
-                        if do_all:
-                            did_remove = True
-                            continue  # We remove all decorators with this name
-                        if deco.get_args_kwargs() == (
+                        matches = do_all or deco.get_args_kwargs() == (
                             deco_args or [],
                             deco_kwargs or {},
-                        ):
+                        )
+                        if matches:
+                            # The pre_mutate guard applies to both do_all and
+                            # specific-match removals: StepMutators can only be
+                            # removed during pre_mutate regardless of whether a
+                            # filter was provided.
                             if not self._pre_mutate and isinstance(deco, StepMutator):
                                 raise MetaflowException(
                                     "Removing step mutator '%s' from %s is only allowed in the "
