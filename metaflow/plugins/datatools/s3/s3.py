@@ -18,6 +18,7 @@ from metaflow import FlowSpec
 from metaflow.metaflow_current import current
 from metaflow.metaflow_config import (
     DATATOOLS_S3ROOT,
+    S3_DIRECT_BOTO3,
     S3_RETRY_COUNT,
     S3_TRANSIENT_RETRY_COUNT,
     S3_LOG_TRANSIENT_RETRIES,
@@ -1837,38 +1838,139 @@ class S3(object):
         prefixes_and_ranges = list(prefixes_and_ranges)
         if not prefixes_and_ranges:
             return
-        if op == "list":
-            yield from self._list_objects_direct(
-                prefixes_and_ranges, recursive=options.get("recursive", False)
-            )
-        elif op == "info":
-            yield from self._info_objects_direct(prefixes_and_ranges)
-        elif op == "get":
-            recursive = options.get("recursive", False)
-            if recursive:
-                listed = list(
-                    self._list_objects_direct(prefixes_and_ranges, recursive=True)
+        if S3_DIRECT_BOTO3:
+            if op == "list":
+                yield from self._list_objects_direct(
+                    prefixes_and_ranges, recursive=options.get("recursive", False)
                 )
-                download_items = [(url, None) for _prefix, url, _size in listed]
-                yield from self._get_objects_direct(
-                    download_items,
-                    allow_missing=options.get("allow_missing", False),
-                    return_info=options.get("info", False),
-                )
+            elif op == "info":
+                yield from self._info_objects_direct(prefixes_and_ranges)
+            elif op == "get":
+                recursive = options.get("recursive", False)
+                if recursive:
+                    listed = list(
+                        self._list_objects_direct(
+                            prefixes_and_ranges, recursive=True
+                        )
+                    )
+                    download_items = [
+                        (url, None) for _prefix, url, _size in listed
+                    ]
+                    yield from self._get_objects_direct(
+                        download_items,
+                        allow_missing=options.get("allow_missing", False),
+                        return_info=options.get("info", False),
+                    )
+                else:
+                    yield from self._get_objects_direct(
+                        prefixes_and_ranges,
+                        allow_missing=options.get("allow_missing", False),
+                        return_info=options.get("info", False),
+                    )
             else:
-                yield from self._get_objects_direct(
-                    prefixes_and_ranges,
-                    allow_missing=options.get("allow_missing", False),
-                    return_info=options.get("info", False),
-                )
+                raise MetaflowS3Exception("Unknown operation: %s" % op)
         else:
-            raise MetaflowS3Exception("Unknown operation: %s" % op)
+            with NamedTemporaryFile(
+                dir=self._tmpdir,
+                mode="wb",
+                delete=not debug.s3client,
+                prefix="metaflow.s3.inputs.",
+            ) as inputfile:
+                inputfile.write(
+                    b"\n".join(
+                        [
+                            b" ".join(
+                                [url_quote(prefix)]
+                                + ([url_quote(r)] if r else [])
+                            )
+                            for prefix, r in prefixes_and_ranges
+                        ]
+                    )
+                )
+                inputfile.flush()
+                stdout_lines, stderr, err_code = self._s3op_with_retries(
+                    op, inputs=inputfile.name, **options
+                )
+                if stderr:
+                    from . import s3op
+
+                    if err_code == s3op.ERROR_URL_NOT_FOUND:
+                        raise MetaflowS3NotFound(stderr)
+                    elif err_code == s3op.ERROR_URL_ACCESS_DENIED:
+                        raise MetaflowS3AccessDenied(stderr)
+                    elif err_code == s3op.ERROR_INVALID_RANGE:
+                        raise MetaflowS3InvalidRange(stderr)
+                    else:
+                        raise MetaflowS3Exception(
+                            "Getting S3 files failed.\n"
+                            "First prefix requested: %s\n"
+                            "Error: %s" % (prefixes_and_ranges[0], stderr)
+                        )
+                else:
+                    for line in stdout_lines:
+                        yield tuple(
+                            map(url_unquote, line.strip(b"\n").split(b" "))
+                        )
 
     def _put_many_files(self, url_info, overwrite):
         url_info = list(url_info)
         if not url_info:
             return []
-        return self._put_objects_direct(url_info, overwrite)
+        if S3_DIRECT_BOTO3:
+            return self._put_objects_direct(url_info, overwrite)
+        else:
+            url_dicts = [
+                dict(
+                    chain(
+                        [("local", os.path.realpath(local)), ("url", url)],
+                        info.items(),
+                    )
+                )
+                for local, url, info in url_info
+            ]
+            with NamedTemporaryFile(
+                dir=self._tmpdir,
+                mode="wb",
+                delete=not debug.s3client,
+                prefix="metaflow.s3.put_inputs.",
+            ) as inputfile:
+                lines = [to_bytes(json.dumps(x)) for x in url_dicts]
+                inputfile.write(b"\n".join(lines))
+                inputfile.flush()
+                stdout_lines, stderr, err_code = self._s3op_with_retries(
+                    "put",
+                    inputs=inputfile.name,
+                    verbose=False,
+                    overwrite=overwrite,
+                    listing=True,
+                )
+                if stderr:
+                    from . import s3op
+
+                    if err_code == s3op.ERROR_URL_NOT_FOUND:
+                        raise MetaflowS3NotFound(stderr)
+                    elif err_code == s3op.ERROR_URL_ACCESS_DENIED:
+                        raise MetaflowS3AccessDenied(stderr)
+                    elif err_code == s3op.ERROR_INVALID_RANGE:
+                        raise MetaflowS3InvalidRange(stderr)
+                    else:
+                        raise MetaflowS3Exception(
+                            "Uploading S3 files failed.\n"
+                            "First key: %s\n"
+                            "Error: %s" % (url_info[0][2]["key"], stderr)
+                        )
+                else:
+                    urls = set()
+                    for line in stdout_lines:
+                        url, _, _ = map(
+                            url_unquote, line.strip(b"\n").split(b" ")
+                        )
+                        urls.add(url)
+                    return [
+                        (info["key"], url)
+                        for _, url, info in url_info
+                        if url in urls
+                    ]
 
     def _s3op_with_retries(self, mode, **options):
         from . import s3op
