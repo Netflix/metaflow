@@ -1673,19 +1673,15 @@ class S3(object):
 
             try:
                 if range_str:
-                    resp = client.get_object(
-                        Bucket=bucket, Key=key, Range=range_str
-                    )
+                    resp = client.get_object(Bucket=bucket, Key=key, Range=range_str)
                     range_result = resp["ContentRange"]
                     range_match = RANGE_MATCH.match(range_result)
                     if range_match is None:
                         raise RuntimeError(
-                            "Wrong format for ContentRange: %s"
-                            % str(range_result)
+                            "Wrong format for ContentRange: %s" % str(range_result)
                         )
                     range_result = {
-                        x: int(range_match.group(x))
-                        for x in ["total", "start", "end"]
+                        x: int(range_match.group(x)) for x in ["total", "start", "end"]
                     }
                 else:
                     resp = client.get_object(Bucket=bucket, Key=key)
@@ -1714,13 +1710,9 @@ class S3(object):
                     if resp.get("ServerSideEncryption") is not None:
                         meta["encryption"] = resp["ServerSideEncryption"]
                     if resp.get("LastModified"):
-                        meta["last_modified"] = get_timestamp(
-                            resp["LastModified"]
-                        )
+                        meta["last_modified"] = get_timestamp(resp["LastModified"])
                     with open(
-                        os.path.join(
-                            self._tmpdir, "%s_meta" % local_name
-                        ),
+                        os.path.join(self._tmpdir, "%s_meta" % local_name),
                         "w",
                     ) as f:
                         json.dump(meta, f)
@@ -1825,9 +1817,7 @@ class S3(object):
             if result is not None:
                 uploaded_urls.add(result)
 
-        return [
-            (info["key"], url) for _, url, info in items if url in uploaded_urls
-        ]
+        return [(info["key"], url) for _, url, info in items if url in uploaded_urls]
 
     # NOTE: re: _read_many_files and _put_many_files
     # All file IO is through binary files - we write bytes, we read
@@ -1849,13 +1839,9 @@ class S3(object):
                 recursive = options.get("recursive", False)
                 if recursive:
                     listed = list(
-                        self._list_objects_direct(
-                            prefixes_and_ranges, recursive=True
-                        )
+                        self._list_objects_direct(prefixes_and_ranges, recursive=True)
                     )
-                    download_items = [
-                        (url, None) for _prefix, url, _size in listed
-                    ]
+                    download_items = [(url, None) for _prefix, url, _size in listed]
                     yield from self._get_objects_direct(
                         download_items,
                         allow_missing=options.get("allow_missing", False),
@@ -1880,8 +1866,7 @@ class S3(object):
                     b"\n".join(
                         [
                             b" ".join(
-                                [url_quote(prefix)]
-                                + ([url_quote(r)] if r else [])
+                                [url_quote(prefix)] + ([url_quote(r)] if r else [])
                             )
                             for prefix, r in prefixes_and_ranges
                         ]
@@ -1908,9 +1893,7 @@ class S3(object):
                         )
                 else:
                     for line in stdout_lines:
-                        yield tuple(
-                            map(url_unquote, line.strip(b"\n").split(b" "))
-                        )
+                        yield tuple(map(url_unquote, line.strip(b"\n").split(b" ")))
 
     def _put_many_files(self, url_info, overwrite):
         url_info = list(url_info)
@@ -1962,14 +1945,10 @@ class S3(object):
                 else:
                     urls = set()
                     for line in stdout_lines:
-                        url, _, _ = map(
-                            url_unquote, line.strip(b"\n").split(b" ")
-                        )
+                        url, _, _ = map(url_unquote, line.strip(b"\n").split(b" "))
                         urls.add(url)
                     return [
-                        (info["key"], url)
-                        for _, url, info in url_info
-                        if url in urls
+                        (info["key"], url) for _, url, info in url_info if url in urls
                     ]
 
     def _s3op_with_retries(self, mode, **options):
