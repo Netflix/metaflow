@@ -117,6 +117,7 @@ class ArgoClient(object):
             ]
         except client.rest.ApiException as e:
             if e.status == 404:
+                _check_crd_exists(client, e, "workflowtemplates")
                 try:
                     return client.CustomObjectsApi().create_namespaced_custom_object(
                         group=self._group,
@@ -126,6 +127,7 @@ class ArgoClient(object):
                         body=workflow_template,
                     )
                 except client.rest.ApiException as e:
+                    _check_crd_exists(client, e, "workflowtemplates")
                     raise ArgoClientException(
                         json.loads(e.body)["message"]
                         if e.body is not None
@@ -465,6 +467,42 @@ class ArgoClient(object):
             if e.status == 404:
                 return None
             raise wrap_api_error(e)
+
+
+def _check_crd_exists(client, api_exception, plural):
+    """
+    Detect whether a 404 error is due to missing Argo CRDs (as opposed to
+    a missing resource instance). When CRDs aren't installed the API server
+    returns a 404 with a generic message like "the server could not find the
+    requested resource". Raise a clear, actionable error in that case.
+    """
+    if api_exception.status != 404:
+        return
+    try:
+        body = json.loads(api_exception.body) if api_exception.body else {}
+    except (json.JSONDecodeError, TypeError):
+        body = {}
+    message = body.get("message", "")
+    reason = body.get("reason", "")
+    # When a specific named resource is not found, Kubernetes returns
+    # reason="NotFound" with a message like '<plural> "name" not found'.
+    # When the CRD itself is missing, the message is typically either
+    # "the server could not find the requested resource" or a generic 404
+    # without the plural resource type in the message.
+    #
+    # Check for a specific named resource: message starts with the plural
+    # followed by a quoted name, e.g. 'workflowtemplates "my-workflow" not found'
+    is_specific_resource = message.startswith('%s "' % plural)
+    if not is_specific_resource and (
+        "could not find the requested resource" in message.lower()
+        or (reason == "NotFound" and plural not in message)
+    ):
+        raise ArgoClientException(
+            "Argo Workflows CRDs do not appear to be installed on this "
+            "Kubernetes cluster. Please install Argo Workflows first.\n"
+            "See: https://argo-workflows.readthedocs.io/en/latest/quick-start/\n"
+            "Original error: %s" % message
+        )
 
 
 def wrap_api_error(error):
