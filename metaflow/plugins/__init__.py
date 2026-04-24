@@ -234,7 +234,6 @@ if sys.version_info >= (3, 7):
     DEPLOYER_IMPL_PROVIDERS = resolve_plugins("deployer_impl_provider")
 
 TL_PLUGINS = resolve_plugins("tl_plugin")
-ARTIFACT_SERIALIZERS = resolve_plugins("artifact_serializer")
 
 from .cards.card_modules import MF_EXTERNAL_CARDS
 
@@ -288,3 +287,12 @@ def _import_tl_plugins(globals_dict):
 
     for name, p in TL_PLUGINS.items():
         globals_dict[name] = p
+
+
+# Drive every ARTIFACT_SERIALIZERS_DESC entry through the serializer state
+# machine — this is what makes serializer classes reachable via
+# ``SerializerStore.get_ordered_serializers()`` at dispatch time.
+from metaflow.datastore.artifacts.serializer import SerializerStore as _SerializerStore
+
+_SerializerStore.bootstrap()
+del _SerializerStore

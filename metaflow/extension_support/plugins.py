@@ -218,7 +218,6 @@ _plugin_categories = {
     ),
     "runner_cli": lambda x: x.name,
     "tl_plugin": None,
-    "artifact_serializer": lambda x: x.TYPE,
 }
 
 

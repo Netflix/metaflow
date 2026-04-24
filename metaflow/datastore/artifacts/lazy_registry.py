@@ -1,22 +1,24 @@
 """
-Lazy serializer registry driven by an import hook.
+Import-hook plumbing that the serializer registry uses to retry a serializer's
+``setup_imports`` after one of its required modules becomes importable.
 
 Extensions ship serializers whose implementation modules may import optional
 heavy dependencies (``torch``, ``pyarrow``, ``fastavro``, ``protobuf``, ...).
-Loading those serializer modules unconditionally at ``metaflow`` import time
-would force every user to pay for dependencies they may not have installed.
+Loading those modules unconditionally at ``metaflow`` import time would force
+every user to pay for dependencies they may not have installed. When
+``SerializerStore.bootstrap_entries`` encounters such a missing module, it
+parks the entry in ``pending_on_imports`` state and installs a watch here.
+The first time the awaited module is imported by the user's code, this
+interceptor fires ``SerializerStore._on_module_imported`` so the registry can
+retry activation.
 
-This module defers both the serializer class import and its instantiation
-until one of two things happens:
+The interceptor is installed on :data:`sys.meta_path` and removes itself from
+the path during its own ``find_spec`` call to avoid recursion.
 
-1. The target type's module is already present in :data:`sys.modules` when
-   registration is called — registration then happens immediately.
-2. The target type's module is imported later by the user's code. An
-   ``importlib`` hook watches for that event and performs registration the
-   first time the module is loaded.
-
-The hook is installed on :data:`sys.meta_path` and removes itself from the
-path during its own ``find_spec`` call to avoid recursion.
+This module has no public API — extensions declare serializers through
+``ARTIFACT_SERIALIZERS_DESC`` in their ``mfextinit_*`` file and interact with
+the registry via the state-machine public surface in
+:mod:`metaflow.datastore.artifacts.serializer`.
 """
 
 import importlib
@@ -24,84 +26,6 @@ import importlib.abc
 import importlib.machinery
 import importlib.util
 import sys
-
-from dataclasses import dataclass, field
-
-
-@dataclass
-class SerializerConfig:
-    """
-    Declarative entry recording *which* serializer handles *which* type,
-    without actually importing the serializer class. The class is imported on
-    first use by :func:`load_serializer_class`.
-
-    Parameters
-    ----------
-    canonical_type : str
-        ``"module.ClassName"`` — e.g. ``"builtins.dict"``, ``"torch.Tensor"``.
-    serializer : str
-        Dotted import path to the serializer class, e.g.
-        ``"my_extension.serializers.TorchSerializer"``.
-    priority : int
-        Dispatch priority. Lower is tried first. Matches the existing
-        ``ArtifactSerializer.PRIORITY`` convention.
-    extra_kwargs : dict
-        Optional kwargs passed to the serializer class ``__init__``.
-    """
-
-    canonical_type: str
-    serializer: str
-    priority: int = 100
-    extra_kwargs: dict = field(default_factory=dict)
-
-    def __post_init__(self):
-        if not self.canonical_type:
-            raise ValueError("canonical_type cannot be empty")
-        if not self.serializer or "." not in self.serializer:
-            raise ValueError("serializer must be in 'module.ClassName' format")
-
-    @property
-    def serializer_module(self):
-        return ".".join(self.serializer.split(".")[:-1])
-
-    @property
-    def serializer_class(self):
-        return self.serializer.split(".")[-1]
-
-
-# Module-level registry. Keyed by canonical_type -> SerializerConfig.
-# A separate dict caches instantiated classes so repeated lookups are O(1).
-_registered_configs = {}
-_loaded_serializers = {}
-
-
-def register_serializer_config(config):
-    """Store a config immediately. The serializer class is not imported yet."""
-    _registered_configs[config.canonical_type] = config
-    # Any previously cached class for this type is now stale.
-    _loaded_serializers.pop(config.canonical_type, None)
-
-
-def load_serializer_class(canonical_type):
-    """
-    Resolve and cache the serializer class for ``canonical_type``. Returns
-    ``None`` if no config is registered for that type.
-    """
-    cached = _loaded_serializers.get(canonical_type)
-    if cached is not None:
-        return cached
-    config = _registered_configs.get(canonical_type)
-    if config is None:
-        return None
-    module = importlib.import_module(config.serializer_module)
-    cls = getattr(module, config.serializer_class)
-    _loaded_serializers[canonical_type] = cls
-    return cls
-
-
-def iter_registered_configs():
-    """Iterate all registered configs. Deterministic order (insertion)."""
-    return list(_registered_configs.values())
 
 
 class _WrappedLoader(importlib.abc.Loader):
@@ -131,21 +55,26 @@ class _WrappedLoader(importlib.abc.Loader):
 
 class _SerializerImportInterceptor(importlib.abc.MetaPathFinder):
     """
-    :class:`importlib.abc.MetaPathFinder` that watches for a fixed set of
-    module names and fires :func:`_on_module_imported` once each has been
-    fully executed.
+    :class:`importlib.abc.MetaPathFinder` that watches a set of module names
+    and notifies :class:`SerializerStore` once each has finished executing.
     """
 
     def __init__(self):
-        # module_name -> list[SerializerConfig]
-        self._pending = {}
+        # Module names to watch on behalf of SerializerStore records parked
+        # via _park_on_import_error. Firing calls
+        # SerializerStore._on_module_imported.
+        self._watched = set()
+        # Modules we have already notified about, to avoid firing twice if
+        # the same module gets imported through multiple paths.
         self._processed = set()
 
-    def watch(self, module_name, config):
-        self._pending.setdefault(module_name, []).append(config)
+    def watch(self, module_name):
+        """Watch ``module_name``. When it finishes executing,
+        :meth:`SerializerStore._on_module_imported` is called."""
+        self._watched.add(module_name)
 
     def find_spec(self, fullname, path, target=None):
-        if fullname not in self._pending:
+        if fullname not in self._watched:
             return None
         # Remove ourselves from the path during the lookup below so Python's
         # normal finders (not us) can resolve the real spec. Reinstall after.
@@ -167,10 +96,16 @@ class _SerializerImportInterceptor(importlib.abc.MetaPathFinder):
         if module_name in self._processed:
             return
         self._processed.add(module_name)
-        for config in self._pending.get(module_name, ()):
-            class_name = config.canonical_type.rsplit(".", 1)[-1]
-            if hasattr(module, class_name):
-                register_serializer_config(config)
+        if module_name not in self._watched:
+            return
+        try:
+            from .serializer import SerializerStore
+
+            SerializerStore._on_module_imported(module_name, module)
+        except Exception:
+            # A broken callback must not break the host's import. The record
+            # itself will be marked BROKEN via _retry_bootstrap.
+            pass
 
 
 _interceptor = _SerializerImportInterceptor()
@@ -182,35 +117,9 @@ def _ensure_interceptor_installed():
     sys.meta_path.insert(0, _interceptor)
 
 
-def register_serializer_for_type(canonical_type, serializer, **kwargs):
-    """
-    Public entry point for extensions.
-
-    If the target type's module is already loaded, the config is stored
-    immediately. Otherwise, an import hook is installed and registration is
-    deferred to the first ``import`` of the target module.
-
-    ``canonical_type`` is ``"module.ClassName"``. ``serializer`` is a dotted
-    path to the serializer class. Additional ``priority`` / ``extra_kwargs``
-    forwarded into :class:`SerializerConfig`.
-    """
-    config = SerializerConfig(
-        canonical_type=canonical_type, serializer=serializer, **kwargs
-    )
-    module_name, class_name = canonical_type.rsplit(".", 1)
-    mod = sys.modules.get(module_name)
-    if mod is not None and hasattr(mod, class_name):
-        register_serializer_config(config)
-        return
-    _ensure_interceptor_installed()
-    _interceptor.watch(module_name, config)
-
-
 def _reset_for_tests():
     """Clear all module-level state. Intended for unit tests only."""
-    _registered_configs.clear()
-    _loaded_serializers.clear()
-    _interceptor._pending.clear()
+    _interceptor._watched.clear()
     _interceptor._processed.clear()
     if _interceptor in sys.meta_path:
         sys.meta_path.remove(_interceptor)

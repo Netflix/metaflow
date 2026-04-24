@@ -20,6 +20,26 @@ from .exceptions import DataException, UnpicklableArtifactException
 _included_file_type = "<class 'metaflow.includefile.IncludedFile'>"
 
 
+def _record_dispatch_error(serializer_cls, exc):
+    """Increment dispatch_error_count + update last_error for the given serializer's
+    diagnostic record. No-op if the class has no record (e.g., it was not
+    registered via bootstrap)."""
+    try:
+        from .artifacts.serializer import SerializerStore
+
+        target_type = getattr(serializer_cls, "TYPE", None)
+        if target_type is None:
+            return
+        for rec in SerializerStore._records.values():
+            if rec.type == target_type:
+                rec.dispatch_error_count += 1
+                rec.last_error = "dispatch: %s: %s" % (type(exc).__name__, exc)
+                return
+    except Exception:
+        # Never let diagnostic bookkeeping crash dispatch.
+        pass
+
+
 def only_if_not_done(f):
     @wraps(f)
     def method(self, *args, **kwargs):
@@ -367,9 +387,13 @@ class TaskDataStore(object):
                 # Find the first serializer that can handle this object
                 serializer = None
                 for s in self._serializers:
-                    if s.can_serialize(obj):
-                        serializer = s
-                        break
+                    try:
+                        if s.can_serialize(obj):
+                            serializer = s
+                            break
+                    except Exception as e:
+                        _record_dispatch_error(s, e)
+                        continue
                 if serializer is None:
                     raise DataException(
                         "No serializer claimed artifact '%s' (type: %s). "
@@ -466,9 +490,13 @@ class TaskDataStore(object):
             # Find deserializer via metadata
             deserializer = None
             for s in self._serializers:
-                if s.can_deserialize(metadata):
-                    deserializer = s
-                    break
+                try:
+                    if s.can_deserialize(metadata):
+                        deserializer = s
+                        break
+                except Exception as e:
+                    _record_dispatch_error(s, e)
+                    continue
             if deserializer is None:
                 source_hint = ""
                 serializer_source = metadata.serializer_info.get("source")
