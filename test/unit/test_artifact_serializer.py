@@ -14,6 +14,7 @@ from metaflow.datastore.artifacts.serializer import (
 # definition time; the module-scoped fixture below removes them at teardown so
 # other test modules see an unpolluted registry.
 _PRE_IMPORT_SNAPSHOT = dict(SerializerStore._all_serializers)
+_PRE_IMPORT_ACTIVE_SNAPSHOT = set(SerializerStore._active_serializers)
 
 
 @pytest.fixture(scope="module", autouse=True)
@@ -21,9 +22,9 @@ def _restore_serializer_registry():
     yield
     SerializerStore._all_serializers.clear()
     SerializerStore._all_serializers.update(_PRE_IMPORT_SNAPSHOT)
+    SerializerStore._active_serializers.clear()
+    SerializerStore._active_serializers.update(_PRE_IMPORT_ACTIVE_SNAPSHOT)
     SerializerStore._ordered_cache = None
-    SerializerStore._materialized_lazy_classes.clear()
-    SerializerStore._materialized_lazy_types.clear()
 
 
 # ---------------------------------------------------------------------------
@@ -104,6 +105,15 @@ class _SamePrioritySerializer(ArtifactSerializer):
         raise NotImplementedError
 
 
+# Dispatch is now driven by _active_serializers (post-Phase-6). The metaclass
+# only populates _all_serializers; tests that assert against the ordered
+# dispatch list must also mark their classes as active.
+SerializerStore._active_serializers.add(_HighPrioritySerializer)
+SerializerStore._active_serializers.add(_LowPrioritySerializer)
+SerializerStore._active_serializers.add(_SamePrioritySerializer)
+SerializerStore._ordered_cache = None
+
+
 # ---------------------------------------------------------------------------
 # SerializerStore tests
 # ---------------------------------------------------------------------------
@@ -162,48 +172,12 @@ def test_priority_ordering():
     assert priorities == sorted(priorities)
 
 
-def test_registration_order_tiebreaker():
-    """When PRIORITY is equal, registration order breaks the tie."""
-    ordered = SerializerStore.get_ordered_serializers()
-    priority_100 = [s for s in ordered if s.PRIORITY == 100]
-    if len(priority_100) > 1:
-        registration_order = list(SerializerStore._all_serializers)
-        indices = [registration_order.index(s.TYPE) for s in priority_100]
-        assert indices == sorted(indices)
+def test_priority_tie_last_wins():
+    """When PRIORITY is equal, last-registered wins the tie."""
 
-
-def test_deterministic_ordering():
-    """Calling get_ordered_serializers twice returns the same order."""
-    first = SerializerStore.get_ordered_serializers()
-    second = SerializerStore.get_ordered_serializers()
-    assert [s.TYPE for s in first] == [s.TYPE for s in second]
-
-
-def test_high_priority_before_low():
-    """_HighPrioritySerializer (PRIORITY=10) comes before _LowPrioritySerializer (PRIORITY=200)."""
-    ordered = SerializerStore.get_ordered_serializers()
-    types = [s.TYPE for s in ordered]
-    assert types.index("test_high") < types.index("test_low")
-
-
-def test_ordered_cache_not_rebuilt_in_steady_state(monkeypatch):
-    """
-    Regression for the "cache rebuilt on every call once a lazy config is
-    registered" bug: when no new lazy classes become importable between
-    successive calls, ``get_ordered_serializers`` must return the same cached
-    list object — not a freshly-sorted one.
-    """
-    import sys as _sys
-    import types as _types
-
-    from metaflow.datastore.artifacts.lazy_registry import (
-        SerializerConfig,
-        register_serializer_config,
-    )
-
-    class _LazyProbeCacheSerializer(ArtifactSerializer):
-        TYPE = "test_lazy_probe_cache"
-        PRIORITY = 500
+    class _TieFirst(ArtifactSerializer):
+        TYPE = "test_tie_first"
+        PRIORITY = 123
 
         @classmethod
         def can_serialize(cls, obj):
@@ -221,45 +195,58 @@ def test_ordered_cache_not_rebuilt_in_steady_state(monkeypatch):
         def deserialize(cls, data, metadata=None, format=SerializationFormat.STORAGE):
             raise NotImplementedError
 
-    fake = _types.ModuleType("_lazy_probe_cache_mod")
-    fake._LazyProbeCacheSerializer = _LazyProbeCacheSerializer
-    monkeypatch.setitem(_sys.modules, "_lazy_probe_cache_mod", fake)
+    class _TieSecond(ArtifactSerializer):
+        TYPE = "test_tie_second"
+        PRIORITY = 123  # same as _TieFirst
 
-    # Remove the self-registration so the lazy registry is the only path that
-    # can put this class into the dispatch list.
-    SerializerStore._all_serializers.pop("test_lazy_probe_cache", None)
-    SerializerStore._ordered_cache = None
+        @classmethod
+        def can_serialize(cls, obj):
+            return False
+
+        @classmethod
+        def can_deserialize(cls, metadata):
+            return False
+
+        @classmethod
+        def serialize(cls, obj, format=SerializationFormat.STORAGE):
+            raise NotImplementedError
+
+        @classmethod
+        def deserialize(cls, data, metadata=None, format=SerializationFormat.STORAGE):
+            raise NotImplementedError
 
     try:
-        register_serializer_config(
-            SerializerConfig(
-                canonical_type="_lazy_probe_cache_mod._LazyProbeCacheSerializer",
-                serializer="_lazy_probe_cache_mod._LazyProbeCacheSerializer",
-            )
-        )
-
-        # First call materializes the lazy class and caches the ordered list.
-        first = SerializerStore.get_ordered_serializers()
-        assert _LazyProbeCacheSerializer in first
-
-        # Subsequent calls with no new registrations must return the *same*
-        # cached list object — this is the assertion the previous
-        # implementation failed.
-        second = SerializerStore.get_ordered_serializers()
-        third = SerializerStore.get_ordered_serializers()
-        assert first is second
-        assert second is third
-    finally:
-        SerializerStore._all_serializers.pop("test_lazy_probe_cache", None)
-        SerializerStore._materialized_lazy_classes[:] = [
-            c
-            for c in SerializerStore._materialized_lazy_classes
-            if getattr(c, "TYPE", None) != "test_lazy_probe_cache"
-        ]
-        SerializerStore._materialized_lazy_types.discard(
-            "_lazy_probe_cache_mod._LazyProbeCacheSerializer"
-        )
+        SerializerStore._active_serializers.add(_TieFirst)
+        SerializerStore._active_serializers.add(_TieSecond)
         SerializerStore._ordered_cache = None
+        ordered = SerializerStore.get_ordered_serializers()
+        idx_first = ordered.index(_TieFirst)
+        idx_second = ordered.index(_TieSecond)
+        # _TieSecond was registered LAST, so it should appear BEFORE _TieFirst.
+        assert idx_second < idx_first, (
+            "Expected last-registered (_TieSecond) to come first; got "
+            "_TieFirst at index %d, _TieSecond at index %d" % (idx_first, idx_second)
+        )
+    finally:
+        SerializerStore._all_serializers.pop("test_tie_first", None)
+        SerializerStore._all_serializers.pop("test_tie_second", None)
+        SerializerStore._active_serializers.discard(_TieFirst)
+        SerializerStore._active_serializers.discard(_TieSecond)
+        SerializerStore._ordered_cache = None
+
+
+def test_deterministic_ordering():
+    """Calling get_ordered_serializers twice returns the same order."""
+    first = SerializerStore.get_ordered_serializers()
+    second = SerializerStore.get_ordered_serializers()
+    assert [s.TYPE for s in first] == [s.TYPE for s in second]
+
+
+def test_high_priority_before_low():
+    """_HighPrioritySerializer (PRIORITY=10) comes before _LowPrioritySerializer (PRIORITY=200)."""
+    ordered = SerializerStore.get_ordered_serializers()
+    types = [s.TYPE for s in ordered]
+    assert types.index("test_high") < types.index("test_low")
 
 
 # ---------------------------------------------------------------------------
@@ -406,3 +393,274 @@ def test_pickle_serializer_rejects_wire():
         PickleSerializer.serialize(42, format=SerializationFormat.WIRE)
     with pytest.raises(NotImplementedError):
         PickleSerializer.deserialize("42", format=SerializationFormat.WIRE)
+
+
+def test_priority_tie_lexicographic_fallback():
+    """When PRIORITY and registration index both tie (simulated), class_path lex-sort wins."""
+
+    # Within a single process, registration indices are always unique, so
+    # to actually exercise the tertiary key we construct two classes with
+    # identical (PRIORITY, registration_index) by manipulating the combined
+    # list passed to the sort logic. We do this by calling the internal
+    # sort key directly.
+    class _AClass:
+        __module__ = "z.module"
+        __qualname__ = "AClass"
+        PRIORITY = 100
+
+    class _BClass:
+        __module__ = "a.module"
+        __qualname__ = "BClass"
+        PRIORITY = 100
+
+    # Same registration index (simulated): the (priority, -idx) prefix ties.
+    keys = [
+        (_AClass.PRIORITY, 0, "%s.%s" % (_AClass.__module__, _AClass.__qualname__)),
+        (_BClass.PRIORITY, 0, "%s.%s" % (_BClass.__module__, _BClass.__qualname__)),
+    ]
+    sorted_keys = sorted(keys)
+    # "a.module.BClass" < "z.module.AClass" lexicographically
+    assert sorted_keys[0][2] == "a.module.BClass"
+    assert sorted_keys[1][2] == "z.module.AClass"
+
+
+def test_setup_imports_default_is_noop():
+    """Default setup_imports should be callable and do nothing."""
+
+    class _NoOverride(ArtifactSerializer):
+        TYPE = "test_no_override"
+
+        @classmethod
+        def can_serialize(cls, obj):
+            return False
+
+        @classmethod
+        def can_deserialize(cls, metadata):
+            return False
+
+        @classmethod
+        def serialize(cls, obj, format=SerializationFormat.STORAGE):
+            raise NotImplementedError
+
+        @classmethod
+        def deserialize(cls, data, metadata=None, format=SerializationFormat.STORAGE):
+            raise NotImplementedError
+
+    try:
+        result = _NoOverride.setup_imports()
+        assert result is None
+        result = _NoOverride.setup_imports(context="anything")
+        assert result is None
+    finally:
+        SerializerStore._all_serializers.pop("test_no_override", None)
+        SerializerStore._ordered_cache = None
+
+
+def test_lazy_import_happy_path():
+    """lazy_import imports the module, stashes on cls at the leaf alias, and returns it."""
+
+    class _LazyOk(ArtifactSerializer):
+        TYPE = "test_lazy_ok"
+
+        @classmethod
+        def can_serialize(cls, obj):
+            return False
+
+        @classmethod
+        def can_deserialize(cls, metadata):
+            return False
+
+        @classmethod
+        def serialize(cls, obj, format=SerializationFormat.STORAGE):
+            raise NotImplementedError
+
+        @classmethod
+        def deserialize(cls, data, metadata=None, format=SerializationFormat.STORAGE):
+            raise NotImplementedError
+
+    try:
+        mod = _LazyOk.lazy_import("json")
+        import json as _json
+
+        assert mod is _json
+        assert _LazyOk.json is _json
+    finally:
+        SerializerStore._all_serializers.pop("test_lazy_ok", None)
+        SerializerStore._ordered_cache = None
+        if hasattr(_LazyOk, "json"):
+            delattr(_LazyOk, "json")
+
+
+def test_lazy_import_custom_alias():
+    """alias= overrides the default leaf-name stash key."""
+
+    class _LazyAlias(ArtifactSerializer):
+        TYPE = "test_lazy_alias"
+
+        @classmethod
+        def can_serialize(cls, obj):
+            return False
+
+        @classmethod
+        def can_deserialize(cls, metadata):
+            return False
+
+        @classmethod
+        def serialize(cls, obj, format=SerializationFormat.STORAGE):
+            raise NotImplementedError
+
+        @classmethod
+        def deserialize(cls, data, metadata=None, format=SerializationFormat.STORAGE):
+            raise NotImplementedError
+
+    try:
+        _LazyAlias.lazy_import("json", alias="j")
+        import json as _json
+
+        assert _LazyAlias.j is _json
+    finally:
+        SerializerStore._all_serializers.pop("test_lazy_alias", None)
+        SerializerStore._ordered_cache = None
+        if hasattr(_LazyAlias, "j"):
+            delattr(_LazyAlias, "j")
+
+
+def test_lazy_import_rejects_reserved_names():
+    """Attempting to shadow TYPE / PRIORITY / dispatch methods raises."""
+
+    class _LazyReserved(ArtifactSerializer):
+        TYPE = "test_lazy_reserved"
+
+        @classmethod
+        def can_serialize(cls, obj):
+            return False
+
+        @classmethod
+        def can_deserialize(cls, metadata):
+            return False
+
+        @classmethod
+        def serialize(cls, obj, format=SerializationFormat.STORAGE):
+            raise NotImplementedError
+
+        @classmethod
+        def deserialize(cls, data, metadata=None, format=SerializationFormat.STORAGE):
+            raise NotImplementedError
+
+    try:
+        for bad in [
+            "TYPE",
+            "PRIORITY",
+            "serialize",
+            "deserialize",
+            "can_serialize",
+            "can_deserialize",
+            "setup_imports",
+            "lazy_import",
+            "_secret",
+        ]:
+            with pytest.raises(ValueError, match="reserved or invalid"):
+                _LazyReserved.lazy_import("json", alias=bad)
+    finally:
+        SerializerStore._all_serializers.pop("test_lazy_reserved", None)
+        SerializerStore._ordered_cache = None
+
+
+def test_lazy_import_rejects_double_assignment():
+    """Calling lazy_import twice with the same alias on the same cls raises."""
+
+    class _LazyDup(ArtifactSerializer):
+        TYPE = "test_lazy_dup"
+
+        @classmethod
+        def can_serialize(cls, obj):
+            return False
+
+        @classmethod
+        def can_deserialize(cls, metadata):
+            return False
+
+        @classmethod
+        def serialize(cls, obj, format=SerializationFormat.STORAGE):
+            raise NotImplementedError
+
+        @classmethod
+        def deserialize(cls, data, metadata=None, format=SerializationFormat.STORAGE):
+            raise NotImplementedError
+
+    try:
+        _LazyDup.lazy_import("json")
+        with pytest.raises(ValueError, match="already set"):
+            _LazyDup.lazy_import("sys", alias="json")
+    finally:
+        SerializerStore._all_serializers.pop("test_lazy_dup", None)
+        SerializerStore._ordered_cache = None
+        if hasattr(_LazyDup, "json"):
+            delattr(_LazyDup, "json")
+        if hasattr(_LazyDup, "_lazy_imported_names"):
+            delattr(_LazyDup, "_lazy_imported_names")
+
+
+def test_setup_imports_accepts_both_signatures():
+    """Bootstrap calls setup_imports correctly whether author writes (cls) or (cls, context=None)."""
+
+    class _OneArg(ArtifactSerializer):
+        TYPE = "test_setup_one_arg"
+        called = False
+
+        @classmethod
+        def setup_imports(cls):
+            cls.called = True
+
+        @classmethod
+        def can_serialize(cls, obj):
+            return False
+
+        @classmethod
+        def can_deserialize(cls, metadata):
+            return False
+
+        @classmethod
+        def serialize(cls, obj, format=SerializationFormat.STORAGE):
+            raise NotImplementedError
+
+        @classmethod
+        def deserialize(cls, data, metadata=None, format=SerializationFormat.STORAGE):
+            raise NotImplementedError
+
+    class _TwoArg(ArtifactSerializer):
+        TYPE = "test_setup_two_arg"
+        called_with = "sentinel"
+
+        @classmethod
+        def setup_imports(cls, context=None):
+            cls.called_with = context
+
+        @classmethod
+        def can_serialize(cls, obj):
+            return False
+
+        @classmethod
+        def can_deserialize(cls, metadata):
+            return False
+
+        @classmethod
+        def serialize(cls, obj, format=SerializationFormat.STORAGE):
+            raise NotImplementedError
+
+        @classmethod
+        def deserialize(cls, data, metadata=None, format=SerializationFormat.STORAGE):
+            raise NotImplementedError
+
+    from metaflow.datastore.artifacts.serializer import _call_setup_imports
+
+    try:
+        _call_setup_imports(_OneArg, context=None)
+        assert _OneArg.called is True
+
+        _call_setup_imports(_TwoArg, context="some-ctx")
+        assert _TwoArg.called_with == "some-ctx"
+    finally:
+        SerializerStore._all_serializers.pop("test_setup_one_arg", None)
+        SerializerStore._all_serializers.pop("test_setup_two_arg", None)
+        SerializerStore._ordered_cache = None

@@ -243,10 +243,14 @@ def test_post_init_registration_reaches_existing_datastore(task_datastore):
         def deserialize(cls, data, metadata=None, format="storage"):
             raise NotImplementedError
 
+    # Dispatch reads from _active_serializers now (post-Phase-6).
+    SerializerStore._active_serializers.add(_PostInitSerializer)
+    SerializerStore._ordered_cache = None
     try:
         assert _PostInitSerializer in task_datastore._serializers
     finally:
         SerializerStore._all_serializers.pop("test_post_init_registration", None)
+        SerializerStore._active_serializers.discard(_PostInitSerializer)
         SerializerStore._ordered_cache = None
 
 
@@ -331,3 +335,186 @@ def test_info_not_populated_when_serializer_returns_multi_blob(task_datastore):
     finally:
         SerializerStore._all_serializers.pop("test_multi_blob", None)
         SerializerStore._ordered_cache = None
+
+
+def test_can_serialize_exception_falls_through_to_pickle(task_datastore):
+    """A buggy custom serializer's can_serialize exception must NOT crash
+    save_artifacts. The buggy serializer is skipped; pickle fallback handles
+    the artifact; dispatch_error_count is incremented."""
+    from metaflow.datastore.artifacts import SerializationFormat
+    from metaflow.datastore.artifacts.diagnostic import (
+        SerializerRecord,
+        SerializerState,
+    )
+
+    class _BuggyCanSerialize(ArtifactSerializer):
+        TYPE = "test_buggy_cs"
+        PRIORITY = 1  # tried first
+
+        @classmethod
+        def can_serialize(cls, obj):
+            raise RuntimeError("intentional bug in can_serialize")
+
+        @classmethod
+        def can_deserialize(cls, metadata):
+            return False
+
+        @classmethod
+        def serialize(cls, obj, format=SerializationFormat.STORAGE):
+            raise NotImplementedError
+
+        @classmethod
+        def deserialize(cls, data, metadata=None, format=SerializationFormat.STORAGE):
+            raise NotImplementedError
+
+    # Seed a diagnostic record so dispatch_error_count has somewhere to go.
+    rec = SerializerRecord(
+        name="test_buggy_cs",
+        class_path="test.inline.BuggyCanSerialize",
+        state=SerializerState.ACTIVE,
+        type="test_buggy_cs",
+        priority=1,
+    )
+    SerializerStore._records["test_buggy_cs"] = rec
+    SerializerStore._active_serializers.add(_BuggyCanSerialize)
+
+    task_datastore._serializers = [_BuggyCanSerialize, PickleSerializer]
+
+    try:
+        # Must NOT raise.
+        task_datastore.save_artifacts(iter([("x", 42)]))
+        assert task_datastore._info["x"]["encoding"] == "pickle-v4"
+        assert rec.dispatch_error_count == 1
+        assert rec.last_error is not None
+        assert "RuntimeError" in rec.last_error
+    finally:
+        SerializerStore._all_serializers.pop("test_buggy_cs", None)
+        SerializerStore._active_serializers.discard(_BuggyCanSerialize)
+        SerializerStore._records.pop("test_buggy_cs", None)
+        SerializerStore._ordered_cache = None
+
+
+def test_can_deserialize_exception_falls_through(task_datastore):
+    """Same guarantee for can_deserialize during load_artifacts."""
+    from metaflow.datastore.artifacts import SerializationFormat
+    from metaflow.datastore.artifacts.diagnostic import (
+        SerializerRecord,
+        SerializerState,
+    )
+
+    class _BuggyCanDeserialize(ArtifactSerializer):
+        TYPE = "test_buggy_cd"
+        PRIORITY = 1
+
+        @classmethod
+        def can_serialize(cls, obj):
+            return False
+
+        @classmethod
+        def can_deserialize(cls, metadata):
+            raise RuntimeError("intentional bug in can_deserialize")
+
+        @classmethod
+        def serialize(cls, obj, format=SerializationFormat.STORAGE):
+            raise NotImplementedError
+
+        @classmethod
+        def deserialize(cls, data, metadata=None, format=SerializationFormat.STORAGE):
+            raise NotImplementedError
+
+    rec = SerializerRecord(
+        name="test_buggy_cd",
+        class_path="test.inline.BuggyCanDeserialize",
+        state=SerializerState.ACTIVE,
+        type="test_buggy_cd",
+        priority=1,
+    )
+    SerializerStore._records["test_buggy_cd"] = rec
+    SerializerStore._active_serializers.add(_BuggyCanDeserialize)
+
+    # First save an artifact normally via pickle so load has something to load.
+    task_datastore._serializers = [PickleSerializer]
+    task_datastore.save_artifacts(iter([("y", "hello")]))
+
+    # Now install the buggy serializer and try to load — buggy can_deserialize
+    # should be skipped and pickle should take over.
+    task_datastore._serializers = [_BuggyCanDeserialize, PickleSerializer]
+
+    try:
+        loaded = dict(task_datastore.load_artifacts(["y"]))
+        assert loaded["y"] == "hello"
+        assert rec.dispatch_error_count == 1
+        assert rec.last_error is not None
+        assert "RuntimeError" in rec.last_error
+    finally:
+        SerializerStore._all_serializers.pop("test_buggy_cd", None)
+        SerializerStore._active_serializers.discard(_BuggyCanDeserialize)
+        SerializerStore._records.pop("test_buggy_cd", None)
+        SerializerStore._ordered_cache = None
+
+
+def test_subclass_lazy_import_stashes_on_child_not_parent():
+    """lazy_import on a subclass should set attrs on the subclass, not the parent.
+    Parent and children should each have their own _lazy_imported_names set."""
+    from metaflow.datastore.artifacts import (
+        ArtifactSerializer,
+        SerializationFormat,
+        SerializerStore,
+    )
+
+    class _ParentSer(ArtifactSerializer):
+        TYPE = "test_inherit_parent"
+
+        @classmethod
+        def setup_imports(cls, context=None):
+            cls.lazy_import("json")
+
+        @classmethod
+        def can_serialize(cls, obj):
+            return False
+
+        @classmethod
+        def can_deserialize(cls, metadata):
+            return False
+
+        @classmethod
+        def serialize(cls, obj, format=SerializationFormat.STORAGE):
+            raise NotImplementedError
+
+        @classmethod
+        def deserialize(cls, data, metadata=None, format=SerializationFormat.STORAGE):
+            raise NotImplementedError
+
+    class _ChildSer(_ParentSer):
+        TYPE = "test_inherit_child"
+
+        @classmethod
+        def setup_imports(cls, context=None):
+            cls.lazy_import("sys")
+
+    try:
+        _ParentSer.setup_imports()
+        _ChildSer.setup_imports()
+        import json as _json
+        import sys as _sys
+
+        # Parent has json; child has sys
+        assert _ParentSer.json is _json
+        assert _ChildSer.sys is _sys
+
+        # Each class should have its OWN _lazy_imported_names set
+        # (not a shared inherited one)
+        parent_names = _ParentSer.__dict__.get("_lazy_imported_names", set())
+        child_names = _ChildSer.__dict__.get("_lazy_imported_names", set())
+        assert parent_names == {"json"}
+        assert child_names == {"sys"}
+    finally:
+        for t in ("test_inherit_parent", "test_inherit_child"):
+            SerializerStore._all_serializers.pop(t, None)
+        SerializerStore._ordered_cache = None
+        for c, attr in ((_ParentSer, "json"), (_ChildSer, "sys")):
+            if attr in c.__dict__:
+                delattr(c, attr)
+        for c in (_ParentSer, _ChildSer):
+            if "_lazy_imported_names" in c.__dict__:
+                delattr(c, "_lazy_imported_names")

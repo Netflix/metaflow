@@ -29,8 +29,19 @@ def test_registered_in_store():
 
 def test_last_in_ordering():
     """PickleSerializer should be last (highest PRIORITY) among registered serializers."""
-    ordered = SerializerStore.get_ordered_serializers()
-    assert ordered[-1] is PickleSerializer
+    # Dispatch is driven by _active_serializers (post-Phase-6). Ensure Pickle
+    # is active for this test regardless of whether bootstrap() has already
+    # run in the current process.
+    was_active = PickleSerializer in SerializerStore._active_serializers
+    SerializerStore._active_serializers.add(PickleSerializer)
+    SerializerStore._ordered_cache = None
+    try:
+        ordered = SerializerStore.get_ordered_serializers()
+        assert ordered[-1] is PickleSerializer
+    finally:
+        if not was_active:
+            SerializerStore._active_serializers.discard(PickleSerializer)
+            SerializerStore._ordered_cache = None
 
 
 # ---------------------------------------------------------------------------
