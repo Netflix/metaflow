@@ -234,6 +234,15 @@ class UserStepDecoratorBase(metaclass=UserStepDecoratorMeta):
         duplicates: int,
         inserted_by: Optional[str] = None,
     ):
+        """Register this decorator on *step*.
+
+        Returns
+        -------
+        Optional[UserStepDecoratorBase]
+            ``self`` if the decorator was registered, ``None`` if a duplicate
+            already existed and the *duplicates* policy suppressed the
+            addition (IGNORE, or ERROR on a non-statically-defined step).
+        """
         from metaflow.user_decorators.mutable_step import MutableStep
 
         # We can safely check in any of the step_field because if this decorator is
@@ -246,13 +255,15 @@ class UserStepDecoratorBase(metaclass=UserStepDecoratorMeta):
 
         if not existing_deco:
             self(step, _statically_defined=statically_defined, _inserted_by=inserted_by)
+            return self
         elif duplicates == MutableStep.IGNORE:
-            # If we are ignoring duplicates, we just return
+            # If we are ignoring duplicates, we just return None to signal that
+            # the caller should not treat the throwaway instance as registered.
             debug.userconf_exec(
                 "Ignoring duplicate decorator %s on step %s from %s"
                 % (self, step.__name__, inserted_by)
             )
-            return
+            return None
         elif duplicates == MutableStep.OVERRIDE:
             # If we are overriding, we remove the existing decorator and add this one
             debug.userconf_exec(
@@ -271,12 +282,15 @@ class UserStepDecoratorBase(metaclass=UserStepDecoratorMeta):
                     ],
                 )
             self(step, _statically_defined=statically_defined, _inserted_by=inserted_by)
+            return self
         elif duplicates == MutableStep.ERROR:
             if statically_defined:
                 # Prevent circular dep
                 from metaflow.decorators import DuplicateStepDecoratorException
 
                 raise DuplicateStepDecoratorException(self.__class__, step)
+            # Non-statically-defined: swallow silently (same as ignore).
+            return None
 
     def _set_my_step(
         self,
@@ -308,12 +322,17 @@ class UserStepDecoratorBase(metaclass=UserStepDecoratorMeta):
         return self._my_step
 
     def _all_step_fields(self) -> List[str]:
-        seen_fields = set()
+        # Returned in MRO order so callers that iterate fields see a
+        # deterministic sequence (matters for any side-effecting traversal,
+        # e.g. duplicate cleanup in OVERRIDE).
+        ordered_fields: List[str] = []
+        seen: set = set()
         for cls in type(self).__mro__:
             field = cls.__dict__.get("_step_field")
-            if field is not None and field not in seen_fields:
-                seen_fields.add(field)
-        return list(seen_fields)
+            if field is not None and field not in seen:
+                seen.add(field)
+                ordered_fields.append(field)
+        return ordered_fields
 
     def __str__(self):
         return str(self.__class__)

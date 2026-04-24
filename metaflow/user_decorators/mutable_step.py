@@ -361,15 +361,19 @@ class MutableStep:
                     # since they were not in the string
                     step_deco = step_deco.__class__(*deco_args, **deco_kwargs)
 
-                step_deco.add_or_raise(
+                added = step_deco.add_or_raise(
                     self._my_step,
                     self._statically_defined,
                     duplicates,
                     self._inserted_by,
                 )
-                if isinstance(step_deco, StepMutator):
-                    step_deco.external_init()
-            return step_deco
+                if added is None:
+                    # Duplicate handling (IGNORE or non-static ERROR)
+                    # suppressed the registration. Don't return the throwaway
+                    # instance — mirror the StepDecorator path's contract.
+                    return None
+                added.external_init()
+            return added
 
         if isinstance(deco_type, type) and issubclass(deco_type, UserStepDecoratorBase):
             # We can only add step mutators in the pre mutate stage.
@@ -385,13 +389,15 @@ class MutableStep:
             )
 
             d = deco_type(*deco_args, **deco_kwargs)
-            # add_or_raise properly registers the decorator
-            d.add_or_raise(
+            # add_or_raise properly registers the decorator. Returns None when
+            # duplicate handling suppresses the addition.
+            added = d.add_or_raise(
                 self._my_step, self._statically_defined, duplicates, self._inserted_by
             )
-            if isinstance(d, StepMutator):
-                d.external_init()
-            return d
+            if added is None:
+                return None
+            added.external_init()
+            return added
 
         # At this point, it should be a regular Metaflow step decorator
         if (
