@@ -9,79 +9,100 @@ orchestrators via the ``init`` command they insert). The property reads
 These tests verify the lookup and that transient errors are not cached.
 """
 
-from unittest.mock import MagicMock
+import pytest
 
 from metaflow.client.core import Run
 from metaflow.exception import MetaflowNotFound
 
 
-def _make_run(metadata_dict):
-    """Build a Run-like object with a controlled ``_parameters`` metadata dict."""
-    run = Run.__new__(Run)  # bypass __init__
+@pytest.fixture
+def make_run(mocker):
+    """Factory fixture: build a Run-like object whose ``__getitem__``
+    returns a task with a controlled ``metadata_dict`` (or raises)."""
 
-    task = MagicMock()
-    task.metadata_dict = metadata_dict
-    params_step = MagicMock()
-    params_step.task = task
+    def _factory(metadata_dict=None, raises=None):
+        run = Run.__new__(Run)  # bypass __init__
 
-    def _getitem(key):
-        if key == "_parameters":
-            return params_step
-        raise KeyError(key)
+        if raises is not None:
 
-    run.__class__ = type(
-        "FakeRun", (object,), {"__getitem__": lambda self, k: _getitem(k)}
-    )
-    run.__class__._graph_endpoints = Run._graph_endpoints
-    return run
+            def _getitem(key):
+                raise raises
+
+        else:
+            task = mocker.MagicMock()
+            task.metadata_dict = metadata_dict or {}
+            params_step = mocker.MagicMock()
+            params_step.task = task
+
+            def _getitem(key):
+                if key == "_parameters":
+                    return params_step
+                raise KeyError(key)
+
+        run.__class__ = type(
+            "FakeRun",
+            (object,),
+            {
+                "__getitem__": lambda self, k: _getitem(k),
+                "_graph_endpoints": Run._graph_endpoints,
+            },
+        )
+        return run
+
+    return _factory
 
 
-def test_metadata_carries_endpoints():
-    """Metadata has start_step/end_step -- used directly."""
-    run = _make_run({"start_step": "begin", "end_step": "finish"})
+def test_metadata_carries_endpoints(make_run):
+    """Metadata has start_step/end_step, used directly."""
+    run = make_run({"start_step": "begin", "end_step": "finish"})
     assert run._graph_endpoints == ("begin", "finish")
 
 
-def test_missing_metadata_falls_back_to_literals():
-    """Empty metadata -- fall back to ("start", "end")."""
-    run = _make_run({})
+def test_missing_metadata_falls_back_to_literals(make_run):
+    """Empty metadata, fall back to ('start', 'end')."""
+    run = make_run({})
     assert run._graph_endpoints == ("start", "end")
 
 
-def test_partial_metadata_fills_in_defaults():
-    """Only one endpoint in metadata -- the other defaults to its literal."""
-    run = _make_run({"start_step": "begin"})
+def test_partial_metadata_fills_in_defaults(make_run):
+    """Only one endpoint in metadata, the other defaults to its literal."""
+    run = make_run({"start_step": "begin"})
     assert run._graph_endpoints == ("begin", "end")
 
 
-def test_result_cached():
+def test_result_cached(make_run):
     """Successful lookups cache on _cached_endpoints."""
-    run = _make_run({"start_step": "begin", "end_step": "finish"})
+    run = make_run({"start_step": "begin", "end_step": "finish"})
     assert run._graph_endpoints == ("begin", "finish")
     assert run._cached_endpoints == ("begin", "finish")
 
 
-def test_transient_error_not_cached():
+def test_transient_error_not_cached(mocker):
     """A transient exception returns the fallback but does NOT cache it."""
     run = Run.__new__(Run)
-    call_count = {"n": 0}
 
-    def _getitem(key):
-        call_count["n"] += 1
-        if call_count["n"] == 1:
-            raise RuntimeError("transient (e.g., metadata service down)")
-        params_step = MagicMock()
-        task = MagicMock()
-        task.metadata_dict = {"start_step": "begin", "end_step": "finish"}
-        params_step.task = task
-        return params_step
+    task = mocker.MagicMock()
+    task.metadata_dict = {"start_step": "begin", "end_step": "finish"}
+    params_step = mocker.MagicMock()
+    params_step.task = task
+
+    getitem = mocker.MagicMock(
+        side_effect=[
+            RuntimeError("transient (e.g., metadata service down)"),
+            params_step,
+        ]
+    )
 
     run.__class__ = type(
-        "FakeRun2", (object,), {"__getitem__": lambda self, k: _getitem(k)}
+        "FakeRun",
+        (object,),
+        {
+            "__getitem__": lambda self, k: getitem(k),
+            "_graph_endpoints": Run._graph_endpoints,
+        },
     )
-    run.__class__._graph_endpoints = Run._graph_endpoints
 
-    # First call: transient error -> fallback, not cached.
+    # First call: transient error, fallback returned, not cached.
     assert run._graph_endpoints == ("start", "end")
     assert not hasattr(run, "_cached_endpoints")
 
@@ -90,18 +111,8 @@ def test_transient_error_not_cached():
     assert run._cached_endpoints == ("begin", "finish")
 
 
-def test_metaflow_not_found_cached():
-    """MetaflowNotFound (old run) caches the ("start", "end") fallback."""
-    run = Run.__new__(Run)
-
-    def _getitem(key):
-        raise MetaflowNotFound(key)
-
-    run.__class__ = type(
-        "FakeRun3", (object,), {"__getitem__": lambda self, k: _getitem(k)}
-    )
-    run.__class__._graph_endpoints = Run._graph_endpoints
-
+def test_metaflow_not_found_cached(make_run):
+    """MetaflowNotFound (old run) caches the ('start', 'end') fallback."""
+    run = make_run(raises=MetaflowNotFound("_parameters"))
     assert run._graph_endpoints == ("start", "end")
-    # Cached -- a second call won't re-raise.
     assert run._cached_endpoints == ("start", "end")
