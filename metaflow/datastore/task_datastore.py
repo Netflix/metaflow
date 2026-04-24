@@ -428,13 +428,27 @@ class TaskDataStore(object):
                         % (serializer.__name__, len(blobs), name)
                     )
 
+                # Auto-inject ``source`` into serializer_info so the
+                # "no deserializer claimed artifact" load error can point at
+                # the extension to install. Authors who set their own
+                # ``source`` in the returned ``serializer_info`` are not
+                # overridden. Copy the dict so we don't mutate the
+                # serializer's returned value across calls.
+                merged_info = (
+                    dict(metadata.serializer_info) if metadata.serializer_info else {}
+                )
+                if "source" not in merged_info:
+                    auto_source = SerializerStore.get_source_for(serializer)
+                    if auto_source:
+                        merged_info["source"] = auto_source
+
                 self._info[name] = {
                     "size": metadata.size,
                     "type": metadata.obj_type,
                     "encoding": metadata.encoding,
                 }
-                if metadata.serializer_info:
-                    self._info[name]["serializer_info"] = metadata.serializer_info
+                if merged_info:
+                    self._info[name]["serializer_info"] = merged_info
 
                 artifact_names.append(name)
                 yield blobs[0].value

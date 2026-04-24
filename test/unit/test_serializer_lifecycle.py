@@ -551,6 +551,76 @@ def test_bootstrap_with_no_extensions_still_runs_core():
         SerializerStore._records.update(saved_records)
 
 
+def test_bootstrap_stamps_core_source_on_record():
+    """Core serializers bootstrap with source='metaflow' on their records."""
+    saved_active = set(SerializerStore._active_serializers)
+    saved_records = dict(SerializerStore._records)
+    SerializerStore._active_serializers.clear()
+    SerializerStore._records.clear()
+
+    try:
+        SerializerStore.bootstrap()
+        pickle_rec = next(
+            (r for r in SerializerStore._records.values() if r.type == "pickle"),
+            None,
+        )
+        assert pickle_rec is not None
+        assert pickle_rec.source == "metaflow"
+    finally:
+        SerializerStore._active_serializers.clear()
+        SerializerStore._active_serializers.update(saved_active)
+        SerializerStore._records.clear()
+        SerializerStore._records.update(saved_records)
+
+
+def test_bootstrap_entries_accepts_source_override():
+    """bootstrap_entries accepts ``source`` and attaches it to each record."""
+    import sys as _sys
+    import types as _types
+
+    saved_records = dict(SerializerStore._records)
+    saved_active = set(SerializerStore._active_serializers)
+
+    ser_mod = _types.ModuleType("_test_source_ser_mod")
+    exec(
+        """
+from metaflow.datastore.artifacts import ArtifactSerializer, SerializationFormat
+
+class _SourceProbe(ArtifactSerializer):
+    TYPE = "test_source_probe"
+    @classmethod
+    def can_serialize(cls, obj): return False
+    @classmethod
+    def can_deserialize(cls, metadata): return False
+    @classmethod
+    def serialize(cls, obj, format=SerializationFormat.STORAGE):
+        raise NotImplementedError
+    @classmethod
+    def deserialize(cls, data, metadata=None, format=SerializationFormat.STORAGE):
+        raise NotImplementedError
+""",
+        ser_mod.__dict__,
+    )
+    _sys.modules["_test_source_ser_mod"] = ser_mod
+
+    try:
+        SerializerStore.bootstrap_entries(
+            [("test_source_probe", "_test_source_ser_mod._SourceProbe")],
+            source="fake-extension",
+        )
+        rec = SerializerStore._records["test_source_probe"]
+        assert rec.source == "fake-extension"
+        assert SerializerStore.get_source_for(ser_mod._SourceProbe) == "fake-extension"
+    finally:
+        SerializerStore._all_serializers.pop("test_source_probe", None)
+        SerializerStore._records.clear()
+        SerializerStore._records.update(saved_records)
+        SerializerStore._active_serializers.clear()
+        SerializerStore._active_serializers.update(saved_active)
+        SerializerStore._ordered_cache = None
+        _sys.modules.pop("_test_source_ser_mod", None)
+
+
 def test_bootstrap_applies_disabled_toggle(monkeypatch):
     """bootstrap() respects -name toggles in ENABLED_ARTIFACT_SERIALIZER config."""
     from metaflow import metaflow_config

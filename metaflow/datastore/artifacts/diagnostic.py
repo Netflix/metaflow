@@ -27,6 +27,13 @@ class SerializerRecord:
     type: Optional[str] = None
     import_trigger: Optional[str] = None
     dispatch_error_count: int = 0
+    # Human-readable identifier for where this serializer came from — e.g.
+    # ``"metaflow"`` for the core, the extension's ``package_name`` for one
+    # shipped by an extension. Stamped into ``serializer_info["source"]`` at
+    # save time so the "no deserializer claimed this artifact" load error can
+    # tell the user which extension to install. Serializers that set
+    # ``source`` in their own ``serializer_info`` are not overridden.
+    source: Optional[str] = None
 
     def as_dict(self):
         return {
@@ -39,6 +46,7 @@ class SerializerRecord:
             "type": self.type,
             "import_trigger": self.import_trigger,
             "dispatch_error_count": self.dispatch_error_count,
+            "source": self.source,
         }
 
 
