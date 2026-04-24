@@ -37,3 +37,7 @@ string_flow_mutator_run = pytest.fixture(scope="session")(
 string_step_mutator_run = pytest.fixture(scope="session")(
     create_flow_fixture("string_step_mutator_flow.py")
 )
+
+post_step_none_false_run = pytest.fixture(scope="session")(
+    create_flow_fixture("post_step_none_false_flow.py")
+)

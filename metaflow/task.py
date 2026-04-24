@@ -146,7 +146,13 @@ class MetaflowTask(object):
             # We have an exception that we need to propagate
             raise raised_exception
 
-        if fake_next_call_args is not None or had_raised_exception:
+        # Both None and False mean "do not override the self.next call".
+        # None is the post_step sentinel; False is accepted for symmetry so a
+        # UserStepDecorator whose post_step returns (None, False) is a no-op
+        # instead of tripping the "Invalid value" RuntimeError below.
+        if (
+            fake_next_call_args is not None and fake_next_call_args is not False
+        ) or had_raised_exception:
             # We want to override the next call or we caught an exception (in which
             # case the regular step code didn't call self.next). In this case,
             # we need to set the transition variables
