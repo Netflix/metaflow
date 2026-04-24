@@ -767,21 +767,6 @@ def _should_skip_decorator_for_spin(
     return False
 
 
-def _init(flow, only_non_static=False):
-    flow_decos = flow._flow_state[FlowStateItems.FLOW_DECORATORS]
-    for decorators in flow_decos.values():
-        for deco in decorators:
-            deco.external_init()
-
-    for flowstep in flow:
-        for deco in flowstep.decorators:
-            deco.external_init()
-        for deco in flowstep.config_decorators or []:
-            deco.external_init()
-        for deco in flowstep.wrappers or []:
-            deco.external_init()
-
-
 def _init_flow_decorators(
     flow,
     graph,
@@ -796,6 +781,12 @@ def _init_flow_decorators(
 ):
     # Since all flow decorators are stored as `{key:[deco]}` we iterate through each of them.
     flow_decos = flow._flow_state[FlowStateItems.FLOW_DECORATORS]
+
+    # Run external_init on all decorators first
+    for decorators in flow_decos.values():
+        for deco in decorators:
+            deco.external_init()
+
     for decorators in flow_decos.values():
         # First resolve the `options` for the flow decorator.
         # Options are passed from cli.
@@ -919,8 +910,22 @@ def _init_step_decorators(
 
     from .system_context import system_context
 
+    # Call the external_init on all step decorators. At this point, we have all the ones
+    # the user wants to add through mutators
     for step in flow:
         system_context.register_step_decorators(step.__name__, list(step.decorators))
+        for deco in step.decorators:
+            if _should_skip_decorator_for_spin(
+                deco, is_spin, skip_decorators, logger, "Step decorator"
+            ):
+                continue
+            deco.external_init()
+        # Also call external_init on UserStepDecorator wrappers. The _ran_init
+        # guard in external_init handles dual-inherit decorators that already
+        # had external_init called via config_decorators in _process_config_decorators.
+        for deco in step.wrappers or []:
+            deco.external_init()
+    for step in flow:
         for deco in step.decorators:
             if _should_skip_decorator_for_spin(
                 deco, is_spin, skip_decorators, logger, "Step decorator"

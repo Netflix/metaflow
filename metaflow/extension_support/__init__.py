@@ -87,6 +87,8 @@ EXT_EXCLUDE_SUFFIXES = [".pyc"]
 FINDER_TRANS = str.maketrans(".-", "__")
 
 # To get verbose messages, set METAFLOW_DEBUG_EXT to 1
+# We cannot rely on the debug mechanism because of a circular import (that relies on
+# configs which are loaded here)
 DEBUG_EXT = os.environ.get("METAFLOW_DEBUG_EXT", False)
 
 # This is extracted only from environment variable and here separately from

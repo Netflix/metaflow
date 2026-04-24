@@ -376,6 +376,9 @@ class FlowSpec(metaclass=FlowSpecMeta):
             return None
 
         debug.userconf_exec("Processing mutating step/flow decorators")
+
+        for decorator in cls._flow_state[FlowStateItems.FLOW_MUTATORS]:
+            decorator.external_init()
         # We need to convert all the user configurations from DelayedEvaluationParameters
         # to actual values so they can be used as is in the mutators.
 
@@ -434,24 +437,27 @@ class FlowSpec(metaclass=FlowSpecMeta):
         for step in cls._steps:
             for deco in step.config_decorators:
                 if isinstance(deco, StepMutator):
-                    inserted_by_value = [deco.decorator_name] + (deco.inserted_by or [])
-                    debug.userconf_exec(
-                        "Evaluating step level decorator %s for %s (pre-mutate)"
-                        % (deco.__class__.__name__, step.name)
-                    )
-                    deco.pre_mutate(
-                        MutableStep(
-                            cls,
-                            step,
-                            pre_mutate=True,
-                            statically_defined=deco.statically_defined,
-                            inserted_by=inserted_by_value,
-                        )
-                    )
+                    deco.external_init()
                 else:
                     raise MetaflowInternalError(
                         "A non StepMutator found in step custom decorators"
                     )
+        for step in cls._steps:
+            for deco in step.config_decorators:
+                inserted_by_value = [deco.decorator_name] + (deco.inserted_by or [])
+                debug.userconf_exec(
+                    "Evaluating step level decorator %s for %s (pre-mutate)"
+                    % (deco.__class__.__name__, step.name)
+                )
+                deco.pre_mutate(
+                    MutableStep(
+                        cls,
+                        step,
+                        pre_mutate=True,
+                        statically_defined=deco.statically_defined,
+                        inserted_by=inserted_by_value,
+                    )
+                )
 
         # Process parameters to allow them to also use config values easily
         for var, param in cls._get_parameters():
