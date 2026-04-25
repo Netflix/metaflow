@@ -924,8 +924,19 @@ def resolve_token(
     help="Write the metadata and pathspec of this run to the file specified.\nUsed internally for Metaflow's Deployer API.",
     hidden=True,
 )
+@click.option(
+    "--tag",
+    "tags",
+    multiple=True,
+    default=None,
+    help="Annotate the triggered run with the given tag. You can specify "
+    "this option multiple times to attach multiple tags.",
+)
 @click.pass_obj
-def trigger(obj, run_id_file=None, deployer_attribute_file=None, **kwargs):
+def trigger(obj, run_id_file=None, deployer_attribute_file=None, tags=None, **kwargs):
+    if tags:
+        validate_tags(tags)
+
     def _convert_value(param):
         # Swap `-` with `_` in parameter name to match click's behavior
         val = kwargs.get(param.name.replace("-", "_").lower())
@@ -962,7 +973,9 @@ def trigger(obj, run_id_file=None, deployer_attribute_file=None, **kwargs):
             )
             obj.echo("re-deploy your flow in order to get rid of this message.")
             workflow_name_to_deploy = obj._v1_workflow_name
-    response = ArgoWorkflows.trigger(workflow_name_to_deploy, params)
+    response = ArgoWorkflows.trigger(
+        workflow_name_to_deploy, params, tags=list(tags) if tags else None
+    )
     run_id = "argo-" + response["metadata"]["name"]
 
     if run_id_file:

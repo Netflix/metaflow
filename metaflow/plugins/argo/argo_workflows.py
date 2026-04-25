@@ -359,7 +359,7 @@ class ArgoWorkflows(object):
         return parsed_metadata
 
     @classmethod
-    def trigger(cls, name, parameters=None):
+    def trigger(cls, name, parameters=None, tags=None):
         if parameters is None:
             parameters = {}
         try:
@@ -395,6 +395,7 @@ class ArgoWorkflows(object):
                 usertype,
                 username,
                 parameters,
+                tags=tags,
             )
         except Exception as e:
             raise ArgoWorkflowsException(str(e))
@@ -964,6 +965,17 @@ class ArgoWorkflows(object):
                             .value(json.dumps(None))  # None in Argo Workflows world.
                             .description("auto-set by metaflow. safe to ignore.")
                             for event in self.triggers
+                        ]
+                        + [
+                            # Reserved parameter for trigger-time tags.
+                            # Tags passed at trigger time (via CLI --tag or Deployer API)
+                            # are set as this parameter, which gets read by each step
+                            # via the METAFLOW_TRIGGER_TAGS env var.
+                            Parameter("metaflow-trigger-tags")
+                            .value("[]")
+                            .description(
+                                "auto-set by metaflow for trigger-time tags. safe to ignore."
+                            ),
                         ]
                     )
                 )
@@ -2371,6 +2383,8 @@ class ArgoWorkflows(object):
                         "ARGO_WORKFLOW_TEMPLATE": self.name,
                         "ARGO_WORKFLOW_NAME": "{{workflow.name}}",
                         "ARGO_WORKFLOW_NAMESPACE": KUBERNETES_NAMESPACE,
+                        # Trigger-time tags passed as a workflow parameter.
+                        "METAFLOW_TRIGGER_TAGS": "{{workflow.parameters.metaflow-trigger-tags}}",
                     },
                     **self.metadata.get_runtime_environment("argo-workflows"),
                 }

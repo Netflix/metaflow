@@ -20,7 +20,6 @@ from metaflow.util import get_username, to_bytes, to_unicode, version_parse
 
 from .production_token import load_token, new_token, store_token
 from .step_functions import StepFunctions
-from metaflow.tagging_util import validate_tags
 from ..aws_utils import validate_aws_tag
 
 VALID_NAME = re.compile(r"[^a-zA-Z0-9_\-\.]")
@@ -526,8 +525,19 @@ def resolve_token(
     help="Write the metadata and pathspec of this run to the file specified.\nUsed internally for Metaflow's Deployer API.",
     hidden=True,
 )
+@click.option(
+    "--tag",
+    "tags",
+    multiple=True,
+    default=None,
+    help="Annotate the triggered run with the given tag. You can specify "
+    "this option multiple times to attach multiple tags.",
+)
 @click.pass_obj
-def trigger(obj, run_id_file=None, deployer_attribute_file=None, **kwargs):
+def trigger(obj, run_id_file=None, deployer_attribute_file=None, tags=None, **kwargs):
+    if tags:
+        validate_tags(tags)
+
     def _convert_value(param):
         # Swap `-` with `_` in parameter name to match click's behavior
         val = kwargs.get(param.name.replace("-", "_").lower())
@@ -543,7 +553,9 @@ def trigger(obj, run_id_file=None, deployer_attribute_file=None, **kwargs):
         if kwargs.get(param.name.replace("-", "_").lower()) is not None
     }
 
-    response = StepFunctions.trigger(obj.state_machine_name, params)
+    response = StepFunctions.trigger(
+        obj.state_machine_name, params, tags=list(tags) if tags else None
+    )
 
     id = response["executionArn"].split(":")[-1]
     run_id = "sfn-" + id
