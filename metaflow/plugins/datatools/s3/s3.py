@@ -1456,33 +1456,7 @@ class S3(object):
             direct = S3DirectClient(
                 self._s3_client, self._tmpdir, self._s3_inject_failures
             )
-            if op == "list":
-                yield from direct.list_objects(
-                    prefixes_and_ranges,
-                    recursive=options.get("recursive", False),
-                )
-            elif op == "info":
-                yield from direct.info_objects(prefixes_and_ranges)
-            elif op == "get":
-                recursive = options.get("recursive", False)
-                if recursive:
-                    listed = list(
-                        direct.list_objects(prefixes_and_ranges, recursive=True)
-                    )
-                    download_items = [(url, None) for _prefix, url, _size in listed]
-                    yield from direct.get_objects(
-                        download_items,
-                        allow_missing=options.get("allow_missing", False),
-                        return_info=options.get("info", False),
-                    )
-                else:
-                    yield from direct.get_objects(
-                        prefixes_and_ranges,
-                        allow_missing=options.get("allow_missing", False),
-                        return_info=options.get("info", False),
-                    )
-            else:
-                raise MetaflowS3Exception("Unknown operation: %s" % op)
+            yield from direct.read_many(op, prefixes_and_ranges, **options)
             return
         with NamedTemporaryFile(
             dir=self._tmpdir,

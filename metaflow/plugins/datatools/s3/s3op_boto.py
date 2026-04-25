@@ -163,6 +163,33 @@ class S3DirectClient(object):
 
         return [results[i] for i in sorted(results.keys())]
 
+    def read_many(self, op, prefixes_and_ranges, **options):
+        from .s3 import MetaflowS3Exception
+
+        if op == "list":
+            return self.list_objects(
+                prefixes_and_ranges,
+                recursive=options.get("recursive", False),
+            )
+        elif op == "info":
+            return self.info_objects(prefixes_and_ranges)
+        elif op == "get":
+            if options.get("recursive", False):
+                listed = list(self.list_objects(prefixes_and_ranges, recursive=True))
+                download_items = [(url, None) for _prefix, url, _size in listed]
+                return self.get_objects(
+                    download_items,
+                    allow_missing=options.get("allow_missing", False),
+                    return_info=options.get("info", False),
+                )
+            return self.get_objects(
+                prefixes_and_ranges,
+                allow_missing=options.get("allow_missing", False),
+                return_info=options.get("info", False),
+            )
+        else:
+            raise MetaflowS3Exception("Unknown operation: %s" % op)
+
     def list_objects(self, prefixes_and_ranges, recursive=False):
         from . import s3op
         from .s3 import MetaflowS3AccessDenied
