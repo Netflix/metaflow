@@ -101,7 +101,9 @@ class S3DirectClient(object):
             if not pending:
                 break
 
-            if last_ok_count > 0:
+            if attempt == 0:
+                max_count = len(pending)
+            elif last_ok_count > 0:
                 max_count = min(int(last_ok_count * 1.2), len(pending))
             else:
                 max_count = min(2 * S3_WORKER_COUNT, len(pending))
@@ -235,8 +237,8 @@ class S3DirectClient(object):
                     raise
             except MetaflowException:
                 raise
-            except Exception:
-                raise _S3OpTransientError("transient error during list")
+            except Exception as e:
+                raise _S3OpTransientError("transient error during list: %s" % e) from e
 
         items = list(prefixes_and_ranges)
         batch_results = self._do_batch_op(items, worker, "list")
@@ -280,8 +282,8 @@ class S3DirectClient(object):
                     result = {"error": error_code}
             except MetaflowException:
                 raise
-            except Exception:
-                raise _S3OpTransientError("transient error during info")
+            except Exception as e:
+                raise _S3OpTransientError("transient error during info: %s" % e) from e
 
             with open(local_path, "w") as f:
                 json.dump(result, f)
@@ -345,7 +347,11 @@ class S3DirectClient(object):
 
                 if return_info:
                     meta = {
-                        "size": resp["ContentLength"],
+                        "size": (
+                            range_result["total"]
+                            if range_result
+                            else resp["ContentLength"]
+                        ),
                         "range_result": range_result,
                     }
                     if resp.get("ContentType"):
@@ -386,8 +392,8 @@ class S3DirectClient(object):
                         "Out of disk space downloading %s" % url_str
                     )
                 raise _S3OpTransientError(str(e))
-            except Exception:
-                raise _S3OpTransientError("transient error during get")
+            except Exception as e:
+                raise _S3OpTransientError("transient error during get: %s" % e) from e
 
         items = list(prefixes_and_ranges)
         results = self._do_batch_op(items, worker, "get")
@@ -452,8 +458,8 @@ class S3DirectClient(object):
                     raise
             except MetaflowException:
                 raise
-            except Exception:
-                raise _S3OpTransientError("transient error during put")
+            except Exception as e:
+                raise _S3OpTransientError("transient error during put: %s" % e) from e
 
         items = list(url_info)
         results = self._do_batch_op(items, worker, "put")
