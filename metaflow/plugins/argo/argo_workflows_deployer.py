@@ -90,6 +90,10 @@ class ArgoWorkflowsDeployer(DeployerImpl):
             Write the workflow name to the specified file. Used internally for Metaflow's Deployer API.
         enable_error_msg_capture : bool, optional, default True
             Capture stack trace of first failed task in exit hook.
+        enable_schedule : bool, optional, default None
+            Deploy the workflow with the schedule enabled or disabled (suspended).
+            Useful for deploying dev/test branches without activating production schedules.
+            Defaults to enabled unless METAFLOW_SCHEDULE_DISABLED is set.
 
         Returns
         -------

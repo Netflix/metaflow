@@ -393,6 +393,13 @@ SFN_S3_DISTRIBUTED_MAP_OUTPUT_PATH = from_conf(
 )
 # Toggle for step command being part of the Step Function payload, or if it should be offloaded to S3
 SFN_COMPRESS_STATE_MACHINE = from_conf("SFN_COMPRESS_STATE_MACHINE", False)
+
+###
+# Schedule configuration
+###
+# When set to True, deploys the workflow with the schedule disabled (suspended).
+# Useful for deploying dev/test branches without activating production schedules.
+SCHEDULE_DISABLED = from_conf("SCHEDULE_DISABLED", False)
 ###
 # Kubernetes configuration
 ###
