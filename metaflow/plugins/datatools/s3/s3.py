@@ -1450,8 +1450,6 @@ class S3(object):
     # and url_unquote.
     def _read_many_files(self, op, prefixes_and_ranges, **options):
         prefixes_and_ranges = list(prefixes_and_ranges)
-        if not prefixes_and_ranges:
-            return
         if S3_DIRECT_BOTO3:
             from .s3op_boto import S3DirectClient
 
@@ -1485,50 +1483,47 @@ class S3(object):
                     )
             else:
                 raise MetaflowS3Exception("Unknown operation: %s" % op)
-        else:
-            with NamedTemporaryFile(
-                dir=self._tmpdir,
-                mode="wb",
-                delete=not debug.s3client,
-                prefix="metaflow.s3.inputs.",
-            ) as inputfile:
-                inputfile.write(
-                    b"\n".join(
-                        [
-                            b" ".join(
-                                [url_quote(prefix)] + ([url_quote(r)] if r else [])
-                            )
-                            for prefix, r in prefixes_and_ranges
-                        ]
-                    )
+            return
+        with NamedTemporaryFile(
+            dir=self._tmpdir,
+            mode="wb",
+            delete=not debug.s3client,
+            prefix="metaflow.s3.inputs.",
+        ) as inputfile:
+            inputfile.write(
+                b"\n".join(
+                    [
+                        b" ".join([url_quote(prefix)] + ([url_quote(r)] if r else []))
+                        for prefix, r in prefixes_and_ranges
+                    ]
                 )
-                inputfile.flush()
-                stdout_lines, stderr, err_code = self._s3op_with_retries(
-                    op, inputs=inputfile.name, **options
-                )
-                if stderr:
-                    from . import s3op
+            )
+            inputfile.flush()
+            stdout_lines, stderr, err_code = self._s3op_with_retries(
+                op, inputs=inputfile.name, **options
+            )
+            if stderr:
+                from . import s3op
 
-                    if err_code == s3op.ERROR_URL_NOT_FOUND:
-                        raise MetaflowS3NotFound(stderr)
-                    elif err_code == s3op.ERROR_URL_ACCESS_DENIED:
-                        raise MetaflowS3AccessDenied(stderr)
-                    elif err_code == s3op.ERROR_INVALID_RANGE:
-                        raise MetaflowS3InvalidRange(stderr)
-                    else:
-                        raise MetaflowS3Exception(
-                            "Getting S3 files failed.\n"
-                            "First prefix requested: %s\n"
-                            "Error: %s" % (prefixes_and_ranges[0], stderr)
-                        )
+                # Raise the appropriate exception type based on error code
+                if err_code == s3op.ERROR_URL_NOT_FOUND:
+                    raise MetaflowS3NotFound(stderr)
+                elif err_code == s3op.ERROR_URL_ACCESS_DENIED:
+                    raise MetaflowS3AccessDenied(stderr)
+                elif err_code == s3op.ERROR_INVALID_RANGE:
+                    raise MetaflowS3InvalidRange(stderr)
                 else:
-                    for line in stdout_lines:
-                        yield tuple(map(url_unquote, line.strip(b"\n").split(b" ")))
+                    raise MetaflowS3Exception(
+                        "Getting S3 files failed.\n"
+                        "First prefix requested: %s\n"
+                        "Error: %s" % (prefixes_and_ranges[0], stderr)
+                    )
+            else:
+                for line in stdout_lines:
+                    yield tuple(map(url_unquote, line.strip(b"\n").split(b" ")))
 
     def _put_many_files(self, url_info, overwrite):
         url_info = list(url_info)
-        if not url_info:
-            return []
         if S3_DIRECT_BOTO3:
             from .s3op_boto import S3DirectClient
 
@@ -1536,55 +1531,51 @@ class S3(object):
                 self._s3_client, self._tmpdir, self._s3_inject_failures
             )
             return direct.put_objects(url_info, overwrite)
-        else:
-            url_dicts = [
-                dict(
-                    chain(
-                        [("local", os.path.realpath(local)), ("url", url)],
-                        info.items(),
-                    )
-                )
-                for local, url, info in url_info
-            ]
-            with NamedTemporaryFile(
-                dir=self._tmpdir,
-                mode="wb",
-                delete=not debug.s3client,
-                prefix="metaflow.s3.put_inputs.",
-            ) as inputfile:
-                lines = [to_bytes(json.dumps(x)) for x in url_dicts]
-                inputfile.write(b"\n".join(lines))
-                inputfile.flush()
-                stdout_lines, stderr, err_code = self._s3op_with_retries(
-                    "put",
-                    inputs=inputfile.name,
-                    verbose=False,
-                    overwrite=overwrite,
-                    listing=True,
-                )
-                if stderr:
-                    from . import s3op
+        url_dicts = [
+            dict(
+                chain([("local", os.path.realpath(local)), ("url", url)], info.items())
+            )
+            for local, url, info in url_info
+        ]
 
-                    if err_code == s3op.ERROR_URL_NOT_FOUND:
-                        raise MetaflowS3NotFound(stderr)
-                    elif err_code == s3op.ERROR_URL_ACCESS_DENIED:
-                        raise MetaflowS3AccessDenied(stderr)
-                    elif err_code == s3op.ERROR_INVALID_RANGE:
-                        raise MetaflowS3InvalidRange(stderr)
-                    else:
-                        raise MetaflowS3Exception(
-                            "Uploading S3 files failed.\n"
-                            "First key: %s\n"
-                            "Error: %s" % (url_info[0][2]["key"], stderr)
-                        )
+        with NamedTemporaryFile(
+            dir=self._tmpdir,
+            mode="wb",
+            delete=not debug.s3client,
+            prefix="metaflow.s3.put_inputs.",
+        ) as inputfile:
+            lines = [to_bytes(json.dumps(x)) for x in url_dicts]
+            inputfile.write(b"\n".join(lines))
+            inputfile.flush()
+            stdout_lines, stderr, err_code = self._s3op_with_retries(
+                "put",
+                inputs=inputfile.name,
+                verbose=False,
+                overwrite=overwrite,
+                listing=True,
+            )
+            if stderr:
+                from . import s3op
+
+                # Raise the appropriate exception type based on error code
+                if err_code == s3op.ERROR_URL_NOT_FOUND:
+                    raise MetaflowS3NotFound(stderr)
+                elif err_code == s3op.ERROR_URL_ACCESS_DENIED:
+                    raise MetaflowS3AccessDenied(stderr)
+                elif err_code == s3op.ERROR_INVALID_RANGE:
+                    raise MetaflowS3InvalidRange(stderr)
                 else:
-                    urls = set()
-                    for line in stdout_lines:
-                        url, _, _ = map(url_unquote, line.strip(b"\n").split(b" "))
-                        urls.add(url)
-                    return [
-                        (info["key"], url) for _, url, info in url_info if url in urls
-                    ]
+                    raise MetaflowS3Exception(
+                        "Uploading S3 files failed.\n"
+                        "First key: %s\n"
+                        "Error: %s" % (url_info[0][2]["key"], stderr)
+                    )
+            else:
+                urls = set()
+                for line in stdout_lines:
+                    url, _, _ = map(url_unquote, line.strip(b"\n").split(b" "))
+                    urls.add(url)
+                return [(info["key"], url) for _, url, info in url_info if url in urls]
 
     def _s3op_with_retries(self, mode, **options):
         from . import s3op
