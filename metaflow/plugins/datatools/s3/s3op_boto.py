@@ -79,6 +79,8 @@ class S3DirectClient(object):
             return 0
         if mode == "list":
             return 0
+        if self._inject_failures >= 100:
+            return 100
         return min(self._inject_failures, 90)
 
     def _maybe_inject_failure(self, inject_rate):
@@ -116,7 +118,9 @@ class S3DirectClient(object):
             batch = pending[:max_count]
             remaining = pending[max_count:]
 
-            if base_inject_rate > 0:
+            if base_inject_rate >= 100:
+                inject_rate = 100
+            elif base_inject_rate > 0:
                 if attempt % 2 == 0:
                     inject_rate = max(1, base_inject_rate // 3)
                 else:
