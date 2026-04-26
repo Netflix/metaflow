@@ -153,7 +153,7 @@ class S3DirectClient(object):
 
             if pending and attempt < retry_count:
                 self._s3_client.reset_client()
-                time.sleep(2**attempt + random.randint(0, 5))
+                time.sleep(min(2**attempt, 30) + random.randint(0, 5))
 
         if pending:
             from .s3 import MetaflowS3Exception
@@ -178,12 +178,15 @@ class S3DirectClient(object):
         elif op == "get":
             if options.get("recursive", False):
                 listed = list(self.list_objects(prefixes_and_ranges, recursive=True))
+                url_to_prefix = {url: prefix for prefix, url, _size in listed}
                 download_items = [(url, None) for _prefix, url, _size in listed]
-                return self.get_objects(
+                for prefix_or_url, url, fname in self.get_objects(
                     download_items,
                     allow_missing=options.get("allow_missing", False),
                     return_info=options.get("info", False),
-                )
+                ):
+                    yield (url_to_prefix.get(url, prefix_or_url), url, fname)
+                return
             return self.get_objects(
                 prefixes_and_ranges,
                 allow_missing=options.get("allow_missing", False),
