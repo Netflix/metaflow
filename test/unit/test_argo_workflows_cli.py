@@ -69,42 +69,32 @@ def test_get_schedule_no_decorator_returns_none(argo_without_schedule):
     assert argo_without_schedule._get_schedule() == (None, None)
 
 
-def test_get_schedule_none_returns_none(make_argo_with_schedule):
-    """
-    @schedule decorator present but schedule resolves to None
-    (e.g. @schedule(daily=False)) → (None, None), no crash.
-
-    Regression test for the AttributeError bug where None.split() was called
-    when all scheduling flags were falsy.
-    """
-    argo = make_argo_with_schedule(schedule_value=None)
-    assert argo._get_schedule() == (None, None)
-
-
-def test_get_schedule_none_with_timezone_returns_none(make_argo_with_schedule):
-    """Timezone is irrelevant when schedule itself is None."""
+@pytest.mark.parametrize(
+    "schedule_value, timezone_value, expected",
+    [
+        # schedule resolved to None → (None, None) regardless of timezone.
+        # The schedule_none case is the regression test for the AttributeError
+        # bug where None.split() was called when all scheduling flags were falsy.
+        (None, None, (None, None)),
+        (None, "America/Los_Angeles", (None, None)),
+        # 6-field quartz cron → trimmed to 5 fields, timezone passed through.
+        ("0 0 * * ? *", None, ("0 0 * * ?", None)),
+        ("0 0 * * ? *", "Europe/Berlin", ("0 0 * * ?", "Europe/Berlin")),
+    ],
+    ids=[
+        "schedule_none",
+        "schedule_none_with_timezone",
+        "cron_expression",
+        "cron_expression_with_timezone",
+    ],
+)
+def test_get_schedule(
+    make_argo_with_schedule, schedule_value, timezone_value, expected
+):
     argo = make_argo_with_schedule(
-        schedule_value=None, timezone_value="America/Los_Angeles"
+        schedule_value=schedule_value, timezone_value=timezone_value
     )
-    assert argo._get_schedule() == (None, None)
-
-
-def test_get_schedule_cron_expression_is_returned(make_argo_with_schedule):
-    """A valid 6-field quartz cron expression is trimmed to 5 fields."""
-    argo = make_argo_with_schedule(schedule_value="0 0 * * ? *")
-    schedule, tz = argo._get_schedule()
-    assert schedule == "0 0 * * ?"
-    assert tz is None
-
-
-def test_get_schedule_cron_expression_with_timezone(make_argo_with_schedule):
-    """Timezone is passed through unchanged alongside the cron string."""
-    argo = make_argo_with_schedule(
-        schedule_value="0 0 * * ? *", timezone_value="Europe/Berlin"
-    )
-    schedule, tz = argo._get_schedule()
-    assert schedule == "0 0 * * ?"
-    assert tz == "Europe/Berlin"
+    assert argo._get_schedule() == expected
 
 
 def test_trigger_explanation_no_schedule_does_not_claim_cronworkflow(
