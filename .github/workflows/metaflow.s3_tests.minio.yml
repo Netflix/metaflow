@@ -43,7 +43,7 @@ jobs:
     - name: Install dependencies
       run: |
         python3 -m pip install --upgrade pip
-        python3 -m pip install . pytest click boto3 requests pytest-benchmark
+        python3 -m pip install . pytest click boto3 requests numpy pytest-benchmark
     - name: Start MinIO
       run: |
         docker run -d --name minio \
