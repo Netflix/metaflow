@@ -22,6 +22,8 @@ jobs:
         os: [ubuntu-22.04]
         ver: ['3.8', '3.9', '3.10', '3.11', '3.12']
 
+    timeout-minutes: 30
+
     env:
       AWS_ACCESS_KEY_ID: rootuser
       AWS_SECRET_ACCESS_KEY: rootpass123
@@ -30,6 +32,7 @@ jobs:
       METAFLOW_DATASTORE_SYSROOT_S3: s3://metaflow-test/metaflow/
       AWS_ENDPOINT_URL_S3: http://localhost:9000
       MINIO_TEST: "1"
+      METAFLOW_S3_TRANSIENT_RETRY_COUNT: "5"
 
     steps:
     - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8  # v6.0.1
