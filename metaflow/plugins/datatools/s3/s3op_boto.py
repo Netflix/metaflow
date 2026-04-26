@@ -16,6 +16,16 @@ import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from hashlib import sha1
 
+try:
+    from boto3.exceptions import S3UploadFailedError as _S3UploadFailedError
+except ImportError:
+    _S3UploadFailedError = type("_S3UploadFailedError", (Exception,), {})
+
+try:
+    from botocore.exceptions import BotocoreError as _BotocoreError
+except ImportError:
+    _BotocoreError = Exception
+
 from metaflow.exception import MetaflowException
 from metaflow.metaflow_config import (
     S3_LOG_TRANSIENT_RETRIES,
@@ -66,7 +76,7 @@ class S3DirectClient(object):
             range_part = range_str[6:].replace("-", "_")
         quoted = url_quote(url)
         fname = quoted.split(b"/")[-1].replace(b".", b"_").replace(b"-", b"_")
-        sha_hash = sha1(quoted).hexdigest()
+        sha_hash = sha1(quoted, usedforsecurity=False).hexdigest()
         fname_decoded = fname.decode("utf-8")
         if len(fname_decoded) > 150:
             fname_decoded = fname_decoded[:150] + "..."
@@ -253,7 +263,7 @@ class S3DirectClient(object):
                     raise
             except MetaflowException:
                 raise
-            except Exception as e:
+            except (_BotocoreError, OSError) as e:
                 raise _S3OpTransientError("transient error during list: %s" % e) from e
 
         items = list(prefixes_and_ranges)
@@ -264,7 +274,7 @@ class S3DirectClient(object):
 
     def info_objects(self, prefixes_and_ranges):
         from . import s3op
-        from .s3 import MetaflowS3AccessDenied
+        from .s3 import MetaflowS3AccessDenied, MetaflowS3InsufficientDiskSpace
 
         def worker(client, error_class, item, inject_rate):
             url_str, _range = item
@@ -298,11 +308,18 @@ class S3DirectClient(object):
                     result = {"error": error_code}
             except MetaflowException:
                 raise
-            except Exception as e:
+            except (_BotocoreError, OSError) as e:
                 raise _S3OpTransientError("transient error during info: %s" % e) from e
 
-            with open(local_path, "w") as f:
-                json.dump(result, f)
+            try:
+                with open(local_path, "w") as f:
+                    json.dump(result, f)
+            except OSError as e:
+                if e.errno == errno.ENOSPC:
+                    raise MetaflowS3InsufficientDiskSpace(
+                        "Out of disk space writing metadata for %s" % url_str
+                    )
+                raise
 
             return (url_str, url_str, local_name)
 
@@ -361,6 +378,13 @@ class S3DirectClient(object):
                     with open(local_path, "wb") as f:
                         read_in_chunks(f, resp["Body"], sz, download_max_chunk)
 
+                actual_sz = os.path.getsize(local_path)
+                if actual_sz != sz:
+                    raise _S3OpTransientError(
+                        "size mismatch for %s: expected %d, got %d"
+                        % (url_str, sz, actual_sz)
+                    )
+
                 if return_info:
                     meta = {
                         "size": (
@@ -408,7 +432,7 @@ class S3DirectClient(object):
                         "Out of disk space downloading %s" % url_str
                     )
                 raise _S3OpTransientError(str(e))
-            except Exception as e:
+            except (_BotocoreError, OSError) as e:
                 raise _S3OpTransientError("transient error during get: %s" % e) from e
 
         items = list(prefixes_and_ranges)
@@ -474,7 +498,9 @@ class S3DirectClient(object):
                     raise
             except MetaflowException:
                 raise
-            except Exception as e:
+            except _S3UploadFailedError as e:
+                raise _S3OpTransientError("transient error during put: %s" % e) from e
+            except (_BotocoreError, OSError) as e:
                 raise _S3OpTransientError("transient error during put: %s" % e) from e
 
         items = list(url_info)
