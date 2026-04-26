@@ -53,3 +53,10 @@ single_step_with_flow_mutator_run = pytest.fixture(scope="session")(
         "single_step_with_flow_mutator_flow.py",
     )
 )
+
+single_step_bare_run = pytest.fixture(scope="session")(
+    create_flow_fixture(
+        "SingleStepBareFlow",
+        "single_step_bare_flow.py",
+    )
+)

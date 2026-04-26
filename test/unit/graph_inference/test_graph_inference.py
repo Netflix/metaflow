@@ -132,6 +132,43 @@ def test_single_step_parent_child_empty(single_step_run):
 
 
 # ---------------------------------------------------------------------------
+# Single-step flow with bare @step (implicit start == end)
+# ---------------------------------------------------------------------------
+
+
+def test_single_step_bare_flow_completes(single_step_bare_run):
+    assert single_step_bare_run.successful
+    assert single_step_bare_run.finished
+
+
+def test_single_step_bare_graph_info_start_equals_end(single_step_bare_run):
+    graph_info = single_step_bare_run["_parameters"].task["_graph_info"].data
+    assert graph_info["start_step"] == "only"
+    assert graph_info["end_step"] == "only"
+
+
+def test_single_step_bare_parameters_metadata(single_step_bare_run):
+    meta = single_step_bare_run["_parameters"].task.metadata_dict
+    assert meta.get("start_step") == "only"
+    assert meta.get("end_step") == "only"
+
+
+def test_single_step_bare_end_task(single_step_bare_run):
+    end_task = single_step_bare_run.end_task
+    assert end_task is not None
+    assert end_task["x"].data == 42
+
+
+def test_single_step_bare_step_present(single_step_bare_run):
+    assert {s.id for s in single_step_bare_run} == {"only"}
+
+
+def test_single_step_bare_parent_child_empty(single_step_bare_run):
+    assert list(single_step_bare_run["only"].parent_steps) == []
+    assert list(single_step_bare_run["only"].child_steps) == []
+
+
+# ---------------------------------------------------------------------------
 # Custom branch flow (entry/a/b/merge/done)
 # ---------------------------------------------------------------------------
 

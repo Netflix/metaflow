@@ -338,18 +338,25 @@ class FlowGraph(object):
         def _resolve(attr, fallback_name):
             """Find the unique annotated step, or fall back to a named step."""
             annotated = [
-                name
-                for name, node in self.nodes.items()
-                if getattr(node, attr) and not name.startswith("_")
+                name for name, node in self.nodes.items() if getattr(node, attr)
             ]
             if len(annotated) == 1:
                 return annotated[0]
             if len(annotated) == 0:
                 return fallback_name if fallback_name in self.nodes else None
-            return None  # Multiple annotated — lint will catch
+            return None  # Multiple annotated, lint will catch.
 
         self.start_step = _resolve("is_start_step", "start")
         self.end_step = _resolve("is_end_step", "end")
+
+        # Single-step flow ergonomics: if the flow has exactly one step, that
+        # step is implicitly both the entry and terminal node. Lets users write
+        # a bare @step on the single-step case instead of requiring
+        # @step(start=True, end=True). Skipped when more than one step exists,
+        # so the explicit-annotation contract still holds for real DAGs.
+        if len(self.nodes) == 1:
+            (only_step,) = self.nodes
+            self.start_step = self.end_step = only_step
 
         # Assign node types for graph traversal.
         # Only upgrade "linear" -> "start" for the entry point; do NOT override

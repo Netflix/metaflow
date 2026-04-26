@@ -59,11 +59,7 @@ def check_reserved_words(graph):
 @linter.check
 def check_basic_steps(graph):
     if graph.start_step is None:
-        annotated = [
-            name
-            for name, node in graph.nodes.items()
-            if node.is_start_step and not name.startswith("_")
-        ]
+        annotated = [name for name, node in graph.nodes.items() if node.is_start_step]
         if len(annotated) > 1:
             raise LintWarn(
                 "Multiple steps annotated with @step(start=True): %s. "
@@ -74,11 +70,7 @@ def check_basic_steps(graph):
             "'start' or use @step(start=True)."
         )
     if graph.end_step is None:
-        annotated = [
-            name
-            for name, node in graph.nodes.items()
-            if node.is_end_step and not name.startswith("_")
-        ]
+        annotated = [name for name, node in graph.nodes.items() if node.is_end_step]
         if len(annotated) > 1:
             raise LintWarn(
                 "Multiple steps annotated with @step(end=True): %s. "
