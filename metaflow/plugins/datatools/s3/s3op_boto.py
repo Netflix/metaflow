@@ -95,7 +95,7 @@ class S3DirectClient(object):
         results = {}
         base_inject_rate = self._inject_failure_rate_for_mode(mode)
         retry_count = S3_TRANSIENT_RETRY_COUNT
-        if self._inject_failures > 0:
+        if self._inject_failures > 0 and retry_count > 0:
             retry_count = max(retry_count, 100)
         last_ok_count = 0
 
