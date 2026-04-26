@@ -208,6 +208,8 @@ class S3DirectClient(object):
             parsed = urlparse(prefix_str)
             bucket = parsed.netloc
             path = parsed.path.lstrip("/")
+            if path and not path.endswith("/"):
+                path += "/"
             url_base = "s3://%s/" % bucket
 
             try:

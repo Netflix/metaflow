@@ -860,6 +860,8 @@ def test_put_exceptions(inject_failure_rate):
 
 @pytest.fixture
 def s3_server_side_encryption():
+    if os.environ.get("MINIO_TEST", "0") != "0":
+        return None
     return "AES256"
 
 
@@ -1092,10 +1094,11 @@ def test_list_paths_bucket_root(s3root):
 def test_put_many_exhausted_retries(s3root, monkeypatch):
     """Test that put_many raises exception when transient retries are exhausted."""
     import metaflow.plugins.datatools.s3.s3 as s3_module
+    import metaflow.plugins.datatools.s3.s3op_boto as s3op_boto_module
 
-    # Set retry count to 0 to immediately exhaust retries
-    # monkeypatch automatically restores the original value after the test
+    # Patch both modules since s3op_boto imports S3_TRANSIENT_RETRY_COUNT separately
     monkeypatch.setattr(s3_module, "S3_TRANSIENT_RETRY_COUNT", 0)
+    monkeypatch.setattr(s3op_boto_module, "S3_TRANSIENT_RETRY_COUNT", 0)
 
     test_prefix = f"test_retry_exhaustion_{uuid4().hex}"
     test_root = os.path.join(s3root, test_prefix)
@@ -1112,6 +1115,10 @@ def test_put_many_exhausted_retries(s3root, monkeypatch):
             s3.put_many(test_data)
 
 
+@pytest.mark.skipif(
+    os.environ.get("MINIO_TEST", "0") != "0",
+    reason="MinIO rejects '.' path components used by list_paths(['.'])",
+)
 def test_batch_retry_succeeds_under_transient_failures(s3root, monkeypatch):
     """Test that batch operations succeed despite transient failures.
 
@@ -1119,8 +1126,10 @@ def test_batch_retry_succeeds_under_transient_failures(s3root, monkeypatch):
     for put, get, list, and info operations.
     """
     import metaflow.plugins.datatools.s3.s3 as s3_module
+    import metaflow.plugins.datatools.s3.s3op_boto as s3op_boto_module
 
     monkeypatch.setattr(s3_module, "S3_TRANSIENT_RETRY_COUNT", 7)
+    monkeypatch.setattr(s3op_boto_module, "S3_TRANSIENT_RETRY_COUNT", 7)
 
     test_prefix = f"test_retry_success_{uuid4().hex}"
     test_root = os.path.join(s3root, test_prefix)

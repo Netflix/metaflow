@@ -97,6 +97,10 @@ def test_bucket_root_empty_path():
     )
 
 
+@pytest.mark.skipif(
+    os.environ.get("MINIO_TEST", "0") != "0",
+    reason="MinIO rejects non-ASCII characters in object names",
+)
 def test_long_filename_download_from_s3():
     """
     End-to-end integration test with real S3 for long filename handling.
