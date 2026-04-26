@@ -146,7 +146,8 @@ def step_functions(obj, name=None):
     is_flag=True,
     default=SFN_COMPRESS_STATE_MACHINE,
     help="Offload Batch commands to S3 to keep within AWS service limits "
-    "(e.g. ContainerOverrides length limit or maximum size of state machine definition).",
+    "(e.g. ContainerOverrides length limit or maximum size of state machine definition), "
+    "thereby reducing the size of the state machine.",
 )
 @click.option(
     "--deployer-attribute-file",
