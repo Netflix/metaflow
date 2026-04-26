@@ -4,5 +4,6 @@ pytest-timeout
 pytest-cov
 pytest-xdist
 pytest-rerunfailures
+pytest-mock
 omegaconf
 kubernetes
