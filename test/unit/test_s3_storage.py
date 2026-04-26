@@ -1,5 +1,4 @@
 from io import BytesIO
-from unittest.mock import MagicMock
 
 import metaflow.plugins.datastores.s3_storage as s3_storage_module
 from metaflow.plugins.datastores.s3_storage import S3Storage
@@ -17,12 +16,12 @@ def _make_storage():
     return storage
 
 
-def _run_save_bytes(monkeypatch, *, overwrite, len_hint):
-    s3 = MagicMock()
-    s3_cm = MagicMock()
+def _run_save_bytes(mocker, *, overwrite, len_hint):
+    s3 = mocker.MagicMock()
+    s3_cm = mocker.MagicMock()
     s3_cm.__enter__.return_value = s3
     s3_cm.__exit__.return_value = False
-    monkeypatch.setattr(s3_storage_module, "S3", MagicMock(return_value=s3_cm))
+    mocker.patch.object(s3_storage_module, "S3", return_value=s3_cm)
     storage = _make_storage()
     storage.save_bytes(
         iter(TEST_ITEMS),
@@ -32,8 +31,8 @@ def _run_save_bytes(monkeypatch, *, overwrite, len_hint):
     return s3
 
 
-def test_save_bytes_put_many_preserves_metadata_slot(monkeypatch):
-    s3 = _run_save_bytes(monkeypatch, overwrite=True, len_hint=11)
+def test_save_bytes_put_many_preserves_metadata_slot(mocker):
+    s3 = _run_save_bytes(mocker, overwrite=True, len_hint=11)
 
     put_objs, overwrite = s3.put_many.call_args[0]
     put_objs = list(put_objs)
@@ -44,8 +43,8 @@ def test_save_bytes_put_many_preserves_metadata_slot(monkeypatch):
     assert put_objs[1].metadata is None
 
 
-def test_save_bytes_sequential_preserves_metadata(monkeypatch):
-    s3 = _run_save_bytes(monkeypatch, overwrite=False, len_hint=2)
+def test_save_bytes_sequential_preserves_metadata(mocker):
+    s3 = _run_save_bytes(mocker, overwrite=False, len_hint=2)
 
     put_calls = s3.put.call_args_list
     assert len(put_calls) == 2
