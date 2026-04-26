@@ -460,6 +460,11 @@ class ArgoWorkflows(object):
         if schedule:
             # Remove the field "Year" if it exists
             schedule = schedule[0]
+            if schedule.schedule is None:
+                # @schedule decorator is present but all scheduling flags are
+                # falsy (e.g. @schedule(daily=False)). Treat this the same as
+                # no decorator — do not create a CronWorkflow.
+                return None, None
             return " ".join(schedule.schedule.split()[:5]), schedule.timezone
         return None, None
 
@@ -482,7 +487,7 @@ class ArgoWorkflows(object):
 
     def trigger_explanation(self):
         # Trigger explanation for cron workflows
-        if self.flow._flow_decorators.get("schedule"):
+        if self._schedule is not None:
             return (
                 "This workflow triggers automatically via the CronWorkflow *%s*."
                 % self.name
