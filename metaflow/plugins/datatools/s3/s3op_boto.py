@@ -169,12 +169,12 @@ class S3DirectClient(object):
         from .s3 import MetaflowS3Exception
 
         if op == "list":
-            return self.list_objects(
+            yield from self.list_objects(
                 prefixes_and_ranges,
                 recursive=options.get("recursive", False),
             )
         elif op == "info":
-            return self.info_objects(prefixes_and_ranges)
+            yield from self.info_objects(prefixes_and_ranges)
         elif op == "get":
             if options.get("recursive", False):
                 listed = list(self.list_objects(prefixes_and_ranges, recursive=True))
@@ -187,7 +187,7 @@ class S3DirectClient(object):
                 ):
                     yield (url_to_prefix.get(url, prefix_or_url), url, fname)
                 return
-            return self.get_objects(
+            yield from self.get_objects(
                 prefixes_and_ranges,
                 allow_missing=options.get("allow_missing", False),
                 return_info=options.get("info", False),
