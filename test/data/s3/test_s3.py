@@ -25,7 +25,7 @@ from metaflow.plugins.datatools.s3 import (
 from metaflow.metaflow_config import S3_DIRECT_BOTO3
 from metaflow.util import to_bytes, unicode_type
 
-INJECT_FAILURE_RATES = [0] if S3_DIRECT_BOTO3 else [0, 10, 50, 90]
+INJECT_FAILURE_RATES = [0, 10, 50, 90]
 
 from . import s3_data
 from .. import FakeFlow, DO_TEST_RUN, S3ROOT

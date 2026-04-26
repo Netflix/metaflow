@@ -153,7 +153,10 @@ class S3DirectClient(object):
 
             if pending and attempt < retry_count:
                 self._s3_client.reset_client()
-                time.sleep(min(2**attempt, 30) + random.randint(0, 5))
+                if self._inject_failures > 0:
+                    time.sleep(0.01)
+                else:
+                    time.sleep(min(2**attempt, 30) + random.randint(0, 5))
 
         if pending:
             from .s3 import MetaflowS3Exception
