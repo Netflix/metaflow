@@ -1,12 +1,41 @@
-import json
+"""
+Core integration tests for Metaflow.
+
+Each pytest item corresponds to one (context, graph, test, executor) combination.
+The flow_triple fixture (parametrized in conftest.py) provides the combination;
+this module runs it directly via run_test() without a subprocess wrapper.
+
+Usage:
+    tox -e core-local                         # local backend via tox
+    pytest test/core/ -m local                # local backend, all tests
+    pytest test/core/ -m local -n auto        # parallel with xdist
+    pytest test/core/ -m local \\
+        --core-tests BasicArtifactTest \\
+        --core-graphs single-linear-step      # targeted run
+"""
+
 import os
-import subprocess
 import sys
-import tempfile
-from typing import List, Tuple
+from typing import Tuple
+
+import pytest
+
+_CORE_DIR = os.path.dirname(os.path.abspath(__file__))
+if _CORE_DIR not in sys.path:
+    sys.path.insert(0, _CORE_DIR)
+
+from contexts import CHECKS, CONTEXT_MARKERS
+from run_tests import run_test
+from metaflow_test.formatter import FlowFormatter
 
 
 class _WithDir:
+    """Temporarily change the working directory, restoring it on exit.
+
+    run_test() captures os.getcwd() to locate metaflow_test/ and tests/,
+    so it must be called with cwd = test/core/.
+    """
+
     def __init__(self, new_dir: str) -> None:
         self._old = os.getcwd()
         self._new = new_dir
@@ -19,65 +48,40 @@ class _WithDir:
         os.chdir(self._old)
 
 
-def run_core_test_combination(
-    context: str, graph: str, tests: List[str], masked_cpu_count: int
-) -> None:
-    num_parallel = min(masked_cpu_count, len(tests))
+def test_flow_triple(flow_triple: Tuple) -> None:
+    """Run one (context, graph, test, executor) combination.
 
-    core_dir = os.path.dirname(__file__)
+    The flow_triple fixture is parametrized by conftest.pytest_generate_tests,
+    which generates one item per valid combination. Each item runs as an
+    independent pytest test, enabling parallel execution via pytest-xdist
+    and per-test timeout/failure isolation.
+    """
+    context, graph, test, executor = flow_triple
 
-    env = os.environ.copy()
-    env["METAFLOW_CLICK_API_PROCESS_CONFIG"] = "0"
-    env["METAFLOW_TEST_PRINT_FLOW"] = "1"
-    env["PYTHONPATH"] = (
-        "%s:%s" % (core_dir, env["PYTHONPATH"]) if "PYTHONPATH" in env else core_dir
-    )
-    # Ensure METAFLOW_USER is set before run_tests.py imports metaflow so that
-    # metaflow_config.USER is cached as a non-root value at module load time.
-    # This is required for the API executor when the host user is root.
-    env.setdefault("METAFLOW_USER", "tester")
+    # METAFLOW_USER must be set before metaflow imports so that the cached
+    # USER value is non-root (required for the api executor on root hosts).
+    env_base = {
+        "METAFLOW_CLICK_API_PROCESS_CONFIG": "0",
+        "METAFLOW_TEST_PRINT_FLOW": "1",
+        "METAFLOW_USER": os.environ.get("METAFLOW_USER", "tester"),
+    }
 
-    with _WithDir(core_dir):
-        fd, failure_file = tempfile.mkstemp(dir=".")
-        os.close(fd)
-        try:
-            cmd = [
-                sys.executable,
-                "run_tests.py",
-                "--num-parallel",
-                str(num_parallel),
-                "--failed-dump",
-                failure_file,
-                "--contexts",
-                context,
-                "--tests",
-                ",".join(tests),
-                "--graphs",
-                graph,
-            ]
-            result = subprocess.run(cmd, env=env)
-            if result.returncode != 0:
-                try:
-                    with open(failure_file, "rt") as f:
-                        failures = json.load(f)
-                except (FileNotFoundError, json.JSONDecodeError):
-                    failures = {
-                        "unknown": "run_tests.py exited with code %d"
-                        % result.returncode
-                    }
-                import pytest
+    formatter = FlowFormatter(graph, test)
 
-                pytest.fail(
-                    "Core tests failed in CoreTest(%s, %s, %s): %s"
-                    % (context, graph, tests, failures)
-                )
-        finally:
-            if os.path.exists(failure_file):
-                os.remove(failure_file)
+    # run_test() uses os.getcwd() to locate metaflow_test/ and tests/.
+    with _WithDir(_CORE_DIR):
+        ret, path = run_test(
+            formatter=formatter,
+            context=context,
+            debug=False,
+            checks=CHECKS,
+            env_base=env_base,
+            executor=executor,
+        )
 
-
-def test_core_combination(
-    core_test_params: Tuple[str, str, List[str]], masked_cpu_count: int
-) -> None:
-    context, graph, tests = core_test_params
-    run_core_test_combination(context, graph, tests, masked_cpu_count)
+    if ret != 0:
+        marker = CONTEXT_MARKERS.get(context["name"], context["name"])
+        pytest.fail(
+            "Core test failed: %s/%s/%s/%s\n  flow path: %s"
+            % (marker, graph["name"], test.__class__.__name__, executor, path)
+        )
