@@ -21,6 +21,7 @@ SERVICE_OPTIONS=(
     "ddb-local"
     "sfn-local"
     "airflow"
+    "fake-gcs-server"
 )
 
 gum style "$LOGO" \

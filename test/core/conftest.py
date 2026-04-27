@@ -1,13 +1,53 @@
+import importlib
+import json
 import os
 import sys
 from typing import Any
 
 import pytest
 
-# Ensure test/core/ is on sys.path so run_tests and metaflow_test are importable.
+from metaflow_test import MetaflowTest
+from metaflow_test.formatter import FlowFormatter
+
+# Ensure test/core/ is on sys.path so metaflow_test is importable.
 _CORE_DIR = os.path.dirname(os.path.abspath(__file__))
 if _CORE_DIR not in sys.path:
     sys.path.insert(0, _CORE_DIR)
+
+
+# ---------------------------------------------------------------------------
+# Test discovery — owned by pytest, no dependency on run_tests.py
+# ---------------------------------------------------------------------------
+
+
+def _iter_graphs():
+    root = os.path.join(_CORE_DIR, "graphs")
+    for graphfile in os.listdir(root):
+        if graphfile.endswith(".json") and not graphfile[0] == ".":
+            with open(os.path.join(root, graphfile)) as f:
+                yield json.load(f)
+
+
+def _iter_tests():
+    root = os.path.join(_CORE_DIR, "tests")
+    if root not in sys.path:
+        sys.path.insert(0, root)
+    for testfile in os.listdir(root):
+        if testfile.endswith(".py") and not testfile[0] == ".":
+            mod = importlib.import_module(testfile[:-3], "metaflow_test")
+            for name in dir(mod):
+                obj = getattr(mod, name)
+                if (
+                    name != "MetaflowTest"
+                    and isinstance(obj, type)
+                    and issubclass(obj, MetaflowTest)
+                ):
+                    yield obj()
+
+
+# ---------------------------------------------------------------------------
+# pytest hooks
+# ---------------------------------------------------------------------------
 
 
 def pytest_addoption(parser: Any) -> None:
@@ -28,9 +68,6 @@ def pytest_generate_tests(metafunc: Any) -> None:
         return
 
     try:
-        from run_tests import iter_graphs, iter_tests
-        from metaflow_test.formatter import FlowFormatter
-
         ok_tests_raw = metafunc.config.getoption("--core-tests", default=None)
         ok_graphs_raw = metafunc.config.getoption("--core-graphs", default=None)
         ok_tests = (
@@ -54,8 +91,8 @@ def pytest_generate_tests(metafunc: Any) -> None:
         disable_parallel = os.environ.get("METAFLOW_CORE_DISABLE_PARALLEL", "") == "1"
 
         mark = getattr(pytest.mark, marker_name)
-        all_tests = sorted(iter_tests(), key=lambda t: t.PRIORITY)
-        all_graphs = list(iter_graphs())
+        all_tests = sorted(_iter_tests(), key=lambda t: t.PRIORITY)
+        all_graphs = list(_iter_graphs())
 
         params = []
         for graph in all_graphs:
