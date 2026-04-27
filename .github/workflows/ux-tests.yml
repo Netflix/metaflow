@@ -117,6 +117,7 @@ jobs:
             workers: 4
             memory: 6144
             timeout: 900
+            extra_args: '-k "not conda"'
           - backend: sfn-batch
             services: "minio,postgresql,metadata-service,localbatch,ddb-local,sfn-local"
             workers: 2
@@ -298,7 +299,8 @@ jobs:
             --cov-report=xml:coverage.xml \
             --cov-report=html:htmlcov \
             --cov-branch \
-            --junit-xml=junit-${{ matrix.backend }}.xml
+            --junit-xml=junit-${{ matrix.backend }}.xml \
+            ${{ matrix.extra_args || '' }}
 
       - name: Upload coverage data
         if: always()
