@@ -1,9 +1,15 @@
 import os
 import sys
 import types
+import uuid
+import datetime
 
+from typing import Dict, List, Union, Tuple as TTuple
 from metaflow.exception import MetaflowException
 from metaflow.metaflow_config_funcs import from_conf, get_validate_choice_fn
+
+# Recursive type alias for JSON, used by Runner API type mappings
+JSON = Union[Dict[str, "JSON"], List["JSON"], str, int, float, bool, None]
 
 # Disable multithreading security on MacOS
 if sys.platform == "darwin":
@@ -170,7 +176,10 @@ TEMPDIR = from_conf("TEMPDIR", ".")
 
 DATATOOLS_CLIENT_PARAMS = from_conf("DATATOOLS_CLIENT_PARAMS", {})
 if S3_ENDPOINT_URL:
-    DATATOOLS_CLIENT_PARAMS["endpoint_url"] = S3_ENDPOINT_URL
+    # Use setdefault so that an explicit endpoint_url in METAFLOW_DATATOOLS_CLIENT_PARAMS
+    # takes precedence over S3_ENDPOINT_URL (e.g. when the datatools bucket lives on a
+    # different endpoint than the general S3 datastore).
+    DATATOOLS_CLIENT_PARAMS.setdefault("endpoint_url", S3_ENDPOINT_URL)
 if S3_VERIFY_CERTIFICATE:
     DATATOOLS_CLIENT_PARAMS["verify"] = S3_VERIFY_CERTIFICATE
 
@@ -439,6 +448,13 @@ KUBERNETES_JOBSET_VERSION = from_conf("KUBERNETES_JOBSET_VERSION", "v1alpha2")
 
 KUBERNETES_JOB_TERMINATE_MODE = from_conf("KUBERNETES_JOB_TERMINATE_MODE", "stop")
 
+# How long (in seconds) to keep completed k8s Jobs before auto-deletion.
+# Default: 7 days. Set lower in dev/test environments to prevent pod
+# accumulation that can exhaust cluster resources.
+KUBERNETES_JOB_TTL_SECONDS_AFTER_FINISHED = from_conf(
+    "KUBERNETES_JOB_TTL_SECONDS_AFTER_FINISHED", 7 * 24 * 60 * 60
+)
+
 ##
 # Argo Events Configuration
 ##
@@ -621,6 +637,55 @@ def get_pinned_conda_libs(python_version, datastore_type):
     return pins
 
 
+###
+# Runner API type mappings
+# Extensions can add custom Click parameter types via get_click_to_python_types
+###
+def get_click_to_python_types():
+    """
+    Returns the mapping from Click parameter types to Python types for Runner API.
+    Extensions can override this function to add custom type mappings.
+    """
+    # Imports are local to avoid circular dependencies:
+    # metaflow_config -> includefile -> plugins -> ... -> config_options -> debug -> metaflow_config
+    from metaflow._vendor.click.types import (
+        BoolParamType,
+        Choice,
+        DateTime,
+        File,
+        FloatParamType,
+        IntParamType,
+        Path,
+        StringParamType,
+        Tuple,
+        UUIDParameterType,
+    )
+    from metaflow.parameters import JSONTypeClass
+    from metaflow.includefile import FilePathClass
+    from metaflow.user_configs.config_options import (
+        LocalFileInput,
+        MultipleTuple,
+        ConfigValue,
+    )
+
+    return {
+        StringParamType: str,
+        IntParamType: int,
+        FloatParamType: float,
+        BoolParamType: bool,
+        UUIDParameterType: uuid.UUID,
+        Path: str,
+        DateTime: datetime.datetime,
+        Tuple: tuple,
+        Choice: str,
+        File: str,
+        JSONTypeClass: JSON,
+        FilePathClass: str,
+        LocalFileInput: str,
+        MultipleTuple: TTuple[str, Union[JSON, ConfigValue]],
+    }
+
+
 # Check if there are extensions to Metaflow to load and override everything
 try:
     from metaflow.extension_support import get_modules
@@ -646,7 +711,18 @@ try:
                     d1 = f1(python_version, datastore_type)
                     d2 = f2(python_version, datastore_type)
                     for k, v in d2.items():
-                        d1[k] = v if k not in d1 else ",".join([d1[k], v])
+                        # An empty string means "any version" — treat it as a
+                        # no-op on either side of the merge instead of joining
+                        # with a comma. Joining "" with ">=X" produced ",>=X"
+                        # (or ">=X,") which downstream formatters turn into
+                        # malformed specs like `pkg==,>=X` that the conda
+                        # solver rejects with "Empty version".
+                        existing = d1.get(k, "")
+                        if not existing:
+                            d1[k] = v
+                        elif v:
+                            d1[k] = ",".join([existing, v])
+                        # else: v is empty — keep existing specifier
                     return d1
 
                 globals()[n] = _new_get_pinned_conda_libs
@@ -656,6 +732,16 @@ try:
                 if any(" " in x for x in o):
                     raise ValueError("Decospecs cannot contain spaces")
                 _TOGGLE_DECOSPECS.extend(o)
+            elif n == "get_click_to_python_types":
+                # Extension provides additional Click type mappings for Runner API
+                # Merge extension's types with base types
+                def _new_get_click_to_python_types(f1=globals()[n], f2=o):
+                    d1 = f1()
+                    d2 = f2()
+                    d1.update(d2)
+                    return d1
+
+                globals()[n] = _new_get_click_to_python_types
             elif not n.startswith("__") and not isinstance(o, types.ModuleType):
                 globals()[n] = o
     # If DEFAULT_DECOSPECS is set, use that, else extrapolate from extensions

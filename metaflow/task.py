@@ -74,7 +74,7 @@ class MetaflowTask(object):
         # contain the arguments to pass to `self.next`. If
         # True, it means we are using whatever the usual
         # arguments to `self.next` are for this step.
-        fake_next_call_args = False
+        fake_next_call_args = None
         raised_exception = None
         had_raised_exception = False
 
@@ -103,17 +103,17 @@ class MetaflowTask(object):
                 # wrapped function
             # Else, we continue down the list of wrappers
         try:
-            # fake_next_call is used here to also indicate that the step was skipped
+            # fake_next_call_args is used here to also indicate that the step was skipped
             # so we do not execute anything.
             if not fake_next_call_args:
                 if input_obj is None:
                     if wrapped_func:
-                        fake_next_call_args = wrapped_func(self.flow)
+                        fake_next_call_args = wrapped_func(self.flow) or None
                     else:
                         step_function()
                 else:
                     if wrapped_func:
-                        fake_next_call_args = wrapped_func(self.flow, input_obj)
+                        fake_next_call_args = wrapped_func(self.flow, input_obj) or None
                     else:
                         step_function(input_obj)
         except Exception as ex:
@@ -139,14 +139,20 @@ class MetaflowTask(object):
                     raise r[2]
             else:
                 raise RuntimeError(
-                    "Invalid return value from a UserStepDecorator. Expected an"
+                    "Invalid return value from a UserStepDecorator. Expected an "
                     "exception or an exception and arguments for self.next, got: %s" % r
                 )
         if raised_exception:
             # We have an exception that we need to propagate
             raise raised_exception
 
-        if fake_next_call_args or had_raised_exception:
+        # Both None and False mean "do not override the self.next call".
+        # None is the post_step sentinel; False is accepted for symmetry so a
+        # UserStepDecorator whose post_step returns (None, False) is a no-op
+        # instead of tripping the "Invalid value" RuntimeError below.
+        if (
+            fake_next_call_args is not None and fake_next_call_args is not False
+        ) or had_raised_exception:
             # We want to override the next call or we caught an exception (in which
             # case the regular step code didn't call self.next). In this case,
             # we need to set the transition variables
@@ -179,7 +185,7 @@ class MetaflowTask(object):
                 else:
                     raise RuntimeError(
                         "Invalid value passed to self.next; expected "
-                        " bool of a dictionary; got: %s" % fake_next_call_args
+                        "bool or a dictionary; got: %s" % fake_next_call_args
                     )
 
     def _init_parameters(self, parameter_ds, passdown=True):
@@ -855,6 +861,20 @@ class MetaflowTask(object):
                             }
                         )
                 from_start("MetaflowTask: before pre-step decorators")
+                # Update the system context singleton with task-level information.
+                from .system_context import system_context
+
+                system_context._update(
+                    run_id=run_id,
+                    input_paths=input_paths,
+                    task_id=task_id,
+                    task_datastore=output,
+                    ubf_context=self.ubf_context,
+                    split_index=split_index,
+                    max_user_code_retries=max_user_code_retries,
+                    retry_count=retry_count,
+                    inputs=inputs,
+                )
                 for deco in decorators:
                     if deco.name == "card" and self.orig_flow_datastore:
                         # if spin step and card decorator, pass spin metadata
@@ -863,19 +883,22 @@ class MetaflowTask(object):
                         ](self.environment, self.flow, self.event_logger, self.monitor)
                     else:
                         metadata = self.metadata
-                    deco.task_pre_step(
-                        step_name,
-                        output,
-                        metadata,
-                        run_id,
-                        task_id,
-                        self.flow,
-                        self.flow._graph,
-                        retry_count,
-                        max_user_code_retries,
-                        self.ubf_context,
-                        inputs,
-                    )
+                    if deco.task_pre_step_ctx is not None:
+                        deco.task_pre_step_ctx(step_name)
+                    else:
+                        deco.task_pre_step(
+                            step_name,
+                            output,
+                            metadata,
+                            run_id,
+                            task_id,
+                            self.flow,
+                            self.flow._graph,
+                            retry_count,
+                            max_user_code_retries,
+                            self.ubf_context,
+                            inputs,
+                        )
 
                 orig_step_func = step_func
                 for deco in decorators:
@@ -884,14 +907,17 @@ class MetaflowTask(object):
                     # is used e.g. by catch_decorator which switches to a
                     # fallback code if the user code has failed too many
                     # times.
-                    step_func = deco.task_decorate(
-                        step_func,
-                        self.flow,
-                        self.flow._graph,
-                        retry_count,
-                        max_user_code_retries,
-                        self.ubf_context,
-                    )
+                    if deco.task_decorate_ctx is not None:
+                        step_func = deco.task_decorate_ctx(step_name, step_func)
+                    else:
+                        step_func = deco.task_decorate(
+                            step_func,
+                            self.flow,
+                            self.flow._graph,
+                            retry_count,
+                            max_user_code_retries,
+                            self.ubf_context,
+                        )
                 from_start("MetaflowTask: finished decorator processing")
                 if join_type:
                     self._exec_step_function(step_func, orig_step_func, input_obj)
@@ -899,13 +925,16 @@ class MetaflowTask(object):
                     self._exec_step_function(step_func, orig_step_func)
                 from_start("MetaflowTask: step function executed")
                 for deco in decorators:
-                    deco.task_post_step(
-                        step_name,
-                        self.flow,
-                        self.flow._graph,
-                        retry_count,
-                        max_user_code_retries,
-                    )
+                    if deco.task_step_completed_ctx is not None:
+                        deco.task_step_completed_ctx(step_name)
+                    else:
+                        deco.task_post_step(
+                            step_name,
+                            self.flow,
+                            self.flow._graph,
+                            retry_count,
+                            max_user_code_retries,
+                        )
 
                 self.flow._task_ok = True
                 self.flow._success = True
@@ -921,14 +950,17 @@ class MetaflowTask(object):
 
                 exception_handled = False
                 for deco in decorators:
-                    res = deco.task_exception(
-                        ex,
-                        step_name,
-                        self.flow,
-                        self.flow._graph,
-                        retry_count,
-                        max_user_code_retries,
-                    )
+                    if deco.task_step_completed_ctx is not None:
+                        res = deco.task_step_completed_ctx(step_name, exception=ex)
+                    else:
+                        res = deco.task_exception(
+                            ex,
+                            step_name,
+                            self.flow,
+                            self.flow._graph,
+                            retry_count,
+                            max_user_code_retries,
+                        )
                     exception_handled = bool(res) or exception_handled
 
                 if exception_handled:
@@ -988,14 +1020,17 @@ class MetaflowTask(object):
                 # final decorator hook: The task results are now
                 # queryable through the client API / datastore
                 for deco in decorators:
-                    deco.task_finished(
-                        step_name,
-                        self.flow,
-                        self.flow._graph,
-                        self.flow._task_ok,
-                        retry_count,
-                        max_user_code_retries,
-                    )
+                    if deco.task_finished_ctx is not None:
+                        deco.task_finished_ctx(step_name, self.flow._task_ok)
+                    else:
+                        deco.task_finished(
+                            step_name,
+                            self.flow,
+                            self.flow._graph,
+                            self.flow._task_ok,
+                            retry_count,
+                            max_user_code_retries,
+                        )
 
                 # terminate side cars
                 self.metadata.stop_heartbeat()
