@@ -177,7 +177,8 @@ class ContentAddressedStore(object):
                             version = meta.get("cas_version", -1)
                             if version == -1:
                                 raise DataException(
-                                    "Could not extract encoding version for '%s'" % path_key
+                                    "Could not extract encoding version for '%s'"
+                                    % path_key
                                 )
                             unpack_code = getattr(self, "_unpack_v%d" % version, None)
                             if unpack_code is None:
