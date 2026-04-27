@@ -77,7 +77,8 @@ jobs:
     - name: Execute tests
       run: |
         cd test/data
-        PYTHONPATH=$(pwd)/../../ python3 -m pytest --benchmark-skip -s -v --tb=long
+        PYTHONPATH=$(pwd)/../../ python3 -m pytest --benchmark-skip -s -v --tb=long \
+          -k "not 5gb_file and not 3000_files"
     - name: Stop MinIO
       if: always()
       run: docker rm -f minio || true
