@@ -1,4 +1,5 @@
 name: metaflow.s3-tests.minio
+# Uses standalone MinIO Docker container instead of minikube devstack
 
 on:
   push:
