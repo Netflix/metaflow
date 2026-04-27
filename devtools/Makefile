@@ -29,7 +29,7 @@ TILTFILE := $(MKFILE_DIR)/Tiltfile
 MAKE_CMD := $(MAKE) -f "$(MKFILE_PATH)"
 
 MINIKUBE_CPUS ?= 4
-MINIKUBE_MEMORY ?= 6144
+MINIKUBE_MEMORY ?= 8192
 MINIKUBE_DISK_SIZE ?= 20g
 WAIT_TIMEOUT ?= 300
 
@@ -255,10 +255,12 @@ shell: setup-tilt
 				METAFLOW_HOME="$(DEVTOOLS_DIR)" \
 				METAFLOW_PROFILE=local \
 				AWS_CONFIG_FILE="$(DEVTOOLS_DIR)/aws_config" \
+				PYTHONPATH="$(MKFILE_DIR)/.." \
 				"$$user_shell" -i; \
 		else \
 			env METAFLOW_HOME="$(DEVTOOLS_DIR)" \
 				METAFLOW_PROFILE=local \
+				PYTHONPATH="$(MKFILE_DIR)/.." \
 				"$$user_shell" -i; \
 		fi'
 
@@ -269,6 +271,8 @@ wait-until-ready:
 	@timeout 120 bash -c 'while ! $(TILT) get session; do sleep 3;done'
 	@echo "Waiting for services to be ready. Timing out in $(WAIT_TIMEOUT) seconds..."
 # Need to wait for Tiltfile first, as other resources return 404 otherwise
+# Poll until the UIResource exists (Tilt may not have loaded the Tiltfile yet)
+	@timeout $(WAIT_TIMEOUT) bash -c 'until $(TILT) get uiresource "(Tiltfile)" >/dev/null 2>&1; do sleep 2; done'
 	@$(TILT) wait --for=condition=Ready "uiresource/(Tiltfile)" --timeout=$(WAIT_TIMEOUT)s
 	@$(TILT) wait --for=condition=Ready uiresource/generate-configs --timeout=$(WAIT_TIMEOUT)s
 
