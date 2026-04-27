@@ -35,9 +35,9 @@ class _FakeStorageImpl(object):
 
     def load_bytes(self, paths):
         expected_paths = [entry[0] for entry in self._entries]
-        assert set(expected_paths).issubset(set(paths)), (
-            "expected paths %s not all in %s" % (expected_paths, paths)
-        )
+        assert set(expected_paths).issubset(
+            set(paths)
+        ), "expected paths %s not all in %s" % (expected_paths, paths)
         return _LoadedBytesContext(self._entries)
 
 
@@ -51,81 +51,49 @@ def _write_blob_file(tmp_path, name="blob.bin", data=b"not-a-valid-gzip-stream")
     return str(blob_file)
 
 
-def test_load_blobs_uses_current_path_key_when_version_missing(tmp_path):
+@pytest.mark.parametrize(
+    "meta, unpack_error, expected_substrings",
+    [
+        ({}, None, ["Could not extract encoding version"]),
+        (
+            {"cas_version": 999, "cas_raw": False},
+            None,
+            ["Unknown encoding version 999"],
+        ),
+        (
+            {"cas_version": 1, "cas_raw": False},
+            "boom",
+            ["Could not unpack artifact", "boom"],
+        ),
+    ],
+    ids=["missing_version", "unknown_version", "unpack_failure"],
+)
+def test_load_blobs_error_message_uses_current_path_key(
+    tmp_path, monkeypatch, meta, unpack_error, expected_substrings
+):
     stale_key = "aaaaaaaaaa"
     current_key = "bbbbbbbbbb"
-
     stale_path = "prefix/aa/%s" % stale_key
     current_path = "prefix/bb/%s" % current_key
 
     file_path = _write_blob_file(tmp_path)
+    store = _make_store([(current_path, file_path, meta)])
 
-    store = _make_store([(current_path, file_path, {})])
+    if unpack_error is not None:
 
-    # Keep stale_key last on purpose:
-    # the buggy code reuses the outer-loop `path`, which retains the path for
-    # the last key processed. `load_bytes()` returns only `current_path`, so
-    # this ordering makes stale `path` differ from current `path_key`.
+        def _raise_unpack_error(_fileobj):
+            raise ValueError(unpack_error)
+
+        monkeypatch.setattr(store, "_unpack_v1", _raise_unpack_error)
+
+    # Order keys so the buggy outer-loop `path` would differ from the current
+    # `path_key`: load_bytes() returns only current_path, but the buggy code's
+    # stale `path` would retain stale_path (the last outer-loop iteration).
     with pytest.raises(DataException) as exc:
         list(store.load_blobs([current_key, stale_key]))
 
     message = str(exc.value)
     assert current_path in message
     assert stale_path not in message
-    assert "Could not extract encoding version" in message
-
-
-def test_load_blobs_uses_current_path_key_for_unknown_encoding_version(tmp_path):
-    stale_key = "aaaaaaaaaa"
-    current_key = "bbbbbbbbbb"
-
-    stale_path = "prefix/aa/%s" % stale_key
-    current_path = "prefix/bb/%s" % current_key
-
-    file_path = _write_blob_file(tmp_path)
-
-    store = _make_store(
-        [(current_path, file_path, {"cas_version": 999, "cas_raw": False})]
-    )
-
-    # Keep stale_key last on purpose:
-    # the buggy code leaves `path` pointing at the last outer-loop key, while
-    # `path_key` comes from the current `load_bytes()` entry.
-    with pytest.raises(DataException) as exc:
-        list(store.load_blobs([current_key, stale_key]))
-
-    message = str(exc.value)
-    assert "Unknown encoding version 999" in message
-    assert current_path in message
-    assert stale_path not in message
-
-
-def test_load_blobs_uses_current_path_key_when_unpack_fails(tmp_path, monkeypatch):
-    stale_key = "aaaaaaaaaa"
-    current_key = "bbbbbbbbbb"
-
-    stale_path = "prefix/aa/%s" % stale_key
-    current_path = "prefix/bb/%s" % current_key
-
-    file_path = _write_blob_file(tmp_path)
-
-    store = _make_store(
-        [(current_path, file_path, {"cas_version": 1, "cas_raw": False})]
-    )
-
-    def _raise_unpack_error(_fileobj):
-        raise ValueError("boom")
-
-    monkeypatch.setattr(store, "_unpack_v1", _raise_unpack_error)
-
-    # Keep stale_key last on purpose:
-    # this ensures stale outer-loop `path` is `stale_path`, while the failing
-    # blob's actual `path_key` is `current_path`.
-    with pytest.raises(DataException) as exc:
-        list(store.load_blobs([current_key, stale_key]))
-
-    message = str(exc.value)
-    assert "Could not unpack artifact" in message
-    assert current_path in message
-    assert stale_path not in message
-    assert "boom" in message
+    for expected in expected_substrings:
+        assert expected in message
