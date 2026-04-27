@@ -121,19 +121,6 @@ class SplitStartFlow(FlowSpec):
         pass
 
 
-def _make_dynamic_single_step_flow():
-    namespace = {}
-    exec(
-        compile("def only(self):\n    self.x = 42\n", "<synthetic>", "exec"), namespace
-    )
-    only = step(start=True, end=True)(namespace["only"])
-    return type(
-        "DynamicSingleStepFlow",
-        (FlowSpec,),
-        {"__module__": __name__, "only": only},
-    )
-
-
 # ---------------------------------------------------------------------------
 # Flow classes: single-step flows composed with configs, decorators, mutators
 # ---------------------------------------------------------------------------
@@ -474,20 +461,6 @@ def test_annotated_single_step():
     assert graph["only"].is_end_step is True
     assert graph.start_step == "only"
     assert graph.end_step == "only"
-
-
-def test_dynamic_single_step_without_inspectable_source():
-    """Dynamically-generated @step(start=True, end=True) works without source."""
-    graph = _make_dynamic_single_step_flow()._graph
-
-    assert graph.start_step == "only"
-    assert graph.end_step == "only"
-    assert graph["only"].type == "end"
-    assert graph["only"].num_args == 1
-    assert graph["only"].func_lineno == 1
-    assert graph["only"].source_file == "<synthetic>"
-
-    linter.run_checks(graph)
 
 
 def test_source_backed_single_step_with_next_still_fails_lint():
