@@ -77,19 +77,19 @@ def test_custom_named_end_task(custom_named_run):
 
 
 def test_custom_named_steps_present(custom_named_run):
-    step_names = {s.id for s in custom_named_run}
+    step_names = {step.id for step in custom_named_run}
     assert step_names == {"begin", "middle", "finish"}
 
 
 def test_custom_named_parent_steps(custom_named_run):
     assert list(custom_named_run["begin"].parent_steps) == []
-    assert [s.id for s in custom_named_run["middle"].parent_steps] == ["begin"]
-    assert [s.id for s in custom_named_run["finish"].parent_steps] == ["middle"]
+    assert [step.id for step in custom_named_run["middle"].parent_steps] == ["begin"]
+    assert [step.id for step in custom_named_run["finish"].parent_steps] == ["middle"]
 
 
 def test_custom_named_child_steps(custom_named_run):
-    assert [s.id for s in custom_named_run["begin"].child_steps] == ["middle"]
-    assert [s.id for s in custom_named_run["middle"].child_steps] == ["finish"]
+    assert [step.id for step in custom_named_run["begin"].child_steps] == ["middle"]
+    assert [step.id for step in custom_named_run["middle"].child_steps] == ["finish"]
     assert list(custom_named_run["finish"].child_steps) == []
 
 
@@ -123,7 +123,7 @@ def test_single_step_end_task(single_step_run):
 
 
 def test_single_step_present(single_step_run):
-    assert {s.id for s in single_step_run} == {"only"}
+    assert {step.id for step in single_step_run} == {"only"}
 
 
 def test_single_step_parent_child_empty(single_step_run):
@@ -160,7 +160,7 @@ def test_single_step_bare_end_task(single_step_bare_run):
 
 
 def test_single_step_bare_step_present(single_step_bare_run):
-    assert {s.id for s in single_step_bare_run} == {"only"}
+    assert {step.id for step in single_step_bare_run} == {"only"}
 
 
 def test_single_step_bare_parent_child_empty(single_step_bare_run):
@@ -194,16 +194,22 @@ def test_branch_merge_data(custom_branch_run):
 
 
 def test_branch_steps_present(custom_branch_run):
-    assert {s.id for s in custom_branch_run} == {"entry", "a", "b", "merge", "done"}
+    assert {step.id for step in custom_branch_run} == {
+        "entry",
+        "a",
+        "b",
+        "merge",
+        "done",
+    }
 
 
 def test_branch_entry_has_two_children(custom_branch_run):
-    children = [s.id for s in custom_branch_run["entry"].child_steps]
+    children = [step.id for step in custom_branch_run["entry"].child_steps]
     assert sorted(children) == ["a", "b"]
 
 
 def test_branch_merge_has_two_parents(custom_branch_run):
-    parents = [s.id for s in custom_branch_run["merge"].parent_steps]
+    parents = [step.id for step in custom_branch_run["merge"].parent_steps]
     assert sorted(parents) == ["a", "b"]
 
 
@@ -313,7 +319,7 @@ def test_single_step_with_stacked_decos_graph_info(single_step_with_stacked_deco
     graph_info = (
         single_step_with_stacked_decos_run["_parameters"].task["_graph_info"].data
     )
-    names = {d["name"] for d in graph_info["steps"]["only"]["decorators"]}
+    names = {deco["name"] for deco in graph_info["steps"]["only"]["decorators"]}
     assert {"retry", "resources"}.issubset(names)
 
 
@@ -328,5 +334,5 @@ def test_single_step_with_flow_mutator_applied(single_step_with_flow_mutator_run
     graph_info = (
         single_step_with_flow_mutator_run["_parameters"].task["_graph_info"].data
     )
-    names = {d["name"] for d in graph_info["steps"]["only"]["decorators"]}
+    names = {deco["name"] for deco in graph_info["steps"]["only"]["decorators"]}
     assert "retry" in names

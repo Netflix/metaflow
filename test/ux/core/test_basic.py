@@ -294,7 +294,7 @@ def test_custom_step_names(exec_mode, decospecs, compute_env, tag, scheduler_con
     )
 
     assert run.successful, "Run was not successful"
-    step_names = {s.id for s in run}
+    step_names = {step.id for step in run}
     assert step_names == {"begin", "process", "finish"}, (
         "Expected custom step names, got %s" % step_names
     )
@@ -325,7 +325,7 @@ def test_single_step_flow(exec_mode, decospecs, compute_env, tag, scheduler_conf
     )
 
     assert run.successful, "Run was not successful"
-    step_names = {s.id for s in run}
+    step_names = {step.id for step in run}
     assert step_names == {"only"}, "Expected single step 'only', got %s" % step_names
     assert run["only"].task.data.result == 42, "Single step data incorrect"
 
@@ -348,7 +348,7 @@ def test_custom_branch_flow(exec_mode, decospecs, compute_env, tag, scheduler_co
     )
 
     assert run.successful, "Run was not successful"
-    step_names = {s.id for s in run}
+    step_names = {step.id for step in run}
     assert step_names == {"entry", "left", "right", "merge", "done"}, (
         "Expected custom branch step names, got %s" % step_names
     )

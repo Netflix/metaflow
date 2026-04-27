@@ -546,7 +546,7 @@ def test_single_step_with_config_descriptor_registered():
 def test_single_step_with_multiple_step_decorators():
     """Multiple step decorators stack correctly on a single-step flow."""
     graph = _SingleStepWithStackedDecos._graph
-    deco_names = {d.name for d in graph["only"].decorators}
+    deco_names = {deco.name for deco in graph["only"].decorators}
     assert {"retry", "resources"}.issubset(deco_names)
 
 
