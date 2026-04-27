@@ -1,18 +1,14 @@
+from contextlib import contextmanager
+
 import pytest
 
 from metaflow.datastore.content_addressed_store import ContentAddressedStore
 from metaflow.datastore.exceptions import DataException
 
 
-class _LoadedBytesContext(object):
-    def __init__(self, entries):
-        self._entries = entries
-
-    def __enter__(self):
-        return iter(self._entries)
-
-    def __exit__(self, exc_type, exc, tb):
-        return False
+@contextmanager
+def _loaded_bytes(entries):
+    yield iter(entries)
 
 
 class _FakeStorageImpl(object):
@@ -38,7 +34,7 @@ class _FakeStorageImpl(object):
         assert set(expected_paths).issubset(
             set(paths)
         ), "expected paths %s not all in %s" % (expected_paths, paths)
-        return _LoadedBytesContext(self._entries)
+        return _loaded_bytes(self._entries)
 
 
 def _make_store(entries):
