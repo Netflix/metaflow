@@ -1,4 +1,3 @@
-import os
 import signal
 import traceback
 
@@ -7,7 +6,9 @@ from metaflow.decorators import StepDecorator
 from metaflow.unbounded_foreach import UBF_CONTROL
 from metaflow.metaflow_config import DEFAULT_RUNTIME_LIMIT
 
-_THIS_FILE = os.path.basename(__file__)
+# Match by full module path so user files with similar basenames
+# (e.g. test_timeout_decorator.py) are not incorrectly filtered out.
+_THIS_FILE = __file__
 
 
 class TimeoutException(MetaflowException):
