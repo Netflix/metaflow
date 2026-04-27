@@ -181,26 +181,37 @@ def run_test(formatter, context, debug, checks, env_base, executor):
 
         original_env = os.environ.copy()
         try:
-            # allow passenv = USER in tox.ini to work..
-            env = {"USER": original_env.get("USER")}
-            env.update(env_base)
-            # expand environment variables
-            # nonce can be used to insert entropy in env vars.
-            # This is useful e.g. for separating S3 paths of
-            # runs, which may have clashing run_ids
-            env.update(
-                dict(
-                    (k, v.format(nonce=str(uuid.uuid4())))
-                    for k, v in context["env"].items()
-                )
-            )
+            nonce = str(uuid.uuid4())
 
-            pythonpath = os.environ.get("PYTHONPATH", ".")
+            if context.get("env"):
+                # Standalone CLI path: context dict carries explicit env overrides
+                # (e.g. run_tests.py --contexts python3-batch).  Build a clean env
+                # so only the declared vars are visible to the test subprocess.
+                env = {"USER": original_env.get("USER")}
+            else:
+                # Pytest path: tox setenv has already configured all Metaflow vars
+                # in the process environment.  Inherit everything so the test
+                # subprocess sees the correct datastore, metadata, credentials, etc.
+                env = dict(original_env)
+
+            env.update(env_base)
+            # Apply explicit overrides from context["env"] with nonce expansion.
+            for k, v in context.get("env", {}).items():
+                env[k] = v.format(nonce=nonce)
+            # Expand the {nonce} placeholder in any inherited env var
+            # (e.g. METAFLOW_DATASTORE_SYSROOT_S3 set via tox {{nonce}}).
+            # Use str.replace to avoid KeyError on vars containing other {…} patterns
+            # such as JSON values like {"endpoint_url": "…"}.
+            for k, v in list(env.items()):
+                if isinstance(v, str) and "{nonce}" in v:
+                    env[k] = v.replace("{nonce}", nonce)
+
+            pythonpath = original_env.get("PYTHONPATH", ".")
             env.update(
                 {
                     "LANG": "en_US.UTF-8",
                     "LC_ALL": "en_US.UTF-8",
-                    "PATH": os.environ.get("PATH", "."),
+                    "PATH": original_env.get("PATH", "."),
                     "PYTHONIOENCODING": "utf_8",
                     "PYTHONPATH": "%s:%s" % (package, pythonpath),
                 }

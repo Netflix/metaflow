@@ -9,8 +9,6 @@ _CORE_DIR = os.path.dirname(os.path.abspath(__file__))
 if _CORE_DIR not in sys.path:
     sys.path.insert(0, _CORE_DIR)
 
-from contexts import ALL_CONTEXTS, CONTEXT_MARKERS
-
 
 def pytest_addoption(parser: Any) -> None:
     parser.addoption(
@@ -42,67 +40,57 @@ def pytest_generate_tests(metafunc: Any) -> None:
             {g.lower() for g in ok_graphs_raw.split(",") if g} if ok_graphs_raw else set()
         )
 
-        # If METAFLOW_CORE_CONTEXT is set (e.g. by a tox setenv), only generate
-        # items for that context. This keeps collection fast inside tox envs.
-        active_ctx = os.environ.get("METAFLOW_CORE_CONTEXT", "")
-        active_marker = os.environ.get("METAFLOW_CORE_MARKER", "")
+        # All context configuration comes from the environment (set by tox setenv).
+        marker_name = os.environ.get("METAFLOW_CORE_MARKER", "local")
+        executors = [
+            e for e in os.environ.get("METAFLOW_CORE_EXECUTORS", "cli,api").split(",") if e
+        ]
+        disabled_tests = {
+            t for t in os.environ.get("METAFLOW_CORE_DISABLED_TESTS", "").split(",") if t
+        }
+        enabled_tests = {
+            t for t in os.environ.get("METAFLOW_CORE_ENABLED_TESTS", "").split(",") if t
+        }
+        disable_parallel = os.environ.get("METAFLOW_CORE_DISABLE_PARALLEL", "") == "1"
 
+        mark = getattr(pytest.mark, marker_name)
         all_tests = sorted(iter_tests(), key=lambda t: t.PRIORITY)
         all_graphs = list(iter_graphs())
 
         params = []
-        for context in ALL_CONTEXTS:
-            if context.get("disabled", False):
+        for graph in all_graphs:
+            if ok_graphs and graph["name"].lower() not in ok_graphs:
                 continue
-            context_name = context["name"]
-            marker_name = CONTEXT_MARKERS.get(context_name, "local")
-
-            # Skip contexts that don't match the active context filter
-            if active_ctx and context_name != active_ctx:
-                continue
-            if active_marker and marker_name != active_marker:
+            if disable_parallel and any(
+                "num_parallel" in node for node in graph["graph"].values()
+            ):
                 continue
 
-            mark = getattr(pytest.mark, marker_name)
-            disabled_tests = set(context.get("disabled_tests", []))
-            enabled_tests = set(context.get("enabled_tests", []))
-
-            for graph in all_graphs:
-                if ok_graphs and graph["name"].lower() not in ok_graphs:
+            for test in all_tests:
+                test_name = test.__class__.__name__
+                if ok_tests and test_name.lower() not in ok_tests:
                     continue
-                # Skip parallel graphs for contexts that disable parallelism
-                if context.get("disable_parallel", False) and any(
-                    "num_parallel" in node for node in graph["graph"].values()
-                ):
+                if test_name in disabled_tests:
+                    continue
+                if enabled_tests and test_name not in enabled_tests:
+                    continue
+                if not FlowFormatter(graph, test).valid:
                     continue
 
-                for test in all_tests:
-                    test_name = test.__class__.__name__
-                    if ok_tests and test_name.lower() not in ok_tests:
-                        continue
-                    if test_name in disabled_tests:
-                        continue
-                    if enabled_tests and test_name not in enabled_tests:
-                        continue
-
-                    formatter = FlowFormatter(graph, test)
-                    if not formatter.valid:
-                        continue
-
-                    for executor in context["executors"]:
-                        param_id = "%s/%s/%s/%s" % (
-                            marker_name,
-                            graph["name"],
-                            test_name,
-                            executor,
+                for executor in executors:
+                    param_id = "%s/%s/%s/%s" % (
+                        marker_name,
+                        graph["name"],
+                        test_name,
+                        executor,
+                    )
+                    params.append(
+                        pytest.param(
+                            (graph, test, executor),
+                            marks=[mark],
+                            id=param_id,
                         )
-                        params.append(
-                            pytest.param(
-                                (context, graph, test, executor),
-                                marks=[mark],
-                                id=param_id,
-                            )
-                        )
+                    )
 
         metafunc.parametrize("flow_triple", params)
     except Exception as e:
