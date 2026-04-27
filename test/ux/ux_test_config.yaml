@@ -22,6 +22,14 @@ backends:
     decospec: null
     enabled: true
 
+  # GCS local: runs flows locally but uses Google Cloud Storage (fake-gcs-server)
+  # instead of S3/MinIO for the datastore. Tests the GCS datastore backend.
+  - name: gcs-local
+    scheduler_type: null
+    cluster: null
+    decospec: null
+    enabled: true
+
   # Argo Workflows + Kubernetes (devstack: minikube + argo-workflows)
   - name: argo-kubernetes
     scheduler_type: argo-workflows

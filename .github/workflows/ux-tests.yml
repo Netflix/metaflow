@@ -112,6 +112,12 @@ jobs:
             workers: 1
             memory: 7168
             timeout: 1200
+          - backend: gcs-local
+            services: "minio,postgresql,metadata-service,fake-gcs-server"
+            workers: 4
+            memory: 6144
+            timeout: 900
+            extra_args: '-k "not conda"'
           - backend: sfn-batch
             services: "minio,postgresql,metadata-service,localbatch,ddb-local,sfn-local"
             workers: 2
@@ -150,6 +156,10 @@ jobs:
         run: |
           pip install --upgrade pip
           pip install -e ".[dev]"
+
+      - name: Install GCS dependencies
+        if: matrix.backend == 'gcs-local'
+        run: pip install google-cloud-storage
 
       - name: Set up minikube
         uses: medyagh/setup-minikube@aba8d5ff1666d19b9549133e3b92e70d4fc52cb7
@@ -226,7 +236,7 @@ jobs:
           SERVICES: ${{ matrix.services }}
 
       - name: Pre-pull python:3.9 into minikube
-        if: matrix.backend != 'local' && matrix.backend != 'sfn-batch'
+        if: matrix.backend != 'local' && matrix.backend != 'sfn-batch' && matrix.backend != 'gcs-local'
         run: minikube image pull python:3.9
 
       - name: Save minikube images to cache
@@ -252,6 +262,12 @@ jobs:
       - name: Wait for Airflow REST API
         if: matrix.backend == 'airflow-kubernetes'
         run: devtools/ci/wait-airflow-api.sh
+
+      - name: Set GCS emulator environment
+        if: matrix.backend == 'gcs-local'
+        run: |
+          echo "METAFLOW_DEFAULT_DATASTORE=gs" >> $GITHUB_ENV
+          echo "STORAGE_EMULATOR_HOST=http://localhost:4443" >> $GITHUB_ENV
 
       - name: Clean up completed pods and start background cleanup
         if: matrix.backend == 'airflow-kubernetes'
@@ -283,7 +299,8 @@ jobs:
             --cov-report=xml:coverage.xml \
             --cov-report=html:htmlcov \
             --cov-branch \
-            --junit-xml=junit-${{ matrix.backend }}.xml
+            --junit-xml=junit-${{ matrix.backend }}.xml \
+            ${{ matrix.extra_args || '' }}
 
       - name: Upload coverage data
         if: always()
