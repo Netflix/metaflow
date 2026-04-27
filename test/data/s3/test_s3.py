@@ -22,7 +22,10 @@ from metaflow.plugins.datatools.s3 import (
     S3GetObject,
 )
 
+from metaflow.metaflow_config import S3_DIRECT_BOTO3
 from metaflow.util import to_bytes, unicode_type
+
+INJECT_FAILURE_RATES = [0, 10, 50, 90]
 
 from . import s3_data
 from .. import FakeFlow, DO_TEST_RUN, S3ROOT
@@ -198,7 +201,7 @@ def test_info_one_benchmark(benchmark, pathspecs, expected):
     assert_results(res, expected_urls, info_only=True)
 
 
-@pytest.mark.parametrize("inject_failure_rate", [0, 10, 50, 90])
+@pytest.mark.parametrize("inject_failure_rate", INJECT_FAILURE_RATES)
 @pytest.mark.parametrize(
     argnames=["pathspecs", "expected"], **s3_data.pytest_benchmark_many_case()
 )
@@ -244,7 +247,7 @@ def test_get_one_benchmark(benchmark, pathspecs, expected):
     # assert_results(res, expected_urls, info_should_be_empty=True)
 
 
-@pytest.mark.parametrize("inject_failure_rate", [0, 10, 50, 90])
+@pytest.mark.parametrize("inject_failure_rate", INJECT_FAILURE_RATES)
 @pytest.mark.parametrize(
     argnames=["pathspecs", "expected"], **s3_data.pytest_benchmark_many_case()
 )
@@ -301,7 +304,7 @@ def test_put_one_benchmark(benchmark, tempdir, blobs, expected):
     res = benchmark(_do)
 
 
-@pytest.mark.parametrize("inject_failure_rate", [0, 10, 50, 90])
+@pytest.mark.parametrize("inject_failure_rate", INJECT_FAILURE_RATES)
 @pytest.mark.parametrize(
     argnames=["blobs", "expected"], **s3_data.pytest_benchmark_put_many_case()
 )
@@ -336,7 +339,7 @@ def test_put_many_benchmark(benchmark, tempdir, inject_failure_rate, blobs, expe
     res = benchmark(_do)
 
 
-@pytest.mark.parametrize("inject_failure_rate", [0, 10, 50, 90])
+@pytest.mark.parametrize("inject_failure_rate", INJECT_FAILURE_RATES)
 @pytest.mark.parametrize(
     argnames=["pathspecs", "expected"], **s3_data.pytest_fakerun_cases()
 )
@@ -450,7 +453,7 @@ def test_info_one(s3root, prefixes, expected):
                 assert_results([s3obj], {url: expected_urls[url]}, info_only=True)
 
 
-@pytest.mark.parametrize("inject_failure_rate", [0, 10, 50, 90])
+@pytest.mark.parametrize("inject_failure_rate", INJECT_FAILURE_RATES)
 @pytest.mark.parametrize(
     argnames=["prefixes", "expected"], **s3_data.pytest_basic_case()
 )
@@ -489,7 +492,7 @@ def test_info_many(s3root, inject_failure_rate, prefixes, expected):
         assert_results(s3objs, expected_urls, info_only=True)
 
 
-@pytest.mark.parametrize("inject_failure_rate", [0, 10, 50, 90])
+@pytest.mark.parametrize("inject_failure_rate", INJECT_FAILURE_RATES)
 @pytest.mark.parametrize(
     argnames=["prefixes", "expected"], **s3_data.pytest_fakerun_cases()
 )
@@ -583,7 +586,7 @@ def test_get_one_wo_meta(s3root, prefixes, expected):
                     )
 
 
-@pytest.mark.parametrize("inject_failure_rate", [0, 10, 50, 90])
+@pytest.mark.parametrize("inject_failure_rate", INJECT_FAILURE_RATES)
 @pytest.mark.parametrize(
     argnames=["prefixes", "expected"], **s3_data.pytest_large_case()
 )
@@ -602,7 +605,7 @@ def test_get_all(inject_failure_rate, s3root, prefixes, expected):
             assert_results(s3objs, expected_exists, info_should_be_empty=True)
 
 
-@pytest.mark.parametrize("inject_failure_rate", [0, 10, 50, 90])
+@pytest.mark.parametrize("inject_failure_rate", INJECT_FAILURE_RATES)
 @pytest.mark.parametrize(
     argnames=["prefixes", "expected"], **s3_data.pytest_basic_case()
 )
@@ -621,7 +624,7 @@ def test_get_all_with_meta(inject_failure_rate, s3root, prefixes, expected):
             assert_results(s3objs, expected_exists)
 
 
-@pytest.mark.parametrize("inject_failure_rate", [0, 10, 50, 90])
+@pytest.mark.parametrize("inject_failure_rate", INJECT_FAILURE_RATES)
 @pytest.mark.parametrize(
     argnames=["prefixes", "expected"], **s3_data.pytest_basic_case()
 )
@@ -795,7 +798,7 @@ def test_list_recursive(s3root, prefixes, expected):
         assert all(e.exists for e in s3objs)
 
 
-@pytest.mark.parametrize("inject_failure_rate", [0, 10, 50, 90])
+@pytest.mark.parametrize("inject_failure_rate", INJECT_FAILURE_RATES)
 @pytest.mark.parametrize(
     argnames=["prefixes", "expected"], **s3_data.pytest_many_prefixes_case()
 )
@@ -845,7 +848,7 @@ def test_get_recursive(s3root, inject_failure_rate, prefixes, expected):
         assert not os.path.exists(path)
 
 
-@pytest.mark.parametrize("inject_failure_rate", [0, 10, 50, 90])
+@pytest.mark.parametrize("inject_failure_rate", INJECT_FAILURE_RATES)
 def test_put_exceptions(inject_failure_rate):
     with S3(inject_failure_rate=inject_failure_rate) as s3:
         with pytest.raises(MetaflowS3InvalidObject):
@@ -860,10 +863,12 @@ def test_put_exceptions(inject_failure_rate):
 
 @pytest.fixture
 def s3_server_side_encryption():
+    if os.environ.get("MINIO_TEST", "0") != "0":
+        return None
     return "AES256"
 
 
-@pytest.mark.parametrize("inject_failure_rate", [0])
+@pytest.mark.parametrize("inject_failure_rate", INJECT_FAILURE_RATES)
 @pytest.mark.parametrize(
     argnames=["objs", "expected"], **s3_data.pytest_put_strings_case()
 )
@@ -932,7 +937,7 @@ def test_put_one(s3root, objs, expected, s3_server_side_encryption):
                 assert s3obj.blob == to_bytes(obj)
 
 
-@pytest.mark.parametrize("inject_failure_rate", [0, 10, 50, 90])
+@pytest.mark.parametrize("inject_failure_rate", INJECT_FAILURE_RATES)
 @pytest.mark.parametrize(
     argnames=["blobs", "expected"], **s3_data.pytest_put_blobs_case()
 )
@@ -1001,7 +1006,7 @@ def test_put_files(
             assert {s3obj.key for s3obj in s3objs} == {key for key, _ in shuffled_blobs}
 
 
-@pytest.mark.parametrize("inject_failure_rate", [0, 10, 50, 90])
+@pytest.mark.parametrize("inject_failure_rate", INJECT_FAILURE_RATES)
 def test_list_recursive_sibling_prefix_filtering(s3root, inject_failure_rate):
     test_prefix = f"test_log_filtering_{uuid4().hex[:8]}"
 
@@ -1093,9 +1098,11 @@ def test_put_many_exhausted_retries(s3root, monkeypatch):
     """Test that put_many raises exception when transient retries are exhausted."""
     import metaflow.plugins.datatools.s3.s3 as s3_module
 
-    # Set retry count to 0 to immediately exhaust retries
-    # monkeypatch automatically restores the original value after the test
     monkeypatch.setattr(s3_module, "S3_TRANSIENT_RETRY_COUNT", 0)
+    if S3_DIRECT_BOTO3:
+        import metaflow.plugins.datatools.s3.s3op_boto as s3op_boto_module
+
+        monkeypatch.setattr(s3op_boto_module, "S3_TRANSIENT_RETRY_COUNT", 0)
 
     test_prefix = f"test_retry_exhaustion_{uuid4().hex}"
     test_root = os.path.join(s3root, test_prefix)
@@ -1110,3 +1117,49 @@ def test_put_many_exhausted_retries(s3root, monkeypatch):
     with S3(s3root=test_root, inject_failure_rate=100) as s3:
         with pytest.raises(MetaflowS3Exception, match="failed"):
             s3.put_many(test_data)
+
+
+@pytest.mark.skipif(
+    not S3_DIRECT_BOTO3,
+    reason="Dedicated retry test for S3DirectClient _do_batch_op path only",
+)
+@pytest.mark.skipif(
+    os.environ.get("MINIO_TEST", "0") != "0",
+    reason="MinIO rejects '.' path components used by list_paths(['.'])",
+)
+def test_batch_retry_succeeds_under_transient_failures(s3root, monkeypatch):
+    """Test that batch operations succeed despite transient failures.
+
+    Verifies the _do_batch_op retry loop handles moderate failure injection
+    for put, get, list, and info operations.
+    """
+    import metaflow.plugins.datatools.s3.s3 as s3_module
+    import metaflow.plugins.datatools.s3.s3op_boto as s3op_boto_module
+
+    monkeypatch.setattr(s3_module, "S3_TRANSIENT_RETRY_COUNT", 7)
+    monkeypatch.setattr(s3op_boto_module, "S3_TRANSIENT_RETRY_COUNT", 7)
+
+    test_prefix = f"test_retry_success_{uuid4().hex}"
+    test_root = os.path.join(s3root, test_prefix)
+
+    test_data = [
+        ("file1.txt", "content one"),
+        ("file2.txt", "content two"),
+        ("file3.txt", "content three"),
+    ]
+
+    with S3(s3root=test_root, inject_failure_rate=50) as s3:
+        s3urls = s3.put_many(test_data)
+        assert len(s3urls) == 3
+
+        s3objs = s3.get_many(list(dict(test_data)))
+        assert len(s3objs) == 3
+        for obj in s3objs:
+            assert obj.key in dict(test_data)
+            assert obj.blob == dict(test_data)[obj.key].encode("utf-8")
+
+        infos = s3.info_many(list(dict(test_data)))
+        assert len(infos) == 3
+
+        listed = s3.list_paths(["."])
+        assert len(listed) == 3

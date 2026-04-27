@@ -16,6 +16,7 @@ from metaflow import FlowSpec
 from metaflow.metaflow_current import current
 from metaflow.metaflow_config import (
     DATATOOLS_S3ROOT,
+    S3_DIRECT_BOTO3,
     S3_RETRY_COUNT,
     S3_TRANSIENT_RETRY_COUNT,
     S3_LOG_TRANSIENT_RETRIES,
@@ -1449,6 +1450,14 @@ class S3(object):
     # and url_unquote.
     def _read_many_files(self, op, prefixes_and_ranges, **options):
         prefixes_and_ranges = list(prefixes_and_ranges)
+        if S3_DIRECT_BOTO3:
+            from .s3op_boto import S3DirectClient
+
+            direct = S3DirectClient(
+                self._s3_client, self._tmpdir, self._s3_inject_failures
+            )
+            yield from direct.read_many(op, prefixes_and_ranges, **options)
+            return
         with NamedTemporaryFile(
             dir=self._tmpdir,
             mode="wb",
@@ -1489,6 +1498,13 @@ class S3(object):
 
     def _put_many_files(self, url_info, overwrite):
         url_info = list(url_info)
+        if S3_DIRECT_BOTO3:
+            from .s3op_boto import S3DirectClient
+
+            direct = S3DirectClient(
+                self._s3_client, self._tmpdir, self._s3_inject_failures
+            )
+            return direct.put_objects(url_info, overwrite)
         url_dicts = [
             dict(
                 chain([("local", os.path.realpath(local)), ("url", url)], info.items())
