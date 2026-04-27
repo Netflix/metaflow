@@ -964,7 +964,7 @@ def trigger(obj, run_id_file=None, deployer_attribute_file=None, **kwargs):
             workflow_name_to_deploy = obj._v1_workflow_name
     response = ArgoWorkflows.trigger(workflow_name_to_deploy, params)
     argo_workflow_id = response["metadata"]["name"]
-    run_id = "argo-" + argo_workflow_id
+    run_id = f"argo-{argo_workflow_id}"
 
     if run_id_file:
         with open(run_id_file, "w") as f:
