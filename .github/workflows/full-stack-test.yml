@@ -11,6 +11,7 @@ on:
 jobs:
   test:
     runs-on: ubuntu-latest
+    timeout-minutes: 30
 
     steps:
       - name: Check out source
@@ -21,23 +22,28 @@ jobs:
           python -m pip install --upgrade pip
           pip install . kubernetes
 
-
       - name: Bring up the environment
         run: |
           echo "Starting environment in the background..."
           MINIKUBE_CPUS=2 metaflow-dev all-up &
-          # Give time to spin up. Adjust as needed:
-          WAIT_TIMEOUT=600 metaflow-dev wait-until-ready
+          WAIT_TIMEOUT=900 metaflow-dev wait-until-ready
 
       - name: Wait & run flow
         run: |
-          # When the environment is up, metaflow-dev shell will wait for readiness
-          # and then drop into a shell. We feed commands via a heredoc:
           cat <<EOF | metaflow-dev shell
           echo "Environment is ready; running flow now..."
           python metaflow/tutorials/00-helloworld/helloworld.py --environment=pypi run --with kubernetes --with card
           EOF
 
+      - name: Dump tilt state on failure
+        if: failure()
+        run: |
+          echo "=== Tilt resource status ==="
+          tilt get uiresources -o wide 2>/dev/null || true
+          echo "=== Recent tilt logs (last 50 lines) ==="
+          tail -50 /tmp/tilt.log 2>/dev/null || true
+
       - name: Tear down environment
+        if: always()
         run: |
           metaflow-dev down
