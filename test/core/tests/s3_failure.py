@@ -1,7 +1,7 @@
-from metaflow_test import MetaflowTest, ExpectationFailed, steps
+from metaflow_test import FlowDefinition, ExpectationFailed, steps
 
 
-class S3FailureTest(MetaflowTest):
+class S3Failure(FlowDefinition):
     """
     Test that S3 failures are handled correctly.
     """
@@ -36,7 +36,7 @@ os.environ['TEST_S3_RETRY'] = '1'
         from metaflow import current
 
         run_id = "%s/%s" % (current.flow_name, current.run_id)
-        assert_equals(self.x, run_id)
+        assert self.x == run_id
 
     @steps(1, ["all"])
     def step_all(self):

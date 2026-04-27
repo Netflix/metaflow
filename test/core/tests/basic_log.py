@@ -1,7 +1,7 @@
-from metaflow_test import MetaflowTest, ExpectationFailed, steps
+from metaflow_test import FlowDefinition, ExpectationFailed, steps
 
 
-class BasicLogTest(MetaflowTest):
+class BasicLog(FlowDefinition):
     """
     Test that log messages emitted in the first step
     are saved and readable.

@@ -1,7 +1,7 @@
-from metaflow_test import MetaflowTest, steps, assert_equals
+from metaflow_test import FlowDefinition, steps
 
 
-class RecursiveSwitchInsideForeachFlowTest(MetaflowTest):
+class RecursiveSwitchInsideForeachFlow(FlowDefinition):
     PRIORITY = 2
     ONLY_GRAPHS = ["recursive_switch_inside_foreach"]
 
@@ -26,7 +26,7 @@ class RecursiveSwitchInsideForeachFlowTest(MetaflowTest):
 
     @steps(0, ["loop_exit"], required=True)
     def step_exit_item_loop(self):
-        assert_equals(self.max_loops, self.item_loop_count)
+        assert self.max_loops == self.item_loop_count
         self.result = (
             f"Item {self.item_id} finished after {self.item_loop_count} iterations."
         )

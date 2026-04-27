@@ -1,7 +1,7 @@
-from metaflow_test import MetaflowTest, ExpectationFailed, steps
+from metaflow_test import FlowDefinition, ExpectationFailed, steps
 
 
-class LineageTest(MetaflowTest):
+class Lineage(FlowDefinition):
     PRIORITY = 1
     SKIP_GRAPHS = [
         "simple_switch",

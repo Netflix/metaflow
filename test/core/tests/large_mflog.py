@@ -1,7 +1,7 @@
-from metaflow_test import MetaflowTest, ExpectationFailed, steps
+from metaflow_test import FlowDefinition, ExpectationFailed, steps
 
 
-class LargeMflogTest(MetaflowTest):
+class LargeMflog(FlowDefinition):
     """
     Test that we can capture a large amount of log messages with
     accurate timings
@@ -89,17 +89,17 @@ NUM_LINES = 5000
                 if line.startswith(random_log_prefix)
             ]
 
-            assert_equals(len(lines), num_foreach * num_lines)
+            assert len(lines) == num_foreach * num_lines
 
             for task_id, task_lines_iter in groupby(lines, lambda x: x[1]):
                 task_lines = list(task_lines_iter)
-                assert_equals(len(task_lines), num_lines)
+                assert len(task_lines) == num_lines
 
                 for i, (_, _, stream_type, idx, tstamp) in enumerate(task_lines):
                     # test that loglines originate from the correct stream
                     # and are properly ordered
-                    assert_equals(stream_type, stream)
-                    assert_equals(int(idx), i)
+                    assert stream_type == stream
+                    assert int(idx) == i
 
             if run is not None:
                 for task in run[step_name]:
@@ -109,13 +109,13 @@ NUM_LINES = 5000
                         for tstamp, msg in task.loglines(stream)
                         if msg.startswith(random_log_prefix)
                     ]
-                    assert_equals(len(task_lines), num_lines)
+                    assert len(task_lines) == num_lines
                     for i, (mf_tstamp, msg) in enumerate(task_lines):
                         _, task_id, stream_type, idx, tstamp_str = msg.split()
 
-                        assert_equals(task_id, task.id)
-                        assert_equals(stream_type, stream)
-                        assert_equals(int(idx), i)
+                        assert task_id == task.id
+                        assert stream_type == stream
+                        assert int(idx) == i
 
                         # May 13, 2021 - Muting this test for now since the
                         # GitHub CI runner is constrained on resources causing

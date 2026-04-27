@@ -1,7 +1,7 @@
-from metaflow_test import MetaflowTest, ExpectationFailed, steps
+from metaflow_test import FlowDefinition, ExpectationFailed, steps
 
 
-class BasicForeachTest(MetaflowTest):
+class BasicForeach(FlowDefinition):
     PRIORITY = 0
     SKIP_GRAPHS = [
         "simple_switch",
@@ -58,14 +58,14 @@ class BasicForeachTest(MetaflowTest):
         # index must stay constant over multiple steps inside foreach
         if self.my_index is None:
             self.my_index = self.index
-        assert_equals(self.my_index, self.index)
-        assert_equals(self.input, self.arr[self.index])
+        assert self.my_index == self.index
+        assert self.input == self.arr[self.index]
         self.my_input = self.input
 
     @steps(0, ["foreach-join"], required=True)
     def join(self, inputs):
         got = [inp.my_input for inp in inputs]
-        assert_equals(
+        assert (
             [
                 26,
                 5,
@@ -99,8 +99,9 @@ class BasicForeachTest(MetaflowTest):
                 23,
                 0,
                 7,
-            ],
-            got,
+            ]
+        ) == (
+            got
         )
 
     @steps(1, ["all"])

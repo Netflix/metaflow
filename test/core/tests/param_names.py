@@ -1,7 +1,7 @@
-from metaflow_test import MetaflowTest, steps
+from metaflow_test import FlowDefinition, steps
 
 
-class ParameterNameTest(MetaflowTest):
+class ParameterName(FlowDefinition):
     PRIORITY = 1
     SKIP_GRAPHS = [
         "simple_switch",
@@ -19,5 +19,5 @@ class ParameterNameTest(MetaflowTest):
     def step_all(self):
         from metaflow import current
 
-        assert_equals(len(current.parameter_names), 1)
-        assert_equals(current.parameter_names[0], "foo")
+        assert len(current.parameter_names) == 1
+        assert current.parameter_names[0] == "foo"

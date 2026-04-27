@@ -66,15 +66,15 @@ def try_to_get_card(id=None, timeout=60):
     return retry_until_timeout(_get_card, id, timeout=timeout)
 
 
-class AssertArtifactFailed(Exception):
+class AssertArtifactFailed(AssertionError):
     pass
 
 
-class AssertLogFailed(Exception):
+class AssertLogFailed(AssertionError):
     pass
 
 
-class AssertCardFailed(Exception):
+class AssertCardFailed(AssertionError):
     pass
 
 
@@ -121,39 +121,15 @@ def origin_run_id_for_resume():
     return current.origin_run_id
 
 
-def assert_equals(expected, got):
-    assert expected == got, "Expected %r, got %r" % (expected, got)
 
+class FlowDefinition(object):
+    """Base class for core integration test flow definitions.
 
-def assert_equals_metadata(expected, got, exclude_keys=None):
-    exclude_keys = set(exclude_keys if exclude_keys is not None else [])
-    k1_set = set(expected.keys()).difference(exclude_keys)
-    k2_set = set(got.keys()).difference(exclude_keys)
-    sym_diff = k1_set.symmetric_difference(k2_set)
-    assert not sym_diff, "Key mismatch: expected %s, got %s" % (
-        sorted(k1_set),
-        sorted(k2_set),
-    )
-    for k in k1_set:
-        assert expected[k] == got[k], "[%s]: expected %r, got %r" % (
-            k,
-            expected[k],
-            got[k],
-        )
+    Each subclass defines step bodies (via @steps/@tag) and a check_results
+    method that verifies the completed run.  FlowFormatter combines a
+    FlowDefinition with a graph template to produce a runnable FlowSpec.
+    """
 
-
-def assert_exception(func, exception):
-    try:
-        func()
-    except exception:
-        return
-    except Exception as ex:
-        raise AssertionError("Expected %s, got %s: %s" % (exception, type(ex), ex))
-    else:
-        raise ExpectationFailed(exception, "no exception")
-
-
-class MetaflowTest(object):
     PRIORITY = 999999999
     PARAMETERS = {}
     INCLUDE_FILES = {}
@@ -163,6 +139,10 @@ class MetaflowTest(object):
 
     def check_results(self, flow, checker):
         return False
+
+
+# Backward-compatibility alias — existing tests that still import MetaflowTest will work.
+MetaflowTest = FlowDefinition
 
 
 class MetaflowCheck(object):

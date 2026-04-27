@@ -1,7 +1,7 @@
-from metaflow_test import MetaflowTest, ExpectationFailed, steps
+from metaflow_test import FlowDefinition, ExpectationFailed, steps
 
 
-class ResumeStartStepTest(MetaflowTest):
+class ResumeStartStep(FlowDefinition):
     """
     Resuming from the start step should work
     """
@@ -49,9 +49,7 @@ class ResumeStartStepTest(MetaflowTest):
                 checker.assert_artifact(step.name, "data", "foo")
                 checker.assert_artifact(step.name, "int_param", 123)
         else:
-            assert_equals(
-                run.data.expected_origin_run_id, run.data.actual_origin_run_id
-            )
+            assert run.data.expected_origin_run_id == run.data.actual_origin_run_id
             # We can also check the metadata for the start task
             exclude_keys = ["origin-task-id", "origin-run-id"]
             resumed_metadata = run["start"].task.metadata_dict

@@ -1,7 +1,7 @@
-from metaflow_test import MetaflowTest, ExpectationFailed, steps, tag
+from metaflow_test import FlowDefinition, ExpectationFailed, steps, tag
 
 
-class CardResumeTest(MetaflowTest):
+class CardResume(FlowDefinition):
     """
     Resuming a flow with card decorators should reference a origin task's card when calling `get_cards` or `card get` cli commands.
     """

@@ -1,7 +1,7 @@
-from metaflow_test import MetaflowTest, ExpectationFailed, steps
+from metaflow_test import FlowDefinition, ExpectationFailed, steps
 
 
-class FlowOptionsTest(MetaflowTest):
+class FlowOptions(FlowDefinition):
     """
     Test that the metaflow_extensions module is properly loaded
     """
@@ -29,4 +29,4 @@ os.environ['METAFLOW_FOOBAR'] = 'this_is_foobar'
     def step_all(self):
         from metaflow import current
 
-        assert_equals(current.foobar_value, "this_is_foobar")
+        assert current.foobar_value == "this_is_foobar"

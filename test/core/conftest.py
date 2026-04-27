@@ -6,7 +6,7 @@ from typing import Any
 
 import pytest
 
-from metaflow_test import MetaflowTest
+from metaflow_test import FlowDefinition
 from metaflow_test.formatter import FlowFormatter
 
 # Ensure test/core/ is on sys.path so metaflow_test is importable.
@@ -38,9 +38,9 @@ def _iter_tests():
             for name in dir(mod):
                 obj = getattr(mod, name)
                 if (
-                    name != "MetaflowTest"
+                    name not in ("MetaflowTest", "FlowDefinition")
                     and isinstance(obj, type)
-                    and issubclass(obj, MetaflowTest)
+                    and issubclass(obj, FlowDefinition)
                 ):
                     yield obj()
 

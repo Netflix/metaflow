@@ -1,7 +1,7 @@
-from metaflow_test import MetaflowTest, ExpectationFailed, steps
+from metaflow_test import FlowDefinition, ExpectationFailed, steps
 
 
-class RunIdFileTest(MetaflowTest):
+class RunIdFile(FlowDefinition):
     """
     Resuming and initial running of a flow should write run id file early (prior to execution)
     """

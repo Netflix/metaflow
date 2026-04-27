@@ -1,7 +1,7 @@
-from metaflow_test import MetaflowTest, ExpectationFailed, steps
+from metaflow_test import FlowDefinition, ExpectationFailed, steps
 
 
-class MergeArtifactsPropagationTest(MetaflowTest):
+class MergeArtifactsPropagation(FlowDefinition):
     # This test simply tests whether things set on a single branch will
     # still get propagated down properly. Other merge_artifacts behaviors
     # are tested in the main test (merge_artifacts.py). This test basically
@@ -36,10 +36,10 @@ class MergeArtifactsPropagationTest(MetaflowTest):
         )
 
         # Ensure that everything we expect is passed down
-        assert_equals(self.non_modified_passdown, "a")
+        assert self.non_modified_passdown == "a"
         for i, _ in enumerate(inputs):
-            assert_equals(getattr(self, "var%d" % (i)), i)
+            assert getattr(self, "var%d" % (i)) == i
 
     @steps(1, ["all"])
     def step_all(self):
-        assert_equals(self.non_modified_passdown, "a")
+        assert self.non_modified_passdown == "a"

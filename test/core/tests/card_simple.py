@@ -1,7 +1,7 @@
-from metaflow_test import MetaflowTest, ExpectationFailed, steps, tag
+from metaflow_test import FlowDefinition, ExpectationFailed, steps, tag
 
 
-class CardDecoratorBasicTest(MetaflowTest):
+class CardDecoratorBasic(FlowDefinition):
     """
     Test that checks if the card decorator stores the information as intended for a built-in card
     - sets the pathspec in the task

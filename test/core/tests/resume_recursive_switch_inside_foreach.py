@@ -1,7 +1,7 @@
-from metaflow_test import MetaflowTest, steps, assert_equals
+from metaflow_test import FlowDefinition, steps
 
 
-class ResumeRecursiveSwitchInsideForeachFlowTest(MetaflowTest):
+class ResumeRecursiveSwitchInsideForeachFlow(FlowDefinition):
     RESUME = True
     PRIORITY = 2
     ONLY_GRAPHS = ["recursive_switch_inside_foreach"]
@@ -32,7 +32,7 @@ class ResumeRecursiveSwitchInsideForeachFlowTest(MetaflowTest):
 
     @steps(0, ["loop_exit"], required=True)
     def step_exit_item_loop(self):
-        assert_equals(self.max_loops, self.item_loop_count)
+        assert self.max_loops == self.item_loop_count
         self.result = (
             f"Item {self.item_id} finished after {self.item_loop_count} iterations."
         )
@@ -56,8 +56,9 @@ class ResumeRecursiveSwitchInsideForeachFlowTest(MetaflowTest):
             checker.assert_artifact("join", "results", expected)
 
             exit_steps = run["exit_item_loop"]
-            exit_steps_by_id = {step.data.item_id: step for step in exit_steps}
-            assert_equals(3, len(list(exit_steps)))
+<<<<<<< HEAD
+            exit_steps_by_id = {s.data.item_id: s for s in exit_steps}
+            assert 3 == len(list(exit_steps))
 
             # Branch 'B' failed and was re-executed from the start of the branch.
             # Its exit step is a new task and should NOT have an 'origin-task-id'.
