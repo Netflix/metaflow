@@ -445,6 +445,28 @@ def _get_extension_packages(ignore_info_file=False, restrict_to_directories=None
                         for d in addl_spec.submodule_search_locations
                         if os.path.isdir(d)
                     ]
+                    if not new_dirs:
+                        # Modern pip editable installs may surface the path hook
+                        # itself as a search location rather than an actual directory.
+                        # Fall back to reading NAMESPACES from the finder module
+                        # (a module-level variable in the __editable__*_finder.py
+                        # file) to discover the real metaflow_extensions root.
+                        finder_cls = sys.path_importer_cache[p]
+                        finder_mod = sys.modules.get(
+                            getattr(finder_cls, "__module__", None)
+                        )
+                        namespaces = getattr(finder_mod, "NAMESPACES", {})
+                        for ns, ns_paths in namespaces.items():
+                            if ns.startswith(EXT_PKG + ".") and ns_paths:
+                                for ns_path in ns_paths:
+                                    parent = os.path.dirname(ns_path)
+                                    if (
+                                        os.path.isdir(parent)
+                                        and os.path.basename(parent) == EXT_PKG
+                                        and parent not in new_dirs
+                                    ):
+                                        new_dirs.append(parent)
+                                        new_paths.append(parent)
                     _ext_debug(
                         "Finder %s added directories %s"
                         % (finder_name, ", ".join(new_dirs))
