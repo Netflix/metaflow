@@ -1,0 +1,23 @@
+load('./_result.tiltfile', 'new_result')
+
+def setup_fake_gcs_server(ctx):
+    k8s_yaml(read_file('./tilt/k8s/fake-gcs-server.yaml'))
+    k8s_yaml(read_file('./tilt/k8s/fake-gcs-secret.yaml'))
+    k8s_yaml(read_file('./tilt/k8s/gcs-bucket-init-job.yaml'))
+
+    k8s_resource(
+        'fake-gcs-server',
+        port_forwards=['4443:4443'],
+        links=[link('http://localhost:4443/storage/v1/b', 'fake-gcs-server buckets')],
+        labels=['fake-gcs-server'],
+    )
+
+    k8s_resource('gcs-bucket-init', resource_deps=['fake-gcs-server'],
+                 labels=['fake-gcs-server'])
+
+    return new_result(
+        config={"METAFLOW_DATASTORE_SYSROOT_GS": "gs://metaflow-test/metaflow"},
+        shell_env={"STORAGE_EMULATOR_HOST": "http://localhost:4443"},
+        config_resources=['gcs-bucket-init'],
+        k8s_secrets=['fake-gcs-secret'],
+    )

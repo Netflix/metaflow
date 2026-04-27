@@ -1,0 +1,27 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: gcs-bucket-init
+spec:
+  ttlSecondsAfterFinished: 120
+  template:
+    spec:
+      restartPolicy: OnFailure
+      containers:
+        - name: init
+          image: curlimages/curl:8.11.1
+          command: ["/bin/sh", "-ec"]
+          args:
+            - |
+              curl -sf -X POST \
+                http://fake-gcs-server:4443/storage/v1/b \
+                -H "Content-Type: application/json" \
+                -d '{"name":"metaflow-test"}'
+              echo "Bucket 'metaflow-test' created."
+          resources:
+            requests:
+              cpu: 25m
+              memory: 32Mi
+            limits:
+              cpu: 100m
+              memory: 64Mi
