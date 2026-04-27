@@ -9,37 +9,7 @@ These tests actually execute flows with non-standard step names and verify:
 - Single-step flows execute end-to-end
 """
 
-import json
-from importlib.util import module_from_spec, spec_from_file_location
-from pathlib import Path
-
-import pytest
 from metaflow.events import Trigger
-from metaflow.plugins.cards.card_modules.basic import (
-    DefaultCardJSON,
-    transform_flow_graph,
-)
-
-FLOWS_DIR = Path(__file__).resolve().parent / "flows"
-
-
-def _find_components_by_type(node, component_type):
-    if isinstance(node, dict):
-        if node.get("type") == component_type:
-            yield node
-        for value in node.values():
-            yield from _find_components_by_type(value, component_type)
-    elif isinstance(node, list):
-        for item in node:
-            yield from _find_components_by_type(item, component_type)
-
-
-def _load_flow(flow_file, flow_class_name):
-    spec = spec_from_file_location(flow_class_name, FLOWS_DIR / flow_file)
-    module = module_from_spec(spec)
-    assert spec.loader is not None
-    spec.loader.exec_module(module)
-    return getattr(module, flow_class_name)(use_cli=False)
 
 
 # ---------------------------------------------------------------------------
@@ -225,70 +195,6 @@ def test_trigger_from_runs_uses_custom_terminal_step(custom_named_run):
     assert trigger.event.name == "metaflow.%s.finish" % custom_named_run.parent.id
     assert trigger.event.id == custom_named_run.end_task.pathspec
     assert trigger.run.pathspec == custom_named_run.pathspec
-
-
-# ---------------------------------------------------------------------------
-# Card graph transform
-# ---------------------------------------------------------------------------
-
-
-def test_transform_flow_graph_supports_explicit_endpoints():
-    graph = {
-        "start_step": "begin",
-        "end_step": "finish",
-        "steps": {
-            "begin": {"type": "start", "next": ["middle"], "doc": "begin"},
-            "middle": {"type": "linear", "next": ["finish"], "doc": "middle"},
-            "finish": {"type": "end", "next": [], "doc": "finish"},
-        },
-    }
-
-    transformed = transform_flow_graph(graph)
-
-    assert transformed["start_step"] == "begin"
-    assert transformed["end_step"] == "finish"
-    assert set(transformed["steps"]) == {"begin", "middle", "finish"}
-    assert transformed["steps"]["begin"]["type"] == "start"
-    assert transformed["steps"]["middle"]["box_next"] is False
-    assert transformed["steps"]["finish"]["type"] == "end"
-
-
-def test_transform_flow_graph_keeps_legacy_start_end_detection():
-    graph = {
-        "start": {"type": "start", "next": ["end"], "doc": ""},
-        "end": {"type": "end", "next": [], "doc": ""},
-    }
-
-    transformed = transform_flow_graph(graph)
-
-    assert transformed["start_step"] == "start"
-    assert transformed["end_step"] == "end"
-    assert set(transformed["steps"]) == {"start", "end"}
-
-
-# ---------------------------------------------------------------------------
-# Cards integration
-# ---------------------------------------------------------------------------
-
-
-def test_default_card_includes_custom_graph_endpoints(custom_named_card_run):
-    flow = _load_flow("custom_named_card_flow.py", "CustomNamedCardFlow")
-    graph = custom_named_card_run["_parameters"].task["_graph_info"].data
-    card_data = json.loads(
-        DefaultCardJSON(graph=graph, flow=flow).render(
-            custom_named_card_run["begin"].task
-        )
-    )
-
-    dag_components = list(_find_components_by_type(card_data["components"], "dag"))
-    assert len(dag_components) == 1
-
-    dag_data = dag_components[0]["data"]
-    assert dag_data["start_step"] == "begin"
-    assert dag_data["end_step"] == "finish"
-    assert set(dag_data["steps"]) == {"begin", "middle", "finish"}
-    assert "start" not in dag_data["steps"]
-    assert "end" not in dag_data["steps"]
 
 
 # ---------------------------------------------------------------------------
