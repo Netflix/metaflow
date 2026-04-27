@@ -10,6 +10,7 @@ on:
       - opened
       - synchronize
       - labeled
+  workflow_dispatch:
 
 permissions: read-all
 
