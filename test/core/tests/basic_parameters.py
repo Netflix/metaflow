@@ -41,7 +41,7 @@ os.environ['METAFLOW_RUN_BOOL_PARAM'] = 'False'
         try:
             # parameters should be immutable
             self.int_param = 5
-            raise ExpectationFailed(AttributeError, "nothing")
+            raise AssertionError("expected AttributeError but none was raised")
         except AttributeError:
             pass
 

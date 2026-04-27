@@ -47,7 +47,7 @@ with open('override.txt', mode='w') as f:
         try:
             # Include files should be immutable
             self.myfile_txt = 5
-            raise ExpectationFailed(AttributeError, "nothing")
+            raise AssertionError("expected AttributeError but none was raised")
         except AttributeError:
             pass
 
