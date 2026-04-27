@@ -12,6 +12,14 @@ repos:
       - id: shellcheck
         files: ^devtools/ci/
         args: [-e, SC1091]  # don't follow sourced files
+  - repo: local
+    hooks:
+      - id: check-test-conventions
+        name: check test conventions
+        entry: python devtools/check_test_conventions.py
+        language: python
+        files: ^test/.*\.py$
+        types: [python]
   - repo: https://github.com/ambv/black
     rev: 25.12.0
     hooks:
