@@ -115,6 +115,8 @@ jobs:
           - backend: gcs-local
             services: "minio,postgresql,metadata-service,fake-gcs-server"
             workers: 4
+            memory: 6144
+            timeout: 900
           - backend: sfn-batch
             services: "minio,postgresql,metadata-service,localbatch,ddb-local,sfn-local"
             workers: 2
