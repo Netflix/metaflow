@@ -1,11 +1,9 @@
 import json
 import os
+import subprocess
 import sys
 import tempfile
 from typing import List, Tuple
-
-import pytest
-import sh
 
 
 class _WithDir:
@@ -25,7 +23,6 @@ def run_core_test_combination(
     context: str, graph: str, tests: List[str], masked_cpu_count: int
 ) -> None:
     num_parallel = min(masked_cpu_count, len(tests))
-    sh_python = sh.Command(sys.executable)
 
     core_dir = os.path.dirname(__file__)
 
@@ -35,32 +32,45 @@ def run_core_test_combination(
     env["PYTHONPATH"] = (
         "%s:%s" % (core_dir, env["PYTHONPATH"]) if "PYTHONPATH" in env else core_dir
     )
+    # Ensure METAFLOW_USER is set before run_tests.py imports metaflow so that
+    # metaflow_config.USER is cached as a non-root value at module load time.
+    # This is required for the API executor when the host user is root.
+    env.setdefault("METAFLOW_USER", "tester")
 
     with _WithDir(core_dir):
         fd, failure_file = tempfile.mkstemp(dir=".")
         os.close(fd)
         try:
-            sh_python(
+            cmd = [
+                sys.executable,
                 "run_tests.py",
-                num_parallel=num_parallel,
-                failed_dump=failure_file,
-                contexts=context,
-                tests=",".join(tests),
-                graphs=graph,
-                _env=env,
-                _out=sys.stdout,
-                _err=sys.stderr,
-            )
-        except sh.ErrorReturnCode as err:
-            try:
-                with open(failure_file, "rt") as f:
-                    failures = json.load(f)
-            except (FileNotFoundError, json.JSONDecodeError):
-                failures = {"unknown": "Failed to load details. Exception: %s" % err}
-            pytest.fail(
-                "Core tests failed in CoreTest(%s, %s, %s): %s"
-                % (context, graph, tests, failures)
-            )
+                "--num-parallel",
+                str(num_parallel),
+                "--failed-dump",
+                failure_file,
+                "--contexts",
+                context,
+                "--tests",
+                ",".join(tests),
+                "--graphs",
+                graph,
+            ]
+            result = subprocess.run(cmd, env=env)
+            if result.returncode != 0:
+                try:
+                    with open(failure_file, "rt") as f:
+                        failures = json.load(f)
+                except (FileNotFoundError, json.JSONDecodeError):
+                    failures = {
+                        "unknown": "run_tests.py exited with code %d"
+                        % result.returncode
+                    }
+                import pytest
+
+                pytest.fail(
+                    "Core tests failed in CoreTest(%s, %s, %s): %s"
+                    % (context, graph, tests, failures)
+                )
         finally:
             if os.path.exists(failure_file):
                 os.remove(failure_file)

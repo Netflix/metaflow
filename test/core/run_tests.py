@@ -351,9 +351,11 @@ def run_test(formatter, context, debug, checks, env_base, executor):
 
                 while time.time() < deadline:
                     try:
-                        run = Flow(formatter.flow_name, _namespace_check=False)[run_id]
-                        if run.finished:
-                            run_succeeded = run.successful
+                        flow_run = Flow(formatter.flow_name, _namespace_check=False)[
+                            run_id
+                        ]
+                        if flow_run.finished:
+                            run_succeeded = flow_run.successful
                             break
                     except Exception:
                         pass
@@ -607,6 +609,12 @@ def run_test_cases(args):
     type=int,
     help="Number of parallel tests to run. By default, " "tests are run sequentially.",
 )
+@click.option(
+    "--failed-dump",
+    default=None,
+    type=str,
+    help="Write failure details as JSON to this path (used by the pytest wrapper).",
+)
 def cli(
     tests=None,
     contexts=None,
@@ -614,6 +622,7 @@ def cli(
     num_parallel=None,
     debug=False,
     inherit_env=False,
+    failed_dump=None,
 ):
     parse = lambda x: {t.lower() for t in x.split(",") if t}
 
@@ -633,6 +642,9 @@ def cli(
                 log("%s (path %s)" % (fail, path), real_bad=True)
             else:
                 log(fail, real_bad=True)
+        if failed_dump:
+            with open(failed_dump, "w") as f:
+                json.dump({tstid: path for tstid, path in failed}, f)
         sys.exit(1)
     else:
         log("All tests were successful!", real_good=True)
