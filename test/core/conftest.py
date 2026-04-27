@@ -50,6 +50,26 @@ def _iter_tests():
 # ---------------------------------------------------------------------------
 
 
+# ---------------------------------------------------------------------------
+# Checker fixture — injectable so tests can override or restrict checkers
+# ---------------------------------------------------------------------------
+
+_CORE_CHECKS = {
+    "cli": {"python": "python3", "class": "CliCheck"},
+    "metadata": {"python": "python3", "class": "MetadataCheck"},
+}
+
+
+@pytest.fixture(scope="session")
+def core_checks() -> dict:
+    """Return the checker specs run after each flow execution.
+
+    Override this fixture in a conftest.py closer to your tests to restrict
+    to a single checker or add a custom one.
+    """
+    return _CORE_CHECKS
+
+
 def pytest_addoption(parser: Any) -> None:
     parser.addoption(
         "--core-tests",

@@ -16,6 +16,7 @@ Usage:
         --core-graphs single-linear-step         # targeted run
 """
 
+import importlib.util
 import os
 import shlex
 import shutil
@@ -54,11 +55,6 @@ _DEFAULT_RUN_OPTIONS = [
     "--tag=multiple tags should be ok",
 ]
 
-_ALL_CHECKS = {
-    "python3-cli": {"python": "python3", "class": "CliCheck"},
-    "python3-metadata": {"python": "python3", "class": "MetadataCheck"},
-}
-
 _log_lock = threading.Lock()
 
 
@@ -83,19 +79,11 @@ def _log(msg, formatter=None, context=None, processes=None):
 def _context_from_env() -> dict:
     """Build the context dict that _run_flow() expects, from tox setenv vars."""
     top_options = shlex.split(os.environ.get("METAFLOW_CORE_TOP_OPTIONS", ""))
-    check_names = [
-        c
-        for c in os.environ.get(
-            "METAFLOW_CORE_CHECKS", "python3-cli,python3-metadata"
-        ).split(",")
-        if c
-    ]
     ctx = {
         "name": os.environ.get("METAFLOW_CORE_MARKER", "local"),
         "python": "python3",
         "top_options": top_options,
         "run_options": _DEFAULT_RUN_OPTIONS,
-        "checks": check_names,
         # env is intentionally empty: all Metaflow config vars are already in
         # os.environ via tox setenv and will be inherited by _run_flow().
         "env": {},
@@ -109,7 +97,7 @@ def _context_from_env() -> dict:
     return ctx
 
 
-def _run_flow(formatter, context, checks, env_base, executor):
+def _run_flow(formatter, context, core_checks, env_base, executor):
     """Execute one (formatter, context, executor) test combination.
 
     Replaces the run_test() call that previously required importing run_tests.py.
@@ -172,8 +160,6 @@ def _run_flow(formatter, context, checks, env_base, executor):
         os.chdir(tempdir)
         with open("test_flow.py", "w") as f:
             f.write(formatter.flow_code)
-        with open("check_flow.py", "w") as f:
-            f.write(formatter.check_code)
         shutil.copytree(
             os.path.join(_CORE_DIR, "metaflow_test"),
             os.path.join(tempdir, "metaflow_test"),
@@ -431,36 +417,29 @@ def _run_flow(formatter, context, checks, env_base, executor):
                 return 1, path
 
             # ----------------------------------------------------------------
-            # Check results
+            # Check results — run in-process; failures raise AssertionError
             # ----------------------------------------------------------------
-            run_id = open("run-id").read()
+            run_id = open("run-id").read().strip()
+
+            # Dynamically import the generated flow class from test_flow.py.
+            # We are already os.chdir'd to tempdir so the path is reachable.
+            _mod_name = "_core_test_flow_%s" % formatter.flow_name
+            _spec = importlib.util.spec_from_file_location(_mod_name, "test_flow.py")
+            _flow_module = importlib.util.module_from_spec(_spec)
+            _spec.loader.exec_module(_flow_module)
+            flow = getattr(_flow_module, formatter.flow_name)(use_cli=False)
+            sys.modules.pop(_mod_name, None)
+
+            from metaflow_test.cli_check import CliCheck
+            from metaflow_test.metadata_check import MetadataCheck
+
+            _CHECKER_CLASSES = {"CliCheck": CliCheck, "MetadataCheck": MetadataCheck}
+            for check_spec in core_checks.values():
+                checker_cls = _CHECKER_CLASSES[check_spec["class"]]
+                checker = checker_cls(flow, run_id, context["top_options"])
+                formatter.test.check_results(flow, checker)
+
             ret = 0
-            for check_name in context["checks"]:
-                check = checks[check_name]
-                cmd = [
-                    check["python"],
-                    "check_flow.py",
-                    check["class"],
-                    run_id,
-                ]
-                cmd.extend(context["top_options"])
-                called_processes.append(
-                    subprocess.run(
-                        cmd,
-                        env=env,
-                        stdout=subprocess.PIPE,
-                        stderr=subprocess.PIPE,
-                        check=False,
-                    )
-                )
-                if called_processes[-1].returncode:
-                    _log(
-                        "checker '%s' failed" % check_name,
-                        formatter,
-                        context,
-                        processes=called_processes,
-                    )
-                    ret = called_processes[-1].returncode
         finally:
             os.environ.clear()
             os.environ.update(original_env)
@@ -471,11 +450,14 @@ def _run_flow(formatter, context, checks, env_base, executor):
         shutil.rmtree(tempdir)
 
 
-def test_flow_triple(flow_triple: Tuple) -> None:
+def test_flow_triple(flow_triple: Tuple, core_checks: dict) -> None:
     """Run one (graph, test, executor) combination.
 
     Each item runs as an independent pytest test, enabling parallel execution
     via pytest-xdist and per-test timeout/failure isolation.
+
+    core_checks is injected from the session-scoped fixture in conftest.py;
+    override it there to restrict or extend which checkers run.
     """
     graph, test, executor = flow_triple
     context = _context_from_env()
@@ -492,7 +474,7 @@ def test_flow_triple(flow_triple: Tuple) -> None:
     ret, path = _run_flow(
         formatter=formatter,
         context=context,
-        checks=_ALL_CHECKS,
+        core_checks=core_checks,
         env_base=env_base,
         executor=executor,
     )

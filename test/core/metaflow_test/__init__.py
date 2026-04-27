@@ -78,7 +78,9 @@ class AssertCardFailed(Exception):
     pass
 
 
-class ExpectationFailed(Exception):
+class ExpectationFailed(AssertionError):
+    """Kept for backward compatibility; raises as AssertionError so pytest surfaces it natively."""
+
     def __init__(self, expected, got):
         super(ExpectationFailed, self).__init__(
             "Expected result: %s, got %s" % (truncate(expected), truncate(got))
@@ -120,24 +122,24 @@ def origin_run_id_for_resume():
 
 
 def assert_equals(expected, got):
-    if expected != got:
-        raise ExpectationFailed(expected, got)
+    assert expected == got, "Expected %r, got %r" % (expected, got)
 
 
 def assert_equals_metadata(expected, got, exclude_keys=None):
-    # Check if the keys match
     exclude_keys = set(exclude_keys if exclude_keys is not None else [])
     k1_set = set(expected.keys()).difference(exclude_keys)
     k2_set = set(got.keys()).difference(exclude_keys)
     sym_diff = k1_set.symmetric_difference(k2_set)
-    if len(sym_diff) > 0:
-        raise ExpectationFailed("keys: %s" % str(k1_set), "keys: %s" % str(k2_set))
-    # At this point, we compare the metadata values, types and dates.
+    assert not sym_diff, "Key mismatch: expected %s, got %s" % (
+        sorted(k1_set),
+        sorted(k2_set),
+    )
     for k in k1_set:
-        if expected[k] != got[k]:
-            raise ExpectationFailed(
-                "[%s]: %s" % (k, str(expected[k])), "[%s]: %s" % (k, str(got[k]))
-            )
+        assert expected[k] == got[k], "[%s]: expected %r, got %r" % (
+            k,
+            expected[k],
+            got[k],
+        )
 
 
 def assert_exception(func, exception):
@@ -146,7 +148,7 @@ def assert_exception(func, exception):
     except exception:
         return
     except Exception as ex:
-        raise ExpectationFailed(exception, ex)
+        raise AssertionError("Expected %s, got %s: %s" % (exception, type(ex), ex))
     else:
         raise ExpectationFailed(exception, "no exception")
 
@@ -164,19 +166,20 @@ class MetaflowTest(object):
 
 
 class MetaflowCheck(object):
-    def __init__(self, flow):
-        pass
+    def __init__(self, flow, run_id, cli_options=()):
+        self._run_id = run_id
+        self._cli_options = list(cli_options)
 
     def get_run(self):
         return None
 
     @property
     def run_id(self):
-        return sys.argv[2]
+        return self._run_id
 
     @property
     def cli_options(self):
-        return sys.argv[3:]
+        return self._cli_options
 
     def assert_artifact(self, step, name, value, fields=None):
         raise NotImplementedError()
@@ -224,12 +227,18 @@ class MetaflowCheck(object):
         raise NotImplementedError()
 
 
-def new_checker(flow):
+def new_checker(checker_class, flow, run_id, cli_options=()):
+    """Create a checker instance.
+
+    checker_class may be the class itself or its name as a string
+    ('CliCheck' or 'MetadataCheck').
+    """
     from . import cli_check, metadata_check
 
-    CHECKER = {
+    _CLASSES = {
         "CliCheck": cli_check.CliCheck,
         "MetadataCheck": metadata_check.MetadataCheck,
     }
-    CLASSNAME = sys.argv[1]
-    return CHECKER[CLASSNAME](flow)
+    if isinstance(checker_class, str):
+        checker_class = _CLASSES[checker_class]
+    return checker_class(flow, run_id, cli_options)

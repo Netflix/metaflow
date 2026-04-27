@@ -7,14 +7,14 @@ from . import (
     AssertArtifactFailed,
     AssertCardFailed,
     AssertLogFailed,
-    assert_equals,
     assert_exception,
     truncate,
 )
 
 
 class MetadataCheck(MetaflowCheck):
-    def __init__(self, flow):
+    def __init__(self, flow, run_id, cli_options=()):
+        super(MetadataCheck, self).__init__(flow, run_id, cli_options)
         from metaflow.client import Flow, get_namespace
 
         self.flow = flow
@@ -31,19 +31,19 @@ class MetadataCheck(MetaflowCheck):
         from metaflow.exception import MetaflowNamespaceMismatch
 
         # test 1) METAFLOW_USER should be the default
-        assert_equals("user:%s" % os.environ.get("METAFLOW_USER"), get_namespace())
+        assert get_namespace() == "user:%s" % os.environ.get("METAFLOW_USER")
         # test 2) Run should be in the listing
-        assert_equals(True, self.run_id in [run.id for run in Flow(self.flow.name)])
+        assert self.run_id in [run.id for run in Flow(self.flow.name)]
         # test 3) changing namespace should change namespace
         namespace("user:nobody")
-        assert_equals(get_namespace(), "user:nobody")
+        assert get_namespace() == "user:nobody"
         # test 4) fetching results in the incorrect namespace should fail
         assert_exception(
             lambda: Flow(self.flow.name)[self.run_id], MetaflowNamespaceMismatch
         )
         # test 5) global namespace should work
         namespace(None)
-        assert_equals(get_namespace(), None)
+        assert get_namespace() is None
         Flow(self.flow.name)[self.run_id]
         default_namespace()
 

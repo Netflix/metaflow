@@ -109,13 +109,13 @@ def config_default(ctx):
 
         try:
             self.config3["val"] = 5
-            raise ExpectationFailed(TypeError, "configs should be immutable")
+            raise AssertionError("configs should be immutable: expected TypeError")
         except TypeError:
             pass
 
         try:
             self.config3.val = 5
-            raise ExpectationFailed(TypeError, "configs should be immutable")
+            raise AssertionError("configs should be immutable: expected TypeError")
         except TypeError:
             pass
 

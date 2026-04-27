@@ -29,7 +29,6 @@ class FlowFormatter(object):
 
         if self.valid:
             self.flow_code = self._pretty_print(self._flow_lines())
-            self.check_code = self._pretty_print(self._check_lines())
 
             for step in self.steps:
                 if step.required and step not in self.used:
@@ -108,7 +107,7 @@ class FlowFormatter(object):
         )
         yield 0, (
             "from metaflow_test import assert_equals, assert_equals_metadata, "
-            "assert_exception, ExpectationFailed, is_resumed, ResumeFromHere, "
+            "assert_exception, is_resumed, ResumeFromHere, "
             "TestRetry, try_to_get_card"
         )
         if tags:
@@ -189,19 +188,6 @@ class FlowFormatter(object):
 
         yield 0, "if __name__ == '__main__':"
         yield 1, "%s()" % self.flow_name
-
-    def _check_lines(self):
-        yield 0, "# -*- coding: utf-8 -*-"
-        yield 0, "import sys"
-        yield 0, "from metaflow_test import assert_equals, assert_equals_metadata, assert_exception, new_checker"
-        yield 0, "def check_results(flow, checker):"
-        for line in self._format_method(self.test.check_results):
-            yield 1, line
-        yield 0, "if __name__ == '__main__':"
-        yield 1, "from test_flow import %s" % self.flow_name
-        yield 1, "flow = %s(use_cli=False)" % self.flow_name
-        yield 1, "check = new_checker(flow)"
-        yield 1, "check_results(flow, check)"
 
     def _pretty_print(self, lines):
         def _lines():
