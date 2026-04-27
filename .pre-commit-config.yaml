@@ -25,6 +25,8 @@ repos:
       - id: forbid-submodules
       - id: mixed-line-ending
       - id: requirements-txt-fixer
+      - id: trailing-whitespace
+        exclude: metaflow/plugins/cards/card_modules/main\.js
       # - id: check-builtin-literals
       # - id: check-executables-have-shebangs
       # - id: check-shebang-scripts-are-executable
@@ -32,8 +34,7 @@ repos:
       # - id: detect-aws-credentials
       # - id: name-tests-test
       # - id: pretty-format-json
-      # - id: trailing-whitespace
-      #   exclude: metaflow/plugins/cards/card_modules/main.js
+
 
   - repo: https://github.com/shellcheck-py/shellcheck-py
     rev: v0.10.0.1
