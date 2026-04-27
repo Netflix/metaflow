@@ -106,8 +106,7 @@ class FlowFormatter(object):
             "StepMutator, UserStepDecorator, user_step_decorator"
         )
         yield 0, (
-            "from metaflow_test import assert_equals, assert_equals_metadata, "
-            "assert_exception, is_resumed, ResumeFromHere, "
+            "from metaflow_test import is_resumed, ResumeFromHere, "
             "TestRetry, try_to_get_card"
         )
         if tags:

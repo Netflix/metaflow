@@ -1,7 +1,7 @@
-from metaflow_test import MetaflowTest, ExpectationFailed, steps, tag
+from metaflow_test import FlowDefinition, ExpectationFailed, steps, tag
 
 
-class CardComponentRefreshTest(MetaflowTest):
+class CardComponentRefresh(FlowDefinition):
     """
     This test will validates the card component API based for runtime updates.
     """
@@ -77,7 +77,7 @@ class CardComponentRefreshTest(MetaflowTest):
         # timeout value is reached. After which the function will throw a `TimeoutError`.
         _reload_tok = make_reload_token(component_1_arr, component_2_arr)
         card = try_to_get_card(id="refresh_card")
-        assert_equals(isinstance(card, Card), True)
+        assert isinstance(card, Card) == True
 
         sleep_between_refreshes = 2  # Set based on the RUNTIME_CARD_MIN_REFRESH_INTERVAL which acts as a rate-limit to what is refreshed.
 
@@ -85,7 +85,7 @@ class CardComponentRefreshTest(MetaflowTest):
         possible_reload_tokens.append(_reload_tok)
         # The reload token for card type `test_component_refresh_card` contains a hash of the component values.
         # The first assertion will check if this reload token exists is set to what we expect in the HTML page.
-        assert_equals(_reload_tok in card_html, True)
+        assert _reload_tok in card_html == True
 
         card_data = None
         for i in range(5):
@@ -107,16 +107,17 @@ class CardComponentRefreshTest(MetaflowTest):
             possible_reload_tokens.append(_reload_tok)
             card_data = card.get_data()
             if card_data is not None:
-                assert_equals(card_data["reload_token"] in possible_reload_tokens, True)
-                assert_equals(
+                assert card_data["reload_token"] in possible_reload_tokens == True
+                assert (
                     _array_is_a_subset(
                         card_data["data"]["component_1"]["abc"], component_1_arr
-                    ),
-                    True,
+                    )
+                ) == (
+                    True
                 )
             time.sleep(sleep_between_refreshes)
 
-        assert_equals(card_data is not None, True)
+        assert card_data is not None == True
         self.final_data = component_1_arr
         # setting step name here helps us figure out what steps should be validated by the checker
         self.step_name = current.step_name
@@ -157,11 +158,11 @@ class CardComponentRefreshTest(MetaflowTest):
                     "test_component_refresh_card",
                     card_id="refresh_card",
                 )
-                assert_equals(card_present, True)
+                assert card_present == True
                 data_has_latest_artifact = _array_is_a_subset(
                     data_obj, card_data["data"]["component_1"]["abc"]
                 )
-                assert_equals(data_has_latest_artifact, True)
+                assert data_has_latest_artifact == True
                 print(
                     "Succesfully validated task pathspec %s"
                     % run[step.name][task_id].pathspec

@@ -1,7 +1,7 @@
-from metaflow_test import MetaflowTest, ExpectationFailed, steps, tag
+from metaflow_test import FlowDefinition, ExpectationFailed, steps, tag
 
 
-class ExtensionsTest(MetaflowTest):
+class Extensions(FlowDefinition):
     """
     Test that the metaflow_extensions module is properly loaded
     """

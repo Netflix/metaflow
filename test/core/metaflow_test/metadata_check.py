@@ -2,12 +2,13 @@ import json
 import os
 from metaflow.util import is_stringish
 
+import pytest
+
 from . import (
     MetaflowCheck,
     AssertArtifactFailed,
     AssertCardFailed,
     AssertLogFailed,
-    assert_exception,
     truncate,
 )
 
@@ -38,9 +39,8 @@ class MetadataCheck(MetaflowCheck):
         namespace("user:nobody")
         assert get_namespace() == "user:nobody"
         # test 4) fetching results in the incorrect namespace should fail
-        assert_exception(
-            lambda: Flow(self.flow.name)[self.run_id], MetaflowNamespaceMismatch
-        )
+        with pytest.raises(MetaflowNamespaceMismatch):
+            Flow(self.flow.name)[self.run_id]
         # test 5) global namespace should work
         namespace(None)
         assert get_namespace() is None
@@ -50,45 +50,46 @@ class MetadataCheck(MetaflowCheck):
     def get_run(self):
         return self.run
 
+    def artifact(self, step, name):
+        """Return {task_id: value} for *name* in every task of *step*.
+
+        Use in check_results for explicit assertions::
+
+            for v in checker.artifact(step, "data").values():
+                assert v == "abc"
+        """
+        return {
+            task_id: artifacts[name]
+            for task_id, artifacts in self.artifact_dict(step, name).items()
+            if name in artifacts
+        }
+
     def assert_artifact(self, step, name, value, fields=None):
         for task, artifacts in self.artifact_dict(step, name).items():
-            if name in artifacts:
-                artifact = artifacts[name]
-                if fields:
-                    for field, v in fields.items():
-                        if is_stringish(artifact):
-                            data = json.loads(artifact)
-                        else:
-                            data = artifact
-                        if not isinstance(data, dict):
-                            raise AssertArtifactFailed(
-                                "Task '%s' expected %s to be a dictionary (got %s)"
-                                % (task, name, type(data))
-                            )
-                        if data.get(field, None) != v:
-                            raise AssertArtifactFailed(
-                                "Task '%s' expected %s[%s]=%r but got %s[%s]=%s"
-                                % (
-                                    task,
-                                    name,
-                                    field,
-                                    truncate(v),
-                                    name,
-                                    field,
-                                    truncate(data.get(field, None)),
-                                )
-                            )
-                elif artifact != value:
-                    raise AssertArtifactFailed(
-                        "Task '%s' expected %s=%r but got %s=%s"
-                        % (task, name, truncate(value), name, truncate(artifact))
+            assert name in artifacts, (
+                "Task '%s' expected %s=%s but the key was not found"
+                % (task, name, truncate(value))
+            )
+            artifact = artifacts[name]
+            if fields:
+                for field, v in fields.items():
+                    if is_stringish(artifact):
+                        data = json.loads(artifact)
+                    else:
+                        data = artifact
+                    assert isinstance(data, dict), (
+                        "Task '%s' expected %s to be a dictionary (got %s)"
+                        % (task, name, type(data))
+                    )
+                    assert data.get(field) == v, (
+                        "Task '%s' expected %s[%s]=%r but got %s[%s]=%s"
+                        % (task, name, field, truncate(v), name, field, truncate(data.get(field)))
                     )
             else:
-                raise AssertArtifactFailed(
-                    "Task '%s' expected %s=%s but "
-                    "the key was not found" % (task, name, truncate(value))
+                assert artifact == value, (
+                    "Task '%s' expected %s=%r but got %s=%s"
+                    % (task, name, truncate(value), name, truncate(artifact))
                 )
-        return True
 
     def artifact_dict(self, step, name):
         return {task.id: {name: task[name].data} for task in self.run[step]}
@@ -100,14 +101,15 @@ class MetadataCheck(MetaflowCheck):
 
     def assert_log(self, step, logtype, value, exact_match=True):
         log_value = self.get_log(step, logtype)
-        if log_value == value:
-            return True
-        elif not exact_match and value in log_value:
-            return True
+        if exact_match:
+            assert log_value == value, (
+                "Step '%s' expected task.%s=%r but got %r"
+                % (step, logtype, value, log_value)
+            )
         else:
-            raise AssertLogFailed(
-                "Step '%s' expected task.%s='%s' but got task.%s='%s'"
-                % (step, logtype, repr(value), logtype, repr(log_value))
+            assert value in log_value, (
+                "Step '%s' expected task.%s to contain %r but got %r"
+                % (step, logtype, value, log_value)
             )
 
     def list_cards(self, step, task, card_type=None):
@@ -160,14 +162,16 @@ class MetadataCheck(MetaflowCheck):
                 else:
                     card_filter = [c for c in card_iter if card_hash in c.hash]
                     card_data = None if len(card_filter) == 0 else card_filter[0].get()
-        if (exact_match and card_data != value) or (
-            not exact_match and value not in card_data
-        ):
-            raise AssertCardFailed(
-                "Task '%s/%s' expected %s card with content '%s' but got '%s'"
-                % (self.run_id, step, card_type, repr(value), repr(card_data))
+        if exact_match:
+            assert card_data == value, (
+                "Task '%s/%s' expected %s card content %r but got %r"
+                % (self.run_id, step, card_type, value, card_data)
             )
-        return True
+        else:
+            assert value in card_data, (
+                "Task '%s/%s' expected %s card to contain %r"
+                % (self.run_id, step, card_type, value)
+            )
 
     def get_card_data(self, step, task, card_type, card_id=None):
         """

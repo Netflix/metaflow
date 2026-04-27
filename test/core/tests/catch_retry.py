@@ -1,8 +1,8 @@
-from metaflow_test import MetaflowTest, ExpectationFailed, steps, tag
+from metaflow_test import FlowDefinition, ExpectationFailed, steps, tag
 from metaflow import current
 
 
-class CatchRetryTest(MetaflowTest):
+class CatchRetry(FlowDefinition):
     PRIORITY = 2
     SKIP_GRAPHS = [
         "simple_switch",
@@ -55,7 +55,7 @@ class CatchRetryTest(MetaflowTest):
         from metaflow.exception import ExternalCommandFailed
 
         # make sure we see the latest attempt version of the artifact
-        assert_equals(3, self.test_attempt)
+        assert 3 == self.test_attempt
         # the test uses a non-trivial derived exception on purpose
         # which is non-trivial to pickle correctly
         self.here = True
@@ -93,7 +93,7 @@ class CatchRetryTest(MetaflowTest):
             elif step.name == "end":
                 checker.assert_artifact("end", "test_attempt", 3)
                 for task in checker.artifact_dict(step.name, "end_ex").values():
-                    assert_equals("catch me!", str(task["end_ex"].exception))
+                    assert "catch me!" == str(task["end_ex"].exception)
                     break
                 else:
                     raise Exception("No artifact 'end_ex' in step 'end'")
@@ -107,14 +107,14 @@ class CatchRetryTest(MetaflowTest):
             else:
                 for task in checker.artifact_dict(step.name, "ex").values():
                     extype = "metaflow_test.TestRetry"
-                    assert_equals(extype, str(task["ex"].type))
+                    assert extype == str(task["ex"].type)
                     break
                 else:
                     raise Exception("No artifact 'ex' in step '%s'" % step.name)
                 for task in checker.artifact_dict(
                     step.name, "retry_with_catch"
                 ).values():
-                    assert_equals(task["retry_with_catch"], 2)
+                    assert task["retry_with_catch"] == 2
                     break
                 else:
                     raise Exception(
@@ -137,16 +137,14 @@ class CatchRetryTest(MetaflowTest):
                 for task in step:
                     data = task.data
                     got = sorted(m.value for m in task.metadata if m.type == "attempt")
-                    assert_equals(list(map(str, range(attempts))), got)
+                    assert list(map(str, range(attempts))) == got
 
-            assert_equals(False, "invisible" in run["start"].task.data)
-            assert_equals(3, run["start"].task.data.test_attempt)
+            assert False == "invisible" in run["start"].task.data
+            assert 3 == run["start"].task.data.test_attempt
             end = run["end"].task
-            assert_equals(True, end.data.here)
-            assert_equals(3, end.data.test_attempt)
+            assert True == end.data.here
+            assert 3 == end.data.test_attempt
             # task.exception is None since the exception was handled
-            assert_equals(None, end.exception)
-            assert_equals("catch me!", end.data.end_ex.exception)
-            assert_equals(
-                "metaflow.exception.ExternalCommandFailed", end.data.end_ex.type
-            )
+            assert None == end.exception
+            assert "catch me!" == end.data.end_ex.exception
+            assert "metaflow.exception.ExternalCommandFailed" == end.data.end_ex.type

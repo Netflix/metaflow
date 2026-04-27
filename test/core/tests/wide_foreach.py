@@ -1,7 +1,7 @@
-from metaflow_test import MetaflowTest, ExpectationFailed, steps
+from metaflow_test import FlowDefinition, ExpectationFailed, steps
 
 
-class WideForeachTest(MetaflowTest):
+class WideForeach(FlowDefinition):
     PRIORITY = 3
     SKIP_GRAPHS = [
         "simple_switch",
@@ -26,7 +26,7 @@ class WideForeachTest(MetaflowTest):
     @steps(0, ["foreach-join-small"], required=True)
     def join(self, inputs):
         got = [inp.my_input for inp in inputs]
-        assert_equals(list(range(1200)), got)
+        assert list(range(1200)) == got
 
     @steps(1, ["all"])
     def step_all(self):
@@ -37,4 +37,4 @@ class WideForeachTest(MetaflowTest):
         if run:
             # The client API shouldn't choke on many tasks
             res = sorted(task.data.my_input for task in run["foreach_inner"])
-            assert_equals(list(range(1200)), res)
+            assert list(range(1200)) == res

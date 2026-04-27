@@ -1,7 +1,7 @@
-from metaflow_test import MetaflowTest, ExpectationFailed, steps, tag
+from metaflow_test import FlowDefinition, ExpectationFailed, steps, tag
 
 
-class CardsWithIdTest(MetaflowTest):
+class CardsWithId(FlowDefinition):
     """
     `current.card['myid']` should be accessible when cards have an `id` argument in decorator
     - `current.card.append` should not work when there are no single default editable card.

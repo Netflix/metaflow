@@ -1,7 +1,7 @@
-from metaflow_test import MetaflowTest, ExpectationFailed, steps, tag
+from metaflow_test import FlowDefinition, ExpectationFailed, steps, tag
 
 
-class CardExtensionsImportTest(MetaflowTest):
+class CardExtensionsImport(FlowDefinition):
     """
     - Requires on tests/extensions/packages to be installed.
     """
@@ -45,11 +45,12 @@ class CardExtensionsImportTest(MetaflowTest):
                     task_id = task_pathspec.split("/")[-1]
                     cards_info = checker.list_cards(step.name, task_id)
                     # Just check if the cards are created.
-                    assert_equals(
+                    assert (
                         cards_info is not None
                         and "cards" in cards_info
-                        and len(cards_info["cards"]) == 4,
-                        True,
+                        and len(cards_info["cards"]) == 4
+                    ) == (
+                        True
                     )
         else:
             # This means MetadataCheck is in context.
@@ -60,9 +61,10 @@ class CardExtensionsImportTest(MetaflowTest):
                 for task_id in meta_check_dict:
                     full_pathspec = meta_check_dict[task_id]["task"]
                     cards_info = checker.list_cards(step.name, task_id)
-                    assert_equals(
+                    assert (
                         cards_info is not None
                         and "cards" in cards_info
-                        and len(cards_info["cards"]) == 4,
-                        True,
+                        and len(cards_info["cards"]) == 4
+                    ) == (
+                        True
                     )

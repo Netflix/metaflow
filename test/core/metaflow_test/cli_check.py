@@ -36,47 +36,48 @@ class CliCheck(MetaflowCheck):
             cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=True
         )
 
+    def artifact(self, step, name):
+        """Return {task_id: value} for *name* in every task of *step*.
+
+        Use in check_results for explicit assertions::
+
+            for v in checker.artifact(step, "data").values():
+                assert v == "abc"
+        """
+        return {
+            task_id: artifacts[name]
+            for task_id, artifacts in self.artifact_dict(step, name).items()
+            if name in artifacts
+        }
+
     def assert_artifact(self, step, name, value, fields=None):
         for task, artifacts in self.artifact_dict(step, name).items():
-            if name in artifacts:
-                artifact = artifacts[name]
-                if fields:
-                    for field, v in fields.items():
-                        if is_stringish(artifact):
-                            data = json.loads(artifact)
-                        elif isinstance(artifact, IncludedFile):
-                            data = json.loads(artifact.descriptor)
-                        else:
-                            data = artifact
-                        if not isinstance(data, dict):
-                            raise AssertArtifactFailed(
-                                "Task '%s' expected %s to be a dictionary (got %s)"
-                                % (task, name, type(data))
-                            )
-                        if data.get(field, None) != v:
-                            raise AssertArtifactFailed(
-                                "Task '%s' expected %s[%s]=%r but got %s[%s]=%s"
-                                % (
-                                    task,
-                                    name,
-                                    field,
-                                    truncate(value),
-                                    name,
-                                    field,
-                                    truncate(data[field]),
-                                )
-                            )
-                elif artifact != value:
-                    raise AssertArtifactFailed(
-                        "Task '%s' expected %s=%r but got %s=%s"
-                        % (task, name, truncate(value), name, truncate(artifact))
+            assert name in artifacts, (
+                "Task '%s' expected %s=%s but the key was not found"
+                % (task, name, truncate(value))
+            )
+            artifact = artifacts[name]
+            if fields:
+                for field, v in fields.items():
+                    if is_stringish(artifact):
+                        data = json.loads(artifact)
+                    elif isinstance(artifact, IncludedFile):
+                        data = json.loads(artifact.descriptor)
+                    else:
+                        data = artifact
+                    assert isinstance(data, dict), (
+                        "Task '%s' expected %s to be a dictionary (got %s)"
+                        % (task, name, type(data))
+                    )
+                    assert data.get(field) == v, (
+                        "Task '%s' expected %s[%s]=%r but got %s[%s]=%s"
+                        % (task, name, field, truncate(v), name, field, truncate(data.get(field)))
                     )
             else:
-                raise AssertArtifactFailed(
-                    "Task '%s' expected %s=%s but "
-                    "the key was not found" % (task, name, truncate(value))
+                assert artifact == value, (
+                    "Task '%s' expected %s=%r but got %s=%s"
+                    % (task, name, truncate(value), name, truncate(artifact))
                 )
-        return True
 
     def artifact_dict(self, step, name):
         with NamedTemporaryFile(dir=".") as tmp:
@@ -101,13 +102,16 @@ class CliCheck(MetaflowCheck):
 
     def assert_log(self, step, logtype, value, exact_match=True):
         log = self.get_log(step, logtype)
-        if (exact_match and log != value) or (not exact_match and value not in log):
-
-            raise AssertLogFailed(
-                "Task '%s/%s' expected %s log '%s' but got '%s'"
-                % (self.run_id, step, logtype, repr(value), repr(log))
+        if exact_match:
+            assert log == value, (
+                "Task '%s/%s' expected %s log %r but got %r"
+                % (self.run_id, step, logtype, value, log)
             )
-        return True
+        else:
+            assert value in log, (
+                "Task '%s/%s' expected %s log to contain %r but got %r"
+                % (self.run_id, step, logtype, value, log)
+            )
 
     def assert_card(
         self,
@@ -131,14 +135,16 @@ class CliCheck(MetaflowCheck):
                 card_data = None
             else:
                 raise e
-        if (exact_match and card_data != value) or (
-            not exact_match and value not in card_data
-        ):
-            raise AssertCardFailed(
-                "Task '%s/%s' expected %s card with content '%s' but got '%s'"
-                % (self.run_id, step, card_type, repr(value), repr(card_data))
+        if exact_match:
+            assert card_data == value, (
+                "Task '%s/%s' expected %s card content %r but got %r"
+                % (self.run_id, step, card_type, value, card_data)
             )
-        return True
+        else:
+            assert value in card_data, (
+                "Task '%s/%s' expected %s card to contain %r"
+                % (self.run_id, step, card_type, value)
+            )
 
     def list_cards(self, step, task, card_type=None):
         from metaflow.plugins.cards.exception import CardNotPresentException

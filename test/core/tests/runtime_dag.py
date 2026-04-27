@@ -1,7 +1,7 @@
-from metaflow_test import MetaflowTest, ExpectationFailed, steps
+from metaflow_test import FlowDefinition, ExpectationFailed, steps
 
 
-class RuntimeDagTest(MetaflowTest):
+class RuntimeDag(FlowDefinition):
     """
     Test that `parent_tasks` and `child_tasks` API returns correct parent and child tasks
     respectively by comparing task ids stored during step execution.

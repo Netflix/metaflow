@@ -1,7 +1,7 @@
-from metaflow_test import MetaflowTest, ExpectationFailed, steps
+from metaflow_test import FlowDefinition, ExpectationFailed, steps
 
 
-class ResumeOriginPathSpec(MetaflowTest):
+class ResumeOriginPathSpec(FlowDefinition):
     """
     `Step.origin_pathspec` and `Run.origin_pathspec` and `Task.origin_pathspec` should be present
 
@@ -50,6 +50,6 @@ class ResumeOriginPathSpec(MetaflowTest):
                     orig_pathspec = task.data.origin_pathspec
                     steporiginpth = "/".join(orig_pathspec.split("/")[:-1])
                     runoriginpth = "/".join(orig_pathspec.split("/")[:-2])
-                    assert_equals(orig_pathspec, task.origin_pathspec)
-                    assert_equals(steporiginpth, step.origin_pathspec)
-                    assert_equals(runoriginpth, run.origin_pathspec)
+                    assert orig_pathspec == task.origin_pathspec
+                    assert steporiginpth == step.origin_pathspec
+                    assert runoriginpth == run.origin_pathspec

@@ -1,7 +1,7 @@
-from metaflow_test import MetaflowTest, ExpectationFailed, steps
+from metaflow_test import FlowDefinition, ExpectationFailed, steps
 
 
-class LargeArtifactTest(MetaflowTest):
+class LargeArtifact(FlowDefinition):
     """
     Test that you can serialize large objects (over 4GB)
     with Python3 - although on OSX, some versions of Python3 fail
@@ -36,7 +36,7 @@ class LargeArtifactTest(MetaflowTest):
         import sys
 
         if sys.version_info[0] > 2:
-            assert_equals(self.large, b"x" * int(4.1 * 1024**3))
+            assert self.large == b"x" * int(4.1 * 1024**3)
 
     @steps(1, ["all"])
     def step_all(self):

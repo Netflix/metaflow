@@ -1,7 +1,7 @@
-from metaflow_test import MetaflowTest, ExpectationFailed, steps, tag
+from metaflow_test import FlowDefinition, ExpectationFailed, steps, tag
 
 
-class DefaultEditableCardTest(MetaflowTest):
+class DefaultEditableCard(FlowDefinition):
     """
     `current.card.append` works for one decorator as default editable cards
         - adding arbitrary information to `current.card.append` should not break user code.
@@ -90,11 +90,12 @@ class MyNativeType:
                     cards_info = checker.list_cards(step.name, task_id, card_type)
 
                     number = cli_check_dict[task_pathspec]["random_number"]
-                    assert_equals(
+                    assert (
                         cards_info is not None
                         and "cards" in cards_info
-                        and len(cards_info["cards"]) == 1,
-                        True,
+                        and len(cards_info["cards"]) == 1
+                    ) == (
+                        True
                     )
                     card = cards_info["cards"][0]
                     checker.assert_card(
@@ -113,11 +114,12 @@ class MyNativeType:
                     random_number = meta_check_dict[task_id]["random_number"]
                     cards_info = checker.list_cards(step.name, task_id, card_type)
 
-                    assert_equals(
+                    assert (
                         cards_info is not None
                         and "cards" in cards_info
-                        and len(cards_info["cards"]) == 1,
-                        True,
+                        and len(cards_info["cards"]) == 1
+                    ) == (
+                        True
                     )
                     for card in cards_info["cards"]:
                         checker.assert_card(

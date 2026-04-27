@@ -1,7 +1,7 @@
-from metaflow_test import MetaflowTest, ExpectationFailed, steps, assert_equals
+from metaflow_test import FlowDefinition, ExpectationFailed, steps
 
 
-class ForeachInSwitchTest(MetaflowTest):
+class ForeachInSwitch(FlowDefinition):
     PRIORITY = 2
     ONLY_GRAPHS = ["foreach_in_switch"]
 
@@ -27,7 +27,7 @@ class ForeachInSwitchTest(MetaflowTest):
 
     @steps(1, ["end-foreach-in-switch"], required=True)
     def step_end(self):
-        assert_equals(self.final_result, ["Processed item_1", "Processed item_2"])
+        assert self.final_result == ["Processed item_1", "Processed item_2"]
 
     def check_results(self, flow, checker):
         checker.assert_artifact(
