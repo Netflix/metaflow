@@ -13,16 +13,11 @@ CSS_PATH = os.path.join(ABS_DIR_PATH, "bundle.css")
 
 
 def transform_flow_graph(graph):
-    if (
-        isinstance(graph, dict)
-        and "steps" in graph
-        and "start_step" in graph
-        and "end_step" in graph
-        and isinstance(graph["steps"], dict)
-    ):
+    # new graph format
+    if "steps" in graph and "start_step" in graph and "end_step" in graph:
         step_info = graph["steps"]
-        start_step = graph.get("start_step")
-        end_step = graph.get("end_step")
+        start_step = graph["start_step"]
+        end_step = graph["end_step"]
     else:
         step_info = graph
         start_step = "start" if "start" in graph else None
