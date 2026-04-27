@@ -1,24 +1,40 @@
 import json
 import os
+import sys
 from itertools import product
 from typing import Any, Iterator, List
 
 import pytest
 
+# Short marker name for each context. Used for -m filtering (e.g. pytest -m local).
+_CONTEXT_MARKERS = {
+    "python3-all-local": "local",
+    "python3-all-local-azure-storage": "azure",
+    "python3-all-local-gcs": "gcs",
+    "python3-batch": "batch",
+    "python3-k8s": "k8s",
+    "python3-argo-workflows": "argo",
+    "python3-sfn": "sfn",
+}
 
-def _split_into_batches(lst: List[Any], batch_size: int) -> Iterator[List[Any]]:
-    # Skip card tests — they need separate infrastructure
-    non_card = [t for t in lst if "Card" not in t.__class__.__name__]
-    for i in range(0, len(non_card), batch_size):
-        yield non_card[i : i + batch_size]
+
+def pytest_configure(config: Any) -> None:
+    for mark, description in [
+        ("local", "local datastore/metadata context"),
+        ("azure", "Azure blob storage context"),
+        ("gcs", "Google Cloud Storage context"),
+        ("batch", "AWS Batch context"),
+        ("k8s", "Kubernetes context"),
+        ("argo", "Argo Workflows context"),
+        ("sfn", "AWS Step Functions context"),
+    ]:
+        config.addinivalue_line("markers", "%s: %s" % (mark, description))
 
 
 def pytest_generate_tests(metafunc: Any) -> None:
     if "core_test_params" not in metafunc.fixturenames:
         return
     try:
-        import sys
-
         core_dir = os.path.dirname(__file__)
         if core_dir not in sys.path:
             sys.path.insert(0, core_dir)
@@ -35,18 +51,41 @@ def pytest_generate_tests(metafunc: Any) -> None:
         from run_tests import iter_graphs, iter_tests
         from metaflow_test.formatter import FlowFormatter
 
-        test_batches = list(_split_into_batches(list(iter_tests()), batch_size=10))
+        all_tests = sorted(iter_tests(), key=lambda t: t.PRIORITY)
         all_graphs = list(iter_graphs())
 
+        # Group tests into batches of 10 to keep each pytest item manageable.
+        batch_size = 10
+        test_batches = [
+            all_tests[i : i + batch_size] for i in range(0, len(all_tests), batch_size)
+        ]
+
         params = []
-        for context, graph, batch in product(
+        for context_name, graph, batch in product(
             enabled_contexts, all_graphs, test_batches
         ):
             valid = [
                 t.__class__.__name__ for t in batch if FlowFormatter(graph, t).valid
             ]
-            if valid:
-                params.append((context, graph["name"], valid))
+            if not valid:
+                continue
+
+            marker_name = _CONTEXT_MARKERS.get(context_name, "local")
+            short_ctx = marker_name
+            # Build a readable ID: context/graph/FirstTest[+N more]
+            if len(valid) == 1:
+                test_label = valid[0]
+            else:
+                test_label = "%s+%d" % (valid[0], len(valid) - 1)
+            param_id = "%s/%s/%s" % (short_ctx, graph["name"], test_label)
+
+            params.append(
+                pytest.param(
+                    (context_name, graph["name"], valid),
+                    marks=[getattr(pytest.mark, marker_name)],
+                    id=param_id,
+                )
+            )
 
         metafunc.parametrize("core_test_params", params)
     except Exception as e:
