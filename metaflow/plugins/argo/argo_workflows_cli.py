@@ -1004,7 +1004,7 @@ def trigger(obj, run_id_file=None, deployer_attribute_file=None, **kwargs):
 
     if workflow_url and run_url:
         obj.echo(
-            "See the run in the UI at %s and in the Argo Workflows UI at %s"
+            "See the run in the UI at %s\nand in the Argo Workflows UI at %s"
             % (run_url, workflow_url),
             bold=True,
         )
