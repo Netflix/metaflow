@@ -223,8 +223,8 @@ class TableComponent(DefaultComponent):
     def render(self):
         datadict = super().render()
         datadict["columns"] = self._headers
-        datadict["data"] = self._data
-        datadict["vertical"] = self._vertical
+        datadict["data"] = self._data if isinstance(self._data,str) else str(self._data)
+        datadict["vertical"] = self._veself.tical
         if self.component_id is not None:
             datadict["id"] = self.component_id
         return datadict
@@ -297,7 +297,7 @@ class HTMLComponent(DefaultComponent):
 
     def render(self):
         datadict = super().render()
-        datadict["data"] = self._data
+        datadict["data"] = str(self._data)
         return datadict
 
 
@@ -718,6 +718,7 @@ class DefaultCard(MetaflowCard):
     RELOAD_POLICY = MetaflowCard.RELOAD_POLICY_ONCHANGE
 
     type = "default"
+    aliases = ["html"]
 
     def __init__(
         self,
