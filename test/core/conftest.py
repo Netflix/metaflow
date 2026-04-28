@@ -1,151 +1,321 @@
-import importlib
-import json
+"""Pytest configuration for core integration tests.
+
+This conftest provides the small set of fixtures every core test consumes:
+
+- ``metaflow_runner`` — runs a ``FlowSpec`` subclass via the cli or api
+  executor and yields a small result object.
+- ``executor`` — parametrises over ``["cli", "api"]`` so tests opt in by
+  taking the fixture; tests that only support one executor pass it
+  literally to ``metaflow_runner``.
+- ``backend_marker`` — applies the right backend marker to every collected
+  item, sourced from ``METAFLOW_CORE_MARKER`` (set by tox).
+
+There is no graph × test cartesian product here. Each test file declares
+its own ``FlowSpec`` and its own pytest functions.
+"""
+
+from __future__ import annotations
+
+import inspect
 import os
+import shlex
+import subprocess
 import sys
-from typing import Any
+import textwrap
+import uuid
+from dataclasses import dataclass
+from pathlib import Path
+from typing import Iterable, Sequence
 
 import pytest
 
-from metaflow_test import FlowDefinition
-from metaflow_test.formatter import FlowFormatter
-
-# Ensure test/core/ is on sys.path so metaflow_test is importable.
 _CORE_DIR = os.path.dirname(os.path.abspath(__file__))
 if _CORE_DIR not in sys.path:
     sys.path.insert(0, _CORE_DIR)
 
-
 # ---------------------------------------------------------------------------
-# Test discovery — owned by pytest, no dependency on run_tests.py
-# ---------------------------------------------------------------------------
-
-
-def _iter_graphs():
-    root = os.path.join(_CORE_DIR, "graphs")
-    for graphfile in os.listdir(root):
-        if graphfile.endswith(".json") and not graphfile[0] == ".":
-            with open(os.path.join(root, graphfile)) as f:
-                yield json.load(f)
-
-
-def _iter_tests():
-    root = os.path.join(_CORE_DIR, "tests")
-    if root not in sys.path:
-        sys.path.insert(0, root)
-    for testfile in os.listdir(root):
-        if testfile.endswith(".py") and not testfile[0] == ".":
-            mod = importlib.import_module(testfile[:-3], "metaflow_test")
-            for name in dir(mod):
-                obj = getattr(mod, name)
-                if (
-                    name != "FlowDefinition"
-                    and isinstance(obj, type)
-                    and issubclass(obj, FlowDefinition)
-                ):
-                    yield obj()
-
-
-# ---------------------------------------------------------------------------
-# pytest hooks
+# Backend marker — sourced from tox setenv. One env var, one marker.
 # ---------------------------------------------------------------------------
 
 
+def pytest_collection_modifyitems(config, items):
+    """Apply the active backend marker to every collected item.
+
+    Tox env sets ``METAFLOW_CORE_MARKER`` to ``local`` / ``gcs`` / etc.;
+    that marker is stamped on every item so ``pytest -m local`` selects
+    the right subset on a multi-backend invocation.
+    """
+    marker_name = os.environ.get("METAFLOW_CORE_MARKER", "local")
+    marker = getattr(pytest.mark, marker_name)
+    for item in items:
+        item.add_marker(marker)
+
+
 # ---------------------------------------------------------------------------
-# Checker fixture — injectable so tests can override or restrict checkers
+# Run options shared by every test
 # ---------------------------------------------------------------------------
 
-_CORE_CHECKS = {
-    "cli": {"python": "python3", "class": "CliCheck"},
-    "metadata": {"python": "python3", "class": "MetadataCheck"},
-}
+_DEFAULT_RUN_OPTIONS: tuple[str, ...] = (
+    "--max-workers=50",
+    "--max-num-splits=10000",
+    "--tag=刺身 means sashimi",
+    "--tag=multiple tags should be ok",
+)
+
+_DEFAULT_TOP_OPTIONS_LOCAL = (
+    "--metadata=local",
+    "--datastore=local",
+    "--environment=local",
+    "--event-logger=nullSidecarLogger",
+    "--no-pylint",
+    "--quiet",
+)
 
 
 @pytest.fixture(scope="session")
-def core_checks() -> dict:
-    """Return the checker specs run after each flow execution.
+def top_options() -> tuple[str, ...]:
+    """Top-level metaflow CLI options for the active backend.
 
-    Override this fixture in a conftest.py closer to your tests to restrict
-    to a single checker or add a custom one.
+    Sourced from ``METAFLOW_CORE_TOP_OPTIONS`` (tox setenv); falls back to
+    a local-datastore default that works on a fresh checkout without tox.
     """
-    return _CORE_CHECKS
+    raw = os.environ.get("METAFLOW_CORE_TOP_OPTIONS")
+    if raw:
+        return tuple(shlex.split(raw))
+    return _DEFAULT_TOP_OPTIONS_LOCAL
 
 
-def pytest_addoption(parser: Any) -> None:
-    parser.addoption(
-        "--core-tests",
-        default=None,
-        help="Comma-separated test class names to run (e.g. BasicArtifact,BasicForeach)",
+@pytest.fixture(scope="session")
+def default_run_options() -> tuple[str, ...]:
+    return _DEFAULT_RUN_OPTIONS
+
+
+@pytest.fixture(params=["cli", "api"])
+def executor(request) -> str:
+    """Parametrise tests over both executors.
+
+    Tests that only support one executor should take ``metaflow_runner``
+    directly and pass ``executor=`` literally instead of using this
+    fixture.
+    """
+    return request.param
+
+
+# ---------------------------------------------------------------------------
+# Result object + runner fixture
+# ---------------------------------------------------------------------------
+
+
+@dataclass
+class FlowRun:
+    """Outcome of a flow run, agnostic to executor.
+
+    Attributes
+    ----------
+    returncode : int
+        0 on success, non-zero on failure.
+    run_id : str | None
+        Run id pulled from ``run-id`` file. ``None`` on a failed run that
+        never wrote the file.
+    flow_name : str
+        Name of the FlowSpec class that was run.
+    stdout, stderr : str
+        Captured output. May be empty on the api success path (we don't
+        read the log files unless asked).
+    """
+
+    returncode: int
+    run_id: str | None
+    flow_name: str
+    stdout: str = ""
+    stderr: str = ""
+
+    @property
+    def successful(self) -> bool:
+        return self.returncode == 0
+
+    def run(self):
+        """Return the metaflow Run object. Lazy import so tests that
+        only check returncode don't pay the import cost."""
+        from metaflow import Flow, Run  # noqa: F401
+
+        if self.run_id is None:
+            raise RuntimeError(f"flow {self.flow_name!r} produced no run_id")
+        return Flow(self.flow_name, _namespace_check=False)[self.run_id]
+
+
+def _write_flow_module(tmp_path: Path, flow_cls: type) -> Path:
+    """Materialise a FlowSpec class as a standalone module in tmp_path.
+
+    The flow is imported, its source extracted via ``inspect.getsource``,
+    and written verbatim along with its imports (the test module's
+    imports are reused via the surrounding module). The generated file is
+    ``test_flow.py`` so it has a stable name.
+    """
+    flow_module = sys.modules[flow_cls.__module__]
+    source = inspect.getsource(flow_module)
+
+    flow_path = tmp_path / "test_flow.py"
+    # Append a top-level guard so the file is also runnable as a script.
+    guard = textwrap.dedent(
+        f"""
+
+        if __name__ == "__main__":
+            {flow_cls.__name__}()
+        """
     )
-    parser.addoption(
-        "--core-graphs",
-        default=None,
-        help="Comma-separated graph names to run (e.g. single-linear-step,simple-foreach)",
+    flow_path.write_text(source + guard)
+    return flow_path
+
+
+def _build_subprocess_env(extra: dict[str, str] | None = None) -> dict[str, str]:
+    env = dict(os.environ)
+    env.update(
+        {
+            "LANG": "en_US.UTF-8",
+            "LC_ALL": "en_US.UTF-8",
+            "PYTHONIOENCODING": "utf_8",
+        }
     )
+    if extra:
+        env.update(extra)
+    return env
 
 
-def pytest_generate_tests(metafunc: Any) -> None:
-    if "flow_triple" not in metafunc.fixturenames:
-        return
+@pytest.fixture
+def metaflow_runner(tmp_path, monkeypatch, top_options, default_run_options):
+    """Yield a callable that runs a FlowSpec via cli or api.
 
-    ok_tests_raw = metafunc.config.getoption("--core-tests", default=None)
-    ok_graphs_raw = metafunc.config.getoption("--core-graphs", default=None)
-    ok_tests = (
-        {t.lower() for t in ok_tests_raw.split(",") if t} if ok_tests_raw else set()
-    )
-    ok_graphs = (
-        {g.lower() for g in ok_graphs_raw.split(",") if g} if ok_graphs_raw else set()
-    )
+    Usage::
 
-    # All context configuration comes from the environment (set by tox setenv).
-    marker_name = os.environ.get("METAFLOW_CORE_MARKER", "local")
-    executors = [
-        e for e in os.environ.get("METAFLOW_CORE_EXECUTORS", "cli,api").split(",") if e
-    ]
-    disabled_tests = {
-        t for t in os.environ.get("METAFLOW_CORE_DISABLED_TESTS", "").split(",") if t
-    }
-    enabled_tests = {
-        t for t in os.environ.get("METAFLOW_CORE_ENABLED_TESTS", "").split(",") if t
-    }
-    disable_parallel = os.environ.get("METAFLOW_CORE_DISABLE_PARALLEL", "") == "1"
+        def test_basic_artifact(metaflow_runner, executor):
+            run = metaflow_runner(BasicArtifactFlow, executor=executor)
+            assert run.successful
+            assert run.run()["end"].task.data.data == "abc"
 
-    mark = getattr(pytest.mark, marker_name)
-    all_tests = sorted(_iter_tests(), key=lambda t: t.PRIORITY)
-    all_graphs = list(_iter_graphs())
+    The returned :class:`FlowRun` object can also be used to drive a
+    subsequent ``runner.resume(...)`` call.
+    """
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("METAFLOW_USER", os.environ.get("METAFLOW_USER", "tester"))
+    monkeypatch.setenv("METAFLOW_CLICK_API_PROCESS_CONFIG", "0")
+    # Ensure metaflow's metadata client doesn't carry a path cached from a
+    # previous test in the same worker.
+    pythonpath = os.environ.get("PYTHONPATH", "")
+    monkeypatch.setenv("PYTHONPATH", f"{_CORE_DIR}{os.pathsep}{pythonpath}")
 
-    params = []
-    for graph in all_graphs:
-        if ok_graphs and graph["name"].lower() not in ok_graphs:
-            continue
-        if disable_parallel and any(
-            "num_parallel" in node for node in graph["graph"].values()
-        ):
-            continue
+    runners: list = []
 
-        for test in all_tests:
-            test_name = test.__class__.__name__
-            if ok_tests and test_name.lower() not in ok_tests:
+    def _run(
+        flow_cls: type,
+        *,
+        executor: str = "cli",
+        extra_run_options: Iterable[str] = (),
+        resume: bool = False,
+        resume_step: str | None = None,
+        expect_fail: bool = False,
+    ) -> FlowRun:
+        flow_path = _write_flow_module(tmp_path, flow_cls)
+        flow_name = flow_cls.__name__
+        run_options = list(default_run_options) + list(extra_run_options)
+        run_id_file = tmp_path / "run-id"
+
+        if executor == "cli":
+            cmd = (
+                ["python3", "-B", str(flow_path)]
+                + list(top_options)
+                + (["resume"] + ([resume_step] if resume_step else []) if resume else ["run"])
+                + ["--run-id-file", str(run_id_file)]
+                + run_options
+            )
+            env = _build_subprocess_env()
+            cp = subprocess.run(
+                cmd,
+                env=env,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                check=False,
+            )
+            run_id = run_id_file.read_text().strip() if run_id_file.exists() else None
+            return FlowRun(
+                returncode=cp.returncode,
+                run_id=run_id,
+                flow_name=flow_name,
+                stdout=cp.stdout.decode("utf-8", errors="replace"),
+                stderr=cp.stderr.decode("utf-8", errors="replace"),
+            )
+
+        if executor == "api":
+            from metaflow import Runner
+            from metaflow.runner.click_api import (
+                click_to_python_types,
+                extract_all_params,
+            )
+            from metaflow.cli import start
+            from metaflow.cli_components.run_cmds import run as run_cli
+
+            top_kwargs = _click_args_to_kwargs(start, list(top_options))
+            run_kwargs = _click_args_to_kwargs(run_cli, list(run_options))
+            run_kwargs["run_id_file"] = str(run_id_file)
+            if resume_step:
+                run_kwargs["step_to_rerun"] = resume_step
+
+            r = Runner(str(flow_path), show_output=False, env=os.environ.copy(), **top_kwargs)
+            runners.append(r)
+            try:
+                if resume:
+                    result = r.resume(**run_kwargs)
+                else:
+                    result = r.run(**run_kwargs)
+                rc = result.command_obj.process.returncode
+            except RuntimeError:
+                rc = 1
+            run_id = run_id_file.read_text().strip() if run_id_file.exists() else None
+            return FlowRun(returncode=rc, run_id=run_id, flow_name=flow_name)
+
+        raise ValueError(f"unknown executor {executor!r}")
+
+    yield _run
+
+    for r in runners:
+        try:
+            r.cleanup()
+        except Exception:
+            pass
+
+
+def _click_args_to_kwargs(click_cmd, cli_options: Sequence[str]) -> dict:
+    """Translate a CLI option list into Runner kwargs.
+
+    Lifted from the original harness but isolated here so the rest of
+    metaflow_runner stays readable.
+    """
+    from metaflow.runner.click_api import click_to_python_types, extract_all_params
+
+    _, _, param_opts, _, _ = extract_all_params(click_cmd)
+    out: dict = {}
+    has_value = False
+    secondary_supplied = False
+    for arg in cli_options:
+        if "=" in arg:
+            given_opt, val = arg.split("=", 1)
+            has_value = True
+        else:
+            given_opt = arg
+            val = None
+        for key, each_param in param_opts.items():
+            py_type = click_to_python_types[type(each_param.type)]
+            if given_opt in each_param.opts:
+                secondary_supplied = False
+            elif given_opt in each_param.secondary_opts:
+                secondary_supplied = True
+            else:
                 continue
-            if test_name in disabled_tests:
-                continue
-            if enabled_tests and test_name not in enabled_tests:
-                continue
-            if not FlowFormatter(graph, test).valid:
-                continue
-
-            for executor in executors:
-                param_id = "%s/%s/%s/%s" % (
-                    marker_name,
-                    graph["name"],
-                    test_name,
-                    executor,
-                )
-                params.append(
-                    pytest.param(
-                        (graph, test, executor),
-                        marks=[mark],
-                        id=param_id,
-                    )
-                )
-
-    metafunc.parametrize("flow_triple", params)
+            value = val if has_value else (False if secondary_supplied else True)
+            if each_param.multiple:
+                out.setdefault(key, []).append(py_type(value))
+            else:
+                out[key] = py_type(value)
+        has_value = False
+        secondary_supplied = False
+    return out

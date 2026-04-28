@@ -1,8 +1,0 @@
-{
-    "name": "single-linear-step",
-    "graph": {
-        "start": {"linear": "a", "quals": ["singleton-start"]},
-        "a": {"linear": "end", "quals": ["singleton"]},
-        "end": {"quals": ["singleton-end"]}
-    }
-}
