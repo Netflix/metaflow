@@ -2589,6 +2589,15 @@ class ArgoWorkflows(object):
                     )
                 }
 
+            pod_security_context = resources.get("pod_security_context", None)
+            _pod_security_context = {}
+            if pod_security_context is not None and len(pod_security_context) > 0:
+                _pod_security_context = {
+                    "security_context": kubernetes_sdk.V1PodSecurityContext(
+                        **pod_security_context
+                    )
+                }
+
             # Create a ContainerTemplate for this node. Ideally, we would have
             # liked to inline this ContainerTemplate and avoid scanning the workflow
             # twice, but due to issues with variable substitution, we will have to
@@ -2647,6 +2656,7 @@ class ArgoWorkflows(object):
                     port=port,
                     qos=resources["qos"],
                     security_context=security_context,
+                    pod_security_context=pod_security_context,
                 )
 
                 for k, v in env.items():
@@ -2810,6 +2820,16 @@ class ArgoWorkflows(object):
                             ]
                         }
                         if resources["image_pull_secrets"]
+                        else None
+                    )
+                    # Set pod security context via pod_spec_patch
+                    .pod_spec_patch(
+                        {
+                            "securityContext": kubernetes_sdk.V1PodSecurityContext(
+                                **pod_security_context
+                            ).to_dict()
+                        }
+                        if pod_security_context
                         else None
                     )
                     # Set container
@@ -4511,7 +4531,12 @@ class Template(object):
         if pod_spec_patch is None:
             return self
 
-        self.payload["podSpecPatch"] = json.dumps(pod_spec_patch)
+        if "podSpecPatch" in self.payload:
+            existing = json.loads(self.payload["podSpecPatch"])
+            existing.update(pod_spec_patch)
+            self.payload["podSpecPatch"] = json.dumps(existing)
+        else:
+            self.payload["podSpecPatch"] = json.dumps(pod_spec_patch)
 
         return self
 

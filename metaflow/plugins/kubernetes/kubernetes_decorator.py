@@ -27,6 +27,8 @@ from metaflow.metaflow_config import (
     KUBERNETES_NODE_SELECTOR,
     KUBERNETES_PERSISTENT_VOLUME_CLAIMS,
     KUBERNETES_PORT,
+    KUBERNETES_SECURITY_CONTEXT,
+    KUBERNETES_POD_SECURITY_CONTEXT,
     KUBERNETES_SERVICE_ACCOUNT,
     KUBERNETES_SHARED_MEMORY,
     KUBERNETES_TOLERATIONS,
@@ -136,6 +138,17 @@ class KubernetesDecorator(StepDecorator):
         - run_as_user: int, optional, default None
         - run_as_group: int, optional, default None
         - run_as_non_root: bool, optional, default None
+        - read_only_root_filesystem: bool, optional, default None
+        - capabilities: Dict[str, List[str]], optional, default None
+        Can also be set via METAFLOW_KUBERNETES_SECURITY_CONTEXT (JSON).
+    pod_security_context: Dict[str, Any], optional, default None
+        Pod-level security context. Applies to all containers in the pod. Allows the following keys:
+        - run_as_user: int, optional, default None
+        - run_as_group: int, optional, default None
+        - run_as_non_root: bool, optional, default None
+        - fs_group: int, optional, default None
+        - supplemental_groups: List[int], optional, default None
+        Can also be set via METAFLOW_KUBERNETES_POD_SECURITY_CONTEXT (JSON).
     """
 
     name = "kubernetes"
@@ -168,6 +181,7 @@ class KubernetesDecorator(StepDecorator):
         "hostname_resolution_timeout": 10 * 60,
         "qos": KUBERNETES_QOS,
         "security_context": None,
+        "pod_security_context": None,
     }
     package_metadata = None
     package_url = None
@@ -309,6 +323,19 @@ class KubernetesDecorator(StepDecorator):
             self.attributes["shared_memory"] = KUBERNETES_SHARED_MEMORY
         if not self.attributes["port"]:
             self.attributes["port"] = KUBERNETES_PORT
+
+        # Security context: decorator takes precedence over env var
+        if not self.attributes["security_context"] and KUBERNETES_SECURITY_CONTEXT:
+            self.attributes["security_context"] = json.loads(
+                KUBERNETES_SECURITY_CONTEXT
+            )
+        if (
+            not self.attributes["pod_security_context"]
+            and KUBERNETES_POD_SECURITY_CONTEXT
+        ):
+            self.attributes["pod_security_context"] = json.loads(
+                KUBERNETES_POD_SECURITY_CONTEXT
+            )
 
     # Refer https://github.com/Netflix/metaflow/blob/master/docs/lifecycle.png
     def step_init(self, flow, graph, step, decos, environment, flow_datastore, logger):
@@ -500,6 +527,7 @@ class KubernetesDecorator(StepDecorator):
                     "labels",
                     "annotations",
                     "security_context",
+                    "pod_security_context",
                 ]:
                     cli_args.command_options[k] = json.dumps(v)
                 else:

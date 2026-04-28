@@ -198,6 +198,7 @@ class Kubernetes(object):
         num_parallel=None,
         qos=None,
         security_context=None,
+        pod_security_context=None,
     ):
         name = "js-%s" % str(uuid4())[:6]
         jobset = (
@@ -233,6 +234,7 @@ class Kubernetes(object):
                 num_parallel=num_parallel,
                 qos=qos,
                 security_context=security_context,
+                pod_security_context=pod_security_context,
             )
             .environment_variable("METAFLOW_CODE_METADATA", code_package_metadata)
             .environment_variable("METAFLOW_CODE_SHA", code_package_sha)
@@ -499,6 +501,7 @@ class Kubernetes(object):
         qos=None,
         annotations=None,
         security_context=None,
+        pod_security_context=None,
     ):
         if env is None:
             env = {}
@@ -544,6 +547,7 @@ class Kubernetes(object):
                 port=port,
                 qos=qos,
                 security_context=security_context,
+                pod_security_context=pod_security_context,
             )
             .environment_variable("METAFLOW_CODE_METADATA", code_package_metadata)
             .environment_variable("METAFLOW_CODE_SHA", code_package_sha)
