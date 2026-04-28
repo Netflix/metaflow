@@ -382,6 +382,9 @@ def compress_list(lst, separator=",", rangedelim=":", zlibmarker="!", zlibmin=50
 
 
 def decompress_list(lststr, separator=",", rangedelim=":", zlibmarker="!"):
+    # Handle empty string - inverse of compress_list([]) which returns ""
+    if lststr == "":
+        return []
     # Three input modes:
     if lststr[0] == zlibmarker:
         # 3. zlib-compressed, base64-encoded
