@@ -39,12 +39,8 @@ _CORE_DIR = os.path.dirname(os.path.abspath(__file__))
 if _CORE_DIR not in sys.path:
     sys.path.insert(0, _CORE_DIR)
 
-_skip_api_executor = False
-try:
-    from metaflow import Runner
-    from metaflow.runner.click_api import click_to_python_types, extract_all_params
-except ImportError:
-    _skip_api_executor = True
+from metaflow import Runner
+from metaflow.runner.click_api import click_to_python_types, extract_all_params
 
 _SASHIMI = "刺身 means sashimi"
 
