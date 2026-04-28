@@ -1,0 +1,3 @@
+# CI shell scripts must use LF so shellcheck and Unix runners behave consistently
+# on Windows checkouts (core.autocrlf).
+devtools/ci/*.sh text eol=lf
