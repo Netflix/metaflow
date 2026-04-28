@@ -40,9 +40,7 @@ class MergeArtifactsInclude(FlowDefinition):
         self.manual_merge_required = current.task_id
         # Test to see if we raise an exception if include specifies non-merged things
         with pytest.raises(MissingInMergeArtifactsException):
-            self.merge_artifacts(
-                inputs, include=["manual_merge_required", "foobar"]
-            )
+            self.merge_artifacts(inputs, include=["manual_merge_required", "foobar"])
 
         # Test to make sure nothing is set if failed merge_artifacts
         assert not hasattr(self, "non_modified_passdown")

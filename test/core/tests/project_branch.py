@@ -29,4 +29,7 @@ os.environ['METAFLOW_BRANCH'] = 'this_is_a_test_branch'
         from metaflow import current
 
         assert current.branch_name == "test.this_is_a_test_branch"
-        assert current.project_flow_name == "project_branch.test.this_is_a_test_branch.ProjectBranchTestFlow"
+        assert (
+            current.project_flow_name
+            == "project_branch.test.this_is_a_test_branch.ProjectBranchTestFlow"
+        )

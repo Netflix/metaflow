@@ -65,9 +65,7 @@ class DefaultEditableCardWithId(FlowDefinition):
                         cards_info is not None
                         and "cards" in cards_info
                         and len(cards_info["cards"]) == 2
-                    ) == (
-                        True
-                    )
+                    ) == (True)
                     # Find the card without the id
                     default_editable_cards = [
                         c for c in cards_info["cards"] if c["id"] is None
@@ -99,9 +97,7 @@ class DefaultEditableCardWithId(FlowDefinition):
                         cards_info is not None
                         and "cards" in cards_info
                         and len(cards_info["cards"]) == 2
-                    ) == (
-                        True
-                    )
+                    ) == (True)
                     default_editable_cards = [
                         c for c in cards_info["cards"] if c["id"] is None
                     ]

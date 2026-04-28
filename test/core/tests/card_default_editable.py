@@ -94,9 +94,7 @@ class MyNativeType:
                         cards_info is not None
                         and "cards" in cards_info
                         and len(cards_info["cards"]) == 1
-                    ) == (
-                        True
-                    )
+                    ) == (True)
                     card = cards_info["cards"][0]
                     checker.assert_card(
                         step.name,
@@ -118,9 +116,7 @@ class MyNativeType:
                         cards_info is not None
                         and "cards" in cards_info
                         and len(cards_info["cards"]) == 1
-                    ) == (
-                        True
-                    )
+                    ) == (True)
                     for card in cards_info["cards"]:
                         checker.assert_card(
                             step.name,

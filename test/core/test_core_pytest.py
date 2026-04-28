@@ -291,9 +291,7 @@ def _run_flow(formatter, context, core_checks, env_base, executor):
 
                 trigger_cmd = [context["python"], "-B", "test_flow.py"]
                 trigger_cmd.extend(context["top_options"])
-                trigger_cmd.extend(
-                    [scheduler, "trigger", "--run-id-file", "run-id"]
-                )
+                trigger_cmd.extend([scheduler, "trigger", "--run-id-file", "run-id"])
                 called_processes.append(
                     subprocess.run(
                         trigger_cmd,
@@ -409,9 +407,7 @@ def _run_flow(formatter, context, core_checks, env_base, executor):
                         )
                         return called_processes[-1].returncode, path
                 else:
-                    _log(
-                        "flow failed", formatter, context, processes=called_processes
-                    )
+                    _log("flow failed", formatter, context, processes=called_processes)
                     return called_processes[-1].returncode, path
             elif formatter.should_fail:
                 return 1, path

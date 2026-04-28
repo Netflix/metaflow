@@ -112,9 +112,7 @@ class CardComponentRefresh(FlowDefinition):
                     _array_is_a_subset(
                         card_data["data"]["component_1"]["abc"], component_1_arr
                     )
-                ) == (
-                    True
-                )
+                ) == (True)
             time.sleep(sleep_between_refreshes)
 
         assert card_data is not None == True

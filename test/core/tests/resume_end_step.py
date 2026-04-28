@@ -71,12 +71,17 @@ class ResumeEndStep(FlowDefinition):
                     _excl = set(exclude_keys) if exclude_keys else set()
                     _orig_keys = set(orig_metadata) - _excl
                     _res_keys = set(resumed_metadata) - _excl
-                    assert _orig_keys == _res_keys, (
-                        "metadata key mismatch: orig=%s resumed=%s"
-                        % (sorted(_orig_keys), sorted(_res_keys))
+                    assert (
+                        _orig_keys == _res_keys
+                    ), "metadata key mismatch: orig=%s resumed=%s" % (
+                        sorted(_orig_keys),
+                        sorted(_res_keys),
                     )
                     for _k in _orig_keys:
-                        assert orig_metadata[_k] == resumed_metadata[_k], (
-                            "metadata[%s]: expected %r, got %r"
-                            % (_k, orig_metadata[_k], resumed_metadata[_k])
+                        assert (
+                            orig_metadata[_k] == resumed_metadata[_k]
+                        ), "metadata[%s]: expected %r, got %r" % (
+                            _k,
+                            orig_metadata[_k],
+                            resumed_metadata[_k],
                         )

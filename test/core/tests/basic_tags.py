@@ -62,9 +62,13 @@ class BasicTag(FlowDefinition):
             # should return nothing
             assert [] == list(flow_obj.runs("not_a_tag", tag))
             # all steps should be returned with tag filtering
-            assert frozenset(step.name for step in flow) == frozenset(step.id.split("/")[-1] for step in run.steps(tag))
+            assert frozenset(step.name for step in flow) == frozenset(
+                step.id.split("/")[-1] for step in run.steps(tag)
+            )
             # a conjunction of two existent tags should return the original list
-            assert frozenset(step.name for step in flow) == frozenset(step.id.split("/")[-1] for step in run.steps(*tags))
+            assert frozenset(step.name for step in flow) == frozenset(
+                step.id.split("/")[-1] for step in run.steps(*tags)
+            )
             # all tasks should be returned with tag filtering
             for step in run:
                 # the run object should have the tags
@@ -72,7 +76,9 @@ class BasicTag(FlowDefinition):
                 # filtering by a non-existent tag should return nothing
                 assert [] == list(step.tasks("not_a_tag"))
                 # filtering by the tag should not exclude any tasks
-                assert [task.id for task in step] == [task.id for task in step.tasks(tag)]
+                assert [task.id for task in step] == [
+                    task.id for task in step.tasks(tag)
+                ]
                 for task in step.tasks(tag):
                     # the task object should have the tags
                     assert [True] * len(tags) == [t in task.tags for t in tags]

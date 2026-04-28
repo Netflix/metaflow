@@ -56,9 +56,7 @@ class CardImport(FlowDefinition):
                         cards_info is not None
                         and "cards" in cards_info
                         and len(cards_info["cards"]) == 2
-                    ) == (
-                        True
-                    )
+                    ) == (True)
                     impc_e = [
                         c
                         for c in cards_info["cards"]
@@ -104,9 +102,7 @@ class CardImport(FlowDefinition):
                         cards_info is not None
                         and "cards" in cards_info
                         and len(cards_info["cards"]) == 2
-                    ) == (
-                        True
-                    )
+                    ) == (True)
                     impc_e = [
                         c
                         for c in cards_info["cards"]

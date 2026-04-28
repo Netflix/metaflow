@@ -52,9 +52,12 @@ class CliCheck(MetaflowCheck):
 
     def assert_artifact(self, step, name, value, fields=None):
         for task, artifacts in self.artifact_dict(step, name).items():
-            assert name in artifacts, (
-                "Task '%s' expected %s=%s but the key was not found"
-                % (task, name, truncate(value))
+            assert (
+                name in artifacts
+            ), "Task '%s' expected %s=%s but the key was not found" % (
+                task,
+                name,
+                truncate(value),
             )
             artifact = artifacts[name]
             if fields:
@@ -65,18 +68,31 @@ class CliCheck(MetaflowCheck):
                         data = json.loads(artifact.descriptor)
                     else:
                         data = artifact
-                    assert isinstance(data, dict), (
-                        "Task '%s' expected %s to be a dictionary (got %s)"
-                        % (task, name, type(data))
+                    assert isinstance(
+                        data, dict
+                    ), "Task '%s' expected %s to be a dictionary (got %s)" % (
+                        task,
+                        name,
+                        type(data),
                     )
-                    assert data.get(field) == v, (
-                        "Task '%s' expected %s[%s]=%r but got %s[%s]=%s"
-                        % (task, name, field, truncate(v), name, field, truncate(data.get(field)))
+                    assert (
+                        data.get(field) == v
+                    ), "Task '%s' expected %s[%s]=%r but got %s[%s]=%s" % (
+                        task,
+                        name,
+                        field,
+                        truncate(v),
+                        name,
+                        field,
+                        truncate(data.get(field)),
                     )
             else:
-                assert artifact == value, (
-                    "Task '%s' expected %s=%r but got %s=%s"
-                    % (task, name, truncate(value), name, truncate(artifact))
+                assert artifact == value, "Task '%s' expected %s=%r but got %s=%s" % (
+                    task,
+                    name,
+                    truncate(value),
+                    name,
+                    truncate(artifact),
                 )
 
     def artifact_dict(self, step, name):
@@ -103,14 +119,22 @@ class CliCheck(MetaflowCheck):
     def assert_log(self, step, logtype, value, exact_match=True):
         log = self.get_log(step, logtype)
         if exact_match:
-            assert log == value, (
-                "Task '%s/%s' expected %s log %r but got %r"
-                % (self.run_id, step, logtype, value, log)
+            assert log == value, "Task '%s/%s' expected %s log %r but got %r" % (
+                self.run_id,
+                step,
+                logtype,
+                value,
+                log,
             )
         else:
-            assert value in log, (
-                "Task '%s/%s' expected %s log to contain %r but got %r"
-                % (self.run_id, step, logtype, value, log)
+            assert (
+                value in log
+            ), "Task '%s/%s' expected %s log to contain %r but got %r" % (
+                self.run_id,
+                step,
+                logtype,
+                value,
+                log,
             )
 
     def assert_card(
@@ -136,14 +160,21 @@ class CliCheck(MetaflowCheck):
             else:
                 raise e
         if exact_match:
-            assert card_data == value, (
-                "Task '%s/%s' expected %s card content %r but got %r"
-                % (self.run_id, step, card_type, value, card_data)
+            assert (
+                card_data == value
+            ), "Task '%s/%s' expected %s card content %r but got %r" % (
+                self.run_id,
+                step,
+                card_type,
+                value,
+                card_data,
             )
         else:
-            assert value in card_data, (
-                "Task '%s/%s' expected %s card to contain %r"
-                % (self.run_id, step, card_type, value)
+            assert value in card_data, "Task '%s/%s' expected %s card to contain %r" % (
+                self.run_id,
+                step,
+                card_type,
+                value,
             )
 
     def list_cards(self, step, task, card_type=None):
