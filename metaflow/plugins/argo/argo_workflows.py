@@ -194,6 +194,37 @@ class ArgoWorkflows(object):
     def __str__(self):
         return str(self._workflow_template)
 
+    def _cron_workflow_json(self):
+        """Build the CronWorkflow manifest as a dict (without deploying it)."""
+        if self._schedule is None:
+            return None
+        return {
+            "apiVersion": "argoproj.io/v1alpha1",
+            "kind": "CronWorkflow",
+            "metadata": {"name": self.name},
+            "spec": {
+                "suspend": False,
+                "schedule": self._schedule,
+                "timezone": self._timezone,
+                "failedJobsHistoryLimit": 10000,
+                "successfulJobsHistoryLimit": 10000,
+                "workflowSpec": {"workflowTemplateRef": {"name": self.name}},
+                "startingDeadlineSeconds": 3540,
+            },
+        }
+
+    def export_all_json(self):
+        """Return a JSON string with all Argo manifests for this flow."""
+        result = {
+            "workflow_template": self._workflow_template.to_json(),
+        }
+        cron = self._cron_workflow_json()
+        if cron is not None:
+            result["cron_workflow"] = cron
+        if self._sensor is not None:
+            result["sensor"] = self._sensor.to_json()
+        return json.dumps(result, indent=4)
+
     def deploy(self):
         self.cleanup_previous_sensors()
         try:
