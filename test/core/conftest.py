@@ -74,7 +74,7 @@ def pytest_addoption(parser: Any) -> None:
     parser.addoption(
         "--core-tests",
         default=None,
-        help="Comma-separated test class names to run (e.g. BasicArtifactTest,BasicForeachTest)",
+        help="Comma-separated test class names to run (e.g. BasicArtifact,BasicForeach)",
     )
     parser.addoption(
         "--core-graphs",
