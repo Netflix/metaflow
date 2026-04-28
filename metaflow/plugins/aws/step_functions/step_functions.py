@@ -1038,7 +1038,19 @@ class StepFunctions(object):
             step.extend("--tag %s" % tag for tag in self.tags)
         if self.namespace is not None:
             step.append("--namespace=%s" % self.namespace)
-        cmds.append(" ".join(entrypoint + top_level + step))
+        # Build the step command, then append resume options that are only
+        # included when the env vars are non-empty (normal triggers set them
+        # to empty strings).  We use bash parameter expansion ${VAR:+...}
+        # instead of $(if ...) to avoid double-quote issues with shlex.split
+        # in batch.py's _command().
+        step_cmd = " ".join(entrypoint + top_level + step)
+        resume_opts = (
+            "${METAFLOW_RESUME_ORIGIN_RUN_ID:+"
+            "--resume-origin-run-id $METAFLOW_RESUME_ORIGIN_RUN_ID}"
+            " ${METAFLOW_RESUME_STEPS_TO_RERUN:+"
+            "--resume-steps-to-rerun $METAFLOW_RESUME_STEPS_TO_RERUN}"
+        )
+        cmds.append("%s %s" % (step_cmd, resume_opts))
         return " && ".join(cmds)
 
 
