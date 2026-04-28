@@ -588,6 +588,27 @@ def _base_step_decorator(decotype, *args, **kwargs):
         func = args[0]
         if isinstance(func, (StepMutator, UserStepDecoratorBase)):
             func = func._my_step
+
+        # Step decorator applied to a class with a synthesized step method.
+        # This branch exists to support an upcoming FunctionSpec feature
+        # (currently shipped as an out-of-tree extension): its metaclass
+        # (FunctionSpecMeta) creates a single `@step(start=True, end=True)`
+        # method on the class and sets `_function_spec_step_name` to its
+        # attribute name. That lets class-level step decorators like
+        # ``@retry``/``@resources`` forward to the synthetic step.
+        #
+        # The `_function_spec_step_name` attribute is not set anywhere else
+        # in this repo — it is deliberately an extension contract. See the
+        # DAGNode module comment in graph.py for the wider context. This
+        # hook may be removed once FunctionSpec is folded into core.
+        if isinstance(func, type) and hasattr(func, "_function_spec_step_name"):
+            step_func = getattr(func, func._function_spec_step_name)
+            if hasattr(step_func, "is_step"):
+                step_func.decorators.append(
+                    decotype(attributes=kwargs, statically_defined=True)
+                )
+            return func
+
         if not hasattr(func, "is_step"):
             raise BadStepDecoratorException(decotype.name, func)
 
@@ -1009,7 +1030,11 @@ def step(
 
 
 def step(
-    f: Union[Callable[[FlowSpecDerived], None], Callable[[FlowSpecDerived, Any], None]],
+    f=None,
+    *,
+    start=False,
+    end=False,
+    node_info=None,
 ):
     """
     Marks a method in a FlowSpec as a Metaflow Step. Note that this
@@ -1034,20 +1059,41 @@ def step(
 
     Parameters
     ----------
-    f : Union[Callable[[FlowSpecDerived], None], Callable[[FlowSpecDerived, Any], None]]
-        Function to make into a Metaflow Step
+    f : callable, optional
+        Function to make into a Metaflow Step. When using keyword arguments
+        (e.g. ``@step(start=True)``), this is ``None`` and a decorator
+        function is returned instead.
+    start : bool, default False
+        Mark this step as the start (entry) step of the flow.
+    end : bool, default False
+        Mark this step as the end (terminal) step of the flow.
+    node_info : dict, optional
+        Extra metadata to attach to this step's DAGNode. Extensions can use
+        this to store arbitrary information accessible via ``flow._graph``
+        (live references) and ``_graph_info`` (serialized via ``to_pod``).
 
     Returns
     -------
-    Union[Callable[[FlowSpecDerived, StepFlag], None], Callable[[FlowSpecDerived, Any, StepFlag], None]]
-        Function that is a Metaflow Step
+    callable
+        The decorated function, or a decorator if keyword arguments were used.
     """
-    f.is_step = True
-    f.decorators = []
-    f.config_decorators = []
-    f.wrappers = []
-    f.name = f.__name__
-    return f
+
+    def _apply(func):
+        func.is_step = True
+        func.decorators = []
+        func.config_decorators = []
+        func.wrappers = []
+        func.name = func.__name__
+        func.is_start_step = start
+        func.is_end_step = end
+        func.node_info = node_info or {}
+        return func
+
+    if f is not None:
+        # Called as @step (no parens)
+        return _apply(f)
+    # Called as @step(start=True) etc.
+    return _apply
 
 
 def _import_plugin_decorators(globals_dict):

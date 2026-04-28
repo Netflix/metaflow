@@ -40,7 +40,7 @@ class ResumeRecursiveSwitchFlowTest(MetaflowTest):
                 "origin-run-id" in start_task_metadata
             ), "The 'origin-run-id' should be present in a resumed run's metadata."
 
-            loop_steps_by_count = {s.data.count: s for s in loop_steps}
+            loop_steps_by_count = {step.data.count: step for step in loop_steps}
 
             task_5_metadata = loop_steps_by_count[5].metadata_dict
             assert (

@@ -281,6 +281,88 @@ def test_split_in_branch_deployer(
     ], "inner_join should receive results from inner_x and inner_y"
 
 
+def test_custom_step_names(exec_mode, decospecs, compute_env, tag, scheduler_config):
+    """Verify a linear flow with @step(start=True)/@step(end=True) annotations."""
+    run = execute_test_flow(
+        flow_name="basic/hello_custom_steps.py",
+        exec_mode=exec_mode,
+        decospecs=decospecs,
+        tag=tag,
+        scheduler_config=scheduler_config,
+        test_name="custom_step_names",
+        tl_args_extra={"env": compute_env},
+    )
+
+    assert run.successful, "Run was not successful"
+    step_names = {step.id for step in run}
+    assert step_names == {"begin", "process", "finish"}, (
+        "Expected custom step names, got %s" % step_names
+    )
+    assert (
+        run["finish"].task.data.result
+        == "Hello from custom start step -> processed -> done"
+    ), "Data did not flow through custom-named steps"
+
+    # Verify graph endpoint metadata is persisted and readable via client API.
+    # This exercises the init -> persist_constants -> register_metadata chain
+    # which runs for all backends (local Runner AND scheduler deployer).
+    start, end = run._graph_endpoints
+    assert start == "begin", "Expected start_step=begin, got %s" % start
+    assert end == "finish", "Expected end_step=finish, got %s" % end
+    assert run.end_task is not None, "end_task should resolve for custom terminal step"
+
+
+def test_single_step_flow(exec_mode, decospecs, compute_env, tag, scheduler_config):
+    """Verify a single-step flow with @step(start=True, end=True)."""
+    run = execute_test_flow(
+        flow_name="basic/single_step_flow.py",
+        exec_mode=exec_mode,
+        decospecs=decospecs,
+        tag=tag,
+        scheduler_config=scheduler_config,
+        test_name="single_step",
+        tl_args_extra={"env": compute_env},
+    )
+
+    assert run.successful, "Run was not successful"
+    step_names = {step.id for step in run}
+    assert step_names == {"only"}, "Expected single step 'only', got %s" % step_names
+    assert run["only"].task.data.result == 42, "Single step data incorrect"
+
+    start, end = run._graph_endpoints
+    assert start == "only", "Expected start_step=only, got %s" % start
+    assert end == "only", "Expected end_step=only, got %s" % end
+    assert run.end_task is not None
+
+
+def test_custom_branch_flow(exec_mode, decospecs, compute_env, tag, scheduler_config):
+    """Verify a branching flow with custom start/end step annotations."""
+    run = execute_test_flow(
+        flow_name="basic/custom_branch_flow.py",
+        exec_mode=exec_mode,
+        decospecs=decospecs,
+        tag=tag,
+        scheduler_config=scheduler_config,
+        test_name="custom_branch",
+        tl_args_extra={"env": compute_env},
+    )
+
+    assert run.successful, "Run was not successful"
+    step_names = {step.id for step in run}
+    assert step_names == {"entry", "left", "right", "merge", "done"}, (
+        "Expected custom branch step names, got %s" % step_names
+    )
+    assert sorted(run["done"].task.data.result) == [
+        "left",
+        "right",
+    ], "Branch data did not merge correctly"
+
+    start, end = run._graph_endpoints
+    assert start == "entry", "Expected start_step=entry, got %s" % start
+    assert end == "done", "Expected end_step=done, got %s" % end
+    assert run.end_task is not None
+
+
 @pytest.mark.scheduler_only
 @pytest.mark.skip(reason="devstack has no GPU nodes")
 def test_resources_gpu(exec_mode, decospecs, compute_env, tag, scheduler_config):
