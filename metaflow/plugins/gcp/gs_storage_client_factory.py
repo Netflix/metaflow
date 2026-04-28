@@ -14,9 +14,14 @@ def _get_gs_storage_client_default():
         from google.cloud import storage
 
         if os.environ.get("STORAGE_EMULATOR_HOST"):
-            # Emulator mode: anonymous client, no real GCP credentials needed.
-            # google-cloud-storage routes requests to STORAGE_EMULATOR_HOST automatically.
-            _client_cache[cache_key] = storage.Client()
+            # Emulator mode: supply AnonymousCredentials explicitly so
+            # google-cloud-storage never calls google.auth.default(), which
+            # raises DefaultCredentialsError in CI environments with no ADC.
+            from google.auth.credentials import AnonymousCredentials
+
+            _client_cache[cache_key] = storage.Client(
+                credentials=AnonymousCredentials(), project="test"
+            )
         else:
             import google.auth
 
