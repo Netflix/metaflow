@@ -13,25 +13,24 @@ pip install pre-commit && pre-commit install
 
 ---
 
-## What to run
+## What to run locally vs in CI
 
 ```
 unit tests  →  core-local  →  open PR  →  CI handles the rest
 ```
 
-| Suite | Command | Needs | Time |
-|-------|---------|-------|------|
-| Unit | `tox` | nothing | ~2 min |
-| Core — local | `tox -c test/core/tox.ini -e core-local` | nothing | ~1 hr |
-| Core — GCS | `tox -c test/core/tox.ini -e core-gcs` | devtools `fake-gcs-server` | ~1 hr |
-| Core — Azure | `tox -c test/core/tox.ini -e core-azure` | devtools `azurite` | ~1 hr |
-| Core — Batch/K8s/Argo/SFN | `tox -c test/core/tox.ini -e core-<name>` | full devstack | 2–3 hr |
-| UX — local | `tox -e ux-local` | nothing | ~30 min |
-| UX — cloud | `tox -e ux-<name>` | full devstack | ~1 hr |
+| Suite | Command | Needs | Run where |
+|-------|---------|-------|-----------|
+| Unit | `tox` | nothing | locally + CI |
+| Core — local | `tox -c test/core/tox.ini -e core-local` | nothing | locally + CI |
+| Core — GCS / Azure | `tox -c test/core/tox.ini -e core-{gcs,azure}` | emulator at known port | **CI** |
+| Core — Batch/K8s/Argo/SFN | `tox -c test/core/tox.ini -e core-<name>` | full devstack | **CI** |
+| UX — local | `tox -e ux-local` | nothing | locally + CI |
+| UX — cloud | `tox -e ux-<name>` | full devstack | **CI** |
 
-Run **unit + core-local** before every PR. Cloud-backend tests (`core-gcs`,
-`core-batch`, …) are only needed if you changed that backend's storage code —
-otherwise let CI run them.
+Run **unit + core-local** before every PR. All cloud-backend tests require
+infrastructure that CI provisions — there is no need to set up emulators or
+Docker containers locally. Open your PR and let CI handle them.
 
 ---
 
@@ -54,7 +53,7 @@ flow definition (~64 classes), runs it as a subprocess, and verifies results
 in-process. This yields ~470 parametrised items per backend, identified as
 `backend/graph/FlowDefinition/executor`.
 
-### core-local
+### core-local — run this locally
 
 ```bash
 tox -c test/core/tox.ini -e core-local
@@ -65,40 +64,22 @@ tox -c test/core/tox.ini -e core-local -- --core-graphs simple-foreach
 tox -c test/core/tox.ini -e core-local -- -n auto   # parallel
 ```
 
-### core-gcs / core-azure (cloud storage emulators)
+### core-gcs / core-azure / core-batch / core-k8s / core-argo / core-sfn — let CI run these
 
-Only needed when you changed GCS or Azure storage code. The emulators are
-part of the devtools stack:
+These backends require external infrastructure (GCS emulator, Azure emulator,
+MinIO, Kubernetes, …). CI provisions all of it automatically. You do not need
+to install Docker or start any services to get these tests to pass.
 
-```bash
-cd devtools
-SERVICES_OVERRIDE=fake-gcs-server make up   # GCS  (port 4443)
-SERVICES_OVERRIDE=azurite make up           # Azure (port 10000)
-```
-
-Then:
+If you are debugging a specific backend failure locally and already have the
+required infrastructure running, you can invoke the env directly:
 
 ```bash
-tox -c test/core/tox.ini -e core-gcs
-tox -c test/core/tox.ini -e core-azure
+tox -c test/core/tox.ini -e core-gcs    # expects fake-gcs-server at localhost:4443
+tox -c test/core/tox.ini -e core-azure  # expects azurite at localhost:10000
+tox -c test/core/tox.ini -e core-batch  # expects devstack (see devtools/README.md)
 ```
 
-### core-batch / core-k8s / core-argo / core-sfn
-
-These require the full devstack. For most PRs, **let CI run them**. If you
-need to debug a scheduler-specific failure locally, start only the services
-that backend needs, then run the env:
-
-```bash
-# Required services per backend:
-#   core-batch: minio, postgresql, metadata-service, localbatch
-#   core-k8s:   minio, postgresql, metadata-service
-#   core-argo:  minio, postgresql, metadata-service, argo-workflows
-#   core-sfn:   minio, postgresql, metadata-service, localbatch, ddb-local, sfn-local
-cd devtools && SERVICES_OVERRIDE=minio,postgresql,metadata-service,localbatch make up
-```
-
-See `devtools/README.md` for the full devstack reference.
+For devstack setup see `devtools/README.md`.
 
 ---
 
@@ -118,7 +99,5 @@ pre-commit run --all-files    # all checks
 | `tox: command not found` | `pip install tox` |
 | `Username 'root' is not allowed` | `export METAFLOW_USER=tester` |
 | `ModuleNotFoundError` during collection | `rm -rf .tox && tox -c test/core/tox.ini -e core-local` |
-| `core-gcs` — `ConnectionRefusedError` | `cd devtools && SERVICES_OVERRIDE=fake-gcs-server make up` |
-| `core-azure` — Azure connection error | `cd devtools && SERVICES_OVERRIDE=azurite make up` |
-| `core-batch/k8s` — metadata service error | Start devstack: `cd devtools && make up` |
-| Tests run slowly | `tox -c test/core/tox.ini -e core-local -- -n auto` (don't use `-n` for cloud envs) |
+| `core-local` slow | `tox -c test/core/tox.ini -e core-local -- -n auto` |
+| Cloud env fails locally | Check that the required emulator/devstack is running — or just open a PR and let CI handle it |
