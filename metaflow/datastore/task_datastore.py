@@ -354,7 +354,10 @@ class TaskDataStore(object):
                     try:
                         blob = pickle.dumps(obj, protocol=4)
                     except TypeError as e:
-                        raise UnpicklableArtifactException(name) from e
+                        raise UnpicklableArtifactException(name) from TypeError(
+                            f"Artifact '{name}' could not be serialized. "
+                            "This may be due to unsupported data types or non-picklable objects."
+                        )
                 else:
                     try:
                         blob = pickle.dumps(obj, protocol=2)
@@ -365,6 +368,7 @@ class TaskDataStore(object):
                             "You need to use Python 3.6 or newer if you want to "
                             "serialize large objects." % name
                         ) from e
+                    except TypeError as e:
                     except TypeError as e:
                         raise UnpicklableArtifactException(name) from e
 

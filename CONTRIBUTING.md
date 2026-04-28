@@ -1,6 +1,6 @@
 # Contributing to Metaflow
 
-First off, thanks for taking the time to contribute! We'd love to hear from you! Drop us a line in our [chatroom](http://chat.metaflow.org)!
+First off, thanks for taking the time to contribute! We'd love to hear from you! Feel free to reach out in our [chatroom](http://chat.metaflow.org) if you have any questions or need assistance.
 
 ## Table of Contents
 
@@ -22,7 +22,7 @@ First off, thanks for taking the time to contribute! We'd love to hear from you!
 
 ## Quick Start
 
-Get up and running in under 2 minutes:
+Follow these steps to get started quickly:
 
 ```bash
 # 1. Fork and clone the repository
@@ -43,11 +43,11 @@ cd test/unit
 python -m pytest -v
 ```
 
-**That's it!** Now read the requirements below before submitting your PR.
+**That's it!** Please review the requirements below before submitting your pull request.
 
 ## PR Requirements (READ THIS FIRST)
 
-Before you submit a pull request, make sure you understand these **non-negotiable requirements**:
+Before submitting a pull request, ensure you understand the following **non-negotiable requirements**:
 
 ### 1. Tests Are Mandatory for Bug Fixes ⚠️
 
