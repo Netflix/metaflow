@@ -199,10 +199,18 @@ def metaflow_runner(tmp_path, monkeypatch, top_options, default_run_options):
     monkeypatch.chdir(tmp_path)
     monkeypatch.setenv("METAFLOW_USER", os.environ.get("METAFLOW_USER", "tester"))
     monkeypatch.setenv("METAFLOW_CLICK_API_PROCESS_CONFIG", "0")
-    # Ensure metaflow's metadata client doesn't carry a path cached from a
-    # previous test in the same worker.
     pythonpath = os.environ.get("PYTHONPATH", "")
     monkeypatch.setenv("PYTHONPATH", f"{_CORE_DIR}{os.pathsep}{pythonpath}")
+
+    # Reset metaflow's parent-process caches so each test sees its own
+    # .metaflow dir. Without these, Flow(name) lookups inherit the
+    # metadata path bound by the first test in the worker.
+    import metaflow.client.core as _mf_client_core
+    from metaflow.plugins.datastores.local_storage import LocalStorage
+
+    monkeypatch.setattr(_mf_client_core, "current_metadata", False)
+    monkeypatch.setattr(_mf_client_core, "current_namespace", False)
+    monkeypatch.setattr(LocalStorage, "datastore_root", None)
 
     runners: list = []
 
