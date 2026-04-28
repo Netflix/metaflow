@@ -109,6 +109,7 @@ class FlowFormatter(object):
             "from metaflow_test import is_resumed, ResumeFromHere, "
             "TestRetry, try_to_get_card"
         )
+        yield 0, "import pytest"
         if tags:
             yield 0, "from metaflow import %s" % ",".join(tags)
 
