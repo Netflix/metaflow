@@ -207,6 +207,7 @@ def _run_flow(formatter, context, core_checks, env_base, executor):
             os.environ.clear()
             os.environ.update(env)
 
+            runner = None  # set in api executor path; cleaned up in finally below
             called_processes = []
 
             # ----------------------------------------------------------------
@@ -437,6 +438,8 @@ def _run_flow(formatter, context, core_checks, env_base, executor):
 
             ret = 0
         finally:
+            if runner is not None:
+                runner.cleanup()
             os.environ.clear()
             os.environ.update(original_env)
 
