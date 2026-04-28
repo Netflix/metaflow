@@ -1,14 +1,22 @@
 from __future__ import print_function
 
 import subprocess
-import fcntl
+try:
+    import fcntl
+    from fcntl import F_SETFL, F_GETFL
+except ImportError:
+    fcntl = None
+    F_SETFL = None
 import select
 import os
 import sys
 import platform
 
-from fcntl import F_SETFL
-from os import O_NONBLOCK
+
+try:
+    from os import O_NONBLOCK
+except ImportError:
+    O_NONBLOCK = None
 
 from .sidecar_messages import Message, MessageTypes
 from ..debug import debug
@@ -85,6 +93,11 @@ class SidecarSubProcess(object):
             self._poller = NullPoller()
             self._process = None
             self._logger("No sidecar started")
+        elif sys.platform == "win32":
+            # Fast-fail on Windows to prevent POSIX-only select.poll and fcntl.fcntl crashes
+            self._poller = NullPoller()
+            self._process = None
+            self._logger("Sidecars are not supported on Windows.")
         else:
             self._starting = True
             from select import poll
