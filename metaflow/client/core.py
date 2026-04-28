@@ -1142,6 +1142,9 @@ class MetaflowData(object):
     def __contains__(self, var):
         return var in self._artifacts
 
+    def __dir__(self):
+        return list(self._artifacts.keys()) + object.__dir__(self)
+
     def __str__(self):
         return "<MetaflowData: %s>" % ", ".join(self._artifacts)
 
@@ -2721,6 +2724,9 @@ class Metaflow(object):
             Flow with the given name.
         """
         return Flow(name, _metaflow=self)
+
+    def _ipython_key_completions_(self):
+        return [flow.id for flow in self]
 
 
 def _metadata(ms: str) -> Tuple[Optional["MetadataProvider"], Optional[str]]:
