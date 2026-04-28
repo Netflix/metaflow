@@ -316,7 +316,7 @@ class FlowMutator(metaclass=FlowMutatorMeta):
         Called to add custom files needed by this flow mutator. This hook will be
         called in the `MetaflowPackage` class where metaflow compiles the code package
         tarball. This hook can return one of two things (the first is for backwards
-        compatibility -- move to the second):
+        compatibility -- generally use the second when you implement your mutator):
           - a generator yielding a tuple of `(file_path, arcname)` to add files to
             the code package. `file_path` is the path to the file on the local filesystem
             and `arcname` is the path relative to the packaged code.
