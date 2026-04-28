@@ -121,7 +121,6 @@ def origin_run_id_for_resume():
     return current.origin_run_id
 
 
-
 class FlowDefinition(object):
     """Base class for core integration test flow definitions.
 

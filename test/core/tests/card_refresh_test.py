@@ -94,7 +94,10 @@ class CardWithRefresh(FlowDefinition):
             card_data = card.get_data()
             if card_data is not None:
                 # Assert that data is atleast subset of what we sent to the datastore.
-                assert _array_is_a_subset(card_data["data"]["user"]["arr"], start_arr) == True
+                assert (
+                    _array_is_a_subset(card_data["data"]["user"]["arr"], start_arr)
+                    == True
+                )
                 # The `TestRefreshCard.refresh(task, data)` method returns the `data` object as a pass through.
                 # This test will also serve a purpose of ensuring that any changes to these keys are
                 # caught by the test framework. The minimum subset should be present and grown as
@@ -107,7 +110,9 @@ class CardWithRefresh(FlowDefinition):
                 required_data_keys = set(
                     ["mode", "component_update_ts", "components", "render_seq", "user"]
                 )
-                assert required_data_keys.issubset(set(card_data["data"].keys())) == True
+                assert (
+                    required_data_keys.issubset(set(card_data["data"].keys())) == True
+                )
 
             time.sleep(sleep_between_refreshes)
 

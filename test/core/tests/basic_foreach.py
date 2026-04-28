@@ -100,9 +100,7 @@ class BasicForeach(FlowDefinition):
                 0,
                 7,
             ]
-        ) == (
-            got
-        )
+        ) == (got)
 
     @steps(1, ["all"])
     def step_all(self):

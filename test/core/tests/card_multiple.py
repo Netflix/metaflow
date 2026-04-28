@@ -72,9 +72,7 @@ class MultipleCardDecorator(FlowDefinition):
                         cards_info is not None
                         and "cards" in cards_info
                         and len(cards_info["cards"]) == 2
-                    ) == (
-                        True
-                    )
+                    ) == (True)
                     for card in cards_info["cards"]:
                         checker.assert_card(
                             step.name,
@@ -95,9 +93,7 @@ class MultipleCardDecorator(FlowDefinition):
                         cards_info is not None
                         and "cards" in cards_info
                         and len(cards_info["cards"]) == 2
-                    ) == (
-                        True
-                    )
+                    ) == (True)
                     for card in cards_info["cards"]:
                         checker.assert_card(
                             step.name,

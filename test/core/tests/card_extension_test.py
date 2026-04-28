@@ -49,9 +49,7 @@ class CardExtensionsImport(FlowDefinition):
                         cards_info is not None
                         and "cards" in cards_info
                         and len(cards_info["cards"]) == 4
-                    ) == (
-                        True
-                    )
+                    ) == (True)
         else:
             # This means MetadataCheck is in context.
             for step in flow:
@@ -65,6 +63,4 @@ class CardExtensionsImport(FlowDefinition):
                         cards_info is not None
                         and "cards" in cards_info
                         and len(cards_info["cards"]) == 4
-                    ) == (
-                        True
-                    )
+                    ) == (True)

@@ -140,17 +140,24 @@ class CurrentSingleton(FlowDefinition):
                     # NOT have a parent attribute (and probably shouldn't as it would
                     # conflict with a `parent` artifact)
                     assert task.parent.parent.id == task.data.run_obj.id
-                    assert task.data.run_obj[task.data.step_name].id == task.data.step_name
+                    assert (
+                        task.data.run_obj[task.data.step_name].id == task.data.step_name
+                    )
             # Restore the original namespace back for these tests
             namespace(checker_namespace)
             assert run.data.run_obj.pathspec == run.pathspec
             assert run.data.project_names == {"current_singleton"}
             assert run.data.branch_names == {"user.tester"}
-            assert run.data.project_flow_names == {"current_singleton.user.tester.CurrentSingletonTestFlow"}
+            assert run.data.project_flow_names == {
+                "current_singleton.user.tester.CurrentSingletonTestFlow"
+            }
             assert run.data.is_production == {False}
             assert run.data.flow_names == {run.parent.id}
             assert run.data.run_ids == {run.id}
             assert run.data.origin_run_ids == {None}
             assert run.data.namespaces == {"user:tester"}
             assert run.data.usernames == {"tester"}
-            assert run.data.tags == {"\u523a\u8eab means sashimi", "multiple tags should be ok"}
+            assert run.data.tags == {
+                "\u523a\u8eab means sashimi",
+                "multiple tags should be ok",
+            }
