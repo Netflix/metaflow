@@ -104,6 +104,7 @@ class TriggerDecorator(FlowDecorator):
         if is_stringish(event):
             return {"name": str(event)}
         elif isinstance(event, dict):
+            event = dict(event)
             if "name" not in event:
                 raise MetaflowException(
                     "The *event* attribute for *@trigger* is missing the *name* key."
