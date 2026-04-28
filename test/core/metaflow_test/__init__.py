@@ -31,11 +31,22 @@ class ResumeFromHere(MetaflowException):
         super().__init__("This is not an error. Testing resume...")
 
 
-class TestRetry(MetaflowException):
+class RetryRequested(MetaflowException):
+    """Raise inside a step body to trigger @retry-driven re-execution.
+
+    Named ``RetryRequested`` (not ``TestRetry``) so pytest doesn't mistake
+    it for a test class via the ``Test`` prefix.
+    """
+
     headline = "Testing retry"
 
     def __init__(self):
         super().__init__("This is not an error. Testing retry...")
+
+
+# Backward-compat alias for any pre-migration step bodies that still import
+# the old name. Will be removed once nothing references it.
+TestRetry = RetryRequested
 
 
 def is_resumed() -> bool:
