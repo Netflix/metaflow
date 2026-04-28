@@ -4,13 +4,7 @@ from metaflow.util import is_stringish
 
 import pytest
 
-from . import (
-    MetaflowCheck,
-    AssertArtifactFailed,
-    AssertCardFailed,
-    AssertLogFailed,
-    truncate,
-)
+from . import MetaflowCheck, truncate
 
 
 class MetadataCheck(MetaflowCheck):

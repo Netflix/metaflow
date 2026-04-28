@@ -1,8 +1,6 @@
-import sys
-import os
-from metaflow.exception import MetaflowException
 from metaflow import current
 from metaflow.cards import get_cards
+from metaflow.exception import MetaflowException
 from metaflow.plugins.cards.exception import CardNotPresentException
 
 
@@ -66,27 +64,6 @@ def try_to_get_card(id=None, timeout=60):
     return retry_until_timeout(_get_card, id, timeout=timeout)
 
 
-class AssertArtifactFailed(AssertionError):
-    pass
-
-
-class AssertLogFailed(AssertionError):
-    pass
-
-
-class AssertCardFailed(AssertionError):
-    pass
-
-
-class ExpectationFailed(AssertionError):
-    """Kept for backward compatibility; raises as AssertionError so pytest surfaces it natively."""
-
-    def __init__(self, expected, got):
-        super(ExpectationFailed, self).__init__(
-            "Expected result: %s, got %s" % (truncate(expected), truncate(got))
-        )
-
-
 class ResumeFromHere(MetaflowException):
     headline = "Resume requested"
 
@@ -138,10 +115,6 @@ class FlowDefinition(object):
 
     def check_results(self, flow, checker):
         return False
-
-
-# Backward-compatibility alias — existing tests that still import MetaflowTest will work.
-MetaflowTest = FlowDefinition
 
 
 class MetaflowCheck(object):

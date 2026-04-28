@@ -7,13 +7,7 @@ from tempfile import NamedTemporaryFile
 from metaflow.includefile import IncludedFile
 from metaflow.util import is_stringish
 
-from . import (
-    MetaflowCheck,
-    AssertArtifactFailed,
-    AssertLogFailed,
-    truncate,
-    AssertCardFailed,
-)
+from . import MetaflowCheck, truncate
 
 try:
     # Python 2

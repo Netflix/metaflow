@@ -38,7 +38,7 @@ def _iter_tests():
             for name in dir(mod):
                 obj = getattr(mod, name)
                 if (
-                    name not in ("MetaflowTest", "FlowDefinition")
+                    name != "FlowDefinition"
                     and isinstance(obj, type)
                     and issubclass(obj, FlowDefinition)
                 ):

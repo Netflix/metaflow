@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-from metaflow_test import FlowDefinition, ExpectationFailed, steps
+from metaflow_test import FlowDefinition, steps
 
 
 class BasicTag(FlowDefinition):

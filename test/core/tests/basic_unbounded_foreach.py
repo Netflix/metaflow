@@ -1,4 +1,4 @@
-from metaflow_test import FlowDefinition, ExpectationFailed, steps, tag
+from metaflow_test import FlowDefinition, steps, tag
 
 
 class BasicUnboundedForeach(FlowDefinition):
