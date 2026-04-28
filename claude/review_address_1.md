@@ -1,57 +1,46 @@
-# Address — Round 1
+# Address — Round 1 (pytest-native branch)
 
-## Summary of Codex review
-Codex reviewed `test/core/test_core_pytest.py` (486 LOC) and `test/core/conftest.py` (151 LOC), the top-level harness. 10 findings: 1 critical (the harness is a near line-for-line port of the old `run_tests.py`), 5 major, 4 minor. Top-5 simplifications proposed:
-
-1. Replace `os.environ.clear()/update()` with `monkeypatch.setenv` (F4)
-2. Replace `tempfile.mkdtemp` with `tmp_path` (F1 / sub-item)
-3. Consolidate env reads into a session `core_context` fixture (F6)
-4. Drop `subprocess.CompletedProcess` synthesis on api branch (F2)
-5. Delete dead `_skip_api_executor` (F7)
+## Summary
+Codex flagged 9 findings (1 critical, 7 major, 1 minor). Three are harness
+correctness issues that affect every test; six are coverage regressions
+in specific migrated tests. Plan: fix harness in this round (F2/F3/F4)
+plus F8 (lineage); defer F1 (scheduler executor), F5/F6/F7/F9 (test
+coverage restorations) to subsequent rounds where they bundle better
+with each test category's broader migration work.
 
 ## Per-finding verdicts
 
-| ID | Severity | File:line | Verdict | Reasoning |
-|----|----------|-----------|---------|-----------|
-| F1 | critical | `test_core_pytest.py:100-449` | **accept (split across rounds)** | Refactor scope is large enough to span rounds 1-3. Round 1 takes the lowest-risk slice (env + chdir). |
-| F2 | major | `test_core_pytest.py:226-256` | **accept, defer to round 2** | Touches the api executor logic; want F4 in first to land monkeypatch infrastructure. |
-| F3 | major | `test_core_pytest.py:123-156` | **partial accept, defer to round 2** | Real code-quality win, but Runner's `args=` API needs verification; defer until I can test. |
-| F4 | major | `test_core_pytest.py:207-208, 443-444` | **accept now** | Highest leverage / lowest risk. monkeypatch is THE pytest idiom for env. |
-| F5 | minor | `test_core_pytest.py:58-76` | **accept, defer to round 2** | Cosmetic only; low priority but worth bundling with the failure-path consolidation. |
-| F6 | major | `tox.ini` ↔ `conftest.py` ↔ `test_core_pytest.py` | **accept, defer to round 2** | Larger refactor (introducing `CoreContext` dataclass). Better in its own commit. |
-| F7 | minor | `test_core_pytest.py:42-47` | **accept now** | One-line dead-code deletion. Belongs with F4. |
-| F8 | minor | `test_core_pytest.py:51-56` | **accept, defer to round 2** | Bundle with F6 (the `core_context` fixture). |
-| F9 | major | `conftest.py:86-151` | **partial accept** | The current `pytest_generate_tests` is fine in shape; the simplification is real but invasive. Mark as round-3 work; for now leave alone. |
-| F10 | minor | `conftest.py:73-83` | **reject** | The custom `--core-tests`/`--core-graphs` options are documented in `TESTING.md` and used in shell muscle memory. `-k` works for new users; keep both for ergonomics. Removing them is breakage-without-benefit. |
+| ID | Severity | Verdict | Reasoning |
+|----|----------|---------|-----------|
+| F1 | critical | defer to round 2 | Scheduler executor needs a real `_run_scheduler` adapter (argo create/trigger + Flow polling). Substantial; deserves its own commit. |
+| F2 | major | **apply now** | `{nonce}` expansion is required for every cloud-backend run; one-line fix in the runner fixture. |
+| F3 | major | **apply now** | `run_id_file.unlink(missing_ok=True)` before each invocation — three lines. |
+| F4 | minor | **apply now** | `TestRetry.__test__ = False` — one line. |
+| F5 | major | defer to round 3 | Test expansion: add `no_default_param`, `bool_true_param`, `list_param`, `json_param`; assert immutability. Bundle with full parameters category review. |
+| F6 | major | defer to round 4 | Resume metadata assertions across origin-run-id/origin-task-id. Bundle with the full resume-tests batch. |
+| F7 | major | defer to round 3 | Negative-path tests for merge_artifacts (conflict, include+exclude, outside-join). Bundle with parameters/merge expansion. |
+| F8 | major | **apply now** | Test docstring explicitly claims to verify lineage; current body doesn't. Easy to fix the body in this round. |
+| F9 | major | defer to round 4 | Catch+retry needs split/join + invisible-artifact + attempt metadata assertions. Bundle with full retry/catch expansion. |
 
 ## Plan of changes for this round
 
-1. **Replace `os.environ.clear()`/`update()` with `monkeypatch.setenv`** (F4):
-   - Hoist env construction into a helper.
-   - The test function gets `monkeypatch` and `tmp_path` fixtures.
-   - `_run_flow` no longer mutates `os.environ` directly.
-2. **Delete `_skip_api_executor` dead variable** (F7):
-   - Remove the `try/except ImportError` wrapping `from metaflow import Runner`. If api executor is selected and Runner can't be imported, fail loudly at the api branch via `pytest.importorskip`.
-
-Both changes preserve the existing public API: tox env vars are still consumed, Runner is still used, FlowDefinition+graph generator is unchanged. Test parametrisation is unchanged.
+1. **F2 — `{nonce}` expansion in runner fixture.**
+   In `metaflow_runner`, before passing env to subprocess/Runner, walk
+   `os.environ.items()`, replace `{nonce}` (and `{{nonce}}`) with a
+   per-call `uuid.uuid4().hex`, monkeypatch.setenv each replaced key.
+2. **F3 — Delete `run-id` between runs.**
+   Just before each `subprocess.run(...)` (cli) and `runner.run/resume(...)`
+   (api), `run_id_file.unlink(missing_ok=True)`.
+3. **F4 — Suppress pytest collection of `TestRetry` alias.**
+   Add `TestRetry.__test__ = False` after the assignment.
+4. **F8 — `test_lineage` actually tests lineage.**
+   Use `task.code` and parent_task lineage queries to verify the run
+   has the right ancestry. (Or compute `current.pathspec` chains in the
+   flow and compare to `task.parent_tasks`.)
 
 ## Test strategy
-
-- `pytest test/core/test_core_pytest.py --collect-only -q | tail -3` should still report **502 tests collected**.
-- For execution verification: the venv lacks docker/MinIO/etc., but `core-local` runs with no infrastructure. Run `pytest test/core/test_core_pytest.py -m local -k "BasicArtifactTest and single-linear-step" --tb=short` as a smoke test.
+- After each change: `pytest --collect-only -q` + the affected smoke run.
+- Final: full suite (~64 items) on cli + api.
 
 ## Test-speed impact this round
-None — F7 is a logical refactor, no algorithmic change.
-
-## Scope adjustment
-F4 (monkeypatch.setenv refactor) is larger than initially scoped — it requires restructuring the try/finally nesting because two of them (tempdir cleanup, env restoration) become redundant. Deferred to **Round 2** to keep round 1's commit small and reviewable. F7 alone is shipped this round.
-
-## Verification
-
-```
-$ /home/coder/.venv/bin/python -m pytest test/core/test_core_pytest.py --collect-only -q | tail -3
--- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
-========================= 502 tests collected in 0.27s =========================
-```
-
-Collection unchanged — same 502 items in the same time. The dead `_skip_api_executor` was never read after the PR's refactor; deleting it is provably safe.
+Negligible — 4 surgical changes.

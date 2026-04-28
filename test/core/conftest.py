@@ -202,6 +202,15 @@ def metaflow_runner(tmp_path, monkeypatch, top_options, default_run_options):
     pythonpath = os.environ.get("PYTHONPATH", "")
     monkeypatch.setenv("PYTHONPATH", f"{_CORE_DIR}{os.pathsep}{pythonpath}")
 
+    # Expand {nonce}/{{nonce}} placeholders in env vars so cloud-backend
+    # tests get a fresh datastore prefix per test invocation. The tox
+    # setenv blocks intentionally write the placeholder; we substitute
+    # it here per-test (matching the original run_tests.py behavior).
+    nonce = uuid.uuid4().hex
+    for k, v in list(os.environ.items()):
+        if isinstance(v, str) and "{nonce}" in v:
+            monkeypatch.setenv(k, v.replace("{nonce}", nonce))
+
     # Reset metaflow's parent-process caches so each test sees its own
     # .metaflow dir. Without these, Flow(name) lookups inherit the
     # metadata path bound by the first test in the worker.
@@ -227,6 +236,10 @@ def metaflow_runner(tmp_path, monkeypatch, top_options, default_run_options):
         flow_name = flow_cls.__name__
         run_options = list(default_run_options) + list(extra_run_options)
         run_id_file = tmp_path / "run-id"
+        # F3: ensure the run-id file is fresh — without this, a second
+        # run() call (e.g. resume scenarios) returns the prior run's id
+        # if the new invocation fails before rewriting it.
+        run_id_file.unlink(missing_ok=True)
 
         if executor == "cli":
             cmd = (

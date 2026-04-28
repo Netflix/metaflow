@@ -47,6 +47,10 @@ class RetryRequested(MetaflowException):
 # Backward-compat alias for any pre-migration step bodies that still import
 # the old name. Will be removed once nothing references it.
 TestRetry = RetryRequested
+# Stop pytest from trying to collect this alias as a test class — the
+# whole reason for the rename was to avoid that collection.
+TestRetry.__test__ = False
+RetryRequested.__test__ = False
 
 
 def is_resumed() -> bool:
