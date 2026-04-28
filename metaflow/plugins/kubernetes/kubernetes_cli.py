@@ -223,6 +223,11 @@ def step(
         kwargs["input_paths"] = "".join("${%s}" % s for s in split_vars.keys())
         env.update(split_vars)
 
+    # Forward debugger env vars to the remote container.
+    for key, val in os.environ.items():
+        if key.startswith("METAFLOW_DEBUGPY_"):
+            env[key] = val
+
     if num_parallel is not None and num_parallel <= 1:
         raise KubernetesException(
             "Using @parallel with `num_parallel` <= 1 is not supported with "
