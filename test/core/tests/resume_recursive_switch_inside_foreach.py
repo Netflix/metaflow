@@ -56,7 +56,6 @@ class ResumeRecursiveSwitchInsideForeachFlow(FlowDefinition):
             checker.assert_artifact("join", "results", expected)
 
             exit_steps = run["exit_item_loop"]
-<<<<<<< HEAD
             exit_steps_by_id = {s.data.item_id: s for s in exit_steps}
             assert 3 == len(list(exit_steps))
 
