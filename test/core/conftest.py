@@ -90,9 +90,19 @@ def default_run_options() -> tuple[str, ...]:
     return _DEFAULT_RUN_OPTIONS
 
 
-@pytest.fixture(params=["cli", "api"])
+def _executor_choices() -> tuple[str, ...]:
+    """Read the executors enabled for this backend from tox setenv.
+
+    Defaults to (cli, api). For scheduler-only backends like argo/sfn,
+    tox should set METAFLOW_CORE_EXECUTORS=scheduler.
+    """
+    raw = os.environ.get("METAFLOW_CORE_EXECUTORS", "cli,api")
+    return tuple(e for e in raw.split(",") if e)
+
+
+@pytest.fixture(params=_executor_choices())
 def executor(request) -> str:
-    """Parametrise tests over both executors.
+    """Parametrise tests over the executors enabled by the active tox env.
 
     Tests that only support one executor should take ``metaflow_runner``
     directly and pass ``executor=`` literally instead of using this
@@ -147,16 +157,29 @@ class FlowRun:
 def _write_flow_module(tmp_path: Path, flow_cls: type) -> Path:
     """Materialise a FlowSpec class as a standalone module in tmp_path.
 
-    The flow is imported, its source extracted via ``inspect.getsource``,
-    and written verbatim along with its imports (the test module's
-    imports are reused via the surrounding module). The generated file is
-    ``test_flow.py`` so it has a stable name.
+    Test files often contain multiple FlowSpec subclasses (one per test
+    function). Runner / metaflow bail with "Multiple FlowSpec classes
+    found" when the file contains more than one, so we emit ONLY the
+    target class plus the surrounding module's imports/top-level
+    helpers. The generated file is ``test_flow.py`` so it has a stable
+    name.
     """
     flow_module = sys.modules[flow_cls.__module__]
-    source = inspect.getsource(flow_module)
+    flow_source = inspect.getsource(flow_cls)
 
-    flow_path = tmp_path / "test_flow.py"
-    # Append a top-level guard so the file is also runnable as a script.
+    # Reuse the module's imports + top-level helpers so the FlowSpec can
+    # reference them. Grab everything up to the first decorator (`@…`) or
+    # `class …` line at column 0 — that's the start of the first FlowSpec
+    # definition, and stopping there avoids duplicating any decorators
+    # that `inspect.getsource(flow_cls)` will already include.
+    module_source = inspect.getsource(flow_module)
+    prologue_lines: list[str] = []
+    for line in module_source.splitlines():
+        if line.startswith("@") or line.startswith("class "):
+            break
+        prologue_lines.append(line)
+    prologue = "\n".join(prologue_lines)
+
     guard = textwrap.dedent(
         f"""
 
@@ -164,7 +187,9 @@ def _write_flow_module(tmp_path: Path, flow_cls: type) -> Path:
             {flow_cls.__name__}()
         """
     )
-    flow_path.write_text(source + guard)
+
+    flow_path = tmp_path / "test_flow.py"
+    flow_path.write_text(prologue + "\n\n" + flow_source + guard)
     return flow_path
 
 
