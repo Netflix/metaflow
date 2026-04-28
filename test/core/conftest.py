@@ -291,6 +291,29 @@ def metaflow_runner(tmp_path, monkeypatch, top_options, default_run_options):
                 stderr=cp.stderr.decode("utf-8", errors="replace"),
             )
 
+        if executor == "scheduler":
+            # Real argo / sfn scheduler integration: deploy + trigger +
+            # poll Flow().finished. Implemented as a thin subprocess
+            # adapter around the metaflow CLI's `argo-workflows` /
+            # `step-functions` subcommands. Skipped at runtime when the
+            # METAFLOW_CORE_SCHEDULER env var isn't set so the executor
+            # fixture parametrisation doesn't fail-collect on a backend
+            # that isn't actually argo/sfn.
+            scheduler = os.environ.get("METAFLOW_CORE_SCHEDULER")
+            if not scheduler:
+                pytest.skip(
+                    "scheduler executor selected but METAFLOW_CORE_SCHEDULER "
+                    "is unset — skipping until argo/sfn infra is wired up."
+                )
+            return _run_scheduler(
+                flow_path,
+                flow_name,
+                top_options,
+                run_options,
+                scheduler,
+                run_id_file,
+            )
+
         if executor == "api":
             from metaflow import Runner
             from metaflow.runner.click_api import (
@@ -328,6 +351,73 @@ def metaflow_runner(tmp_path, monkeypatch, top_options, default_run_options):
             r.cleanup()
         except Exception:
             pass
+
+
+def _run_scheduler(
+    flow_path: Path,
+    flow_name: str,
+    top_options: Sequence[str],
+    run_options: Sequence[str],
+    scheduler: str,
+    run_id_file: Path,
+) -> "FlowRun":
+    """Run a flow via argo-workflows or step-functions subcommands.
+
+    Steps: ``<scheduler> create`` to deploy, ``<scheduler> trigger
+    --run-id-file`` to start a run, then poll ``Flow(name)[run_id]``
+    until ``finished`` or ``METAFLOW_CORE_SCHEDULER_TIMEOUT`` (default
+    600 s) elapses.
+    """
+    env = _build_subprocess_env()
+    base_cmd = ["python3", "-B", str(flow_path)] + list(top_options)
+    create_cmd = base_cmd + [scheduler, "create"]
+    cp_create = subprocess.run(
+        create_cmd, env=env, stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=False
+    )
+    if cp_create.returncode != 0:
+        return FlowRun(
+            returncode=cp_create.returncode,
+            run_id=None,
+            flow_name=flow_name,
+            stdout=cp_create.stdout.decode("utf-8", errors="replace"),
+            stderr=cp_create.stderr.decode("utf-8", errors="replace"),
+        )
+
+    trigger_cmd = base_cmd + [scheduler, "trigger", "--run-id-file", str(run_id_file)]
+    cp_trigger = subprocess.run(
+        trigger_cmd,
+        env=env,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        check=False,
+    )
+    if cp_trigger.returncode != 0:
+        return FlowRun(
+            returncode=cp_trigger.returncode,
+            run_id=None,
+            flow_name=flow_name,
+            stdout=cp_trigger.stdout.decode("utf-8", errors="replace"),
+            stderr=cp_trigger.stderr.decode("utf-8", errors="replace"),
+        )
+
+    run_id = run_id_file.read_text().strip() if run_id_file.exists() else None
+    if run_id is None:
+        return FlowRun(returncode=1, run_id=None, flow_name=flow_name)
+
+    timeout = int(os.environ.get("METAFLOW_CORE_SCHEDULER_TIMEOUT", "600"))
+    deadline = time.time() + timeout
+    from metaflow import Flow
+
+    while time.time() < deadline:
+        try:
+            run = Flow(flow_name, _namespace_check=False)[run_id]
+            if run.finished:
+                rc = 0 if run.successful else 1
+                return FlowRun(returncode=rc, run_id=run_id, flow_name=flow_name)
+        except Exception:
+            pass
+        time.sleep(10)
+    return FlowRun(returncode=1, run_id=run_id, flow_name=flow_name)
 
 
 def _click_args_to_kwargs(click_cmd, cli_options: Sequence[str]) -> dict:
