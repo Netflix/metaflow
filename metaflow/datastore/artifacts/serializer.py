@@ -180,7 +180,11 @@ class SerializerStore(ABCMeta):
         # the ``"pickle"`` entry from PickleSerializer with no error.
         if "TYPE" not in namespace:
             inherited_from = next(
-                (b.__name__ for b in cls.__mro__[1:] if getattr(b, "TYPE", None) == cls.TYPE),
+                (
+                    b.__name__
+                    for b in cls.__mro__[1:]
+                    if getattr(b, "TYPE", None) == cls.TYPE
+                ),
                 "<unknown>",
             )
             raise TypeError(
@@ -721,8 +725,7 @@ class ArtifactSerializer(object, metaclass=SerializerStore):
                 return existing
             raise ValueError(
                 "lazy_import alias '%s' is already set to module '%s'; "
-                "refusing to reassign to '%s'"
-                % (name, existing_path, module_path)
+                "refusing to reassign to '%s'" % (name, existing_path, module_path)
             )
         mod = importlib.import_module(module_path)
         setattr(cls, name, mod)
