@@ -612,10 +612,19 @@ class ArtifactSerializer(object, metaclass=SerializerStore):
         if "_lazy_imported_names" not in cls.__dict__:
             cls._lazy_imported_names = set()
         if name in cls._lazy_imported_names:
-            # Idempotent re-import: the alias was set in a prior setup_imports
-            # call (e.g. first attempt partially succeeded before parking on a
-            # missing dep). Return the already-stashed module.
-            return getattr(cls, name)
+            existing = getattr(cls, name, None)
+            existing_path = getattr(existing, "__name__", None)
+            if existing_path == module_path:
+                # Idempotent re-import: the alias was set in a prior
+                # setup_imports call (e.g. first attempt partially succeeded
+                # before parking on a missing dep). Return the already-stashed
+                # module.
+                return existing
+            raise ValueError(
+                "lazy_import alias '%s' is already set to module '%s'; "
+                "refusing to reassign to '%s'"
+                % (name, existing_path, module_path)
+            )
         mod = importlib.import_module(module_path)
         setattr(cls, name, mod)
         cls._lazy_imported_names.add(name)
