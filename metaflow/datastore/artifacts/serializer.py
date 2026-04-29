@@ -36,6 +36,35 @@ def _call_setup_imports(cls, context=None):
 SerializationMetadata = namedtuple(
     "SerializationMetadata", ["obj_type", "size", "encoding", "serializer_info"]
 )
+SerializationMetadata.__doc__ = """
+Metadata returned alongside serialized blobs.
+
+Fields
+------
+obj_type : str
+    ``str(type(obj))`` of the artifact, recorded for diagnostic purposes.
+size : int
+    Length in bytes of the serializer's output. Reflects the serializer's
+    bytes only — not the on-disk size after the content-addressed store
+    applies its own framing and compression.
+encoding : str
+    Stable identifier for the serializer's output format. **Describes what
+    ``serialize()`` produced, not the final on-disk layout.** The
+    content-addressed store (``ContentAddressedStore``) applies gzip framing
+    on top of every blob; serializers must not double-compress and must not
+    embed ``"gzip+"`` in their encoding string. This field is the routing
+    key for ``can_deserialize`` and is persisted in the artifact's
+    ``_info`` dict, so changing the string for an existing serializer is a
+    backwards-incompatible change. Legacy ``"gzip+pickle-vN"`` strings are
+    still accepted by :class:`PickleSerializer` for reading artifacts
+    written by pre-pluggable Metaflow versions.
+serializer_info : dict
+    Free-form, JSON-serialisable metadata that travels with the artifact
+    and is passed back to ``deserialize`` via the metadata argument.
+    Reserved keys: ``"source"`` (auto-injected by the framework with the
+    extension package name so missing-deserializer errors can point at the
+    right install).
+"""
 
 
 class _OrderedSet:
@@ -144,6 +173,22 @@ class SerializerStore(ABCMeta):
         # blow up only at dispatch time.
         if cls.TYPE is None or inspect.isabstract(cls):
             return
+        # Reject subclasses that inherit a parent's ``TYPE`` instead of
+        # declaring their own. Allowing it silently overwrites the parent
+        # registration in ``_all_serializers`` and corrupts dispatch:
+        # ``class FastPickle(PickleSerializer): PRIORITY = 50`` would steal
+        # the ``"pickle"`` entry from PickleSerializer with no error.
+        if "TYPE" not in namespace:
+            inherited_from = next(
+                (b.__name__ for b in cls.__mro__[1:] if getattr(b, "TYPE", None) == cls.TYPE),
+                "<unknown>",
+            )
+            raise TypeError(
+                "%s inherits TYPE %r from %s but did not declare its own. "
+                "Subclasses of a registered ArtifactSerializer must set "
+                "TYPE = '<unique>' in the class body (or TYPE = None to opt "
+                "out of registration)." % (name, cls.TYPE, inherited_from)
+            )
         SerializerStore._all_serializers[cls.TYPE] = cls
         SerializerStore._ordered_cache = None
 
@@ -253,9 +298,20 @@ class SerializerStore(ABCMeta):
                     or None
                 )
                 by_source.append((source, ext_entries))
-        except Exception:
-            # Do not let extension discovery failures kill Metaflow startup.
-            pass
+        except Exception as e:
+            # Do not let extension discovery failures kill Metaflow startup,
+            # but surface the error so a broken extension doesn't silently
+            # disable every artifact serializer it ships.
+            import warnings
+
+            warnings.warn(
+                "Artifact serializer extension discovery failed (%s: %s); "
+                "extension-shipped serializers may not be active. "
+                "Re-import metaflow with PYTHONWARNINGS=default for the full "
+                "traceback." % (type(e).__name__, e),
+                RuntimeWarning,
+                stacklevel=2,
+            )
 
         # Resolve +/- toggles from config.
         disabled_names = set()
@@ -268,8 +324,15 @@ class SerializerStore(ABCMeta):
             for n in enabled_list:
                 if isinstance(n, str) and n.startswith("-"):
                     disabled_names.add(n[1:])
-        except Exception:
-            pass
+        except Exception as e:
+            import warnings
+
+            warnings.warn(
+                "Failed to read ENABLED_ARTIFACT_SERIALIZER config (%s: %s); "
+                "treating all serializers as enabled." % (type(e).__name__, e),
+                RuntimeWarning,
+                stacklevel=2,
+            )
 
         for source, group in by_source:
             cls.bootstrap_entries(group, disabled_names=disabled_names, source=source)
@@ -415,7 +478,12 @@ class SerializerStore(ABCMeta):
         """Called when a watched module finishes importing. Retries bootstrap
         for every record awaiting that module. Safe to call directly for
         tests; normally fired by the lazy_registry import interceptor.
+
+        Each record's retry runs under its own try/except so a defect in one
+        record's path cannot strand the others as PENDING_ON_IMPORTS forever.
         """
+        from .diagnostic import SerializerState
+
         waiting = cls._pending_by_module.pop(module_name, [])
         for record_name in waiting:
             rec = cls._records.get(record_name)
@@ -431,7 +499,16 @@ class SerializerStore(ABCMeta):
                 rec._previously_awaited = set()
             rec._previously_awaited.update(rec.awaiting_modules)
             rec.awaiting_modules = [m for m in rec.awaiting_modules if m != module_name]
-            cls._retry_bootstrap(rec)
+            try:
+                cls._retry_bootstrap(rec)
+            except Exception as e:
+                # Should not happen — ``_retry_bootstrap`` converts every
+                # known failure mode to ``rec.state = BROKEN`` rather than
+                # raising. If it does, mark this record BROKEN so the loop
+                # can move on to remaining records waiting on the same
+                # module instead of stranding them.
+                rec.state = SerializerState.BROKEN
+                rec.last_error = "retry crashed: %s: %s" % (type(e).__name__, e)
 
     @classmethod
     def _retry_bootstrap(cls, rec):
@@ -456,6 +533,25 @@ class SerializerStore(ABCMeta):
             )
             return
 
+        # Mirror the TYPE-name validation from ``bootstrap_entries`` so a
+        # mismatched class can never enter the active dispatch pool through
+        # the retry path. Without this, an extension that fixes its install
+        # ordering after the first bootstrap could silently activate a
+        # serializer whose ``TYPE`` disagrees with the descriptor name.
+        if serializer_cls.TYPE != rec.name:
+            rec.state = SerializerState.BROKEN
+            rec.last_error = "tuple name '%s' != class.TYPE '%s'" % (
+                rec.name,
+                serializer_cls.TYPE,
+            )
+            return
+
+        # Capture priority/type on the record so diagnostics
+        # (``get_source_for``, status listings) reflect the activated class.
+        rec.priority = serializer_cls.PRIORITY
+        rec.type = serializer_cls.TYPE
+        rec.state = SerializerState.CLASS_LOADED
+
         try:
             _call_setup_imports(serializer_cls, context=None)
         except ImportError as e:
@@ -468,6 +564,7 @@ class SerializerStore(ABCMeta):
 
         rec.state = SerializerState.ACTIVE
         rec.import_trigger = "hook"
+        rec.last_error = None
         cls._active_serializers.add(serializer_cls)
         cls._ordered_cache = None
 
@@ -527,13 +624,15 @@ class SerializerStore(ABCMeta):
         cls._pending_by_module.clear()
         cls._ordered_cache = None
 
-        # Clear interceptor watches so a future bootstrap does not fire on
-        # stale module names.
+        # Reset interceptor state via the lazy_registry's own helper so both
+        # ``_watched`` and ``_processed`` are cleared (a future bootstrap on
+        # the same module name has no stale "already processed" record to
+        # short-circuit on) and the interceptor is removed from
+        # ``sys.meta_path``.
         try:
-            from .lazy_registry import _interceptor
+            from .lazy_registry import _reset_for_tests as _reset_lazy_registry
 
-            if hasattr(_interceptor, "_watched"):
-                _interceptor._watched.clear()
+            _reset_lazy_registry()
         except ImportError:
             pass
 
@@ -677,6 +776,14 @@ class ArtifactSerializer(object, metaclass=SerializerStore):
         perform I/O, mutate global state, or register the object elsewhere.
         Side effects that need to happen at persist time belong in hooks,
         not in the serializer.
+
+        Implementations *must not* compress their own output. The
+        ``ContentAddressedStore`` applies gzip framing on every blob it
+        stores; doubling that up corrupts artifacts and inflates size. The
+        ``encoding`` field on the returned ``SerializationMetadata`` should
+        therefore describe the serializer's output (e.g. ``"pickle-v4"``,
+        ``"arrow-v1"``) — *never* the on-disk format. See
+        ``SerializationMetadata.__doc__`` for the full contract.
 
         Parameters
         ----------

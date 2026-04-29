@@ -14,7 +14,11 @@ from ..metadata_provider import DataArtifact, MetaDatum
 from ..parameters import Parameter
 from ..util import Path, is_stringish, to_fileobj
 
-from .artifacts.serializer import SerializationMetadata, SerializerStore
+from .artifacts.serializer import (
+    SerializationFormat,
+    SerializationMetadata,
+    SerializerStore,
+)
 from .exceptions import DataException, UnpicklableArtifactException
 
 _included_file_type = "<class 'metaflow.includefile.IncludedFile'>"
@@ -22,8 +26,18 @@ _included_file_type = "<class 'metaflow.includefile.IncludedFile'>"
 
 def _record_dispatch_error(serializer_cls, exc):
     """Increment dispatch_error_count + update last_error for the given serializer's
-    diagnostic record. No-op if the class has no record (e.g., it was not
-    registered via bootstrap)."""
+    diagnostic record, and emit a warning so a buggy ``can_serialize`` /
+    ``can_deserialize`` override is visible to the user. No-op if the class
+    has no record (e.g., it was not registered via bootstrap)."""
+    import warnings
+
+    cls_name = getattr(serializer_cls, "__name__", repr(serializer_cls))
+    warnings.warn(
+        "Serializer %s raised %s during dispatch and was skipped: %s"
+        % (cls_name, type(exc).__name__, exc),
+        RuntimeWarning,
+        stacklevel=2,
+    )
     try:
         from .artifacts.serializer import SerializerStore
 
@@ -36,7 +50,8 @@ def _record_dispatch_error(serializer_cls, exc):
                 rec.last_error = "dispatch: %s: %s" % (type(exc).__name__, exc)
                 return
     except Exception:
-        # Never let diagnostic bookkeeping crash dispatch.
+        # Never let diagnostic bookkeeping crash dispatch — the warning above
+        # already surfaced the underlying error to the user.
         pass
 
 
@@ -403,9 +418,22 @@ class TaskDataStore(object):
                     )
 
                 try:
-                    blobs, metadata = serializer.serialize(obj)
+                    blobs, metadata = serializer.serialize(
+                        obj, format=SerializationFormat.STORAGE
+                    )
                 except TypeError as e:
+                    # Preserve the historical "couldn't pickle this" wrapper so
+                    # existing consumers still see ``UnpicklableArtifactException``.
                     raise UnpicklableArtifactException(name) from e
+                except Exception as e:
+                    # Extension serializers can raise anything (``ValueError``,
+                    # ``OSError``, ``RuntimeError``, ...). Without this branch,
+                    # users get an unwrapped traceback whose top frame says
+                    # nothing about which artifact or which serializer failed.
+                    raise DataException(
+                        "Serializer %s failed on artifact '%s': %s: %s"
+                        % (serializer.__name__, name, type(e).__name__, e)
+                    ) from e
 
                 # Validate the blob shape BEFORE recording anything in
                 # ``_info`` — a failure here must not leave ``_info[name]``
@@ -526,7 +554,19 @@ class TaskDataStore(object):
                     % (name, metadata.encoding, metadata.serializer_info, source_hint)
                 )
             deserializers[name] = (deserializer, metadata)
-            to_load[self._objects[name]].append(name)
+            try:
+                to_load[self._objects[name]].append(name)
+            except KeyError:
+                # ``_info`` had a record for this artifact but ``_objects``
+                # did not — should not happen in normal write/read cycles,
+                # but if metadata was hand-edited or written by a partial
+                # save, surface the corruption clearly instead of bubbling a
+                # bare KeyError.
+                raise DataException(
+                    "Artifact '%s' has metadata but no stored blob "
+                    "(missing from _objects). The datastore is in an "
+                    "inconsistent state." % name
+                )
 
         # Load blobs from CAS and deserialize
         for key, blob in self._ca_store.load_blobs(to_load.keys()):
@@ -536,7 +576,9 @@ class TaskDataStore(object):
                 # Deserialize each time to have fully distinct objects (the user
                 # would not expect two artifacts with different names to actually
                 # be aliases of one another)
-                yield name, deserializer.deserialize([blob], metadata)
+                yield name, deserializer.deserialize(
+                    [blob], metadata, format=SerializationFormat.STORAGE
+                )
 
     @require_mode("r")
     def get_artifact_sizes(self, names):
