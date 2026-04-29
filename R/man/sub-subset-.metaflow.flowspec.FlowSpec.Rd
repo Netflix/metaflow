@@ -22,4 +22,3 @@ Overload setter for self object
  self[["var"]] <- "hello"
 }
 }
-

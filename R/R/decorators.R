@@ -1,11 +1,11 @@
 #' Metaflow Decorator.
 #'
-#' @description 
+#' @description
 #' Decorates the `step` with the parameters present in its arguments. For this
 #' method to work properly, the `...` arguments should be named, and decorator
 #' type should be the first argument. It may be more convenient to use one of
 #' the _decorator wrappers_ listed below:
-#' 
+#'
 #' * \code{\link{resources}}
 #' * \code{\link{batch}}
 #' * \code{\link{retry}}
@@ -18,16 +18,16 @@
 #' @param .convert_args Boolean. If `TRUE` (the default), argument values will
 #'   be converted to analogous Python values, with strings quoted and escaped.
 #'   Disable this if argument values are already formatted for Python.
-#'   
+#'
 #' @return A object of class "decorator"
-#' 
+#'
 #' @export
-#' 
+#'
 #' @examples \dontrun{
 #' decorator("catch", print_exception=FALSE)
 #' decorator("resources", cpu=2, memory=10000)
 #' }
-#' 
+#'
 decorator <- function(x, ..., .convert_args = TRUE) {
   fmt_decorator(x, ..., .convert_args = .convert_args) %>%
     new_decorator()
@@ -55,7 +55,7 @@ new_decorator <- function(x) {
 #'
 #' @return character vector
 #' @keywords internal
-#' 
+#'
 #' @examples \dontrun{
 #' add_decorators(list(decorator("batch", cpu = 4), decorator("retry")))
 #' #> c("@batch(cpu=4)", "\n", "@retry", "\n")
@@ -66,13 +66,13 @@ add_decorators <- function(decorators) {
 }
 
 #' Format an R decorator as a Python decorator
-#' 
+#'
 #' @inheritSection add_decorators Python decorators
 #'
 #' @param x Decorator name.
 #' @inheritParams decorator
 #'
-#' @return character vector of length two, in which the first element is the 
+#' @return character vector of length two, in which the first element is the
 #' translated decorator and the second element is a new line character.
 #' @keywords internal
 #'
@@ -118,13 +118,13 @@ decorator_arguments <- function(args, .convert_args = TRUE) {
     stop("duplicate decorator arguments")
   }
   unlist(lapply(seq_along(args), function(x) {
-    
+
     wrapped_arg <- if (.convert_args) {
       wrap_argument(args[x])
     } else {
       args[x]
     }
-    
+
     if (x != length(args)) {
       paste0(names(args[x]), "=", wrapped_arg, ",")
     } else {

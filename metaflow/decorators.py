@@ -588,6 +588,27 @@ def _base_step_decorator(decotype, *args, **kwargs):
         func = args[0]
         if isinstance(func, (StepMutator, UserStepDecoratorBase)):
             func = func._my_step
+
+        # Step decorator applied to a class with a synthesized step method.
+        # This branch exists to support an upcoming FunctionSpec feature
+        # (currently shipped as an out-of-tree extension): its metaclass
+        # (FunctionSpecMeta) creates a single `@step(start=True, end=True)`
+        # method on the class and sets `_function_spec_step_name` to its
+        # attribute name. That lets class-level step decorators like
+        # ``@retry``/``@resources`` forward to the synthetic step.
+        #
+        # The `_function_spec_step_name` attribute is not set anywhere else
+        # in this repo — it is deliberately an extension contract. See the
+        # DAGNode module comment in graph.py for the wider context. This
+        # hook may be removed once FunctionSpec is folded into core.
+        if isinstance(func, type) and hasattr(func, "_function_spec_step_name"):
+            step_func = getattr(func, func._function_spec_step_name)
+            if hasattr(step_func, "is_step"):
+                step_func.decorators.append(
+                    decotype(attributes=kwargs, statically_defined=True)
+                )
+            return func
+
         if not hasattr(func, "is_step"):
             raise BadStepDecoratorException(decotype.name, func)
 
@@ -767,21 +788,6 @@ def _should_skip_decorator_for_spin(
     return False
 
 
-def _init(flow, only_non_static=False):
-    flow_decos = flow._flow_state[FlowStateItems.FLOW_DECORATORS]
-    for decorators in flow_decos.values():
-        for deco in decorators:
-            deco.external_init()
-
-    for flowstep in flow:
-        for deco in flowstep.decorators:
-            deco.external_init()
-        for deco in flowstep.config_decorators or []:
-            deco.external_init()
-        for deco in flowstep.wrappers or []:
-            deco.external_init()
-
-
 def _init_flow_decorators(
     flow,
     graph,
@@ -796,6 +802,12 @@ def _init_flow_decorators(
 ):
     # Since all flow decorators are stored as `{key:[deco]}` we iterate through each of them.
     flow_decos = flow._flow_state[FlowStateItems.FLOW_DECORATORS]
+
+    # Run external_init on all decorators first
+    for decorators in flow_decos.values():
+        for deco in decorators:
+            deco.external_init()
+
     for decorators in flow_decos.values():
         # First resolve the `options` for the flow decorator.
         # Options are passed from cli.
@@ -919,8 +931,22 @@ def _init_step_decorators(
 
     from .system_context import system_context
 
+    # Call the external_init on all step decorators. At this point, we have all the ones
+    # the user wants to add through mutators
     for step in flow:
         system_context.register_step_decorators(step.__name__, list(step.decorators))
+        for deco in step.decorators:
+            if _should_skip_decorator_for_spin(
+                deco, is_spin, skip_decorators, logger, "Step decorator"
+            ):
+                continue
+            deco.external_init()
+        # Also call external_init on UserStepDecorator wrappers. The _ran_init
+        # guard in external_init handles dual-inherit decorators that already
+        # had external_init called via config_decorators in _process_config_decorators.
+        for deco in step.wrappers or []:
+            deco.external_init()
+    for step in flow:
         for deco in step.decorators:
             if _should_skip_decorator_for_spin(
                 deco, is_spin, skip_decorators, logger, "Step decorator"
@@ -1004,7 +1030,11 @@ def step(
 
 
 def step(
-    f: Union[Callable[[FlowSpecDerived], None], Callable[[FlowSpecDerived, Any], None]],
+    f=None,
+    *,
+    start=False,
+    end=False,
+    node_info=None,
 ):
     """
     Marks a method in a FlowSpec as a Metaflow Step. Note that this
@@ -1029,20 +1059,41 @@ def step(
 
     Parameters
     ----------
-    f : Union[Callable[[FlowSpecDerived], None], Callable[[FlowSpecDerived, Any], None]]
-        Function to make into a Metaflow Step
+    f : callable, optional
+        Function to make into a Metaflow Step. When using keyword arguments
+        (e.g. ``@step(start=True)``), this is ``None`` and a decorator
+        function is returned instead.
+    start : bool, default False
+        Mark this step as the start (entry) step of the flow.
+    end : bool, default False
+        Mark this step as the end (terminal) step of the flow.
+    node_info : dict, optional
+        Extra metadata to attach to this step's DAGNode. Extensions can use
+        this to store arbitrary information accessible via ``flow._graph``
+        (live references) and ``_graph_info`` (serialized via ``to_pod``).
 
     Returns
     -------
-    Union[Callable[[FlowSpecDerived, StepFlag], None], Callable[[FlowSpecDerived, Any, StepFlag], None]]
-        Function that is a Metaflow Step
+    callable
+        The decorated function, or a decorator if keyword arguments were used.
     """
-    f.is_step = True
-    f.decorators = []
-    f.config_decorators = []
-    f.wrappers = []
-    f.name = f.__name__
-    return f
+
+    def _apply(func):
+        func.is_step = True
+        func.decorators = []
+        func.config_decorators = []
+        func.wrappers = []
+        func.name = func.__name__
+        func.is_start_step = start
+        func.is_end_step = end
+        func.node_info = node_info or {}
+        return func
+
+    if f is not None:
+        # Called as @step (no parens)
+        return _apply(f)
+    # Called as @step(start=True) etc.
+    return _apply
 
 
 def _import_plugin_decorators(globals_dict):

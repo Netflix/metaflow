@@ -78,7 +78,7 @@ from all decorators is used.
 }
 \examples{
 \dontrun{
-# This example will generate a large random matrix which takes up roughly 
+# This example will generate a large random matrix which takes up roughly
 # 48GB of memory, and sums the entries. The `batch` decorator forces this
 # step to run in an environment with 60000MB of memory.
 

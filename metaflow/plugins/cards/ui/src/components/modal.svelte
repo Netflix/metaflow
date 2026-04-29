@@ -1,4 +1,4 @@
-<!-- This component gives us a reusable modal, 
+<!-- This component gives us a reusable modal,
   it takes any card component as an input and will attempt to render -->
 <script lang="ts">
   import type * as types from "../types";
