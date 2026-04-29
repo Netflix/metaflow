@@ -17,6 +17,7 @@ import pytest
 
 from metaflow.datastore.artifacts.serializer import (
     ArtifactSerializer,
+    SerializationFormat,
     SerializationMetadata,
     SerializedBlob,
     SerializerStore,
@@ -192,7 +193,7 @@ def test_custom_serializer_takes_priority(task_datastore):
             return metadata.encoding == "test_json_str"
 
         @classmethod
-        def serialize(cls, obj):
+        def serialize(cls, obj, format=SerializationFormat.STORAGE):
             blob = json.dumps(obj).encode("utf-8")
             return (
                 [SerializedBlob(blob, is_reference=False)],
