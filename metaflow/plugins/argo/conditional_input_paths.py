@@ -18,7 +18,14 @@ def generate_input_paths(input_paths, skippable_steps):
     # strip these out of the list.
 
     # all pathspecs of leading steps that executed.
-    trimmed = [path for path in paths if not "{{" in path]
+    def _is_resolved_path(path):
+        if "{{" in path:
+            return False
+        parts = path.split("/")
+        if len(parts) < 3 or not parts[-1]:
+            return False
+        return True
+    trimmed = [path for path in paths if _is_resolved_path(path)]
 
     # If the input-path is from a conditional, we want to pick the one that is last-in-line in the DAG.
     # The order of graph parsing ensures that the steps are in reverse order of occurrence, so the first one is the latest.
