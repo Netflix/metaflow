@@ -61,6 +61,34 @@ class TempDir(object):
         shutil.rmtree(self.name)
 
 
+_FALSY_STRS = frozenset({"", "0", "false", "no", "off"})
+_TRUTHY_STRS = frozenset({"1", "true", "yes", "on"})
+
+
+def str_to_bool(value, default=None, strict=False):
+    """
+    Coerce a string/bool/None to a bool using the env-var convention used
+    elsewhere in Metaflow.
+
+    Returns ``default`` when ``value`` is ``None``. When ``strict=False`` (the
+    default), unknown non-empty strings are treated as ``True`` to match the
+    existing lax config-system behavior. When ``strict=True``, unknown
+    strings raise ``ValueError``.
+    """
+    if value is None:
+        return default
+    if isinstance(value, bool):
+        return value
+    s = str(value).strip().lower()
+    if s in _TRUTHY_STRS:
+        return True
+    if s in _FALSY_STRS:
+        return False
+    if strict:
+        raise ValueError("Cannot interpret %r as a bool" % (value,))
+    return True
+
+
 def cached_property(getter):
     @wraps(getter)
     def exec_once(self):

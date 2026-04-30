@@ -11,11 +11,29 @@ import time
 import platform
 from urllib.error import URLError
 from urllib.request import urlopen
-from metaflow.metaflow_config import DATASTORE_LOCAL_DIR, CONDA_USE_FAST_INIT
-from metaflow.packaging_sys import MetaflowCodeContent, ContentType
-from metaflow.plugins import DATASTORES
-from metaflow.plugins.pypi.utils import MICROMAMBA_MIRROR_URL, MICROMAMBA_URL
-from metaflow.util import which
+
+try:
+    # This bootstrap runs inside the remote job container before the user's
+    # @conda/@pypi env is activated. The metaflow distribution may have been
+    # intentionally stripped from the code package (see
+    # MetaflowPackage._should_include_mf_distribution) on the expectation
+    # that every step's env-providing decorator will install metaflow. If
+    # that expectation was broken (metaflow not declared in the step's
+    # packages=…), these imports fail here before anything useful runs.
+    from metaflow.metaflow_config import DATASTORE_LOCAL_DIR, CONDA_USE_FAST_INIT
+    from metaflow.packaging_sys import MetaflowCodeContent, ContentType
+    from metaflow.plugins import DATASTORES
+    from metaflow.plugins.pypi.utils import MICROMAMBA_MIRROR_URL, MICROMAMBA_URL
+    from metaflow.util import which
+except ImportError as e:
+    raise RuntimeError(
+        "metaflow was not included in the code package (a decorator declared "
+        "it would be provided by the remote environment) but is not importable "
+        "here. Add `metaflow` (and any metaflow_extensions.* packages you "
+        "use) to the declared dependencies of your @conda/@pypi/resolved_* "
+        "decorator."
+    ) from e
+
 from urllib.request import Request
 import warnings
 

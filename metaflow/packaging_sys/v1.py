@@ -30,6 +30,7 @@ class MetaflowCodeContentV1(MetaflowCodeContentV1Base):
         code_dir: str = MetaflowCodeContentV1Base._code_dir,
         other_dir: str = MetaflowCodeContentV1Base._other_dir,
         criteria: Callable[[ModuleType], bool] = lambda x: True,
+        include_mf_distribution: bool = True,
     ):
         super().__init__(code_dir, other_dir)
 
@@ -37,6 +38,7 @@ class MetaflowCodeContentV1(MetaflowCodeContentV1Base):
         self._metaflow_version = get_version()
 
         self._criteria = criteria
+        self._include_mf_distribution = include_mf_distribution
 
         # We try to find the modules we need to package. We will first look at all modules
         # and apply the criteria to them. Then we will use the most parent module that
@@ -99,9 +101,22 @@ class MetaflowCodeContentV1(MetaflowCodeContentV1Base):
         for k, v in self._modules.items():
             self._files_from_modules.update(self._module_files(k, v.root_paths))
 
-        # Figure out the files to package for Metaflow and extensions
-        self._cached_metaflow_files = list(self._metaflow_distribution_files())
-        self._cached_metaflow_files.extend(list(self._metaflow_extension_files()))
+        # Figure out the files to package for Metaflow and extensions. Skipped
+        # when the caller guarantees the metaflow distribution + extensions
+        # will be provided by the remote environment (e.g. every step has an
+        # env-providing decorator like @conda/@pypi). See
+        # MetaflowPackage._should_include_mf_distribution for the policy.
+        if self._include_mf_distribution:
+            self._cached_metaflow_files = list(self._metaflow_distribution_files())
+            self._cached_metaflow_files.extend(
+                list(self._metaflow_extension_files())
+            )
+        else:
+            debug.package_exec(
+                "Skipping metaflow + extensions packaging "
+                "(include_mf_distribution=False)"
+            )
+            self._cached_metaflow_files = []
 
     def create_mfcontent_info(self) -> Dict[str, Any]:
         return {"version": 1, "module_files": list(self._files_from_modules.values())}
@@ -183,14 +198,24 @@ class MetaflowCodeContentV1(MetaflowCodeContentV1Base):
 
         result = []
         if self._metaflow_version:
-            result.append(f"\nMetaflow version: {self._metaflow_version}")
+            suffix = (
+                ""
+                if self._include_mf_distribution
+                else " (not packaged — provided by step decorators)"
+            )
+            result.append(f"\nMetaflow version: {self._metaflow_version}{suffix}")
         ext_info = extension_info()
-        if ext_info["installed"]:
+        if ext_info["installed"] and self._include_mf_distribution:
             result.append("\nMetaflow extensions packaged:")
             for ext_name, ext_info in ext_info["installed"].items():
                 result.append(
                     f"  - {ext_name} ({ext_info['extension_name']}) @ {ext_info['dist_version']}"
                 )
+        elif ext_info["installed"]:
+            result.append(
+                "\nMetaflow extensions installed but not packaged "
+                "(provided by step decorators)"
+            )
 
         if self._modules:
             mf_modules = []

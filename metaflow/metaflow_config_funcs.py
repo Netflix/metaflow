@@ -143,8 +143,10 @@ def from_conf(name, default=None, validate_fn=None):
             try:
                 if type(value) != type(default):
                     if isinstance(default, bool):
-                        # Env vars are strings so try to evaluate logically
-                        value = value.lower() not in ("0", "false", "")
+                        # Env vars are strings so try to evaluate logically.
+                        from .util import str_to_bool
+
+                        value = str_to_bool(value, default=default, strict=False)
                     else:
                         value = type(default)(value)
                 is_default = value == default

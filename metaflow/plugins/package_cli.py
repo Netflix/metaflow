@@ -16,12 +16,17 @@ def cli():
 def package(obj, timeout):
     # Prepare the package before any of the sub-commands are invoked.
     # We explicitly will *not* upload it to the datastore.
+    # Always include the metaflow distribution here so `metaflow package info`
+    # / `metaflow package list` describes a package that is guaranteed to
+    # work on every execution path (including orchestrated backends that
+    # skip auto-detection).
     obj.package = MetaflowPackage(
         obj.flow,
         obj.environment,
         obj.echo,
         suffixes=obj.package_suffixes,
         flow_datastore=None,
+        include_mf_distribution=True,
     )
     obj.package_op_timeout = timeout
 
