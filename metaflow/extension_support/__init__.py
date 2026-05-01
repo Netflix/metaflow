@@ -545,14 +545,12 @@ def _get_extension_packages(ignore_info_file=False, restrict_to_directories=None
                         except OSError:
                             pass
                         _ext_debug(
-                            "Removed packaged __init__.py from '%s'"
-                            % state["name"]
+                            "Removed packaged __init__.py from '%s'" % state["name"]
                         )
                     else:
                         raise RuntimeError(
                             "Package '%s' providing '%s' is not an implicit "
-                            "namespace package as required"
-                            % (state["name"], EXT_PKG)
+                            "namespace package as required" % (state["name"], EXT_PKG)
                         )
                 # Check for any metadata; we can only have one metadata per
                 # distribution at most
@@ -911,18 +909,23 @@ def _get_extension_packages(ignore_info_file=False, restrict_to_directories=None
     # Sanity check that we only have one package per configuration file.
     # This prevents multiple packages from providing the same named configuration
     # file which would result in one overwriting the other if they are both installed.
+    # _pythonpath_ entries are excluded: they contain bundled copies of installed
+    # packages (from package_mfext_all) so duplicates with installed packages are
+    # expected, not conflicts.
     errors = []
     for m, packages in config_to_pkg.items():
-        if len(packages) > 1:
+        non_pp = [p for p in packages if not p.startswith("_pythonpath_")]
+        if len(non_pp) > 1:
             errors.append(
                 "    Packages %s define the same configuration module '%s'"
-                % (", and ".join(["'%s'" % p for p in packages]), m)
+                % (", and ".join(["'%s'" % p for p in non_pp]), m)
             )
     for m, packages in meta_to_pkg.items():
-        if len(packages) > 1:
+        non_pp = [p for p in packages if not p.startswith("_pythonpath_")]
+        if len(non_pp) > 1:
             errors.append(
                 "    Packages %s define the same meta module '%s'"
-                % (", and ".join(["'%s'" % p for p in packages]), m)
+                % (", and ".join(["'%s'" % p for p in non_pp]), m)
             )
     if errors:
         raise RuntimeError(
