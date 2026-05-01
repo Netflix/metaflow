@@ -1,0 +1,344 @@
+name: Core Integration Tests
+
+# Runs the pytest-native core test suite introduced by the refactor.
+#
+# Three tiers by infrastructure requirement:
+#
+#  1. core-local   — no infrastructure, runs on every PR (~9 min with -n auto)
+#  2. core-gcs / core-azure — single-container emulators started via Docker
+#  3. core-batch / core-k8s / core-argo / core-sfn — full devstack (minikube + Tilt)
+#
+# All jobs emit JUnit XML and publish HTML reports via dorny/test-reporter.
+
+on:
+  push:
+    branches:
+      - master
+  pull_request:
+    branches:
+      - master
+
+permissions: read-all
+
+jobs:
+
+  # ---------------------------------------------------------------------------
+  # core-local: no infrastructure required
+  # ---------------------------------------------------------------------------
+  core-local:
+    name: "core-local"
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8  # v6.0.1
+
+      - name: Set up Python 3.10
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405  # v6.2.0
+        with:
+          python-version: "3.10"
+
+      - name: Cache pip packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: pip-core-py310-${{ hashFiles('setup.py', 'setup.cfg') }}
+          restore-keys: pip-core-py310-
+
+      - name: Install tox
+        run: pip install tox
+
+      - name: Run core-local tests
+        run: |
+          tox -c test/core/tox.ini -e core-local -- \
+            -n auto \
+            --junit-xml=junit-core-local.xml
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: junit-core-local
+          path: junit-core-local.xml
+          if-no-files-found: ignore
+
+      - name: Publish test results
+        if: always()
+        continue-on-error: true
+        uses: dorny/test-reporter@d61b558e8df85cb60d09ca3e5b09653b4477cea7  # v1
+        with:
+          name: "Test Results — core-local"
+          path: junit-core-local.xml
+          reporter: java-junit
+          fail-on-error: false
+
+  # ---------------------------------------------------------------------------
+  # core-gcs / core-azure: single-container emulators, no Kubernetes needed
+  # ---------------------------------------------------------------------------
+  core-emulator:
+    name: "core-${{ matrix.backend }}"
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - backend: gcs
+            tox_env: core-gcs
+            emulator_cmd: >-
+              docker run -d --name fake-gcs
+              -p 4443:4443
+              fsouza/fake-gcs-server
+              -scheme http -port 4443 -backend memory
+            emulator_ready_check: "curl -sf http://localhost:4443/"
+
+          - backend: azure
+            tox_env: core-azure
+            emulator_cmd: >-
+              docker run -d --name azurite
+              -p 10000:10000
+              mcr.microsoft.com/azure-storage/azurite
+              azurite-blob --blobHost 0.0.0.0
+            emulator_ready_check: >-
+              curl -sf
+              "http://127.0.0.1:10000/devstoreaccount1?restype=service&comp=list"
+              || true
+
+    steps:
+      - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8  # v6.0.1
+
+      - name: Set up Python 3.10
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405  # v6.2.0
+        with:
+          python-version: "3.10"
+
+      - name: Cache pip packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: pip-core-py310-${{ hashFiles('setup.py', 'setup.cfg') }}
+          restore-keys: pip-core-py310-
+
+      - name: Install tox
+        run: pip install tox
+
+      - name: Start ${{ matrix.backend }} emulator
+        run: ${{ matrix.emulator_cmd }}
+
+      - name: Wait for emulator to be ready
+        run: |
+          for i in $(seq 1 30); do
+            ${{ matrix.emulator_ready_check }} && echo "Emulator ready" && exit 0
+            sleep 2
+          done
+          echo "Emulator did not become ready in time"
+          docker logs fake-gcs 2>/dev/null || docker logs azurite 2>/dev/null || true
+          exit 1
+
+      - name: Run ${{ matrix.tox_env }} tests
+        run: |
+          tox -c test/core/tox.ini -e ${{ matrix.tox_env }} -- \
+            -n 1 \
+            --junit-xml=junit-${{ matrix.tox_env }}.xml
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: junit-${{ matrix.tox_env }}
+          path: junit-${{ matrix.tox_env }}.xml
+          if-no-files-found: ignore
+
+      - name: Publish test results
+        if: always()
+        continue-on-error: true
+        uses: dorny/test-reporter@d61b558e8df85cb60d09ca3e5b09653b4477cea7  # v1
+        with:
+          name: "Test Results — ${{ matrix.tox_env }}"
+          path: junit-${{ matrix.tox_env }}.xml
+          reporter: java-junit
+          fail-on-error: false
+
+      - name: Dump emulator logs on failure
+        if: failure()
+        run: |
+          docker logs fake-gcs 2>/dev/null || true
+          docker logs azurite 2>/dev/null || true
+
+  # ---------------------------------------------------------------------------
+  # core-batch / core-k8s / core-argo / core-sfn: full devstack
+  # ---------------------------------------------------------------------------
+  core-devstack:
+    name: "core-${{ matrix.backend }}"
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - backend: batch
+            tox_env: core-batch
+            services: "minio,postgresql,metadata-service,localbatch"
+            workers: 1
+
+          - backend: k8s
+            tox_env: core-k8s
+            services: "minio,postgresql,metadata-service"
+            workers: 1
+
+          - backend: argo
+            tox_env: core-argo
+            services: "minio,postgresql,metadata-service,argo-workflows"
+            workers: 1
+
+          - backend: sfn
+            tox_env: core-sfn
+            services: "minio,postgresql,metadata-service,localbatch,ddb-local,sfn-local"
+            workers: 1
+
+    steps:
+      - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8  # v6.0.1
+
+      - name: Free disk space
+        uses: jlumbroso/free-disk-space@54081f138730dfa15788a46383842cd2f914a1be  # v1.3.1
+        with:
+          tool-cache: false
+          android: true
+          dotnet: true
+          haskell: true
+          large-packages: true
+          docker-images: false
+          swap-storage: false
+
+      - name: Set up Python 3.10
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405  # v6.2.0
+        with:
+          python-version: "3.10"
+
+      - name: Cache pip packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: pip-core-py310-${{ hashFiles('setup.py', 'setup.cfg') }}
+          restore-keys: pip-core-py310-
+
+      - name: Install tox
+        run: pip install tox
+
+      - name: Set up minikube
+        uses: medyagh/setup-minikube@aba8d5ff1666d19b9549133e3b92e70d4fc52cb7
+        with:
+          driver: docker
+          cpus: 2
+          memory: 6144
+
+      - name: Restore minikube image cache
+        id: image-cache
+        uses: actions/cache/restore@v4
+        with:
+          path: /tmp/minikube-image-cache
+          key: minikube-images-core-${{ matrix.backend }}-${{ hashFiles('devtools/Tiltfile') }}
+          restore-keys: minikube-images-core-${{ matrix.backend }}-
+
+      - name: Pre-load cached images into minikube
+        if: steps.image-cache.outputs.cache-hit == 'true'
+        run: devtools/ci/load-minikube-images.sh
+
+      - name: Cache Helm repos
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/helm
+            ~/.local/share/tilt-dev/.helm
+          key: helm-core-${{ matrix.backend }}-${{ hashFiles('devtools/Tiltfile', 'devtools/tilt/*.tiltfile') }}
+          restore-keys: |
+            helm-core-${{ matrix.backend }}-
+            helm-charts-
+
+      - name: Set up Helm
+        uses: azure/setup-helm@v4
+
+      - name: Cache Tilt binary
+        id: tilt-cache
+        uses: actions/cache@v4
+        with:
+          path: /usr/local/bin/tilt
+          key: tilt-v0.33.11
+
+      - name: Install Tilt
+        if: steps.tilt-cache.outputs.cache-hit != 'true'
+        run: |
+          for attempt in 1 2 3; do
+            curl -fsSL https://raw.githubusercontent.com/tilt-dev/tilt/master/scripts/install.sh \
+              | VERSION=v0.33.11 bash && break
+            echo "Attempt $attempt failed, retrying in 10s..."
+            sleep 10
+          done
+
+      - name: Pre-pull Helm repos
+        run: |
+          retry() { local cmd="$*" attempt=1; until $cmd; do attempt=$((attempt+1)); [ $attempt -gt 3 ] && return 1; sleep $((attempt*5)); done; }
+          retry helm repo add bitnami  https://charts.bitnami.com/bitnami 2>/dev/null || true
+          retry helm repo add argo     https://argoproj.github.io/argo-helm 2>/dev/null || true
+          retry helm repo add metaflow-tools https://outerbounds.github.io/metaflow-tools 2>/dev/null || true
+          retry helm repo update || true
+
+      - name: Start devstack
+        working-directory: devtools
+        run: ci/start-devstack.sh
+        env:
+          SERVICES: ${{ matrix.services }}
+
+      - name: Start minikube tunnel
+        run: sudo minikube tunnel &
+
+      - name: Forward devstack ports to Docker bridge (sfn only)
+        if: matrix.backend == 'sfn'
+        run: devtools/ci/forward-bridge-ports.sh
+
+      - name: Save minikube images to cache
+        if: steps.image-cache.outputs.cache-hit != 'true'
+        run: devtools/ci/save-minikube-images.sh
+
+      - name: Store minikube image cache
+        if: steps.image-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: /tmp/minikube-image-cache
+          key: minikube-images-core-${{ matrix.backend }}-${{ hashFiles('devtools/Tiltfile') }}
+
+      - name: Run ${{ matrix.tox_env }} tests
+        run: |
+          tox -c test/core/tox.ini -e ${{ matrix.tox_env }} -- \
+            -n ${{ matrix.workers }} \
+            --junit-xml=junit-${{ matrix.tox_env }}.xml
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: junit-${{ matrix.tox_env }}
+          path: junit-${{ matrix.tox_env }}.xml
+          if-no-files-found: ignore
+
+      - name: Publish test results
+        if: always()
+        continue-on-error: true
+        uses: dorny/test-reporter@d61b558e8df85cb60d09ca3e5b09653b4477cea7  # v1
+        with:
+          name: "Test Results — ${{ matrix.tox_env }}"
+          path: junit-${{ matrix.tox_env }}.xml
+          reporter: java-junit
+          fail-on-error: false
+
+      - name: Show Tilt logs on failure
+        if: failure()
+        run: cat /tmp/tilt.log | tail -200 || true
+
+      - name: Upload Tilt logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: tilt-logs-core-${{ matrix.backend }}
+          path: /tmp/tilt.log
+          if-no-files-found: ignore

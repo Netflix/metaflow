@@ -1,4 +1,4 @@
-from metaflow_test import FlowDefinition, ExpectationFailed, steps, tag
+from metaflow_test import FlowDefinition, steps, tag
 from metaflow import current
 
 
@@ -141,7 +141,7 @@ class TagCatch(FlowDefinition):
                     else:
                         assert list(map(str, range(attempts))) == got
 
-            assert False == "invisible" in run["start"].task.data
+            assert "invisible" not in run["start"].task.data
             assert 3 == run["start"].task.data.test_attempt
             end = run["end"].task
             assert True == end.data.here

@@ -1,4 +1,4 @@
-from metaflow_test import FlowDefinition, ExpectationFailed, steps, tag
+from metaflow_test import FlowDefinition, steps, tag
 
 
 class ProjectBranch(FlowDefinition):
@@ -31,5 +31,5 @@ os.environ['METAFLOW_BRANCH'] = 'this_is_a_test_branch'
         assert current.branch_name == "test.this_is_a_test_branch"
         assert (
             current.project_flow_name
-            == "project_branch.test.this_is_a_test_branch.ProjectBranchTestFlow"
+            == "project_branch.test.this_is_a_test_branch.%s" % current.flow_name
         )

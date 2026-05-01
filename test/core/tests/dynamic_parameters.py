@@ -1,4 +1,4 @@
-from metaflow_test import FlowDefinition, ExpectationFailed, steps
+from metaflow_test import FlowDefinition, steps
 
 
 class DynamicParameter(FlowDefinition):
@@ -27,7 +27,7 @@ def str_func(ctx):
     from metaflow import current
     assert current.project_name == 'dynamic_parameters_project'
     assert ctx.parameter_name == 'str_param'
-    assert ctx.flow_name == 'DynamicParameterTestFlow'
+    assert ctx.flow_name == current.flow_name
     assert ctx.user_name == os.environ['METAFLOW_USER']
 
     if os.path.exists('str_func.only_once'):

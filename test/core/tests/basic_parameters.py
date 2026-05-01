@@ -1,4 +1,4 @@
-from metaflow_test import FlowDefinition, ExpectationFailed, steps
+from metaflow_test import FlowDefinition, steps
 
 
 class BasicParameter(FlowDefinition):
@@ -15,7 +15,7 @@ class BasicParameter(FlowDefinition):
     ]
     PARAMETERS = {
         "no_default_param": {"default": None},
-        # Note this value is overridden in contexts.json
+        # Note this value is overridden by METAFLOW_RUN_BOOL_PARAM in the tox backend env
         "bool_param": {"default": False},
         "bool_true_param": {"default": True},
         "int_param": {"default": 123},

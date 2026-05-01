@@ -55,8 +55,8 @@ def _iter_tests():
 # ---------------------------------------------------------------------------
 
 _CORE_CHECKS = {
-    "cli": {"python": "python3", "class": "CliCheck"},
-    "metadata": {"python": "python3", "class": "MetadataCheck"},
+    "cli": {"class": "CliCheck"},
+    "metadata": {"class": "MetadataCheck"},
 }
 
 
@@ -64,8 +64,10 @@ _CORE_CHECKS = {
 def core_checks() -> dict:
     """Return the checker specs run after each flow execution.
 
-    Override this fixture in a conftest.py closer to your tests to restrict
-    to a single checker or add a custom one.
+    Each entry maps a name to a dict with a "class" key: either the string
+    name of a MetaflowCheck subclass ('CliCheck', 'MetadataCheck') or the
+    class object itself.  Override this fixture in a conftest.py closer to
+    your tests to restrict to a single checker or add a custom one.
     """
     return _CORE_CHECKS
 
@@ -99,13 +101,19 @@ def pytest_generate_tests(metafunc: Any) -> None:
     # All context configuration comes from the environment (set by tox setenv).
     marker_name = os.environ.get("METAFLOW_CORE_MARKER", "local")
     executors = [
-        e for e in os.environ.get("METAFLOW_CORE_EXECUTORS", "cli,api").split(",") if e
+        e.strip()
+        for e in os.environ.get("METAFLOW_CORE_EXECUTORS", "cli,api").split(",")
+        if e.strip()
     ]
     disabled_tests = {
-        t for t in os.environ.get("METAFLOW_CORE_DISABLED_TESTS", "").split(",") if t
+        t.strip()
+        for t in os.environ.get("METAFLOW_CORE_DISABLED_TESTS", "").split(",")
+        if t.strip()
     }
     enabled_tests = {
-        t for t in os.environ.get("METAFLOW_CORE_ENABLED_TESTS", "").split(",") if t
+        t.strip()
+        for t in os.environ.get("METAFLOW_CORE_ENABLED_TESTS", "").split(",")
+        if t.strip()
     }
     disable_parallel = os.environ.get("METAFLOW_CORE_DISABLE_PARALLEL", "") == "1"
 
@@ -114,8 +122,11 @@ def pytest_generate_tests(metafunc: Any) -> None:
     all_graphs = list(_iter_graphs())
 
     params = []
+    matched_tests = set()
+    matched_graphs = set()
     for graph in all_graphs:
-        if ok_graphs and graph["name"].lower() not in ok_graphs:
+        graph_key = graph["name"].lower()
+        if ok_graphs and graph_key not in ok_graphs:
             continue
         if disable_parallel and any(
             "num_parallel" in node for node in graph["graph"].values()
@@ -124,7 +135,8 @@ def pytest_generate_tests(metafunc: Any) -> None:
 
         for test in all_tests:
             test_name = test.__class__.__name__
-            if ok_tests and test_name.lower() not in ok_tests:
+            test_key = test_name.lower()
+            if ok_tests and test_key not in ok_tests:
                 continue
             if test_name in disabled_tests:
                 continue
@@ -133,6 +145,8 @@ def pytest_generate_tests(metafunc: Any) -> None:
             if not FlowFormatter(graph, test).valid:
                 continue
 
+            matched_tests.add(test_key)
+            matched_graphs.add(graph_key)
             for executor in executors:
                 param_id = "%s/%s/%s/%s" % (
                     marker_name,
@@ -147,5 +161,22 @@ def pytest_generate_tests(metafunc: Any) -> None:
                         id=param_id,
                     )
                 )
+
+    if ok_tests:
+        unknown = ok_tests - matched_tests
+        if unknown:
+            available = sorted(t.__class__.__name__ for t in all_tests)
+            raise pytest.UsageError(
+                "--core-tests: no tests matched %s.\nAvailable: %s"
+                % (", ".join(sorted(unknown)), ", ".join(available))
+            )
+    if ok_graphs:
+        unknown = ok_graphs - matched_graphs
+        if unknown:
+            available = sorted(g["name"] for g in all_graphs)
+            raise pytest.UsageError(
+                "--core-graphs: no graphs matched %s.\nAvailable: %s"
+                % (", ".join(sorted(unknown)), ", ".join(available))
+            )
 
     metafunc.parametrize("flow_triple", params)

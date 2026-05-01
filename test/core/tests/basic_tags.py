@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-from metaflow_test import FlowDefinition, ExpectationFailed, steps
+from metaflow_test import FlowDefinition, steps
 
 
 class BasicTag(FlowDefinition):
@@ -39,7 +39,7 @@ class BasicTag(FlowDefinition):
             return
         flow_obj = run.parent
         # test crazy unicode and spaces in tags
-        # these tags must be set with --tag option in contexts.json
+        # these tags must be set via the run_options in the tox backend env
         tags = (
             "project:basic_tag",
             "project_branch:user.tester",

@@ -1,4 +1,4 @@
-from metaflow_test import FlowDefinition, ExpectationFailed, steps
+from metaflow_test import FlowDefinition, steps
 
 
 class BasicLog(FlowDefinition):

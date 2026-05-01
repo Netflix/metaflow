@@ -9,8 +9,8 @@ Metaflow test suite consists of two parts:
     The harness generates and executes synthetic Metaflow flows,
     exercising all aspects of Metaflow.
 
-You can run the tests by hand using `pytest` or `run_tests.py` as described
-below.
+You can run the tests by hand using `pytest` or `tox` as described
+in [TESTING.md](../TESTING.md).
 
 ## Data Test Suite
 
@@ -47,7 +47,7 @@ generates and executes synthetic Metaflow flows, exercising all
 aspects of Metaflow. The test suite is executed using
 [tox](http://tox.readthedocs.io) as configured in `tox.ini`.
 You can run the tests by hand using `pytest` or
-`run_tests.py` as described below.
+`tox` as described in [TESTING.md](../TESTING.md).
 
 What happens when you execute `python helloworld.py run`? The execution
 involves multiple layers of the Metaflow stack. The stack looks like
@@ -79,10 +79,11 @@ correspond to the layers above:
 
  1. You define the execution environment, including environment
     variables, the version of the Python interpreter, and the type
-    of datastore used as *contexts* in `contexts.json` (layers 0 and 1).
+    of datastore used as *tox environments* in `test/core/tox.ini`
+    (layers 0 and 1).
 
  2. You define the step functions, the decorators used, and the
-    expected results as `MetaflowTest` templates, stored in the `tests`
+    expected results as `FlowDefinition` subclasses, stored in the `tests`
     directory (layers 2 and 4).
 
  3. You define various graphs that match the step functions as
@@ -91,24 +92,20 @@ correspond to the layers above:
 
  4. You define various ways to check the results that correspond to
     the different user interfaces of Metaflow as `MetaflowCheck` classes,
-    stored in the `metaflow_test` directory (layer 5). You can customize
-    which checkers get used in which contexts in `context.json`.
+    stored in the `metaflow_test` directory (layer 5). The checkers used
+    per tox env are configured via the `core_checks` fixture in
+    `test/core/conftest.py`.
 
-The test harness takes all `contexts`, `graphs`, `tests`, and `checkers`
-and generates a test flow for every combination of them, unless you
-explicitly set constraints on what combinations are allowed. The test
-flows are then executed, optionally in parallel, and results are
-collected and summarized.
+The test harness takes all backend envs, graphs, tests, and checkers
+and generates a pytest item for every valid combination. The items
+are then executed, optionally in parallel via `pytest-xdist`, and
+results are reported directly through pytest.
 
-#### Contexts
+#### Contexts (tox environments)
 
-Contexts are defined in `contexts.json`. The file should be pretty
-self-explanatory. Most likely you do not need to edit the file unless
-you are adding tests for a new command-line argument.
-
-Note that some contexts have `disabled: true`. These contexts are not
-executed by default when tests are run by a CI system. You can enable
-them on the command line for local testing, as shown below.
+Backend environments are defined as `[testenv:core-*]` sections in
+`test/core/tox.ini`. Most likely you do not need to edit the file unless
+you are adding tests for a new command-line argument or a new backend.
 
 #### Tests
 
@@ -202,28 +199,27 @@ returning `True` in the other checker class.
 
 ### Usage
 
-The test harness is executed by running `run_tests.py`. By default, it
-executes all valid combinations of contexts, tests, graphs, and checkers.
-This mode is suitable for automated tests run by a CI system.
+The test suite is executed via `tox`. By default, `core-local` runs
+all valid combinations for the local backend and is suitable for CI
+and local development.
 
-When testing locally, it is recommended to run the test suite as follows:
+When testing locally, it is recommended to run:
 
 ```
-cd metaflow/test/core
-PYTHONPATH=`pwd`/../../ python run_tests.py --debug --contexts dev-local
+tox -c test/core/tox.ini -e core-local
 ```
 
-This uses only the `dev_local` context, which does not depend
-on any over-the-network communication like `--metadata=service` or
-`--datastore=s3`. The `--debug` flag makes the harness fail fast when
-the first test case fails. The default mode is to run all test cases and
-summarize all failures in the end.
+This uses only the local backend, which does not depend on any
+over-the-network communication. Tests run in parallel by default
+(`-n auto`).
 
 You can run a single test case as follows:
 
 ```
-cd metaflow/test/core
-PYTHONPATH=`pwd`/../../ python run_tests.py --debug --contexts dev-local --graphs single-linear-step --tests BasicArtifactTest
+tox -c test/core/tox.ini -e core-local -- --core-tests BasicArtifact --core-graphs single-linear-step
 ```
 
-This chooses a single context, a single graph, and a single test. If you are developing a new test, this is the fastest way to test the test.
+This chooses a single test class and a single graph. If you are
+developing a new test, this is the fastest way to iterate.
+
+See [TESTING.md](../TESTING.md) for the complete guide.

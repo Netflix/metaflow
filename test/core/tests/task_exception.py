@@ -1,4 +1,4 @@
-from metaflow_test import FlowDefinition, ExpectationFailed, steps
+from metaflow_test import FlowDefinition, steps
 
 
 class TaskException(FlowDefinition):
@@ -31,5 +31,5 @@ class TaskException(FlowDefinition):
         run = checker.get_run()
         if run is not None:
             for task in run["end"]:
-                assert "KeyError" in str(task.exception) == True
+                assert "KeyError" in str(task.exception)
                 assert task.exception.exception == "'Something has gone wrong'"

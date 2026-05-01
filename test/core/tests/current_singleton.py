@@ -1,4 +1,4 @@
-from metaflow_test import FlowDefinition, ExpectationFailed, steps
+from metaflow_test import FlowDefinition, steps
 
 
 class CurrentSingleton(FlowDefinition):
@@ -149,7 +149,7 @@ class CurrentSingleton(FlowDefinition):
             assert run.data.project_names == {"current_singleton"}
             assert run.data.branch_names == {"user.tester"}
             assert run.data.project_flow_names == {
-                "current_singleton.user.tester.CurrentSingletonTestFlow"
+                "current_singleton.user.tester.%s" % flow.name
             }
             assert run.data.is_production == {False}
             assert run.data.flow_names == {run.parent.id}

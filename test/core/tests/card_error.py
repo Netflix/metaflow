@@ -1,5 +1,5 @@
 # Todo : Write Test case on graceful error handling.
-from metaflow_test import FlowDefinition, ExpectationFailed, steps, tag
+from metaflow_test import FlowDefinition, steps, tag
 
 
 class CardError(FlowDefinition):

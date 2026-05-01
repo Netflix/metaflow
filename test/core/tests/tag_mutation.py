@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 import pytest
-from metaflow_test import FlowDefinition, ExpectationFailed, steps
+from metaflow_test import FlowDefinition, steps
 
 
 class TagMutation(FlowDefinition):

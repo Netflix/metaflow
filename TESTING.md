@@ -70,12 +70,28 @@ These backends require external infrastructure (GCS emulator, Azure emulator,
 MinIO, Kubernetes, …). CI provisions all of it automatically. You do not need
 to install Docker or start any services to get these tests to pass.
 
-If you are debugging a specific backend failure locally and already have the
-required infrastructure running, you can invoke the env directly:
+If you are debugging a specific backend failure locally you can start the
+required emulator by hand and then invoke the tox env directly.
+
+**GCS** — start `fake-gcs-server` on port 4443:
 
 ```bash
-tox -c test/core/tox.ini -e core-gcs    # expects fake-gcs-server at localhost:4443
-tox -c test/core/tox.ini -e core-azure  # expects azurite at localhost:10000
+docker run --rm -p 4443:4443 fsouza/fake-gcs-server \
+  -scheme http -port 4443 -backend memory
+tox -c test/core/tox.ini -e core-gcs
+```
+
+**Azure** — start Azurite on port 10000:
+
+```bash
+docker run --rm -p 10000:10000 mcr.microsoft.com/azure-storage/azurite \
+  azurite-blob --blobHost 0.0.0.0
+tox -c test/core/tox.ini -e core-azure
+```
+
+**Batch / K8s / Argo / SFN** — these require the full devstack:
+
+```bash
 tox -c test/core/tox.ini -e core-batch  # expects devstack (see devtools/README.md)
 ```
 

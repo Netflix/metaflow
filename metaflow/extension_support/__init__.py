@@ -457,16 +457,29 @@ def _get_extension_packages(ignore_info_file=False, restrict_to_directories=None
                         )
                         namespaces = getattr(finder_mod, "NAMESPACES", {})
                         for ns, ns_paths in namespaces.items():
-                            if ns.startswith(EXT_PKG + ".") and ns_paths:
-                                for ns_path in ns_paths:
-                                    parent = os.path.dirname(ns_path)
-                                    if (
-                                        os.path.isdir(parent)
-                                        and os.path.basename(parent) == EXT_PKG
-                                        and parent not in new_dirs
-                                    ):
-                                        new_dirs.append(parent)
-                                        new_paths.append(parent)
+                            # Accept both the root namespace itself and child
+                            # namespaces:
+                            #   {"metaflow_extensions": ["/path/to/metaflow_extensions"]}
+                            #   {"metaflow_extensions.foo": ["/path/to/metaflow_extensions/foo"]}
+                            if not (
+                                ns == EXT_PKG or ns.startswith(EXT_PKG + ".")
+                            ) or not ns_paths:
+                                continue
+                            for ns_path in ns_paths:
+                                # Normalise to the metaflow_extensions root:
+                                # if the path already ends with the package name
+                                # use it directly; otherwise go up one level.
+                                if os.path.basename(ns_path) == EXT_PKG:
+                                    root = ns_path
+                                else:
+                                    root = os.path.dirname(ns_path)
+                                if (
+                                    os.path.isdir(root)
+                                    and os.path.basename(root) == EXT_PKG
+                                    and root not in new_dirs
+                                ):
+                                    new_dirs.append(root)
+                                    new_paths.append(root)
                     _ext_debug(
                         "Finder %s added directories %s"
                         % (finder_name, ", ".join(new_dirs))

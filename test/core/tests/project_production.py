@@ -1,4 +1,4 @@
-from metaflow_test import FlowDefinition, ExpectationFailed, steps, tag
+from metaflow_test import FlowDefinition, steps, tag
 
 
 class ProjectProduction(FlowDefinition):
@@ -30,5 +30,5 @@ os.environ['METAFLOW_PRODUCTION'] = 'True'
 
         assert current.branch_name == "prod"
         assert (
-            current.project_flow_name == "project_prod.prod.ProjectProductionTestFlow"
+            current.project_flow_name == "project_prod.prod.%s" % current.flow_name
         )

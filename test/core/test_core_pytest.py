@@ -12,7 +12,7 @@ Usage:
     pytest test/core/ -m local                   # local backend, all tests
     pytest test/core/ -m local -n auto           # parallel with xdist
     pytest test/core/ -m local \\
-        --core-tests BasicArtifactTest \\
+        --core-tests BasicArtifact \\
         --core-graphs single-linear-step         # targeted run
 """
 
@@ -23,9 +23,9 @@ import shutil
 import subprocess
 import sys
 import tempfile
-import threading
 import time
 import uuid
+from contextlib import contextmanager
 from typing import Tuple
 
 import pytest
@@ -55,25 +55,41 @@ _DEFAULT_RUN_OPTIONS = [
     "--tag=multiple tags should be ok",
 ]
 
-_log_lock = threading.Lock()
-
-
 def _log(msg, formatter=None, context=None, processes=None):
-    with _log_lock:
-        parts = []
-        if formatter:
-            parts.append(str(formatter))
-        if context:
-            parts.append("context '%s'" % context["name"])
-        prefix = " / ".join(parts)
-        line = ("[%s] %s" % (prefix, msg)) if prefix else msg
-        click.echo(line)
-        if processes:
-            for p in processes:
-                if p.stdout:
-                    click.echo(p.stdout, nl=False)
-                if p.stderr:
-                    click.echo(p.stderr, nl=False)
+    parts = []
+    if formatter:
+        parts.append(str(formatter))
+    if context:
+        parts.append("context '%s'" % context["name"])
+    prefix = " / ".join(parts)
+    line = ("[%s] %s" % (prefix, msg)) if prefix else msg
+    click.echo(line)
+    if processes:
+        for p in processes:
+            if p.stdout:
+                click.echo(p.stdout, nl=False)
+            if p.stderr:
+                click.echo(p.stderr, nl=False)
+
+
+@contextmanager
+def _isolated_client_globals():
+    """Save and restore metaflow.client.core module-level globals.
+
+    MetadataCheck.__init__ calls namespace() / default_namespace() which mutate
+    current_namespace and current_metadata in metaflow.client.core.  Running
+    checkers in-process (rather than in a check_flow.py subprocess) means those
+    mutations would otherwise bleed across tests in the same worker process.
+    """
+    import metaflow.client.core as _core
+
+    saved_namespace = _core.current_namespace
+    saved_metadata = _core.current_metadata
+    try:
+        yield
+    finally:
+        _core.current_namespace = saved_namespace
+        _core.current_metadata = saved_metadata
 
 
 def _context_from_env() -> dict:
@@ -155,7 +171,10 @@ def _run_flow(formatter, context, core_checks, env_base, executor):
         run_level_dict["run_id_file"] = "run-id"
         return top_level_dict, run_level_dict
 
+    cwd = os.getcwd()  # restored in finally so callers keep their original cwd
+    runner = None  # defined before outer try so finally can always reference it
     tempdir = tempfile.mkdtemp("_metaflow_test")
+    _success = False  # keep tempdir on failure so error messages remain valid
     try:
         os.chdir(tempdir)
         with open("test_flow.py", "w") as f:
@@ -175,15 +194,35 @@ def _run_flow(formatter, context, core_checks, env_base, executor):
         try:
             nonce = str(uuid.uuid4())
 
-            if context.get("env"):
-                # Standalone / explicit env overrides (e.g. cloud contexts with
-                # explicit S3 credentials not set in the tox process env).
-                env = {"USER": original_env.get("USER")}
-            else:
-                # Tox has already set all Metaflow config vars in the process env;
-                # inherit them so the test subprocess sees the correct datastore,
-                # metadata service, credentials, etc.
+            # Build a hermetic subprocess env from only the vars that tox
+            # explicitly set (METAFLOW_*, AWS_*, AZURE_*, GOOGLE_*, backend
+            # helpers) plus a small allowlist of host-identity vars.  This
+            # prevents shell-level METAFLOW_PROFILE, AWS_SESSION_TOKEN,
+            # GOOGLE_APPLICATION_CREDENTIALS, etc. from silently routing tests
+            # to the wrong service.  Full passthrough is still available for
+            # debugging by setting INHERIT_ENV=1 in the shell (matched by the
+            # tox passenv allowlist).
+            _HOST_VARS = {"USER", "HOME", "TMPDIR", "TEMP", "TMP"}
+            _PREFIXES = (
+                "METAFLOW_",
+                "AWS_",
+                "AZURE_",
+                "GOOGLE_",
+                "STORAGE_EMULATOR_HOST",
+                "PYTHONPATH",
+                "PATH",
+                "LANG",
+                "LC_ALL",
+                "PYTHONIOENCODING",
+            )
+            if original_env.get("INHERIT_ENV") == "1":
                 env = dict(original_env)
+            else:
+                env = {
+                    k: v
+                    for k, v in original_env.items()
+                    if k in _HOST_VARS or any(k.startswith(p) for p in _PREFIXES)
+                }
 
             env.update(env_base)
             for k, v in context.get("env", {}).items():
@@ -204,10 +243,21 @@ def _run_flow(formatter, context, core_checks, env_base, executor):
                     "PYTHONPATH": "%s:%s" % (_CORE_DIR, pythonpath),
                 }
             )
+            # Preserve pytest-cov / coverage.py state.  Both read COVERAGE_FILE
+            # and COV_CORE_* lazily while a test is running; clearing os.environ
+            # before they do causes silent coverage loss (not a test failure).
+            # PYTEST_* vars (e.g. PYTEST_CURRENT_TEST) are also needed by some
+            # pytest plugins throughout the test body.
+            _cov_prefixes = ("COV", "COVERAGE_", "PYTEST_")
+            _saved_cov = {
+                k: v
+                for k, v in original_env.items()
+                if any(k.startswith(p) for p in _cov_prefixes)
+            }
             os.environ.clear()
             os.environ.update(env)
+            os.environ.update(_saved_cov)
 
-            runner = None  # set in api executor path; cleaned up in finally below
             called_processes = []
 
             # ----------------------------------------------------------------
@@ -420,23 +470,24 @@ def _run_flow(formatter, context, core_checks, env_base, executor):
 
             # Dynamically import the generated flow class from test_flow.py.
             # We are already os.chdir'd to tempdir so the path is reachable.
-            _mod_name = "_core_test_flow_%s" % formatter.flow_name
+            _mod_name = "_core_test_flow_%s_%s" % (formatter.flow_name, id(formatter))
             _spec = importlib.util.spec_from_file_location(_mod_name, "test_flow.py")
             _flow_module = importlib.util.module_from_spec(_spec)
             _spec.loader.exec_module(_flow_module)
             flow = getattr(_flow_module, formatter.flow_name)(use_cli=False)
             sys.modules.pop(_mod_name, None)
 
-            from metaflow_test.cli_check import CliCheck
-            from metaflow_test.metadata_check import MetadataCheck
+            from metaflow_test import new_checker
 
-            _CHECKER_CLASSES = {"CliCheck": CliCheck, "MetadataCheck": MetadataCheck}
             for check_spec in core_checks.values():
-                checker_cls = _CHECKER_CLASSES[check_spec["class"]]
-                checker = checker_cls(flow, run_id, context["top_options"])
-                formatter.test.check_results(flow, checker)
+                with _isolated_client_globals():
+                    checker = new_checker(
+                        check_spec["class"], flow, run_id, context["top_options"]
+                    )
+                    formatter.test.check_results(flow, checker)
 
             ret = 0
+            _success = True
         finally:
             if runner is not None:
                 runner.cleanup()
@@ -445,8 +496,10 @@ def _run_flow(formatter, context, core_checks, env_base, executor):
 
         return ret, path
     finally:
-        os.chdir(_CORE_DIR)
-        shutil.rmtree(tempdir)
+        os.chdir(cwd)
+        if _success:
+            shutil.rmtree(tempdir, ignore_errors=True)
+        # on failure, tempdir is kept so the path in pytest.fail(...) is still valid
 
 
 def test_flow_triple(flow_triple: Tuple, core_checks: dict) -> None:
@@ -459,6 +512,10 @@ def test_flow_triple(flow_triple: Tuple, core_checks: dict) -> None:
     override it there to restrict or extend which checkers run.
     """
     graph, test, executor = flow_triple
+
+    if executor == "api" and _skip_api_executor:
+        pytest.skip("metaflow.Runner not available — skipping api executor")
+
     context = _context_from_env()
 
     # METAFLOW_USER must be set before metaflow imports so that the cached

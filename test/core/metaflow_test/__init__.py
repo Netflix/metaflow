@@ -211,7 +211,12 @@ def new_checker(checker_class, flow, run_id, cli_options=()):
 
     checker_class may be the class itself or its name as a string
     ('CliCheck' or 'MetadataCheck').
+
+    Back-compat: out-of-tree subclasses whose __init__ only accepts (flow) are
+    instantiated with the legacy signature so they do not receive a TypeError.
     """
+    import inspect
+
     from . import cli_check, metadata_check
 
     _CLASSES = {
@@ -220,4 +225,24 @@ def new_checker(checker_class, flow, run_id, cli_options=()):
     }
     if isinstance(checker_class, str):
         checker_class = _CLASSES[checker_class]
-    return checker_class(flow, run_id, cli_options)
+
+    try:
+        sig = inspect.signature(checker_class.__init__)
+        # Count positional-or-keyword params excluding 'self'.
+        params = [
+            p
+            for p in sig.parameters.values()
+            if p.name != "self"
+            and p.kind
+            in (
+                inspect.Parameter.POSITIONAL_OR_KEYWORD,
+                inspect.Parameter.POSITIONAL_ONLY,
+            )
+        ]
+        if len(params) >= 2:
+            return checker_class(flow, run_id, cli_options)
+        # Legacy __init__(self, flow) — pass only what it accepts.
+        return checker_class(flow)
+    except (ValueError, TypeError):
+        # inspect.signature failed (e.g. built-in); try new signature first.
+        return checker_class(flow, run_id, cli_options)
