@@ -118,7 +118,9 @@ def _run_flow(formatter, context, core_checks, env_base, executor):
     """Execute one (formatter, context, executor) test combination.
 
     Replaces the run_test() call that previously required importing run_tests.py.
-    Returns (returncode, path_to_flow_file).
+    Returns (returncode, path_to_flow_file, error_details) where error_details
+    is a human-readable string with subprocess stdout/stderr on failure (empty
+    string on success).
 
     Fixes vs the original run_tests.run_test():
       - api executor: Runner.run/resume() RuntimeError caught and converted to
@@ -233,6 +235,29 @@ def _run_flow(formatter, context, core_checks, env_base, executor):
             os.environ.update(_saved_cov)
 
             called_processes = []
+            _error_details = []  # accumulates stderr/stdout from failed subprocesses
+
+            def _proc_output(procs):
+                """Return a single string with stdout+stderr from all processes."""
+                parts = []
+                for p in procs:
+                    if p.stdout:
+                        out = (
+                            p.stdout.decode("utf-8", errors="replace")
+                            if isinstance(p.stdout, bytes)
+                            else p.stdout
+                        )
+                        if out.strip():
+                            parts.append("stdout:\n" + out)
+                    if p.stderr:
+                        err = (
+                            p.stderr.decode("utf-8", errors="replace")
+                            if isinstance(p.stderr, bytes)
+                            else p.stderr
+                        )
+                        if err.strip():
+                            parts.append("stderr:\n" + err)
+                return "\n".join(parts)
 
             # ----------------------------------------------------------------
             # Run the flow
@@ -291,7 +316,7 @@ def _run_flow(formatter, context, core_checks, env_base, executor):
                         formatter,
                         context,
                     )
-                    return 0, path
+                    return 0, path, ""
 
                 create_cmd = [context["python"], "-B", "test_flow.py"]
                 create_cmd.extend(context["top_options"])
@@ -312,7 +337,9 @@ def _run_flow(formatter, context, core_checks, env_base, executor):
                         context,
                         processes=called_processes,
                     )
-                    return called_processes[-1].returncode, path
+                    _error_details.append("scheduler create failed")
+                    _error_details.append(_proc_output(called_processes))
+                    return called_processes[-1].returncode, path, "\n".join(_error_details)
 
                 trigger_cmd = [context["python"], "-B", "test_flow.py"]
                 trigger_cmd.extend(context["top_options"])
@@ -334,9 +361,11 @@ def _run_flow(formatter, context, core_checks, env_base, executor):
                             context,
                             processes=called_processes,
                         )
-                        return called_processes[-1].returncode, path
+                        _error_details.append("scheduler trigger failed")
+                        _error_details.append(_proc_output(called_processes))
+                        return called_processes[-1].returncode, path, "\n".join(_error_details)
                 elif formatter.should_fail:
-                    return 1, path
+                    return 1, path, ""
 
                 run_id = open("run-id").read().strip()
                 timeout = context.get("scheduler_timeout", 600)
@@ -363,7 +392,8 @@ def _run_flow(formatter, context, core_checks, env_base, executor):
                         context,
                         processes=called_processes,
                     )
-                    return 1, path
+                    _error_details.append("scheduler run timed out after %ds" % timeout)
+                    return 1, path, "\n".join(_error_details)
 
                 called_processes.append(
                     subprocess.CompletedProcess(
@@ -430,12 +460,16 @@ def _run_flow(formatter, context, core_checks, env_base, executor):
                             context,
                             processes=called_processes,
                         )
-                        return called_processes[-1].returncode, path
+                        _error_details.append("resume failed")
+                        _error_details.append(_proc_output(called_processes))
+                        return called_processes[-1].returncode, path, "\n".join(_error_details)
                 else:
                     _log("flow failed", formatter, context, processes=called_processes)
-                    return called_processes[-1].returncode, path
+                    _error_details.append("flow failed")
+                    _error_details.append(_proc_output(called_processes))
+                    return called_processes[-1].returncode, path, "\n".join(_error_details)
             elif formatter.should_fail:
-                return 1, path
+                return 1, path, ""
 
             # ----------------------------------------------------------------
             # Check results — run in-process; failures raise AssertionError
@@ -468,7 +502,7 @@ def _run_flow(formatter, context, core_checks, env_base, executor):
             os.environ.clear()
             os.environ.update(original_env)
 
-        return ret, path
+        return ret, path, ""
     finally:
         os.chdir(cwd)
         if _success:
@@ -501,7 +535,7 @@ def test_flow_triple(flow_triple: Tuple, core_checks: dict) -> None:
     }
 
     formatter = FlowFormatter(graph, test)
-    ret, path = _run_flow(
+    ret, path, details = _run_flow(
         formatter=formatter,
         context=context,
         core_checks=core_checks,
@@ -511,7 +545,13 @@ def test_flow_triple(flow_triple: Tuple, core_checks: dict) -> None:
 
     if ret != 0:
         marker = os.environ.get("METAFLOW_CORE_MARKER", "local")
-        pytest.fail(
-            "Core test failed: %s/%s/%s/%s\n  flow path: %s"
-            % (marker, graph["name"], test.__class__.__name__, executor, path)
+        msg = "Core test failed: %s/%s/%s/%s\n  flow path: %s" % (
+            marker,
+            graph["name"],
+            test.__class__.__name__,
+            executor,
+            path,
         )
+        if details:
+            msg += "\n\n" + details
+        pytest.fail(msg)
