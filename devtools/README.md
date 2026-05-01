@@ -83,6 +83,31 @@ python myflow.py run
 | `make ui` | Wait for Metaflow UI and open it in a browser |
 | `make tunnel` | Run `minikube tunnel` (called automatically by `up`) |
 
+## Running core integration tests (test/core/)
+
+The `test/core/` suite generates and runs synthetic Metaflow flows. The `core-local`
+env needs no infrastructure, but the cloud-backend envs do:
+
+| tox env | Required services |
+|---|---|
+| `core-batch` | `minio,postgresql,metadata-service,localbatch` |
+| `core-k8s` | `minio,postgresql,metadata-service` (+ minikube k8s decorator) |
+| `core-argo` | `minio,postgresql,metadata-service,argo-workflows` |
+| `core-sfn` | `minio,postgresql,metadata-service,localbatch,ddb-local,sfn-local` |
+
+Start the required services, then run the corresponding tox env:
+
+```bash
+# Example: sfn backend
+SERVICES_OVERRIDE=minio,postgresql,metadata-service,localbatch,ddb-local,sfn-local make up
+tox -c test/core/tox.ini -e core-sfn
+```
+
+For Azure and GCS, no devstack is needed — start the emulator with Docker instead
+(see [TESTING.md](../TESTING.md) for the exact `docker run` commands).
+
+---
+
 ## Running UX tests
 
 The `test/ux/core/` suite (`test_basic.py`, `test_config.py`) can be run against the devstack

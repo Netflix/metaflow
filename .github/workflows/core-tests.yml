@@ -298,6 +298,16 @@ jobs:
         if: matrix.backend == 'sfn'
         run: devtools/ci/forward-bridge-ports.sh
 
+      - name: Wait for SFN local service to be ready (sfn only)
+        if: matrix.backend == 'sfn'
+        run: |
+          for i in $(seq 1 30); do
+            curl -s -o /dev/null http://localhost:8082/ && echo "SFN ready" && exit 0
+            sleep 2
+          done
+          echo "SFN local did not become ready in time"
+          exit 1
+
       - name: Save minikube images to cache
         if: steps.image-cache.outputs.cache-hit != 'true'
         run: devtools/ci/save-minikube-images.sh
