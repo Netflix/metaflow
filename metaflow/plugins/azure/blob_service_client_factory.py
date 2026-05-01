@@ -117,7 +117,7 @@ def get_azure_blob_service_client(
     The value adds are:
     - connection caching (see _ClientCache)
     - auto storage account URL detection
-    - auto credential handling (SharedKey from AZURE_STORAGE_CONNECTION_STRING, OR DefaultAzureCredential)
+    - auto credential handling (DefaultAzureCredential, or explicit credential when provided)
     - sensible default values for Azure SDK tunables
     """
     if not AZURE_STORAGE_BLOB_SERVICE_ENDPOINT:
@@ -126,25 +126,6 @@ def get_azure_blob_service_client(
         )
     blob_service_endpoint = AZURE_STORAGE_BLOB_SERVICE_ENDPOINT
 
-    if not credential:
-        # If AZURE_STORAGE_CONNECTION_STRING is set (e.g. for local Azurite testing),
-        # extract the StorageSharedKeyCredential from it so we can authenticate without
-        # requiring DefaultAzureCredential / OAuth, which Azurite doesn't support over HTTP.
-        connection_string = os.environ.get("AZURE_STORAGE_CONNECTION_STRING")
-        if connection_string:
-            try:
-                from azure.storage.blob import StorageSharedKeyCredential
-
-                parts = dict(
-                    p.split("=", 1) for p in connection_string.split(";") if "=" in p
-                )
-                account_name = parts.get("AccountName", "")
-                account_key = parts.get("AccountKey", "")
-                if account_name and account_key:
-                    credential = StorageSharedKeyCredential(account_name, account_key)
-                    credential_is_cacheable = False
-            except Exception:
-                pass
     if not credential:
         credential = create_cacheable_azure_credential()
         credential_is_cacheable = True
