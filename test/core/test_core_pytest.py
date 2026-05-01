@@ -339,7 +339,11 @@ def _run_flow(formatter, context, core_checks, env_base, executor):
                     )
                     _error_details.append("scheduler create failed")
                     _error_details.append(_proc_output(called_processes))
-                    return called_processes[-1].returncode, path, "\n".join(_error_details)
+                    return (
+                        called_processes[-1].returncode,
+                        path,
+                        "\n".join(_error_details),
+                    )
 
                 trigger_cmd = [context["python"], "-B", "test_flow.py"]
                 trigger_cmd.extend(context["top_options"])
@@ -363,7 +367,11 @@ def _run_flow(formatter, context, core_checks, env_base, executor):
                         )
                         _error_details.append("scheduler trigger failed")
                         _error_details.append(_proc_output(called_processes))
-                        return called_processes[-1].returncode, path, "\n".join(_error_details)
+                        return (
+                            called_processes[-1].returncode,
+                            path,
+                            "\n".join(_error_details),
+                        )
                 elif formatter.should_fail:
                     return 1, path, ""
 
@@ -462,12 +470,20 @@ def _run_flow(formatter, context, core_checks, env_base, executor):
                         )
                         _error_details.append("resume failed")
                         _error_details.append(_proc_output(called_processes))
-                        return called_processes[-1].returncode, path, "\n".join(_error_details)
+                        return (
+                            called_processes[-1].returncode,
+                            path,
+                            "\n".join(_error_details),
+                        )
                 else:
                     _log("flow failed", formatter, context, processes=called_processes)
                     _error_details.append("flow failed")
                     _error_details.append(_proc_output(called_processes))
-                    return called_processes[-1].returncode, path, "\n".join(_error_details)
+                    return (
+                        called_processes[-1].returncode,
+                        path,
+                        "\n".join(_error_details),
+                    )
             elif formatter.should_fail:
                 return 1, path, ""
 
