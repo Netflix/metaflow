@@ -461,9 +461,10 @@ def _get_extension_packages(ignore_info_file=False, restrict_to_directories=None
                             # namespaces:
                             #   {"metaflow_extensions": ["/path/to/metaflow_extensions"]}
                             #   {"metaflow_extensions.foo": ["/path/to/metaflow_extensions/foo"]}
-                            if not (
-                                ns == EXT_PKG or ns.startswith(EXT_PKG + ".")
-                            ) or not ns_paths:
+                            if (
+                                not (ns == EXT_PKG or ns.startswith(EXT_PKG + "."))
+                                or not ns_paths
+                            ):
                                 continue
                             for ns_path in ns_paths:
                                 # Normalise to the metaflow_extensions root:

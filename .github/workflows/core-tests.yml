@@ -52,7 +52,7 @@ jobs:
         run: |
           tox -c test/core/tox.ini -e core-local -- \
             -n auto \
-            --junit-xml=junit-core-local.xml
+            --junit-xml="${GITHUB_WORKSPACE}/junit-core-local.xml"
 
       - name: Upload test results
         if: always()
@@ -90,7 +90,10 @@ jobs:
               -p 4443:4443
               fsouza/fake-gcs-server
               -scheme http -port 4443 -backend memory
-            emulator_ready_check: "curl -sf http://localhost:4443/"
+            # -s suppresses progress; no -f so any HTTP response (even 404) is treated
+            # as "server is up". fake-gcs-server returns non-2xx at / which would
+            # cause -f to exit 22.
+            emulator_ready_check: "curl -s -o /dev/null http://localhost:4443/"
 
           - backend: azure
             tox_env: core-azure
@@ -99,10 +102,9 @@ jobs:
               -p 10000:10000
               mcr.microsoft.com/azure-storage/azurite
               azurite-blob --blobHost 0.0.0.0
-            emulator_ready_check: >-
-              curl -sf
-              "http://127.0.0.1:10000/devstoreaccount1?restype=service&comp=list"
-              || true
+            # Azurite returns 400 (missing auth) at the root path once it is running;
+            # accept any HTTP response so the poll exits as soon as the port is live.
+            emulator_ready_check: "curl -s -o /dev/null http://127.0.0.1:10000/"
 
     steps:
       - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8  # v6.0.1
@@ -139,7 +141,7 @@ jobs:
         run: |
           tox -c test/core/tox.ini -e ${{ matrix.tox_env }} -- \
             -n 1 \
-            --junit-xml=junit-${{ matrix.tox_env }}.xml
+            --junit-xml="${GITHUB_WORKSPACE}/junit-${{ matrix.tox_env }}.xml"
 
       - name: Upload test results
         if: always()
@@ -311,7 +313,7 @@ jobs:
         run: |
           tox -c test/core/tox.ini -e ${{ matrix.tox_env }} -- \
             -n ${{ matrix.workers }} \
-            --junit-xml=junit-${{ matrix.tox_env }}.xml
+            --junit-xml="${GITHUB_WORKSPACE}/junit-${{ matrix.tox_env }}.xml"
 
       - name: Upload test results
         if: always()

@@ -111,9 +111,7 @@ class FlowFormatter(object):
         )
         # Only emit 'import pytest' when a step method actually uses it, so
         # that test_flow.py can be run standalone without a pytest install.
-        step_sources = "\n".join(
-            "\n".join(self._format_method(s)) for s in self.steps
-        )
+        step_sources = "\n".join("\n".join(self._format_method(s)) for s in self.steps)
         if "pytest" in step_sources:
             yield 0, "import pytest"
         if tags:
