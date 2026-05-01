@@ -159,6 +159,12 @@ jobs:
             -d '{"name": "metaflow-test"}'
 
       - name: Run ${{ matrix.tox_env }} tests
+        # AZURE_STORAGE_CONNECTION_STRING is set here (not in tox.ini) because
+        # tox 4 parses setenv values for conditional package markers and the
+        # semicolons in the connection string trigger packaging.InvalidMarker.
+        env:
+          AZURE_STORAGE_CONNECTION_STRING: >-
+            DefaultEndpointsProtocol=http;AccountName=devstoreaccount1;AccountKey=Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw==;BlobEndpoint=http://127.0.0.1:10000/devstoreaccount1;
         run: |
           tox -c test/core/tox.ini -e ${{ matrix.tox_env }} -- \
             -n 1 \

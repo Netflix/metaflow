@@ -41,6 +41,7 @@ def _iter_tests():
                     name not in ("MetaflowTest", "FlowDefinition")
                     and isinstance(obj, type)
                     and issubclass(obj, FlowDefinition)
+                    and obj.__module__ == mod.__name__
                 ):
                     yield obj()
 
