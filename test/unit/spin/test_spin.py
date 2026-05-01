@@ -147,6 +147,34 @@ def test_spin_with_parameters_raises_error(simple_parameter_run):
         ):
             pass
 
+def test_spin_preserves_global_namespace_end_to_end():
+      flow_path = os.path.join(FLOWS_DIR, "global_namespace_flow.py")
+
+      print(f"Running global namespace regression test for {flow_path}")
+
+      # First run the flow through the normal runtime path.
+      with Runner(flow_path, cwd=FLOWS_DIR).run() as running:
+          run = running.run
+          start_task = run["start"].task
+          end_task = run["end"].task
+
+          # These assertions fail before the fix because the worker-side client
+          # access raises a namespace mismatch.
+          assert start_task["worker_namespace"].data is None
+          assert start_task["resolved_run_pathspec"].data == run.pathspec
+          assert end_task["worker_namespace"].data is None
+          assert end_task["resolved_run_pathspec"].data == run.pathspec
+
+      # Then exercise the spin worker path as well.
+      with Runner(flow_path, cwd=FLOWS_DIR).spin(
+          start_task.pathspec,
+          persist=True,
+      ) as spin:
+          spin_task = spin.task
+          spin_run_pathspec = "/".join(spin_task.pathspec.split("/")[:2])
+
+          assert spin_task["worker_namespace"].data is None
+          assert spin_task["resolved_run_pathspec"].data == spin_run_pathspec
 
 # NOTE: This test has to be the last test because it modifies the metadata
 # provider when calling inspect_spin
