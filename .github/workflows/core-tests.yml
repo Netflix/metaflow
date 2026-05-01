@@ -101,7 +101,7 @@ jobs:
               docker run -d --name azurite
               -p 10000:10000
               mcr.microsoft.com/azure-storage/azurite
-              azurite-blob --blobHost 0.0.0.0
+              azurite-blob --blobHost 0.0.0.0 --skipApiVersionCheck
             # Azurite returns 400 (missing auth) at the root path once it is running;
             # accept any HTTP response so the poll exits as soon as the port is live.
             emulator_ready_check: "curl -s -o /dev/null http://127.0.0.1:10000/"
