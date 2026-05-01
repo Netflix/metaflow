@@ -84,7 +84,7 @@ jobs:
       - name: Publish test results
         if: always()
         continue-on-error: true
-        uses: dorny/test-reporter@d61b558e8df85cb60d09ca3e5b09653b4477cea7  # v1
+        uses: dorny/test-reporter@a43b3a5f7366b97d083190328d2c652e1a8b6aa2  # v3.0.0
         with:
           name: "Test Results — Unit"
           path: junit-unit.xml
@@ -152,7 +152,7 @@ jobs:
           pip install -e ".[dev]"
 
       - name: Set up minikube
-        uses: medyagh/setup-minikube@aba8d5ff1666d19b9549133e3b92e70d4fc52cb7
+        uses: medyagh/setup-minikube@697f2b7aaed5f70bf2a94ee21a4ec3dde7b12f92  # v0.0.9
         with:
           driver: docker
           cpus: 2
@@ -308,7 +308,7 @@ jobs:
       - name: Publish test results
         if: always()
         continue-on-error: true
-        uses: dorny/test-reporter@d61b558e8df85cb60d09ca3e5b09653b4477cea7  # v1
+        uses: dorny/test-reporter@a43b3a5f7366b97d083190328d2c652e1a8b6aa2  # v3.0.0
         with:
           name: "Test Results — ${{ matrix.backend }}"
           path: junit-${{ matrix.backend }}.xml
@@ -353,20 +353,20 @@ jobs:
         run: pip install coverage[toml]
 
       - name: Download coverage data from all backends
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c  # v8.0.1
         with:
           pattern: coverage-*
           path: coverage-artifacts/
 
       - name: Download test results from all backends
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c  # v8.0.1
         with:
           pattern: junit-*
           path: junit-artifacts/
 
       - name: Publish combined test results
         continue-on-error: true
-        uses: dorny/test-reporter@d61b558e8df85cb60d09ca3e5b09653b4477cea7  # v1
+        uses: dorny/test-reporter@a43b3a5f7366b97d083190328d2c652e1a8b6aa2  # v3.0.0
         with:
           name: "Test Results — All Backends"
           path: "junit-artifacts/**/*.xml"

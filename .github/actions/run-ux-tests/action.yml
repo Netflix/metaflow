@@ -67,7 +67,7 @@ runs:
 
     - name: Install Miniconda
       if: ${{ inputs.conda == 'true' }}
-      uses: conda-incubator/setup-miniconda@v3
+      uses: conda-incubator/setup-miniconda@8ee1f361103df19b6f8c8655fd3967a8ecb162d5 #v4.0.1
       with:
         auto-activate-base: true
         activate-environment: ""
