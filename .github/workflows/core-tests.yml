@@ -125,7 +125,18 @@ jobs:
         run: pip install tox
 
       - name: Start ${{ matrix.backend }} emulator
-        run: ${{ matrix.emulator_cmd }}
+        # Retry up to 3 times: exit code 125 from docker run means the daemon
+        # failed (commonly a transient image-pull timeout from mcr.microsoft.com
+        # or hub.docker.com). Cleaning up the partial container before retrying
+        # avoids "name already in use" on the next attempt.
+        run: |
+          for attempt in 1 2 3; do
+            ${{ matrix.emulator_cmd }} && break
+            docker rm -f fake-gcs azurite 2>/dev/null || true
+            echo "Attempt $attempt failed; retrying in 15s..."
+            sleep 15
+            [ $attempt -eq 3 ] && exit 1
+          done
 
       - name: Wait for emulator to be ready
         run: |
@@ -136,6 +147,16 @@ jobs:
           echo "Emulator did not become ready in time"
           docker logs fake-gcs 2>/dev/null || docker logs azurite 2>/dev/null || true
           exit 1
+
+      - name: Create GCS test bucket (gcs only)
+        if: matrix.backend == 'gcs'
+        # fake-gcs-server starts with an empty store. Metaflow's GCS storage
+        # expects the bucket to exist before writing; pre-create it via the
+        # emulator's REST API.
+        run: |
+          curl -sf -X POST "http://localhost:4443/storage/v1/b?project=metaflow-test" \
+            -H "Content-Type: application/json" \
+            -d '{"name": "metaflow-test"}'
 
       - name: Run ${{ matrix.tox_env }} tests
         run: |
