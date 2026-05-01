@@ -534,10 +534,26 @@ def _get_extension_packages(ignore_info_file=False, restrict_to_directories=None
                 # Ensure that we don't have a __init__.py to force this package to
                 # be a NS package
                 if parts[1] == "__init__.py":
-                    raise RuntimeError(
-                        "Package '%s' providing '%s' is not an implicit namespace "
-                        "package as required" % (state["name"], EXT_PKG)
-                    )
+                    if state["name"].startswith("_pythonpath_"):
+                        # Code packages created by package_mfext_all() include
+                        # an __init__.py for self-containment. When re-discovered
+                        # via PYTHONPATH on a remote worker, remove it so the
+                        # namespace package semantics are restored.
+                        init_path = os.path.join(root_dir, parts[1])
+                        try:
+                            os.remove(init_path)
+                        except OSError:
+                            pass
+                        _ext_debug(
+                            "Removed packaged __init__.py from '%s'"
+                            % state["name"]
+                        )
+                    else:
+                        raise RuntimeError(
+                            "Package '%s' providing '%s' is not an implicit "
+                            "namespace package as required"
+                            % (state["name"], EXT_PKG)
+                        )
                 # Check for any metadata; we can only have one metadata per
                 # distribution at most
                 if EXT_META_REGEXP.match(parts[1]) is not None:
@@ -614,6 +630,22 @@ def _get_extension_packages(ignore_info_file=False, restrict_to_directories=None
                             config_module is not None
                             and cur_pkg.config_module is not None
                         ):
+                            if state["name"].startswith("_pythonpath_"):
+                                # PYTHONPATH entries may contain config files
+                                # from multiple distributions merged by
+                                # package_mfext_all(). Keep the first config
+                                # and skip duplicates.
+                                _ext_debug(
+                                    "Skipping duplicate config '%s' for "
+                                    "'%s' in '%s' (keeping '%s')"
+                                    % (
+                                        config_module,
+                                        _extension_points[idx],
+                                        dist_full_name,
+                                        cur_pkg.config_module,
+                                    )
+                                )
+                                break
                             raise RuntimeError(
                                 "Package '%s' defines more than one "
                                 "configuration file for '%s': '%s' and '%s'"
