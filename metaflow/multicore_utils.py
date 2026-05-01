@@ -66,7 +66,7 @@ def _spawn(
                 with open(output_file, "wb") as f:
                     pickle.dump(ret, f, protocol=pickle.HIGHEST_PROTOCOL)
                 exit_code = 0
-            except Exception:
+            except BaseException:
                 # we must not let any exceptions escape this function
                 # which might trigger unintended side-effects
                 traceback.print_exc()
