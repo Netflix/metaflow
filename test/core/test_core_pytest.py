@@ -196,34 +196,7 @@ def _run_flow(formatter, context, core_checks, env_base, executor):
             nonce = str(uuid.uuid4())
 
             # Build a hermetic subprocess env from only the vars that tox
-            # explicitly set (METAFLOW_*, AWS_*, AZURE_*, GOOGLE_*, backend
-            # helpers) plus a small allowlist of host-identity vars.  This
-            # prevents shell-level METAFLOW_PROFILE, AWS_SESSION_TOKEN,
-            # GOOGLE_APPLICATION_CREDENTIALS, etc. from silently routing tests
-            # to the wrong service.  Full passthrough is still available for
-            # debugging by setting INHERIT_ENV=1 in the shell (matched by the
-            # tox passenv allowlist).
-            _HOST_VARS = {"USER", "HOME", "TMPDIR", "TEMP", "TMP"}
-            _PREFIXES = (
-                "METAFLOW_",
-                "AWS_",
-                "AZURE_",
-                "GOOGLE_",
-                "STORAGE_EMULATOR_HOST",
-                "PYTHONPATH",
-                "PATH",
-                "LANG",
-                "LC_ALL",
-                "PYTHONIOENCODING",
-            )
-            if original_env.get("INHERIT_ENV") == "1":
-                env = dict(original_env)
-            else:
-                env = {
-                    k: v
-                    for k, v in original_env.items()
-                    if k in _HOST_VARS or any(k.startswith(p) for p in _PREFIXES)
-                }
+            env = dict(original_env)
 
             env.update(env_base)
             for k, v in context.get("env", {}).items():
