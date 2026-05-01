@@ -22,7 +22,7 @@ from typing import (
 try:
     # Python 2
     import cPickle as pickle
-except:
+except ImportError:
     # Python 3
     import pickle
 
@@ -66,7 +66,7 @@ def _spawn(
                 with open(output_file, "wb") as f:
                     pickle.dump(ret, f, protocol=pickle.HIGHEST_PROTOCOL)
                 exit_code = 0
-            except:
+            except BaseException:
                 # we must not let any exceptions escape this function
                 # which might trigger unintended side-effects
                 traceback.print_exc()
