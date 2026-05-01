@@ -16,7 +16,7 @@ if _CORE_DIR not in sys.path:
 
 
 # ---------------------------------------------------------------------------
-# Test discovery — owned by pytest, no dependency on run_tests.py
+# Test discovery — owned by pytest
 # ---------------------------------------------------------------------------
 
 
