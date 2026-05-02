@@ -162,19 +162,12 @@ jobs:
         if: matrix.backend == 'azure'
         # Azurite starts with an empty store. Metaflow's Azure storage expects
         # the container to exist before writing; pre-create it using the SDK.
+        env:
+          AZURE_STORAGE_CONNECTION_STRING: >-
+            DefaultEndpointsProtocol=http;AccountName=devstoreaccount1;AccountKey=Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw==;BlobEndpoint=http://127.0.0.1:10000/devstoreaccount1;
         run: |
           pip install --quiet azure-storage-blob
-          python - <<'EOF'
-from azure.storage.blob import BlobServiceClient
-conn = (
-    "DefaultEndpointsProtocol=http;"
-    "AccountName=devstoreaccount1;"
-    "AccountKey=Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw==;"
-    "BlobEndpoint=http://127.0.0.1:10000/devstoreaccount1;"
-)
-BlobServiceClient.from_connection_string(conn).create_container("metaflow-test")
-print("Created container: metaflow-test")
-EOF
+          python -c "import os; from azure.storage.blob import BlobServiceClient; BlobServiceClient.from_connection_string(os.environ['AZURE_STORAGE_CONNECTION_STRING']).create_container('metaflow-test'); print('Created container: metaflow-test')"
 
       - name: Run ${{ matrix.tox_env }} tests
         # AZURE_STORAGE_CONNECTION_STRING is set here (not in tox.ini) because
