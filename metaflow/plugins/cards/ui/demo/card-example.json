@@ -183,7 +183,7 @@
                 {
                   "name": "json_param",
                   "type": "str",
-                  "data": "'{\"states\": [{\"CA\", 0}, {\"NY\", 1}]'"
+                  "data": "'{\"states\": [{\"CA\", 0}, {\"NY\", 1}]}'"
                 },
                 {
                   "name": "large_int",
