@@ -69,7 +69,11 @@ class _AzureRootClient(object):
     ):
         if datastore_root is None:
             raise MetaflowInternalError("datastore_root must be set")
-        if token is None and shared_access_signature is None and connection_string is None:
+        if (
+            token is None
+            and shared_access_signature is None
+            and connection_string is None
+        ):
             raise MetaflowInternalError(
                 "either shared_access_signature, token, or connection_string must be set"
             )
