@@ -15,6 +15,7 @@ import time
 import json
 import uuid
 import signal
+import sys
 import random
 from contextlib import contextmanager
 from functools import wraps
@@ -161,8 +162,11 @@ def resolve_card(
 @contextmanager
 def timeout(time):
     # Register a function to raise a TimeoutError on the signal.
+    if sys.platform == "win32":
+        raise RuntimeError(
+            "Card timeout is not supported on Windows (SIGALRM is POSIX-only)."
+        )
     signal.signal(signal.SIGALRM, raise_timeout)
-    # Schedule the signal to be sent after ``time``.
     signal.alarm(time)
 
     try:

@@ -1,4 +1,5 @@
 import signal
+import sys
 import traceback
 
 from metaflow.exception import MetaflowException
@@ -70,6 +71,12 @@ class TimeoutDecorator(StepDecorator):
         if ubf_context != UBF_CONTROL and retry_count <= max_user_code_retries:
             # enable timeout only when executing user code
             self.step_name = step_name
+            if sys.platform == "win32":
+                raise MetaflowException(
+                    "@timeout is not supported on Windows because it relies on "
+                    "POSIX signals (SIGALRM). Use a Linux-based compute backend "
+                    "(e.g. @kubernetes or @batch) to use @timeout."
+                )
             signal.signal(signal.SIGALRM, self._sigalrm_handler)
             signal.alarm(self.secs)
 
