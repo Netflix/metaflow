@@ -1,6 +1,5 @@
 from metaflow_test import FlowDefinition, steps, tag
 
-
 INLINE_SECRETS_VARS = [
     {
         "type": "inline",

@@ -11,7 +11,6 @@ These tests actually execute flows with non-standard step names and verify:
 
 from metaflow.events import Trigger
 
-
 # ---------------------------------------------------------------------------
 # Custom named flow (begin/middle/finish)
 # ---------------------------------------------------------------------------

@@ -5,7 +5,11 @@ import warnings
 
 from pytest import Config, Parser
 
-from metaflow._vendor.v3_7.typeguard._config import CollectionCheckStrategy, ForwardRefPolicy, global_config
+from metaflow._vendor.v3_7.typeguard._config import (
+    CollectionCheckStrategy,
+    ForwardRefPolicy,
+    global_config,
+)
 from metaflow._vendor.v3_7.typeguard._exceptions import InstrumentationWarning
 from metaflow._vendor.v3_7.typeguard._importhook import install_import_hook
 from metaflow._vendor.v3_7.typeguard._utils import qualified_name, resolve_reference
