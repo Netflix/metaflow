@@ -205,9 +205,13 @@ def _run_flow(formatter, context, core_checks, env_base, executor):
                 env[k] = v.format(nonce=nonce)
             # Expand {nonce} placeholders written as {{nonce}} in tox.ini setenv.
             # Use str.replace (not .format) to avoid KeyError on JSON-valued vars.
+            # Replace {{nonce}} first so the double-brace form is fully consumed
+            # before the single-brace form is handled.  If tox 4 converts {{
+            # to { before the test runs, only the second replace fires; if it
+            # does not, the first replace removes both surrounding braces.
             for k, v in list(env.items()):
                 if isinstance(v, str) and "{nonce}" in v:
-                    env[k] = v.replace("{nonce}", nonce)
+                    env[k] = v.replace("{{nonce}}", nonce).replace("{nonce}", nonce)
 
             pythonpath = original_env.get("PYTHONPATH", ".")
             env.update(
