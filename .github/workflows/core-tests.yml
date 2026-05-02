@@ -158,6 +158,24 @@ jobs:
             -H "Content-Type: application/json" \
             -d '{"name": "metaflow-test"}'
 
+      - name: Create Azure test container (azure only)
+        if: matrix.backend == 'azure'
+        # Azurite starts with an empty store. Metaflow's Azure storage expects
+        # the container to exist before writing; pre-create it using the SDK.
+        run: |
+          pip install --quiet azure-storage-blob
+          python - <<'EOF'
+from azure.storage.blob import BlobServiceClient
+conn = (
+    "DefaultEndpointsProtocol=http;"
+    "AccountName=devstoreaccount1;"
+    "AccountKey=Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw==;"
+    "BlobEndpoint=http://127.0.0.1:10000/devstoreaccount1;"
+)
+BlobServiceClient.from_connection_string(conn).create_container("metaflow-test")
+print("Created container: metaflow-test")
+EOF
+
       - name: Run ${{ matrix.tox_env }} tests
         # AZURE_STORAGE_CONNECTION_STRING is set here (not in tox.ini) because
         # tox 4 parses setenv values for conditional package markers and the
