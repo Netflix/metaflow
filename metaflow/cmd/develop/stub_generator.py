@@ -1536,9 +1536,14 @@ class StubGenerator:
                 dir_path = os.path.join(
                     self._output_dir, *module_alias.split(".")[1:-1]
                 )
-            out_file = os.path.join(
-                dir_path, os.path.basename(self._current_module.__file__) + "i"
+
+            # Namespace packages have __file__ = None; use __init__.py as
+            # the output basename so we still emit an __init__.pyi stub.
+            src_file = getattr(self._current_module, "__file__", None)
+            basename = (
+                os.path.basename(src_file) if src_file else "__init__.py"
             )
+            out_file = os.path.join(dir_path, basename + "i")
 
             width = 100
 
