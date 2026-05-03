@@ -81,16 +81,30 @@ def _isolated_client_globals():
     current_namespace and current_metadata in metaflow.client.core.  Running
     checkers in-process (rather than in a check_flow.py subprocess) means those
     mutations would otherwise bleed across tests in the same worker process.
+
+    We also save/restore the metadata provider's class-level _INFO cache.
+    LocalMetadataProvider uses MetadataProviderMeta which caches the result of
+    default_info() (based on os.getcwd()) in a class variable _INFO.  Without
+    restoring it, test N's tempdir leaks into test N+1 after test N cleans up.
     """
     import metaflow.client.core as _core
+    from metaflow.plugins.metadata_providers.local import (
+        LocalMetadataProvider as _LMP,
+    )
 
     saved_namespace = _core.current_namespace
     saved_metadata = _core.current_metadata
+    # LocalMetadataProvider caches default_info() (os.getcwd()-based path) in
+    # the class-level _INFO attribute via MetadataProviderMeta.  Without
+    # restoring it, test N caches tempdir_N then deletes it, and test N+1
+    # inherits the stale path → MetaflowNotFound.
+    saved_lmp_info = _LMP._INFO
     try:
         yield
     finally:
         _core.current_namespace = saved_namespace
         _core.current_metadata = saved_metadata
+        _LMP._INFO = saved_lmp_info
 
 
 def _context_from_env() -> dict:
@@ -521,6 +535,23 @@ def _run_flow(formatter, context, core_checks, env_base, executor):
                 runner.cleanup()
             os.environ.clear()
             os.environ.update(original_env)
+            # Reset LocalMetadataProvider and LocalStorage class-level caches so
+            # each test starts with a clean slate.  Both are set lazily from
+            # os.getcwd() the first time they are accessed; stale values from a
+            # previous test's (now-deleted) tempdir cause MetaflowNotFound in the
+            # next test's in-process MetadataCheck.
+            try:
+                from metaflow.plugins.metadata_providers.local import (
+                    LocalMetadataProvider as _LMP,
+                )
+                from metaflow.plugins.datastores.local_storage import (
+                    LocalStorage as _LS,
+                )
+
+                _LMP._INFO = None
+                _LS.datastore_root = None
+            except ImportError:
+                pass
 
         return ret, path, ""
     finally:
