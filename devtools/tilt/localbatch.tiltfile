@@ -16,9 +16,8 @@ def setup_localbatch(ctx):
         )
 
     if "ddb-local" in ctx.enabled_components:
-        _ddb_params = '\'{"endpoint_url":"http://host.docker.internal:8765"}\''
         localbatch_serve_cmd += (
-            " --inject-env METAFLOW_SFN_DYNAMO_DB_CLIENT_PARAMS=" + _ddb_params +
+            " --inject-env AWS_ENDPOINT_URL_DYNAMODB=http://host.docker.internal:8765" +
             " --inject-env METAFLOW_SFN_DYNAMO_DB_TABLE=metaflow-sfn"
         )
 
