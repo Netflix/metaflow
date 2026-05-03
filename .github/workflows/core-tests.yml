@@ -336,6 +336,29 @@ jobs:
         if: matrix.backend == 'sfn'
         run: devtools/ci/forward-bridge-ports.sh
 
+      - name: Ensure minikube IP is routable
+        # minikube with Docker driver runs as a container.  On some runners
+        # the route to the minikube node subnet (192.168.49.0/24) is not
+        # present, causing "No route to host" when test subprocesses try to
+        # reach the Kubernetes API at <minikube-ip>:8443.  Add the route via
+        # the Docker bridge gateway if it is missing.
+        run: |
+          MINIKUBE_IP=$(minikube ip 2>/dev/null || echo "")
+          if [ -z "$MINIKUBE_IP" ]; then echo "minikube not running, skipping"; exit 0; fi
+          echo "minikube IP: $MINIKUBE_IP"
+          if ip route get "$MINIKUBE_IP" >/dev/null 2>&1; then
+            echo "Route to $MINIKUBE_IP already exists"
+          else
+            echo "No route to $MINIKUBE_IP — adding via Docker bridge gateway"
+            GW=$(docker network inspect minikube \
+                   -f '{{range .IPAM.Config}}{{.Gateway}}{{end}}' 2>/dev/null || true)
+            [ -z "$GW" ] && GW=$(docker network inspect bridge \
+                   -f '{{range .IPAM.Config}}{{.Gateway}}{{end}}' 2>/dev/null || true)
+            echo "Gateway: $GW"
+            [ -n "$GW" ] && sudo ip route add "$MINIKUBE_IP" via "$GW" || true
+          fi
+          kubectl cluster-info
+
       - name: Wait for metadata service to be ready
         run: |
           for i in $(seq 1 30); do
