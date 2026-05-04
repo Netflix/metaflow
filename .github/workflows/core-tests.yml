@@ -418,7 +418,7 @@ jobs:
           if [ "${{ matrix.backend }}" = "sfn" ]; then
             echo "=== SFN local health check ==="
             curl -s http://localhost:8082/ | head -3 || echo "SFN returned error (may be ok)"
-            echo "=== localbatch health check ==="
+            echo "=== localbatch health check (host-side) ==="
             curl -sf http://localhost:8000/health && echo "localbatch OK" \
               || { echo "localbatch health FAILED"; exit 1; }
             echo "=== Docker bridge gateway ==="
@@ -427,14 +427,62 @@ jobs:
             echo "Bridge: ${BRIDGE}"
             echo "=== socat listeners (should show 9000 8080 8765) ==="
             ss -tlnp | grep -E '9000|8080|8765' | head -10 || echo "no socat listeners found"
+
+            # SFN local runs inside a minikube pod and submits batch jobs to
+            # localbatch via the Kubernetes service localbatch-host:8000 which
+            # points to the minikube gateway IP (192.168.49.1:8000 on the host).
+            # iptables on the GitHub Actions runner can silently DROP these
+            # packets from the pod CIDR → add an explicit ACCEPT rule.
+            MINIKUBE_GW=$(docker network inspect minikube \
+              --format='{{range .IPAM.Config}}{{.Gateway}}{{end}}' 2>/dev/null || echo "192.168.49.1")
+            echo "=== minikube gateway: ${MINIKUBE_GW} ==="
+            POD_CIDR=$(kubectl get nodes \
+              -o jsonpath='{.items[0].spec.podCIDR}' 2>/dev/null || echo "")
+            if [ -n "$POD_CIDR" ]; then
+              echo "Pod CIDR: ${POD_CIDR}"
+              sudo iptables -I INPUT -s "${POD_CIDR}" -p tcp --dport 8000 -j ACCEPT || true
+              sudo iptables -I INPUT -s "${MINIKUBE_GW}" -p tcp --dport 8000 -j ACCEPT || true
+              echo "Added iptables ACCEPT for pod CIDR ${POD_CIDR} and gateway ${MINIKUBE_GW} → port 8000"
+            fi
+
+            # Verify localbatch is reachable from the minikube node
+            # (the SFN pod network routes through the minikube container)
+            echo "=== localbatch reachable from minikube container ==="
+            MINIKUBE_CTR=$(docker ps --filter "name=minikube" --format "{{.ID}}" | head -1)
+            if [ -n "$MINIKUBE_CTR" ]; then
+              docker exec "$MINIKUBE_CTR" sh -c \
+                "wget -q -O - http://${MINIKUBE_GW}:8000/health 2>&1 | head -3 \
+                 && echo localbatch_from_minikube_OK \
+                 || echo localbatch_from_minikube_FAILED"
+            fi
           fi
 
           if [ "${{ matrix.backend }}" = "argo" ]; then
             echo "=== Kubernetes API check ==="
             kubectl cluster-info | head -3
-            echo "=== Argo WorkflowTemplates (namespace default) ==="
-            kubectl get workflowtemplates -n default 2>&1 | head -5 || echo "no workflow templates (ok for first run)"
+
+            echo "=== Argo WorkflowTemplate CRD installed? ==="
+            # Hard fail: if the CRD is missing Argo Workflows did not install,
+            # and all tests will fail with cryptic 'resource not found' errors.
+            kubectl get crd workflowtemplates.argoproj.io \
+              && echo "WorkflowTemplate CRD OK" \
+              || { echo "WorkflowTemplate CRD MISSING — Argo Workflows did not install"; exit 1; }
+
+            echo "=== Argo pods ==="
+            kubectl get pods -n default | grep argo || echo "no argo pods visible"
           fi
+
+      - name: Pre-pull python:3.10 into minikube (k8s + argo)
+        # The default @kubernetes image is python:3.10 (matching the tox
+        # Python version). Without this pre-pull, Argo workflow pods and k8s
+        # step pods would pull the image from Docker Hub on EVERY test run.
+        # If the pull is rate-limited or slow, ALL tests fail with
+        # ErrImagePull / ImagePullBackOff.  minikube image pull stores the
+        # image in the minikube-internal Docker daemon; subsequent tests use
+        # the cached copy.  The minikube image cache step below persists it
+        # across runs so subsequent CI jobs skip this pull entirely.
+        if: matrix.backend == 'k8s' || matrix.backend == 'argo'
+        run: minikube image pull python:3.10
 
       - name: Save minikube images to cache
         if: steps.image-cache.outputs.cache-hit != 'true'
@@ -446,6 +494,16 @@ jobs:
         with:
           path: /tmp/minikube-image-cache
           key: minikube-images-core-${{ matrix.backend }}-${{ hashFiles('devtools/Tiltfile') }}
+
+      - name: Pre-test cleanup (k8s + argo)
+        # Remove stale completed/failed pods so they don't accumulate in
+        # etcd and slow down list/watch operations during the test suite.
+        if: matrix.backend == 'k8s' || matrix.backend == 'argo'
+        run: |
+          kubectl delete pods -n default \
+            --field-selector=status.phase=Succeeded 2>/dev/null || true
+          kubectl delete pods -n default \
+            --field-selector=status.phase=Failed 2>/dev/null || true
 
       - name: Run ${{ matrix.tox_env }} tests
         run: |
@@ -470,6 +528,32 @@ jobs:
           path: junit-${{ matrix.tox_env }}.xml
           reporter: java-junit
           fail-on-error: false
+
+      - name: Dump first test failures
+        # Shows the actual subprocess error from pytest.fail() so that CI
+        # failures can be diagnosed without downloading the JUnit XML artifact.
+        if: failure()
+        run: |
+          python3 -c "
+import xml.etree.ElementTree as ET, os, sys, textwrap
+xml_path = os.environ.get('GITHUB_WORKSPACE', '') + '/junit-${{ matrix.tox_env }}.xml'
+try:
+    tree = ET.parse(xml_path)
+    failures = list(tree.findall('.//testcase[failure]'))[:5]
+    if not failures:
+        print('No failures found in JUnit XML')
+        sys.exit(0)
+    for tc in failures:
+        print('=== FAILURE:', tc.get('name'))
+        f = tc.find('failure')
+        if f is not None and f.text:
+            print(textwrap.indent(f.text[:4000], '  '))
+        print()
+except FileNotFoundError:
+    print('JUnit XML not found:', xml_path)
+except Exception as e:
+    print('Could not parse JUnit XML:', e)
+"
 
       - name: Show Tilt logs on failure
         if: failure()
