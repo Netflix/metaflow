@@ -96,6 +96,17 @@ class KubernetesDecorator(StepDecorator):
         the scheduled node should not have GPUs.
     gpu_vendor : str, default KUBERNETES_GPU_VENDOR
         The vendor of the GPUs to be used for this step.
+    trainium : int, optional, default None
+        Number of AWS Trainium / Inferentia Neuron devices required for this
+        step. Maps to the `aws.amazon.com/neuron` Kubernetes resource managed
+        by the AWS Neuron device plugin -- same resource regardless of whether
+        the underlying chip is Trainium or Inferentia, since they share the
+        device-plugin / AMI / runtime stack.
+    efa : int, optional, default None
+        Number of AWS Elastic Fabric Adapter network interfaces required for
+        this step. Maps to the `vpc.amazonaws.com/efa` Kubernetes resource
+        managed by the AWS EFA device plugin. Only valid on EFA-capable
+        instance types where the pool was provisioned with EFA NICs.
     tolerations : List[Dict[str,str]], default []
         The default is extracted from METAFLOW_KUBERNETES_TOLERATIONS.
         Kubernetes tolerations to use when launching pod in Kubernetes.
