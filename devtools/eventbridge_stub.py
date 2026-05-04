@@ -12,7 +12,7 @@ Behaviour:
   - PutTargets   → 200 with empty FailedEntries
   - Any other    → 200 empty JSON
 
-Run on port 7777 (set AWS_ENDPOINT_URL_EVENTS=http://localhost:7777).
+Run on port 7777 (set AWS_ENDPOINT_URL_EVENTBRIDGE=http://localhost:7777).
 """
 
 import json
