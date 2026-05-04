@@ -93,6 +93,10 @@ def kubernetes():
     "--trainium",
     help="AWS Trainium/Inferentia Neuron device requirement for Kubernetes pod.",
 )
+@click.option(
+    "--efa",
+    help="Number of Elastic Fabric Adapter network interfaces for Kubernetes pod.",
+)
 @click.option("--run-id", help="Passed to the top-level 'step'.")
 @click.option("--task-id", help="Passed to the top-level 'step'.")
 @click.option("--input-paths", help="Passed to the top-level 'step'.")
@@ -183,6 +187,7 @@ def step(
     gpu=None,
     gpu_vendor=None,
     trainium=None,
+    efa=None,
     use_tmpfs=None,
     tmpfs_tempdir=None,
     tmpfs_size=None,
@@ -329,6 +334,7 @@ def step(
                 gpu=gpu,
                 gpu_vendor=gpu_vendor,
                 trainium=trainium,
+                efa=efa,
                 use_tmpfs=use_tmpfs,
                 tmpfs_tempdir=tmpfs_tempdir,
                 tmpfs_size=tmpfs_size,

@@ -2637,6 +2637,7 @@ class ArgoWorkflows(object):
                     gpu=resources["gpu"],
                     gpu_vendor=str(resources["gpu_vendor"]),
                     trainium=resources.get("trainium"),
+                    efa=resources.get("efa"),
                     tolerations=resources["tolerations"],
                     use_tmpfs=use_tmpfs,
                     tmpfs_tempdir=tmpfs_tempdir,
@@ -2894,6 +2895,13 @@ class ArgoWorkflows(object):
                                             )
                                             for k in [0]
                                             if resources.get("trainium") is not None
+                                        },
+                                        **{
+                                            "vpc.amazonaws.com/efa": str(
+                                                resources["efa"]
+                                            )
+                                            for k in [0]
+                                            if resources.get("efa") is not None
                                         },
                                     },
                                 ),

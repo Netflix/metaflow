@@ -182,6 +182,7 @@ class Kubernetes(object):
         gpu=None,
         gpu_vendor=None,
         trainium=None,
+        efa=None,
         disk=None,
         memory=None,
         use_tmpfs=None,
@@ -217,6 +218,7 @@ class Kubernetes(object):
                 gpu=gpu,
                 gpu_vendor=gpu_vendor,
                 trainium=trainium,
+                efa=efa,
                 timeout_in_seconds=run_time_limit,
                 # Retries are handled by Metaflow runtime
                 retries=0,
@@ -485,6 +487,7 @@ class Kubernetes(object):
         gpu=None,
         gpu_vendor=None,
         trainium=None,
+        efa=None,
         disk=None,
         memory=None,
         use_tmpfs=None,
@@ -532,6 +535,7 @@ class Kubernetes(object):
                 gpu=gpu,
                 gpu_vendor=gpu_vendor,
                 trainium=trainium,
+                efa=efa,
                 timeout_in_seconds=run_time_limit,
                 # Retries are handled by Metaflow runtime
                 retries=0,
