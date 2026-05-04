@@ -4,7 +4,7 @@ name: Core Integration Tests
 #
 # Three tiers by infrastructure requirement:
 #
-#  1. core-local   — no infrastructure, runs on every PR (~9 min with -n auto)
+#  1. core-local   — no infrastructure, runs on every PR (~35 min with -n auto)
 #  2. core-gcs / core-azure — single-container emulators started via Docker
 #  3. core-batch / core-k8s / core-argo / core-sfn — full devstack (minikube + Tilt)
 #
@@ -28,7 +28,7 @@ jobs:
   core-local:
     name: "core-local"
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 60
 
     steps:
       - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8  # v6.0.1
@@ -78,7 +78,7 @@ jobs:
   core-emulator:
     name: "core-${{ matrix.backend }}"
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 90
     strategy:
       fail-fast: false
       matrix:
@@ -332,8 +332,8 @@ jobs:
       - name: Start minikube tunnel
         run: sudo minikube tunnel &
 
-      - name: Forward devstack ports to Docker bridge (sfn only)
-        if: matrix.backend == 'sfn'
+      - name: Forward devstack ports to Docker bridge (sfn + batch)
+        if: matrix.backend == 'sfn' || matrix.backend == 'batch'
         run: devtools/ci/forward-bridge-ports.sh
 
       - name: Ensure minikube IP is routable

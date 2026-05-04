@@ -44,7 +44,7 @@ def _set_devstack_env():
     # EventBridge stub: handles the schedule() call from the SFN deployer.
     # The stub returns ResourceNotFoundException for DisableRule (ignored by
     # EventBridgeClient._disable) so that deploying unscheduled flows works.
-    os.environ.setdefault("AWS_ENDPOINT_URL_EVENTBRIDGE", "http://localhost:7777")
+    os.environ.setdefault("AWS_ENDPOINT_URL_EVENTS", "http://localhost:7777")
 
 
 def pytest_configure(config):
