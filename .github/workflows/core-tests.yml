@@ -334,7 +334,7 @@ jobs:
 
       - name: Forward devstack ports to Docker bridge (sfn + batch)
         if: matrix.backend == 'sfn' || matrix.backend == 'batch'
-        run: devtools/ci/forward-bridge-ports.sh
+        run: devtools/ci/forward-bridge-ports.sh --verbose
 
       - name: Ensure minikube IP is routable
         # minikube with Docker driver runs as a container.  On some runners
@@ -387,6 +387,54 @@ jobs:
           done
           echo "EventBridge stub did not become ready in time"
           exit 1
+
+      - name: Wait for MinIO to be ready (s3-backed backends)
+        if: >-
+          matrix.backend == 'sfn' || matrix.backend == 'batch' ||
+          matrix.backend == 'k8s' || matrix.backend == 'argo'
+        run: |
+          for i in $(seq 1 30); do
+            curl -sf -o /dev/null http://localhost:9000/minio/health/live && echo "MinIO ready" && exit 0
+            sleep 2
+          done
+          echo "MinIO did not become ready in time"
+          exit 1
+
+      - name: Verify scheduler pre-flight (sfn + argo)
+        # Run a quick connectivity + S3-upload sanity check before the full
+        # test suite so that any infrastructure failure produces a clear error
+        # in a dedicated CI step (rather than inside hundreds of test cases).
+        if: matrix.backend == 'sfn' || matrix.backend == 'argo'
+        env:
+          AWS_ACCESS_KEY_ID: rootuser
+          AWS_SECRET_ACCESS_KEY: rootpass123
+          AWS_DEFAULT_REGION: us-east-1
+          AWS_ENDPOINT_URL_S3: http://localhost:9000
+        run: |
+          echo "=== MinIO bucket list (confirms s3 endpoint is reachable) ==="
+          aws --endpoint-url http://localhost:9000 s3 ls \
+            && echo "MinIO OK" || { echo "MinIO s3 ls FAILED"; exit 1; }
+
+          if [ "${{ matrix.backend }}" = "sfn" ]; then
+            echo "=== SFN local health check ==="
+            curl -s http://localhost:8082/ | head -3 || echo "SFN returned error (may be ok)"
+            echo "=== localbatch health check ==="
+            curl -sf http://localhost:8000/health && echo "localbatch OK" \
+              || { echo "localbatch health FAILED"; exit 1; }
+            echo "=== Docker bridge gateway ==="
+            BRIDGE=$(docker network inspect bridge \
+              --format='{{range .IPAM.Config}}{{.Gateway}}{{end}}' 2>/dev/null || echo "unknown")
+            echo "Bridge: ${BRIDGE}"
+            echo "=== socat listeners (should show 9000 8080 8765) ==="
+            ss -tlnp | grep -E '9000|8080|8765' | head -10 || echo "no socat listeners found"
+          fi
+
+          if [ "${{ matrix.backend }}" = "argo" ]; then
+            echo "=== Kubernetes API check ==="
+            kubectl cluster-info | head -3
+            echo "=== Argo WorkflowTemplates (namespace default) ==="
+            kubectl get workflowtemplates -n default 2>&1 | head -5 || echo "no workflow templates (ok for first run)"
+          fi
 
       - name: Save minikube images to cache
         if: steps.image-cache.outputs.cache-hit != 'true'
