@@ -102,6 +102,9 @@ class KubernetesDecorator(StepDecorator):
         by the AWS Neuron device plugin -- same resource regardless of whether
         the underlying chip is Trainium or Inferentia, since they share the
         device-plugin / AMI / runtime stack.
+    inferentia : int, optional, default None
+        Alias for `trainium`. Use only one of the two. Provided for API
+        consistency with `@batch(inferentia=...)`.
     efa : int, optional, default None
         Number of AWS Elastic Fabric Adapter network interfaces required for
         this step. Maps to the `vpc.amazonaws.com/efa` Kubernetes resource
@@ -164,6 +167,7 @@ class KubernetesDecorator(StepDecorator):
         "gpu": None,  # value of 0 implies that the scheduled node should not have GPUs
         "gpu_vendor": None,
         "trainium": None,  # number of AWS Trainium/Inferentia Neuron devices
+        "inferentia": None,  # alias for trainium; both map to aws.amazon.com/neuron
         "efa": None,  # number of Elastic Fabric Adapter network interfaces
         "tolerations": None,  # e.g., [{"key": "arch", "operator": "Equal", "value": "amd"},
         #                              {"key": "foo", "operator": "Equal", "value": "bar"}]
@@ -394,6 +398,23 @@ class KubernetesDecorator(StepDecorator):
                             self.attributes[k] = str(
                                 max(float(my_val or 0), float(v or 0))
                             )
+
+        # Alias inferentia to trainium and check that both are not in use.
+        # `trainium` is canonical on @kubernetes (the underlying Neuron device
+        # plugin advertises a single `aws.amazon.com/neuron` resource for both
+        # chip families). `inferentia` is provided for API consistency with
+        # `@batch(inferentia=...)` -- it collapses into `trainium` and is
+        # popped from the wire format before any runtime translation.
+        if (
+            self.attributes["inferentia"] is not None
+            and self.attributes["trainium"] is not None
+        ):
+            raise KubernetesException(
+                "only specify a value for 'inferentia' or 'trainium', not both."
+            )
+        if self.attributes["inferentia"] is not None:
+            self.attributes["trainium"] = self.attributes["inferentia"]
+        self.attributes.pop("inferentia", None)
 
         # Validate mutually exclusive: gpu and trainium cannot both be set.
         if (
