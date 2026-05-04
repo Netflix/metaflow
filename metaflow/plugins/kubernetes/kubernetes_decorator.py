@@ -153,6 +153,7 @@ class KubernetesDecorator(StepDecorator):
         "gpu": None,  # value of 0 implies that the scheduled node should not have GPUs
         "gpu_vendor": None,
         "trainium": None,  # number of AWS Trainium/Inferentia Neuron devices
+        "efa": None,  # number of Elastic Fabric Adapter network interfaces
         "tolerations": None,  # e.g., [{"key": "arch", "operator": "Equal", "value": "amd"},
         #                              {"key": "foo", "operator": "Equal", "value": "bar"}]
         "labels": None,  # e.g. {"test-label": "value", "another-label":"value2"}
@@ -432,6 +433,17 @@ class KubernetesDecorator(StepDecorator):
             raise KubernetesException(
                 "Invalid trainium value *{}* for step *{step}*; it should be a positive integer".format(
                     self.attributes["trainium"], step=step
+                )
+            )
+
+        if self.attributes["efa"] is not None and not (
+            isinstance(self.attributes["efa"], (int, unicode, basestring))
+            and float(self.attributes["efa"]).is_integer()
+            and int(float(self.attributes["efa"])) > 0
+        ):
+            raise KubernetesException(
+                "Invalid efa value *{}* for step *{step}*; it should be a positive integer".format(
+                    self.attributes["efa"], step=step
                 )
             )
 

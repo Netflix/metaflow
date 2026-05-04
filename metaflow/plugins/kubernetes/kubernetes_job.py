@@ -189,6 +189,13 @@ class KubernetesJob(object):
                                         for k in [0]
                                         if self._kwargs.get("trainium") is not None
                                     },
+                                    **{
+                                        "vpc.amazonaws.com/efa": str(
+                                            self._kwargs["efa"]
+                                        )
+                                        for k in [0]
+                                        if self._kwargs.get("efa") is not None
+                                    },
                                 },
                             ),
                             volume_mounts=(

@@ -454,6 +454,11 @@ class Airflow(object):
                     for k in [0]
                     if k8s_deco.attributes.get("trainium") is not None
                 },
+                **{
+                    "vpc.amazonaws.com/efa": str(k8s_deco.attributes["efa"])
+                    for k in [0]
+                    if k8s_deco.attributes.get("efa") is not None
+                },
             },
         )
 
