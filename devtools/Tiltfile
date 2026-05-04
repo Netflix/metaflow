@@ -190,4 +190,3 @@ local_resource(
     deps=["requirements-devstack.txt"],
     labels=["setup"],
 )
-

@@ -40,7 +40,7 @@ class UserStepDecoratorMeta(type):
             mcs._import_modules.add(effective_module)
 
         if (
-            name in ("FlowMutator", "UserStepDecorator")
+            name in ("StepMutator", "UserStepDecorator")
             or cls.decorator_name in mcs._do_not_register
         ):
             return cls
@@ -142,6 +142,10 @@ class UserStepDecoratorBase(metaclass=UserStepDecoratorMeta):
         self._kwargs = {}
         # If nothing is set, the user statically defined the decorator
         self._special_kwargs = {"_statically_defined": True, "_inserted_by": None}
+        # Prevent multiple init calls -- this allows a decorator to be both a StepMutator
+        # and a StepDecorator. This is not a "solution" for the diamond inheritance issue
+        # but more for the fact that we call external_init from two places
+        self._ran_init = False
         for k, v in kwargs.items():
             if k in ("_statically_defined", "_inserted_by"):
                 # These are special arguments that we do not want to pass to the step
@@ -230,8 +234,19 @@ class UserStepDecoratorBase(metaclass=UserStepDecoratorMeta):
         duplicates: int,
         inserted_by: Optional[str] = None,
     ):
+        """Register this decorator on *step*.
+
+        Returns
+        -------
+        Optional[UserStepDecoratorBase]
+            ``self`` if the decorator was registered, ``None`` if a duplicate
+            already existed and the *duplicates* policy suppressed the
+            addition (IGNORE, or ERROR on a non-statically-defined step).
+        """
         from metaflow.user_decorators.mutable_step import MutableStep
 
+        # We can safely check in any of the step_field because if this decorator is
+        # registered on multiple step fields, it will be found in all of them.
         existing_deco = [
             d
             for d in getattr(step, self._step_field)
@@ -240,35 +255,42 @@ class UserStepDecoratorBase(metaclass=UserStepDecoratorMeta):
 
         if not existing_deco:
             self(step, _statically_defined=statically_defined, _inserted_by=inserted_by)
+            return self
         elif duplicates == MutableStep.IGNORE:
-            # If we are ignoring duplicates, we just return
+            # If we are ignoring duplicates, we just return None to signal that
+            # the caller should not treat the throwaway instance as registered.
             debug.userconf_exec(
                 "Ignoring duplicate decorator %s on step %s from %s"
                 % (self, step.__name__, inserted_by)
             )
-            return
+            return None
         elif duplicates == MutableStep.OVERRIDE:
             # If we are overriding, we remove the existing decorator and add this one
             debug.userconf_exec(
                 "Overriding decorator %s on step %s from %s"
                 % (self, step.__name__, inserted_by)
             )
-            setattr(
-                step,
-                self._step_field,
-                [
-                    d
-                    for d in getattr(step, self._step_field)
-                    if d.decorator_name != self.decorator_name
-                ],
-            )
+            # Clean-up all step fields if we appear in multiple of them.
+            for field in self._all_step_fields():
+                setattr(
+                    step,
+                    field,
+                    [
+                        d
+                        for d in getattr(step, field)
+                        if d.decorator_name != self.decorator_name
+                    ],
+                )
             self(step, _statically_defined=statically_defined, _inserted_by=inserted_by)
+            return self
         elif duplicates == MutableStep.ERROR:
             if statically_defined:
                 # Prevent circular dep
                 from metaflow.decorators import DuplicateStepDecoratorException
 
                 raise DuplicateStepDecoratorException(self.__class__, step)
+            # Non-statically-defined: swallow silently (same as ignore).
+            return None
 
     def _set_my_step(
         self,
@@ -293,8 +315,24 @@ class UserStepDecoratorBase(metaclass=UserStepDecoratorMeta):
         self.statically_defined = self._special_kwargs["_statically_defined"]
         self.inserted_by = self._special_kwargs["_inserted_by"]
 
-        getattr(self._my_step, self._step_field).append(self)
+        # Register the decorator with all the step fields it supports
+        for field in self._all_step_fields():
+            getattr(self._my_step, field).append(self)
+
         return self._my_step
+
+    def _all_step_fields(self) -> List[str]:
+        # Returned in MRO order so callers that iterate fields see a
+        # deterministic sequence (matters for any side-effecting traversal,
+        # e.g. duplicate cleanup in OVERRIDE).
+        ordered_fields: List[str] = []
+        seen: set = set()
+        for cls in type(self).__mro__:
+            field = cls.__dict__.get("_step_field")
+            if field is not None and field not in seen:
+                seen.add(field)
+                ordered_fields.append(field)
+        return ordered_fields
 
     def __str__(self):
         return str(self.__class__)
@@ -381,6 +419,8 @@ class UserStepDecoratorBase(metaclass=UserStepDecoratorMeta):
         pass
 
     def external_init(self):
+        if self._ran_init:
+            return
         # You can use config values in the arguments to a UserStepDecoratorBase
         # so we resolve those as well
         self._args = [resolve_delayed_evaluator(arg) for arg in self._args]
@@ -395,6 +435,7 @@ class UserStepDecoratorBase(metaclass=UserStepDecoratorMeta):
                 )
         if "init" in self.__class__.__dict__:
             self.init(*self._args, **self._kwargs)
+        self._ran_init = True
 
 
 class UserStepDecorator(UserStepDecoratorBase):
@@ -747,3 +788,38 @@ class StepMutator(UserStepDecoratorBase):
             A representation of this step
         """
         return None
+
+    def add_to_package(self):
+        """
+        Called to add custom files needed by this step mutator. This hook will be
+        called in the `MetaflowPackage` class where metaflow compiles the code package
+        tarball. This hook can return one of two things (the first is for backwards
+        compatibility -- move to the second):
+          - a generator yielding a tuple of `(file_path, arcname)` to add files to
+            the code package. `file_path` is the path to the file on the local filesystem
+            and `arcname` is the path relative to the packaged code.
+          - a generator yielding a tuple of `(content, arcname, type)` where:
+            - type is one of
+            ContentType.{USER_CONTENT, CODE_CONTENT, MODULE_CONTENT, OTHER_CONTENT}
+            - for USER_CONTENT:
+              - the file will be included relative to the directory containing the
+                user's flow file.
+              - content: path to the file to include
+              - arcname: path relative to the directory containing the user's flow file
+            - for CODE_CONTENT:
+              - the file will be included relative to the code directory in the package.
+                This will be the directory containing `metaflow`.
+              - content: path to the file to include
+              - arcname: path relative to the code directory in the package
+            - for MODULE_CONTENT:
+              - the module will be added to the code package as a python module. It will
+                be accessible as usual (import <module_name>)
+              - content: name of the module
+              - arcname: None (ignored)
+            - for OTHER_CONTENT:
+              - the file will be included relative to any other configuration/metadata
+                files for the flow
+              - content: path to the file to include
+              - arcname: path relative to the config directory in the package
+        """
+        return []

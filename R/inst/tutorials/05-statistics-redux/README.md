@@ -28,9 +28,9 @@ In a terminal:
 If you are using RStudio, you can replace the last line `run()` with
 ```R
   run(batch=TRUE, max_workers=4, package_suffixes=".R,.csv,")
-``` 
+```
 and run by `source("stats.R")`.
 
 ##### Inspect the results:
 Open the R markdown file ```02-statistics/stats.Rmd``` in your RStudio and re-run the cells. You can access
-the artifacts stored in AWS S3 from your local RStudio session. 
+the artifacts stored in AWS S3 from your local RStudio session.

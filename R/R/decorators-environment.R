@@ -6,7 +6,7 @@
 #'   execution.
 #'
 #' @inherit decorator return
-#' 
+#'
 #' @export
 #'
 #' @examples \dontrun{
@@ -14,13 +14,13 @@
 #'   print(paste("The cutest animal is the", Sys.getenv("CUTEST_ANIMAL")))
 #'   print(paste("The", Sys.getenv("ALSO_CUTE"), "is also cute, though"))
 #' }
-#' 
+#'
 #' metaflow("EnvironmentVariables") %>%
-#'   step(step="start", 
+#'   step(step="start",
 #'        environment_variables(CUTEST_ANIMAL = "corgi", ALSO_CUTE = "penguin"),
-#'        r_function=start, 
+#'        r_function=start,
 #'        next_step="end") %>%
-#'   step(step="end") %>% 
+#'   step(step="end") %>%
 #'   run()
 #' }
 environment_variables <- function(...) {
@@ -32,7 +32,7 @@ environment_variables <- function(...) {
     if (is.null(env_vars_names) || "" %in% env_vars_names) {
       stop("All environment variables must be named")
     }
-    
+
     # Note that in this case, "TRUE" does not become Pythonic "True" ---
     # each environment variable value is immediately coerced to a character.
     env_var_dict <- lapply(
@@ -47,6 +47,6 @@ environment_variables <- function(...) {
     )
     env_var_dict <- paste0("{", paste(env_var_dict, collapse = ", "), "}")
   }
-  
+
   decorator("environment", vars = env_var_dict, .convert_args = FALSE)
 }

@@ -109,7 +109,13 @@ class MutableStep:
             r.extend(deco.get_args_kwargs())
             yield tuple(r)
 
+        # Wrappers can also be config decorators so we aim to return only one for each
+        # specific instance.
+        seen_decorators = set()
         for deco in self._my_step.wrappers:
+            if id(deco) in seen_decorators:
+                continue
+            seen_decorators.add(id(deco))
             r = [
                 UserStepDecoratorBase.get_decorator_name(deco.__class__),
                 deco.decorator_name,
@@ -118,6 +124,9 @@ class MutableStep:
             yield tuple(r)
 
         for deco in self._my_step.config_decorators:
+            if id(deco) in seen_decorators:
+                continue
+            seen_decorators.add(id(deco))
             r = [
                 UserStepDecoratorBase.get_decorator_name(deco.__class__),
                 deco.decorator_name,
@@ -125,15 +134,70 @@ class MutableStep:
             r.extend(deco.get_args_kwargs())
             yield tuple(r)
 
+    def _match_name(self, deco_name: str, deco_fq: str, query: str) -> bool:
+        """Return True if *query* matches either the short or fully-qualified name.
+
+        A query containing a period is compared against the fully-qualified name;
+        otherwise it is compared against the short name.
+        """
+        if "." in query:
+            return deco_fq == query
+        return deco_name == query
+
+    def has_decorator(self, name: str) -> bool:
+        """
+        Check whether this step has at least one decorator with the given name.
+
+        Parameters
+        ----------
+        name : str
+            The decorator name (short) or fully qualified name (contains a period).
+
+        Returns
+        -------
+        bool
+            True if a decorator with the given name exists on this step.
+        """
+        for deco_name, deco_fq, _args, _kwargs in self.decorator_specs:
+            if self._match_name(deco_name, deco_fq, name):
+                return True
+        return False
+
+    def get_decorator_specs(
+        self, name: str
+    ) -> List[Tuple[str, str, List[Any], Dict[str, Any]]]:
+        """Return all spec tuples matching the given name.
+
+        Parameters
+        ----------
+        name : str
+            The decorator name (short) or fully qualified name (contains a period).
+
+        Returns
+        -------
+        List[Tuple[str, str, List[Any], Dict[str, Any]]]
+            A list of (short_name, fq_name, args, kwargs) tuples. Empty list if
+            no decorators match.
+        """
+        return [
+            (deco_name, deco_fq, list(args), dict(kwargs))
+            for deco_name, deco_fq, args, kwargs in self.decorator_specs
+            if self._match_name(deco_name, deco_fq, name)
+        ]
+
     def add_decorator(
         self,
         deco_type: Union[partial, UserStepDecoratorBase, str],
         deco_args: Optional[List[Any]] = None,
         deco_kwargs: Optional[Dict[str, Any]] = None,
         duplicates: int = IGNORE,
-    ) -> None:
+    ) -> Optional[Union[UserStepDecoratorBase, "metaflow.decorators.StepDecorator"]]:
         """
         Add a Metaflow step-decorator or a user step-decorator to a step.
+
+        Returns the decorator instance that was inserted, which can be used to
+        inspect or further configure the decorator. Returns None if the decorator
+        was not added (e.g. due to duplicate handling with IGNORE).
 
         You can either add the decorator itself or its decorator specification for it
         (the same you would get back from decorator_specs). You can also mix and match
@@ -195,6 +259,12 @@ class MutableStep:
             - `MutableStep.IGNORE`: Ignore the decorator if it already exists.
             - `MutableStep.ERROR`: Raise an error if the decorator already exists.
             - `MutableStep.OVERRIDE`: Remove the existing decorator and add this one.
+
+        Returns
+        -------
+        Optional[Union[UserStepDecoratorBase, StepDecorator]]
+            The decorator instance that was added, or None if the decorator was not
+            added due to duplicate handling.
         """
         # Prevent circular import
         from metaflow.decorators import (
@@ -206,7 +276,10 @@ class MutableStep:
         deco_args = deco_args or []
         deco_kwargs = deco_kwargs or {}
 
+        added_deco = None
+
         def _add_step_decorator(step_deco):
+            nonlocal added_deco
             if deco_args:
                 raise MetaflowException(
                     "Step decorators do not take additional positional arguments"
@@ -216,9 +289,11 @@ class MutableStep:
 
             # Check duplicates
             def _do_add():
+                nonlocal added_deco
                 step_deco.statically_defined = self._statically_defined
                 step_deco.inserted_by = self._inserted_by
                 self._my_step.decorators.append(step_deco)
+                added_deco = step_deco
                 debug.userconf_exec(
                     "Mutable step adding step decorator '%s' to step '%s'"
                     % (deco_type, self._my_step.name)
@@ -271,6 +346,7 @@ class MutableStep:
 
             if isinstance(step_deco, StepDecorator):
                 _add_step_decorator(step_deco)
+                return added_deco
             else:
                 # User defined decorator.
                 if not self._pre_mutate and isinstance(step_deco, StepMutator):
@@ -285,13 +361,19 @@ class MutableStep:
                     # since they were not in the string
                     step_deco = step_deco.__class__(*deco_args, **deco_kwargs)
 
-                step_deco.add_or_raise(
+                added = step_deco.add_or_raise(
                     self._my_step,
                     self._statically_defined,
                     duplicates,
                     self._inserted_by,
                 )
-            return
+                if added is None:
+                    # Duplicate handling (IGNORE or non-static ERROR)
+                    # suppressed the registration. Don't return the throwaway
+                    # instance — mirror the StepDecorator path's contract.
+                    return None
+                added.external_init()
+            return added
 
         if isinstance(deco_type, type) and issubclass(deco_type, UserStepDecoratorBase):
             # We can only add step mutators in the pre mutate stage.
@@ -299,7 +381,7 @@ class MutableStep:
                 raise MetaflowException(
                     "Adding step mutator '%s' from %s is only allowed in the "
                     "`pre_mutate` method and not the `mutate` method"
-                    % (step_deco.decorator_name, self._inserted_by)
+                    % (deco_type.decorator_name, self._inserted_by)
                 )
             debug.userconf_exec(
                 "Mutable step adding decorator %s to step %s"
@@ -307,11 +389,15 @@ class MutableStep:
             )
 
             d = deco_type(*deco_args, **deco_kwargs)
-            # add_or_raise properly registers the decorator
-            d.add_or_raise(
+            # add_or_raise properly registers the decorator. Returns None when
+            # duplicate handling suppresses the addition.
+            added = d.add_or_raise(
                 self._my_step, self._statically_defined, duplicates, self._inserted_by
             )
-            return
+            if added is None:
+                return None
+            added.external_init()
+            return added
 
         # At this point, it should be a regular Metaflow step decorator
         if (
@@ -331,6 +417,7 @@ class MutableStep:
                 inserted_by=self._inserted_by,
             )
         )
+        return added_deco
 
     def remove_decorator(
         self,
@@ -365,17 +452,22 @@ class MutableStep:
         do_all = deco_args is None and deco_kwargs is None
         did_remove = False
         canonical_deco_type = UserStepDecoratorBase.get_decorator_by_name(deco_name)
-        if issubclass(canonical_deco_type, UserStepDecoratorBase):
+        if canonical_deco_type is not None and issubclass(
+            canonical_deco_type, UserStepDecoratorBase
+        ):
             for attr in ["config_decorators", "wrappers"]:
                 new_deco_list = []
                 for deco in getattr(self._my_step, attr):
                     if deco.decorator_name == canonical_deco_type.decorator_name:
-                        if do_all:
-                            continue  # We remove all decorators with this name
-                        if deco.get_args_kwargs() == (
+                        matches = do_all or deco.get_args_kwargs() == (
                             deco_args or [],
                             deco_kwargs or {},
-                        ):
+                        )
+                        if matches:
+                            # The pre_mutate guard applies to both do_all and
+                            # specific-match removals: StepMutators can only be
+                            # removed during pre_mutate regardless of whether a
+                            # filter was provided.
                             if not self._pre_mutate and isinstance(deco, StepMutator):
                                 raise MetaflowException(
                                     "Removing step mutator '%s' from %s is only allowed in the "
@@ -399,6 +491,7 @@ class MutableStep:
         for deco in self._my_step.decorators:
             if deco.name == deco_name:
                 if do_all:
+                    did_remove = True
                     continue  # We remove all decorators with this name
                 # Check if the decorator specification matches
                 if deco.get_args_kwargs() == (deco_args, deco_kwargs):

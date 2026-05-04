@@ -50,4 +50,3 @@ backends:
     # registration + airflow_deployer.py + airflow_client.py).
     # Remove once that PR is merged into master.
     xfail_reason: "requires npow/core-deployer-changes (AirflowDeployer not yet in core)"
-

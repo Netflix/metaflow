@@ -190,95 +190,79 @@ def _structural_validate(definition):
 # ---------------------------------------------------------------------------
 
 
-class TestSfnCompilation:
-    """Compile each flow type to SFN ASL JSON and validate."""
+@pytest.fixture
+def compile_and_validate():
+    """Compile a flow to SFN ASL JSON and assert it validates."""
 
-    def test_linear_flow(self):
-        """Simple start->step->end flow compiles to valid ASL."""
-        definition = _compile_flow_to_json("basic/helloworld.py")
+    def _impl(flow_path, **extra_tl_args):
+        definition = _compile_flow_to_json(flow_path, **extra_tl_args)
         result = _validate_state_machine(definition)
         assert (
             result.get("result", "OK") == "OK"
         ), f"Validation failed: {result.get('diagnostics', result)}"
+        return definition
 
-    @pytest.mark.xfail(
-        reason="requires npow/core-deployer-changes: step_functions.py must add "
-        "ResultSelector to Parallel states for sfn-local compatibility",
-        strict=False,
-    )
-    def test_branch_flow(self):
-        """Parallel branch flow produces valid Parallel states with ResultSelector."""
-        definition = _compile_flow_to_json("dag/branch_flow.py")
-        result = _validate_state_machine(definition)
-        assert (
-            result.get("result", "OK") == "OK"
-        ), f"Validation failed: {result.get('diagnostics', result)}"
+    return _impl
 
-        # Verify our specific invariant: Parallel states must have ResultSelector
-        raw = json.dumps(definition)
-        if '"Type": "Parallel"' in raw or '"Type":"Parallel"' in raw:
-            self._check_parallel_has_result_selector(definition["States"])
 
-    def test_foreach_flow(self):
-        """Foreach (Map state) flow compiles to valid ASL."""
-        definition = _compile_flow_to_json("dag/foreach_flow.py")
-        result = _validate_state_machine(definition)
-        assert (
-            result.get("result", "OK") == "OK"
-        ), f"Validation failed: {result.get('diagnostics', result)}"
+def _check_parallel_has_result_selector(states):
+    """Every Parallel state must have ResultSelector (sfn-local fix)."""
+    for name, state in states.items():
+        if state.get("Type") == "Parallel":
+            assert "ResultSelector" in state, (
+                f"Parallel state '{name}' missing ResultSelector -- "
+                "this breaks sfn-local which can't evaluate $[n].x array indexing"
+            )
+            # Recurse into branches
+            for branch in state.get("Branches", []):
+                _check_parallel_has_result_selector(branch.get("States", {}))
 
-    def test_retry_flow(self):
-        """Flow with @retry compiles to valid ASL with Retry config."""
-        definition = _compile_flow_to_json("basic/retry_flow.py")
-        result = _validate_state_machine(definition)
-        assert (
-            result.get("result", "OK") == "OK"
-        ), f"Validation failed: {result.get('diagnostics', result)}"
 
-    def test_catch_flow(self):
-        """Flow with @catch compiles to valid ASL."""
-        definition = _compile_flow_to_json("basic/catch_flow.py")
-        result = _validate_state_machine(definition)
-        assert (
-            result.get("result", "OK") == "OK"
-        ), f"Validation failed: {result.get('diagnostics', result)}"
+def test_linear_flow(compile_and_validate):
+    """Simple start->step->end flow compiles to valid ASL."""
+    compile_and_validate("basic/helloworld.py")
 
-    def test_resources_flow(self):
-        """Flow with @resources compiles to valid ASL."""
-        definition = _compile_flow_to_json("basic/resources_flow.py")
-        result = _validate_state_machine(definition)
-        assert (
-            result.get("result", "OK") == "OK"
-        ), f"Validation failed: {result.get('diagnostics', result)}"
 
-    def test_timeout_flow(self):
-        """Flow with @timeout compiles to valid ASL."""
-        definition = _compile_flow_to_json("basic/timeout_flow.py")
-        result = _validate_state_machine(definition)
-        assert (
-            result.get("result", "OK") == "OK"
-        ), f"Validation failed: {result.get('diagnostics', result)}"
+@pytest.mark.xfail(
+    reason="requires npow/core-deployer-changes: step_functions.py must add "
+    "ResultSelector to Parallel states for sfn-local compatibility",
+    strict=False,
+)
+def test_branch_flow(compile_and_validate):
+    """Parallel branch flow produces valid Parallel states with ResultSelector."""
+    definition = compile_and_validate("dag/branch_flow.py")
 
-    def test_schedule_flow(self):
-        """Flow with @schedule compiles to valid ASL."""
-        definition = _compile_flow_to_json("lifecycle/schedule_flow.py")
-        result = _validate_state_machine(definition)
-        assert (
-            result.get("result", "OK") == "OK"
-        ), f"Validation failed: {result.get('diagnostics', result)}"
+    # Verify our specific invariant: Parallel states must have ResultSelector
+    raw = json.dumps(definition)
+    if '"Type": "Parallel"' in raw or '"Type":"Parallel"' in raw:
+        _check_parallel_has_result_selector(definition["States"])
 
-    # ------------------------------------------------------------------
-    # Invariant checks (specific bugs we've fixed)
-    # ------------------------------------------------------------------
 
-    def _check_parallel_has_result_selector(self, states):
-        """Every Parallel state must have ResultSelector (sfn-local fix)."""
-        for name, state in states.items():
-            if state.get("Type") == "Parallel":
-                assert "ResultSelector" in state, (
-                    f"Parallel state '{name}' missing ResultSelector -- "
-                    "this breaks sfn-local which can't evaluate $[n].x array indexing"
-                )
-                # Recurse into branches
-                for branch in state.get("Branches", []):
-                    self._check_parallel_has_result_selector(branch.get("States", {}))
+def test_foreach_flow(compile_and_validate):
+    """Foreach (Map state) flow compiles to valid ASL."""
+    compile_and_validate("dag/foreach_flow.py")
+
+
+def test_retry_flow(compile_and_validate):
+    """Flow with @retry compiles to valid ASL with Retry config."""
+    compile_and_validate("basic/retry_flow.py")
+
+
+def test_catch_flow(compile_and_validate):
+    """Flow with @catch compiles to valid ASL."""
+    compile_and_validate("basic/catch_flow.py")
+
+
+def test_resources_flow(compile_and_validate):
+    """Flow with @resources compiles to valid ASL."""
+    compile_and_validate("basic/resources_flow.py")
+
+
+def test_timeout_flow(compile_and_validate):
+    """Flow with @timeout compiles to valid ASL."""
+    compile_and_validate("basic/timeout_flow.py")
+
+
+def test_schedule_flow(compile_and_validate):
+    """Flow with @schedule compiles to valid ASL."""
+    compile_and_validate("lifecycle/schedule_flow.py")
