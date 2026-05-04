@@ -403,18 +403,17 @@ class KubernetesDecorator(StepDecorator):
         # `trainium` is canonical on @kubernetes (the underlying Neuron device
         # plugin advertises a single `aws.amazon.com/neuron` resource for both
         # chip families). `inferentia` is provided for API consistency with
-        # `@batch(inferentia=...)` -- it collapses into `trainium` and is
-        # popped from the wire format before any runtime translation.
+        # `@batch(inferentia=...)` -- it collapses into `trainium` here.
         if (
-            self.attributes["inferentia"] is not None
-            and self.attributes["trainium"] is not None
+            self.attributes.get("inferentia") is not None
+            and self.attributes.get("trainium") is not None
         ):
             raise KubernetesException(
                 "only specify a value for 'inferentia' or 'trainium', not both."
             )
-        if self.attributes["inferentia"] is not None:
+        if self.attributes.get("inferentia") is not None:
             self.attributes["trainium"] = self.attributes["inferentia"]
-        self.attributes.pop("inferentia", None)
+            self.attributes["inferentia"] = None
 
         # Validate mutually exclusive: gpu and trainium cannot both be set.
         if (
