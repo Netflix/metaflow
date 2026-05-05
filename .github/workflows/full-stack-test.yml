@@ -64,12 +64,7 @@ jobs:
             done
           }
           retry helm repo add argo            https://argoproj.github.io/argo-helm      2>/dev/null || true
-          # bitnami retired charts.bitnami.com/bitnami — old versions like 12.5.6
-          # are only available via the archive index on GitHub.
-          retry helm repo add bitnami-archive \
-            https://raw.githubusercontent.com/bitnami/charts/archive-full-index/bitnami \
-            2>/dev/null || true
-          retry helm repo add bitnami         https://charts.bitnami.com/bitnami        2>/dev/null || true
+          retry helm repo add postgresql      https://raw.githubusercontent.com/bitnami/charts/archive-full-index/bitnami 2>/dev/null || true
           retry helm repo add minio-s3        https://charts.min.io/                   2>/dev/null || true
           retry helm repo add metaflow-tools  https://outerbounds.github.io/metaflow-tools 2>/dev/null || true
           retry helm repo add apache-airflow  https://airflow.apache.org               2>/dev/null || true
@@ -83,13 +78,12 @@ jobs:
             retry helm pull argo/argo-workflows --version 0.45.2 --untar \
               --destination "$HELM_CACHE/argo/0.45.2" || true
 
-          # PostgreSQL 12.5.6 — bitnami retired the chart CDN so pull from their
-          # GitHub archive index which still hosts the full back-catalogue.
+          # PostgreSQL 12.5.6 — bitnami retired both the helm repo index and
+          # the charts.bitnami.com CDN.  Use the bitnami archive on GitHub
+          # (archive-full-index branch) which preserves all historical versions.
           mkdir -p "$HELM_CACHE/postgresql/12.5.6"
           [ -d "$HELM_CACHE/postgresql/12.5.6/postgresql" ] || \
-            retry helm pull bitnami-archive/postgresql --version 12.5.6 --untar \
-              --destination "$HELM_CACHE/postgresql/12.5.6" || \
-            retry helm pull bitnami/postgresql --version 12.5.6 --untar \
+            retry helm pull postgresql/postgresql --version 12.5.6 --untar \
               --destination "$HELM_CACHE/postgresql/12.5.6" || true
 
           # Airflow 1.15.0 (matches AIRFLOW_HELM_CHART_VERSION)
