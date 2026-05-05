@@ -1396,14 +1396,18 @@ class Task(MetaflowObject):
         for pathspec in self.child_task_pathspecs:
             yield Task(pathspec=pathspec, _namespace_check=False)
 
-    @property
+    @cached_property
     def metadata(self) -> List[Metadata]:
         """
         Metadata events produced by this task across all attempts of the task
         *except* if you selected a specific task attempt.
 
         Note that Metadata is different from tags.
-
+    
+        This property is cached after the first access. For running tasks where
+        metadata is actively being written, create a new Task instance to
+        get fresh metadata.
+        
         Returns
         -------
         List[Metadata]
@@ -1467,7 +1471,7 @@ class Task(MetaflowObject):
 
         return result
 
-    @property
+    @cached_property
     def metadata_dict(self) -> Dict[str, str]:
         """
         Dictionary mapping metadata names (keys) and their associated values.
@@ -1477,6 +1481,10 @@ class Task(MetaflowObject):
         the same metadata name will be generated multiple times (one for each execution of the
         task). The metadata() method returns all those metadata elements whereas this call will
         return the metadata associated with the latest execution of the task.
+
+        This property is cached after the first access. For running tasks where
+        metadata is actively being written, create a new Task instance to
+        get fresh metadata.
 
         Returns
         -------
