@@ -96,6 +96,20 @@ class KubernetesDecorator(StepDecorator):
         the scheduled node should not have GPUs.
     gpu_vendor : str, default KUBERNETES_GPU_VENDOR
         The vendor of the GPUs to be used for this step.
+    trainium : int, optional, default None
+        Number of AWS Trainium / Inferentia Neuron devices required for this
+        step. Maps to the `aws.amazon.com/neuron` Kubernetes resource managed
+        by the AWS Neuron device plugin -- same resource regardless of whether
+        the underlying chip is Trainium or Inferentia, since they share the
+        device-plugin / AMI / runtime stack.
+    inferentia : int, optional, default None
+        Alias for `trainium`. Use only one of the two. Provided for API
+        consistency with `@batch(inferentia=...)`.
+    efa : int, optional, default None
+        Number of AWS Elastic Fabric Adapter network interfaces required for
+        this step. Maps to the `vpc.amazonaws.com/efa` Kubernetes resource
+        managed by the AWS EFA device plugin. Only valid on EFA-capable
+        instance types where the pool was provisioned with EFA NICs.
     tolerations : List[Dict[str,str]], default []
         The default is extracted from METAFLOW_KUBERNETES_TOLERATIONS.
         Kubernetes tolerations to use when launching pod in Kubernetes.
@@ -152,6 +166,9 @@ class KubernetesDecorator(StepDecorator):
         "namespace": None,
         "gpu": None,  # value of 0 implies that the scheduled node should not have GPUs
         "gpu_vendor": None,
+        "trainium": None,  # number of AWS Trainium/Inferentia Neuron devices
+        "inferentia": None,  # alias for trainium; both map to aws.amazon.com/neuron
+        "efa": None,  # number of Elastic Fabric Adapter network interfaces
         "tolerations": None,  # e.g., [{"key": "arch", "operator": "Equal", "value": "amd"},
         #                              {"key": "foo", "operator": "Equal", "value": "bar"}]
         "labels": None,  # e.g. {"test-label": "value", "another-label":"value2"}
@@ -382,6 +399,33 @@ class KubernetesDecorator(StepDecorator):
                                 max(float(my_val or 0), float(v or 0))
                             )
 
+        # Alias inferentia to trainium and check that both are not in use.
+        # `trainium` is canonical on @kubernetes (the underlying Neuron device
+        # plugin advertises a single `aws.amazon.com/neuron` resource for both
+        # chip families). `inferentia` is provided for API consistency with
+        # `@batch(inferentia=...)` -- it collapses into `trainium` here.
+        if (
+            self.attributes.get("inferentia") is not None
+            and self.attributes.get("trainium") is not None
+        ):
+            raise KubernetesException(
+                "only specify a value for 'inferentia' or 'trainium', not both."
+            )
+        if self.attributes.get("inferentia") is not None:
+            self.attributes["trainium"] = self.attributes["inferentia"]
+            self.attributes["inferentia"] = None
+
+        # Validate mutually exclusive: gpu and trainium cannot both be set.
+        if (
+            self.attributes["trainium"] is not None
+            and self.attributes["gpu"] is not None
+        ):
+            raise KubernetesException(
+                "Cannot specify both 'gpu' and 'trainium' for step *{step}*.".format(
+                    step=step
+                )
+            )
+
         # Check GPU vendor.
         if self.attributes["gpu_vendor"].lower() not in ("amd", "nvidia"):
             raise KubernetesException(
@@ -409,6 +453,28 @@ class KubernetesDecorator(StepDecorator):
             raise KubernetesException(
                 "Invalid GPU value *{}* for step *{step}*; it should be an integer".format(
                     self.attributes["gpu"], step=step
+                )
+            )
+
+        if self.attributes["trainium"] is not None and not (
+            isinstance(self.attributes["trainium"], (int, unicode, basestring))
+            and float(self.attributes["trainium"]).is_integer()
+            and int(float(self.attributes["trainium"])) > 0
+        ):
+            raise KubernetesException(
+                "Invalid trainium value *{}* for step *{step}*; it should be a positive integer".format(
+                    self.attributes["trainium"], step=step
+                )
+            )
+
+        if self.attributes["efa"] is not None and not (
+            isinstance(self.attributes["efa"], (int, unicode, basestring))
+            and float(self.attributes["efa"]).is_integer()
+            and int(float(self.attributes["efa"])) > 0
+        ):
+            raise KubernetesException(
+                "Invalid efa value *{}* for step *{step}*; it should be a positive integer".format(
+                    self.attributes["efa"], step=step
                 )
             )
 

@@ -2636,6 +2636,8 @@ class ArgoWorkflows(object):
                     disk=str(resources["disk"]),
                     gpu=resources["gpu"],
                     gpu_vendor=str(resources["gpu_vendor"]),
+                    trainium=resources.get("trainium"),
+                    efa=resources.get("efa"),
                     tolerations=resources["tolerations"],
                     use_tmpfs=use_tmpfs,
                     tmpfs_tempdir=tmpfs_tempdir,
@@ -2800,7 +2802,20 @@ class ArgoWorkflows(object):
                     # Set node selectors
                     .node_selectors(resources.get("node_selector"))
                     # Set tolerations
-                    .tolerations(resources.get("tolerations"))
+                    .tolerations(
+                        (resources.get("tolerations") or [])
+                        + (
+                            [
+                                {
+                                    "key": "aws.amazon.com/neuron",
+                                    "operator": "Exists",
+                                    "effect": "NoSchedule",
+                                }
+                            ]
+                            if resources.get("trainium") is not None
+                            else []
+                        )
+                    )
                     # Set image pull secrets if present. We need to use pod_spec_patch due to Argo not supporting this on a template level.
                     .pod_spec_patch(
                         {
@@ -2873,6 +2888,20 @@ class ArgoWorkflows(object):
                                             )
                                             for k in [0]
                                             if resources["gpu"] is not None
+                                        },
+                                        **{
+                                            "aws.amazon.com/neuron": str(
+                                                resources["trainium"]
+                                            )
+                                            for k in [0]
+                                            if resources.get("trainium") is not None
+                                        },
+                                        **{
+                                            "vpc.amazonaws.com/efa": str(
+                                                resources["efa"]
+                                            )
+                                            for k in [0]
+                                            if resources.get("efa") is not None
                                         },
                                     },
                                 ),

@@ -679,6 +679,22 @@ class JobSetSpec(object):
                                                     # Don't set GPU limits if gpu isn't specified.
                                                     if self._kwargs["gpu"] is not None
                                                 },
+                                                **{
+                                                    "aws.amazon.com/neuron": str(
+                                                        self._kwargs["trainium"]
+                                                    )
+                                                    for k in [0]
+                                                    if self._kwargs.get("trainium")
+                                                    is not None
+                                                },
+                                                **{
+                                                    "vpc.amazonaws.com/efa": str(
+                                                        self._kwargs["efa"]
+                                                    )
+                                                    for k in [0]
+                                                    if self._kwargs.get("efa")
+                                                    is not None
+                                                },
                                             },
                                         ),
                                         volume_mounts=(
@@ -740,7 +756,18 @@ class JobSetSpec(object):
                                     client.V1Toleration(**toleration)
                                     for toleration in self._kwargs.get("tolerations")
                                     or []
-                                ],
+                                ]
+                                + (
+                                    [
+                                        client.V1Toleration(
+                                            key="aws.amazon.com/neuron",
+                                            operator="Exists",
+                                            effect="NoSchedule",
+                                        )
+                                    ]
+                                    if self._kwargs.get("trainium") is not None
+                                    else []
+                                ),
                                 volumes=(
                                     [
                                         client.V1Volume(
