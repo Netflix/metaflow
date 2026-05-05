@@ -11,86 +11,16 @@ on:
 jobs:
   test:
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    timeout-minutes: 30
 
     steps:
       - name: Check out source
-        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8  # v6.0.1
-
-      - name: Set up Python 3.9
-        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405  # v6.2.0
-        with:
-          python-version: "3.9"
+        uses: actions/checkout@v6
 
       - name: Install Metaflow
         run: |
           python -m pip install --upgrade pip
           pip install . kubernetes
-
-      - name: Set up minikube
-        uses: medyagh/setup-minikube@aba8d5ff1666d19b9549133e3b92e70d4fc52cb7
-        with:
-          driver: docker
-          cpus: 2
-          memory: 6144
-
-      - name: Set up Helm
-        uses: azure/setup-helm@v4
-
-      - name: Cache Helm charts
-        uses: actions/cache@v4
-        with:
-          path: |
-            ~/.cache/helm
-            ~/.local/share/tilt-dev/.helm
-          key: helm-full-stack-${{ hashFiles('devtools/Tiltfile', 'devtools/tilt/*.tiltfile') }}
-          restore-keys: |
-            helm-full-stack-
-            helm-charts-
-
-      - name: Pre-pull Helm repos and charts (with retry)
-        # Pre-download ALL versioned Helm charts into the Tilt cache dir so
-        # helm_remote skips the network fetch on cache-hit and retries handle
-        # transient 5xx / 502 errors from GitHub releases or Bitnami.
-        # full-stack-test uses SERVICES_OVERRIDE=all so every chart is needed.
-        run: |
-          retry() {
-            local cmd="$*" attempt=1
-            until $cmd; do
-              attempt=$((attempt + 1))
-              [ $attempt -gt 3 ] && { echo "Failed after 3 attempts: $cmd"; return 1; }
-              echo "Retry $attempt for: $cmd"
-              sleep $((attempt * 10))
-            done
-          }
-          retry helm repo add argo            https://argoproj.github.io/argo-helm      2>/dev/null || true
-          retry helm repo add postgresql      https://raw.githubusercontent.com/bitnami/charts/archive-full-index/bitnami 2>/dev/null || true
-          retry helm repo add minio-s3        https://charts.min.io/                   2>/dev/null || true
-          retry helm repo add metaflow-tools  https://outerbounds.github.io/metaflow-tools 2>/dev/null || true
-          retry helm repo add apache-airflow  https://airflow.apache.org               2>/dev/null || true
-          retry helm repo update || true
-
-          HELM_CACHE="$HOME/.local/share/tilt-dev/.helm"
-
-          # Argo Workflows 0.45.2 (matches ARGO_WORKFLOWS_HELM_CHART_VERSION)
-          mkdir -p "$HELM_CACHE/argo/0.45.2"
-          [ -d "$HELM_CACHE/argo/0.45.2/argo-workflows" ] || \
-            retry helm pull argo/argo-workflows --version 0.45.2 --untar \
-              --destination "$HELM_CACHE/argo/0.45.2" || true
-
-          # PostgreSQL 12.5.6 — bitnami retired both the helm repo index and
-          # the charts.bitnami.com CDN.  Use the bitnami archive on GitHub
-          # (archive-full-index branch) which preserves all historical versions.
-          mkdir -p "$HELM_CACHE/postgresql/12.5.6"
-          [ -d "$HELM_CACHE/postgresql/12.5.6/postgresql" ] || \
-            retry helm pull postgresql/postgresql --version 12.5.6 --untar \
-              --destination "$HELM_CACHE/postgresql/12.5.6" || true
-
-          # Airflow 1.15.0 (matches AIRFLOW_HELM_CHART_VERSION)
-          mkdir -p "$HELM_CACHE/airflow/1.15.0"
-          [ -d "$HELM_CACHE/airflow/1.15.0/airflow" ] || \
-            retry helm pull apache-airflow/airflow --version 1.15.0 --untar \
-              --destination "$HELM_CACHE/airflow/1.15.0" || true
 
       - name: Bring up the environment
         run: |

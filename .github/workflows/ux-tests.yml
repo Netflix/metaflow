@@ -202,10 +202,7 @@ jobs:
           done
           tilt version
 
-      - name: Pre-pull Helm repos and charts (with retry)
-        # Adds repos and pre-downloads versioned charts into the Tilt cache
-        # so helm_remote skips the network fetch on a cache hit.  The retry
-        # loop handles transient 5xx responses from GitHub chart releases.
+      - name: Pre-pull Helm repos (with retry)
         run: |
           retry() {
             local cmd="$*" attempt=1
@@ -216,30 +213,11 @@ jobs:
               sleep $((attempt * 5))
             done
           }
-          retry helm repo add postgresql      https://raw.githubusercontent.com/bitnami/charts/archive-full-index/bitnami 2>/dev/null || true
-          retry helm repo add argo            https://argoproj.github.io/argo-helm      2>/dev/null || true
-          retry helm repo add minio-s3        https://charts.min.io/                   2>/dev/null || true
-          retry helm repo add apache-airflow  https://airflow.apache.org               2>/dev/null || true
-          retry helm repo add metaflow-tools  https://outerbounds.github.io/metaflow-tools 2>/dev/null || true
+          retry helm repo add bitnami https://charts.bitnami.com/bitnami 2>/dev/null || true
+          retry helm repo add argo https://argoproj.github.io/argo-helm 2>/dev/null || true
+          retry helm repo add apache-airflow https://airflow.apache.org 2>/dev/null || true
+          retry helm repo add metaflow-tools https://outerbounds.github.io/metaflow-tools 2>/dev/null || true
           retry helm repo update || true
-
-          # Pre-download versioned charts that helm_remote fetches from GitHub
-          # releases or Bitnami — these are most likely to hit transient 5xx.
-          HELM_CACHE="$HOME/.local/share/tilt-dev/.helm"
-
-          # Argo Workflows 0.45.2 (argo-kubernetes + argo backends)
-          mkdir -p "$HELM_CACHE/argo/0.45.2"
-          [ -d "$HELM_CACHE/argo/0.45.2/argo-workflows" ] || \
-            retry helm pull argo/argo-workflows --version 0.45.2 --untar \
-              --destination "$HELM_CACHE/argo/0.45.2" || true
-
-          # PostgreSQL 12.5.6 — bitnami retired both the helm repo index and
-          # the charts.bitnami.com CDN.  Use the bitnami archive on GitHub
-          # (archive-full-index branch) which preserves all historical versions.
-          mkdir -p "$HELM_CACHE/postgresql/12.5.6"
-          [ -d "$HELM_CACHE/postgresql/12.5.6/postgresql" ] || \
-            retry helm pull postgresql/postgresql --version 12.5.6 --untar \
-              --destination "$HELM_CACHE/postgresql/12.5.6" || true
 
       - name: Start devstack
         working-directory: devtools
