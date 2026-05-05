@@ -211,7 +211,7 @@ jobs:
   core-devstack:
     name: "core-${{ matrix.backend }}"
     runs-on: ubuntu-latest
-    timeout-minutes: 90
+    timeout-minutes: 150
     strategy:
       fail-fast: false
       matrix:
@@ -481,7 +481,11 @@ jobs:
         # image in the minikube-internal Docker daemon; subsequent tests use
         # the cached copy.  The minikube image cache step below persists it
         # across runs so subsequent CI jobs skip this pull entirely.
+        # continue-on-error: the pull may be slow on a cold runner but the
+        # image will be pulled on-demand during the first test (still cached
+        # for subsequent tests).  A rate-limit should not kill the whole job.
         if: matrix.backend == 'k8s' || matrix.backend == 'argo'
+        continue-on-error: true
         run: minikube image pull python:3.10
 
       - name: Save minikube images to cache

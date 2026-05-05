@@ -224,12 +224,20 @@ jobs:
           retry helm repo update || true
 
           # Pre-download versioned charts that helm_remote fetches from GitHub
-          # releases — these are most likely to hit transient 5xx errors.
+          # releases or Bitnami — these are most likely to hit transient 5xx.
           HELM_CACHE="$HOME/.local/share/tilt-dev/.helm"
+
+          # Argo Workflows 0.45.2 (argo-kubernetes + argo backends)
           mkdir -p "$HELM_CACHE/argo/0.45.2"
           [ -d "$HELM_CACHE/argo/0.45.2/argo-workflows" ] || \
             retry helm pull argo/argo-workflows --version 0.45.2 --untar \
               --destination "$HELM_CACHE/argo/0.45.2" || true
+
+          # PostgreSQL 12.5.6 (all backends that use metadata-service)
+          mkdir -p "$HELM_CACHE/postgresql/12.5.6"
+          [ -d "$HELM_CACHE/postgresql/12.5.6/postgresql" ] || \
+            retry helm pull bitnami/postgresql --version 12.5.6 --untar \
+              --destination "$HELM_CACHE/postgresql/12.5.6" || true
 
       - name: Start devstack
         working-directory: devtools
