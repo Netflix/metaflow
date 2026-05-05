@@ -81,7 +81,19 @@ class Client(object):
         if os.path.exists(self._socket_path):
             raise RuntimeError("Existing socket: %s" % self._socket_path)
         env = os.environ.copy()
-        env["PYTHONPATH"] = pythonpath
+        # The pythonpath param carries the trampoline-curated host sys.path and
+        # MUST stay authoritative -- the env-escape server module is only on it.
+        # Append any saved MF_ORIG_PYTHONPATH so escape-out also retains the
+        # host's original additions.
+        orig_pythonpath = env.pop("MF_ORIG_PYTHONPATH", "")
+        env["PYTHONPATH"] = (
+            pythonpath + (os.pathsep + orig_pythonpath if orig_pythonpath else "")
+        )
+        # Restore PYTHONHOME if Site 1 saved one; otherwise ensure it's unset.
+        if "MF_ORIG_PYTHONHOME" in env:
+            env["PYTHONHOME"] = env.pop("MF_ORIG_PYTHONHOME")
+        elif "PYTHONHOME" in env:
+            del env["PYTHONHOME"]
         # When coming from a conda environment, LD_LIBRARY_PATH will be set to
         # first include the Conda environment's library. When breaking out to
         # the underlying python, we need to reset it to the original LD_LIBRARY_PATH
