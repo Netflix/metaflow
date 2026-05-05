@@ -155,7 +155,8 @@ def install(ctx: Any, force: bool):
     mf_version, _ = get_mf_version(True)
     with tempfile.TemporaryDirectory() as tmp_dir:
         with open(os.path.join(tmp_dir, "setup.py"), "w") as f:
-            f.write(f"""
+            f.write(
+                f"""
 from setuptools import setup, find_namespace_packages
 setup(
     include_package_data=True,
@@ -170,13 +171,16 @@ setup(
     install_requires=["metaflow=={mf_version}"],
     python_requires=">=3.6.1",
 )
-                """)
+                """
+            )
         with open(os.path.join(tmp_dir, "MANIFEST.in"), "w") as f:
-            f.write("""
+            f.write(
+                """
 include metaflow-stubs/generated_for.txt
 include metaflow-stubs/py.typed
 global-include *.pyi
-                """)
+                """
+            )
 
         StubGenerator(os.path.join(tmp_dir, "metaflow-stubs")).write_out()
 
