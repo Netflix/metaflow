@@ -490,6 +490,18 @@ jobs:
             kubectl get pods -n default | grep argo || echo "no argo pods visible"
           fi
 
+      - name: Pre-pull python:3.10 on Docker host (sfn + batch)
+        # localbatch runs Batch containers directly on the CI runner's Docker
+        # daemon using python:3.10 as the default image.  Without a pre-pull,
+        # every container startup hits Docker Hub (~30-60s) before the pip
+        # install (~20s) and code-package download (~10s).  For graphs with
+        # multiple sequential container groups (simple-foreach has 5, nested-
+        # branches has 4+), the per-test wall-clock time approaches 600 s and
+        # intermittently exceeds the scheduler timeout.
+        # Pre-caching eliminates the Docker Hub pull, cutting startup to ~30s.
+        if: matrix.backend == 'sfn' || matrix.backend == 'batch'
+        run: docker pull python:3.10
+
       - name: Pre-pull python:3.10 into minikube (k8s + argo)
         # Pull into the CI runner's Docker daemon first (uses runner auth,
         # higher rate limits than anonymous minikube pulls), then load into
