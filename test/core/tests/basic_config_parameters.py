@@ -1,7 +1,7 @@
-from metaflow_test import MetaflowTest, ExpectationFailed, steps, tag
+from metaflow_test import FlowDefinition, steps, tag
 
 
-class BasicConfigTest(MetaflowTest):
+class BasicConfig(FlowDefinition):
     PRIORITY = 1
     REQUIRED_FILES = ["basic_config_silly.txt"]
     SKIP_GRAPHS = [
@@ -83,39 +83,39 @@ def config_default(ctx):
     @steps(0, ["all"])
     def step_all(self):
         # Test flow-level decorator configs
-        assert_equals(current.project_name, "test_config")
+        assert current.project_name == "test_config"
 
         # Test step-level decorator configs
-        assert_equals(os.environ["normal"], "foobar")
-        assert_equals(os.environ["stringify"], "42")
+        assert os.environ["normal"] == "foobar"
+        assert os.environ["stringify"] == "42"
 
         # Test parameters reading configs
-        assert_equals(self.default_from_config, 123)
-        assert_equals(self.default_from_func, 124)
+        assert self.default_from_config == 123
+        assert self.default_from_func == 124
 
         # Test configs are accessible as artifacts
-        assert_equals(self.config.value, 42)
-        assert_equals(self.config["value"], 42)
-        assert_equals(self.config.nested.value, 43)
-        assert_equals(self.config["nested"]["value"], 43)
-        assert_equals(self.config.nested["value"], 43)
-        assert_equals(self.config["nested"].value, 43)
+        assert self.config.value == 42
+        assert self.config["value"] == 42
+        assert self.config.nested.value == 43
+        assert self.config["nested"]["value"] == 43
+        assert self.config.nested["value"] == 43
+        assert self.config["nested"].value == 43
 
         # Test parser
-        assert_equals(self.silly_config.baz, "amazing")
-        assert_equals(self.silly_config["baz"], "amazing")
+        assert self.silly_config.baz == "amazing"
+        assert self.silly_config["baz"] == "amazing"
 
-        assert_equals(self.config3.val, 456)
+        assert self.config3.val == 456
 
         try:
             self.config3["val"] = 5
-            raise ExpectationFailed(TypeError, "configs should be immutable")
+            raise AssertionError("configs should be immutable: expected TypeError")
         except TypeError:
             pass
 
         try:
             self.config3.val = 5
-            raise ExpectationFailed(TypeError, "configs should be immutable")
+            raise AssertionError("configs should be immutable: expected TypeError")
         except TypeError:
             pass
 
@@ -123,8 +123,8 @@ def config_default(ctx):
     @steps(0, ["start"])
     def step_start(self):
         # Here we check the environment based on the ** notation
-        assert_equals(os.environ["var1"], "value1")
-        assert_equals(os.environ["var2"], "value2")
+        assert os.environ["var1"] == "value1"
+        assert os.environ["var2"] == "value2"
 
     def check_results(self, flow, checker):
         for step in flow:

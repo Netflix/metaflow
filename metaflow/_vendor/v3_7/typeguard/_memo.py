@@ -2,7 +2,10 @@ from __future__ import annotations
 
 from typing import Any
 
-from metaflow._vendor.v3_7.typeguard._config import TypeCheckConfiguration, global_config
+from metaflow._vendor.v3_7.typeguard._config import (
+    TypeCheckConfiguration,
+    global_config,
+)
 
 
 class TypeCheckMemo:

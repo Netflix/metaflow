@@ -1,7 +1,7 @@
-from metaflow_test import MetaflowTest, steps, assert_equals
+from metaflow_test import FlowDefinition, steps
 
 
-class ResumeRecursiveSwitchFlowTest(MetaflowTest):
+class ResumeRecursiveSwitchFlow(FlowDefinition):
     RESUME = True
     PRIORITY = 2
     ONLY_GRAPHS = ["recursive_switch"]
@@ -21,11 +21,11 @@ class ResumeRecursiveSwitchFlowTest(MetaflowTest):
 
     @steps(0, ["exit"], required=True)
     def step_exit(self):
-        assert_equals(10, self.count)
+        assert 10 == self.count
 
     @steps(1, ["end"], required=True)
     def step_end(self):
-        assert_equals(10, self.count)
+        assert 10 == self.count
 
     def check_results(self, flow, checker):
         run = checker.get_run()
@@ -33,7 +33,7 @@ class ResumeRecursiveSwitchFlowTest(MetaflowTest):
             checker.assert_artifact("end", "count", 10)
 
             loop_steps = run["loop_step"]
-            assert_equals(10, len(list(loop_steps)))
+            assert 10 == len(list(loop_steps))
 
             start_task_metadata = run["start"].task.metadata_dict
             assert (

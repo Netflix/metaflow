@@ -1,8 +1,9 @@
 # -*- coding: utf-8 -*-
-from metaflow_test import MetaflowTest, ExpectationFailed, steps
+import pytest
+from metaflow_test import FlowDefinition, steps
 
 
-class TagMutationTest(MetaflowTest):
+class TagMutation(FlowDefinition):
     """
     Test that tag mutation works
     """
@@ -49,10 +50,8 @@ class TagMutationTest(MetaflowTest):
         assert len(set(some_existing_system_tags) & checker.get_user_tags()) == 0
 
         # Verify that trying to remove a tag that already exists as a system tag fails (all or nothing)
-        assert_exception(
-            lambda: checker.remove_tags(["tag_along", *some_existing_system_tags]),
-            Exception,
-        )
+        with pytest.raises(Exception):
+            checker.remove_tags(["tag_along", *some_existing_system_tags])
         assert "tag_along" in checker.get_user_tags()
         checker.remove_tag("tag_along")
         assert "tag_along" not in checker.get_user_tags()
@@ -77,26 +76,31 @@ class TagMutationTest(MetaflowTest):
         assert "新想法" not in checker.get_user_tags()
 
         # try empty str as tag - should fail
-        assert_exception(lambda: checker.add_tag(""), Exception)
+        with pytest.raises(Exception):
+            checker.add_tag("")
         assert "" not in checker.get_user_tags()
 
         # try adding a tag that is too long - should fail
-        assert_exception(lambda: checker.add_tag("a" * 600), Exception)
+        with pytest.raises(Exception):
+            checker.add_tag("a" * 600)
         assert ("a" * 600) not in checker.get_user_tags()
 
         # try adding a tag made up of random bytes
         random_bytes = bytes(random.getrandbits(8) for _ in range(64))
-        assert_exception(lambda: checker.add_tag(random_bytes), Exception)
+        with pytest.raises(Exception):
+            checker.add_tag(random_bytes)
         assert random_bytes not in checker.get_user_tags()
 
         # TODO add test for "too many tags", pending metadata service support (it depends on existing tags as well)
 
         # try int as tag - should fail
-        assert_exception(lambda: checker.remove_tag(4), Exception)
+        with pytest.raises(Exception):
+            checker.remove_tag(4)
         assert 4 not in checker.get_user_tags()
 
         # try to replace nothing with nothing - should fail
-        assert_exception(lambda: checker.replace_tags([], []), Exception)
+        with pytest.raises(Exception):
+            checker.replace_tags([], [])
 
         # these check actions do not work for CliCheck. As of 6/3/2022, the only other
         # checker is MetadataCheck. But we write the code like this to force consideration

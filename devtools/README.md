@@ -43,8 +43,6 @@ SERVICES_OVERRIDE=localbatch,minio make up
 | `localbatch` | Local AWS Batch emulator | minio | 8000 |
 | `ddb-local` | DynamoDB Local | — | 8765 |
 | `sfn-local` | AWS Step Functions Local | ddb-local | 8082 |
-| `azurite` | Azure Blob / Queue / Table emulator | — | 10000–10002 |
-| `fake-gcs-server` | Google Cloud Storage emulator | — | 4443 |
 | `airflow` | Apache Airflow (LocalExecutor) | — | 8090 (UI / REST API) |
 
 Dependencies are resolved automatically — selecting `sfn-local` in the picker also starts `ddb-local`.
@@ -57,12 +55,6 @@ Dependencies are resolved automatically — selecting `sfn-local` in the picker 
 METAFLOW_HOME=.devtools
 METAFLOW_PROFILE=local      # loads .devtools/config_local.json
 AWS_CONFIG_FILE=.devtools/aws_config   # MinIO credentials (if minio is running)
-```
-
-For Azure or GCS datastores, also source the extra env file:
-
-```bash
-source .devtools/env_local  # sets AZURE_STORAGE_CONNECTION_STRING, STORAGE_EMULATOR_HOST
 ```
 
 Then run flows normally:
@@ -78,8 +70,6 @@ python myflow.py run
 | MinIO | `rootuser` / `rootpass123` |
 | PostgreSQL | `metaflow` / `metaflow123` / db `metaflow` |
 | DynamoDB Local / SFN Local / localbatch | any value (no auth) |
-| Azurite | account `devstoreaccount1`, key in `.devtools/env_local` |
-| fake-gcs-server | no auth required |
 
 ## Makefile targets
 
@@ -92,6 +82,31 @@ python myflow.py run
 | `make dashboard` | Open Minikube dashboard |
 | `make ui` | Wait for Metaflow UI and open it in a browser |
 | `make tunnel` | Run `minikube tunnel` (called automatically by `up`) |
+
+## Running core integration tests (test/core/)
+
+The `test/core/` suite generates and runs synthetic Metaflow flows. The `core-local`
+env needs no infrastructure, but the cloud-backend envs do:
+
+| tox env | Required services |
+|---|---|
+| `core-batch` | `minio,postgresql,metadata-service,localbatch` |
+| `core-k8s` | `minio,postgresql,metadata-service` (+ minikube k8s decorator) |
+| `core-argo` | `minio,postgresql,metadata-service,argo-workflows` |
+| `core-sfn` | `minio,postgresql,metadata-service,localbatch,ddb-local,sfn-local` |
+
+Start the required services, then run the corresponding tox env:
+
+```bash
+# Example: sfn backend
+SERVICES_OVERRIDE=minio,postgresql,metadata-service,localbatch,ddb-local,sfn-local make up
+tox -c test/core/tox.ini -e core-sfn
+```
+
+For Azure and GCS, no devstack is needed — start the emulator with Docker instead
+(see [TESTING.md](../TESTING.md) for the exact `docker run` commands).
+
+---
 
 ## Running UX tests
 

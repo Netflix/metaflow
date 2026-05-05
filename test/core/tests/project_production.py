@@ -1,7 +1,7 @@
-from metaflow_test import MetaflowTest, ExpectationFailed, steps, tag
+from metaflow_test import FlowDefinition, steps, tag
 
 
-class ProjectProductionTest(MetaflowTest):
+class ProjectProduction(FlowDefinition):
     PRIORITY = 1
     SKIP_GRAPHS = [
         "simple_switch",
@@ -28,7 +28,5 @@ os.environ['METAFLOW_PRODUCTION'] = 'True'
     def step_all(self):
         from metaflow import current
 
-        assert_equals(current.branch_name, "prod")
-        assert_equals(
-            current.project_flow_name, "project_prod.prod.ProjectProductionTestFlow"
-        )
+        assert current.branch_name == "prod"
+        assert current.project_flow_name == "project_prod.prod.%s" % current.flow_name

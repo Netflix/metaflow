@@ -1,7 +1,7 @@
-from metaflow_test import MetaflowTest, ExpectationFailed, steps
+from metaflow_test import FlowDefinition, steps
 
 
-class BasicIncludeTest(MetaflowTest):
+class BasicInclude(FlowDefinition):
     PRIORITY = 1
     SKIP_GRAPHS = [
         "simple_switch",
@@ -35,19 +35,17 @@ with open('override.txt', mode='w') as f:
 
     @steps(0, ["all"])
     def step_all(self):
-        assert_equals("Regular Text File", self.myfile_txt)
-        assert_equals("UTF Text File \u5e74", self.myfile_utf8)
-        assert_equals(
-            "UTF Text File \u5e74".encode(encoding="utf8"), self.myfile_binary
-        )
-        assert_equals("Override Text File", self.myfile_overriden)
+        assert "Regular Text File" == self.myfile_txt
+        assert "UTF Text File \u5e74" == self.myfile_utf8
+        assert "UTF Text File \u5e74".encode(encoding="utf8") == self.myfile_binary
+        assert "Override Text File" == self.myfile_overriden
 
         # Check that an absent file does not make things crash
-        assert_equals(None, self.absent_file)
+        assert None == self.absent_file
         try:
             # Include files should be immutable
             self.myfile_txt = 5
-            raise ExpectationFailed(AttributeError, "nothing")
+            raise AssertionError("expected AttributeError but none was raised")
         except AttributeError:
             pass
 

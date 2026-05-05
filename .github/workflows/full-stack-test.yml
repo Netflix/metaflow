@@ -25,7 +25,7 @@ jobs:
       - name: Bring up the environment
         run: |
           echo "Starting environment in the background..."
-          MINIKUBE_CPUS=2 metaflow-dev all-up &
+          metaflow-dev all-up &
           WAIT_TIMEOUT=900 metaflow-dev wait-until-ready
 
       - name: Wait & run flow

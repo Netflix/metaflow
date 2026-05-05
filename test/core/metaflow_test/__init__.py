@@ -66,19 +66,21 @@ def try_to_get_card(id=None, timeout=60):
     return retry_until_timeout(_get_card, id, timeout=timeout)
 
 
-class AssertArtifactFailed(Exception):
+class AssertArtifactFailed(AssertionError):
     pass
 
 
-class AssertLogFailed(Exception):
+class AssertLogFailed(AssertionError):
     pass
 
 
-class AssertCardFailed(Exception):
+class AssertCardFailed(AssertionError):
     pass
 
 
-class ExpectationFailed(Exception):
+class ExpectationFailed(AssertionError):
+    """Kept for backward compatibility; raises as AssertionError so pytest surfaces it natively."""
+
     def __init__(self, expected, got):
         super(ExpectationFailed, self).__init__(
             "Expected result: %s, got %s" % (truncate(expected), truncate(got))
@@ -119,39 +121,14 @@ def origin_run_id_for_resume():
     return current.origin_run_id
 
 
-def assert_equals(expected, got):
-    if expected != got:
-        raise ExpectationFailed(expected, got)
+class FlowDefinition(object):
+    """Base class for core integration test flow definitions.
 
+    Each subclass defines step bodies (via @steps/@tag) and a check_results
+    method that verifies the completed run.  FlowFormatter combines a
+    FlowDefinition with a graph template to produce a runnable FlowSpec.
+    """
 
-def assert_equals_metadata(expected, got, exclude_keys=None):
-    # Check if the keys match
-    exclude_keys = set(exclude_keys if exclude_keys is not None else [])
-    k1_set = set(expected.keys()).difference(exclude_keys)
-    k2_set = set(got.keys()).difference(exclude_keys)
-    sym_diff = k1_set.symmetric_difference(k2_set)
-    if len(sym_diff) > 0:
-        raise ExpectationFailed("keys: %s" % str(k1_set), "keys: %s" % str(k2_set))
-    # At this point, we compare the metadata values, types and dates.
-    for k in k1_set:
-        if expected[k] != got[k]:
-            raise ExpectationFailed(
-                "[%s]: %s" % (k, str(expected[k])), "[%s]: %s" % (k, str(got[k]))
-            )
-
-
-def assert_exception(func, exception):
-    try:
-        func()
-    except exception:
-        return
-    except Exception as ex:
-        raise ExpectationFailed(exception, ex)
-    else:
-        raise ExpectationFailed(exception, "no exception")
-
-
-class MetaflowTest(object):
     PRIORITY = 999999999
     PARAMETERS = {}
     INCLUDE_FILES = {}
@@ -163,20 +140,25 @@ class MetaflowTest(object):
         return False
 
 
+# Backward-compatibility alias — existing tests that still import MetaflowTest will work.
+MetaflowTest = FlowDefinition
+
+
 class MetaflowCheck(object):
-    def __init__(self, flow):
-        pass
+    def __init__(self, flow, run_id, cli_options=()):
+        self._run_id = run_id
+        self._cli_options = list(cli_options)
 
     def get_run(self):
         return None
 
     @property
     def run_id(self):
-        return sys.argv[2]
+        return self._run_id
 
     @property
     def cli_options(self):
-        return sys.argv[3:]
+        return self._cli_options
 
     def assert_artifact(self, step, name, value, fields=None):
         raise NotImplementedError()
@@ -224,12 +206,43 @@ class MetaflowCheck(object):
         raise NotImplementedError()
 
 
-def new_checker(flow):
+def new_checker(checker_class, flow, run_id, cli_options=()):
+    """Create a checker instance.
+
+    checker_class may be the class itself or its name as a string
+    ('CliCheck' or 'MetadataCheck').
+
+    Back-compat: out-of-tree subclasses whose __init__ only accepts (flow) are
+    instantiated with the legacy signature so they do not receive a TypeError.
+    """
+    import inspect
+
     from . import cli_check, metadata_check
 
-    CHECKER = {
+    _CLASSES = {
         "CliCheck": cli_check.CliCheck,
         "MetadataCheck": metadata_check.MetadataCheck,
     }
-    CLASSNAME = sys.argv[1]
-    return CHECKER[CLASSNAME](flow)
+    if isinstance(checker_class, str):
+        checker_class = _CLASSES[checker_class]
+
+    try:
+        sig = inspect.signature(checker_class.__init__)
+        # Count positional-or-keyword params excluding 'self'.
+        params = [
+            p
+            for p in sig.parameters.values()
+            if p.name != "self"
+            and p.kind
+            in (
+                inspect.Parameter.POSITIONAL_OR_KEYWORD,
+                inspect.Parameter.POSITIONAL_ONLY,
+            )
+        ]
+        if len(params) >= 2:
+            return checker_class(flow, run_id, cli_options)
+        # Legacy __init__(self, flow) — pass only what it accepts.
+        return checker_class(flow)
+    except (ValueError, TypeError):
+        # inspect.signature failed (e.g. built-in); try new signature first.
+        return checker_class(flow, run_id, cli_options)

@@ -1,0 +1,569 @@
+name: Core Integration Tests
+
+# Runs the pytest-native core test suite introduced by the refactor.
+#
+# Three tiers by infrastructure requirement:
+#
+#  1. core-local   — no infrastructure, runs on every PR (~35 min with -n auto)
+#  2. core-gcs / core-azure — single-container emulators started via Docker
+#  3. core-batch / core-k8s / core-argo / core-sfn — full devstack (minikube + Tilt)
+#
+# All jobs emit JUnit XML and publish HTML reports via dorny/test-reporter.
+
+on:
+  push:
+    branches:
+      - master
+  pull_request:
+    branches:
+      - master
+  workflow_dispatch:
+
+permissions: read-all
+
+jobs:
+
+  # ---------------------------------------------------------------------------
+  # core-local: no infrastructure required
+  # ---------------------------------------------------------------------------
+  core-local:
+    name: "core-local"
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+
+    steps:
+      - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8  # v6.0.1
+
+      - name: Set up Python 3.10
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405  # v6.2.0
+        with:
+          python-version: "3.10"
+
+      - name: Cache pip packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: pip-core-py310-${{ hashFiles('setup.py', 'setup.cfg') }}
+          restore-keys: pip-core-py310-
+
+      - name: Install tox
+        run: pip install tox
+
+      - name: Run core-local tests
+        run: |
+          tox -c test/core/tox.ini -e core-local -- \
+            -n auto \
+            --junit-xml="${GITHUB_WORKSPACE}/junit-core-local.xml"
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: junit-core-local
+          path: junit-core-local.xml
+          if-no-files-found: ignore
+
+      - name: Publish test results
+        if: always()
+        continue-on-error: true
+        uses: dorny/test-reporter@d61b558e8df85cb60d09ca3e5b09653b4477cea7  # v1
+        with:
+          name: "Test Results — core-local"
+          path: junit-core-local.xml
+          reporter: java-junit
+          fail-on-error: false
+
+  # ---------------------------------------------------------------------------
+  # core-gcs / core-azure: single-container emulators, no Kubernetes needed
+  # ---------------------------------------------------------------------------
+  core-emulator:
+    name: "core-${{ matrix.backend }}"
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - backend: gcs
+            tox_env: core-gcs
+            emulator_cmd: >-
+              docker run -d --name fake-gcs
+              -p 4443:4443
+              fsouza/fake-gcs-server
+              -scheme http -port 4443 -backend memory
+            # -s suppresses progress; no -f so any HTTP response (even 404) is treated
+            # as "server is up". fake-gcs-server returns non-2xx at / which would
+            # cause -f to exit 22.
+            emulator_ready_check: "curl -s -o /dev/null http://localhost:4443/"
+
+          - backend: azure
+            tox_env: core-azure
+            emulator_cmd: >-
+              docker run -d --name azurite
+              -p 10000:10000
+              mcr.microsoft.com/azure-storage/azurite
+              azurite-blob --blobHost 0.0.0.0 --skipApiVersionCheck
+            # Azurite returns 400 (missing auth) at the root path once it is running;
+            # accept any HTTP response so the poll exits as soon as the port is live.
+            emulator_ready_check: "curl -s -o /dev/null http://127.0.0.1:10000/"
+
+    steps:
+      - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8  # v6.0.1
+
+      - name: Set up Python 3.10
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405  # v6.2.0
+        with:
+          python-version: "3.10"
+
+      - name: Cache pip packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: pip-core-py310-${{ hashFiles('setup.py', 'setup.cfg') }}
+          restore-keys: pip-core-py310-
+
+      - name: Install tox
+        run: pip install tox
+
+      - name: Start ${{ matrix.backend }} emulator
+        # Retry up to 3 times: exit code 125 from docker run means the daemon
+        # failed (commonly a transient image-pull timeout from mcr.microsoft.com
+        # or hub.docker.com). Cleaning up the partial container before retrying
+        # avoids "name already in use" on the next attempt.
+        run: |
+          for attempt in 1 2 3; do
+            ${{ matrix.emulator_cmd }} && break
+            docker rm -f fake-gcs azurite 2>/dev/null || true
+            echo "Attempt $attempt failed; retrying in 15s..."
+            sleep 15
+            [ $attempt -eq 3 ] && exit 1
+          done
+
+      - name: Wait for emulator to be ready
+        run: |
+          for i in $(seq 1 30); do
+            ${{ matrix.emulator_ready_check }} && echo "Emulator ready" && exit 0
+            sleep 2
+          done
+          echo "Emulator did not become ready in time"
+          docker logs fake-gcs 2>/dev/null || docker logs azurite 2>/dev/null || true
+          exit 1
+
+      - name: Create GCS test bucket (gcs only)
+        if: matrix.backend == 'gcs'
+        # fake-gcs-server starts with an empty store. Metaflow's GCS storage
+        # expects the bucket to exist before writing; pre-create it via the
+        # emulator's REST API.
+        run: |
+          curl -sf -X POST "http://localhost:4443/storage/v1/b?project=metaflow-test" \
+            -H "Content-Type: application/json" \
+            -d '{"name": "metaflow-test"}'
+
+      - name: Create Azure test container (azure only)
+        if: matrix.backend == 'azure'
+        # Azurite starts with an empty store. Metaflow's Azure storage expects
+        # the container to exist before writing; pre-create it using the SDK.
+        env:
+          AZURE_STORAGE_CONNECTION_STRING: >-
+            DefaultEndpointsProtocol=http;AccountName=devstoreaccount1;AccountKey=Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw==;BlobEndpoint=http://127.0.0.1:10000/devstoreaccount1;
+        run: |
+          pip install --quiet azure-storage-blob
+          python -c "import os; from azure.storage.blob import BlobServiceClient; BlobServiceClient.from_connection_string(os.environ['AZURE_STORAGE_CONNECTION_STRING']).create_container('metaflow-test'); print('Created container: metaflow-test')"
+
+      - name: Run ${{ matrix.tox_env }} tests
+        # AZURE_STORAGE_CONNECTION_STRING is set here (not in tox.ini) because
+        # tox 4 parses setenv values for conditional package markers and the
+        # semicolons in the connection string trigger packaging.InvalidMarker.
+        env:
+          AZURE_STORAGE_CONNECTION_STRING: >-
+            DefaultEndpointsProtocol=http;AccountName=devstoreaccount1;AccountKey=Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw==;BlobEndpoint=http://127.0.0.1:10000/devstoreaccount1;
+        run: |
+          tox -c test/core/tox.ini -e ${{ matrix.tox_env }} -- \
+            -n 1 \
+            --junit-xml="${GITHUB_WORKSPACE}/junit-${{ matrix.tox_env }}.xml"
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: junit-${{ matrix.tox_env }}
+          path: junit-${{ matrix.tox_env }}.xml
+          if-no-files-found: ignore
+
+      - name: Publish test results
+        if: always()
+        continue-on-error: true
+        uses: dorny/test-reporter@d61b558e8df85cb60d09ca3e5b09653b4477cea7  # v1
+        with:
+          name: "Test Results — ${{ matrix.tox_env }}"
+          path: junit-${{ matrix.tox_env }}.xml
+          reporter: java-junit
+          fail-on-error: false
+
+      - name: Dump emulator logs on failure
+        if: failure()
+        run: |
+          docker logs fake-gcs 2>/dev/null || true
+          docker logs azurite 2>/dev/null || true
+
+  # ---------------------------------------------------------------------------
+  # core-batch / core-k8s / core-argo / core-sfn: full devstack
+  # ---------------------------------------------------------------------------
+  core-devstack:
+    name: "core-${{ matrix.backend }}"
+    runs-on: ubuntu-latest
+    timeout-minutes: 150
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - backend: batch
+            tox_env: core-batch
+            services: "minio,postgresql,metadata-service,localbatch"
+            workers: 1
+
+          - backend: k8s
+            tox_env: core-k8s
+            services: "minio,postgresql,metadata-service"
+            workers: 1
+
+          - backend: argo
+            tox_env: core-argo
+            services: "minio,postgresql,metadata-service,argo-workflows"
+            workers: 1
+
+          - backend: sfn
+            tox_env: core-sfn
+            services: "minio,postgresql,metadata-service,localbatch,ddb-local,sfn-local"
+            workers: 1
+
+    steps:
+      - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8  # v6.0.1
+
+      - name: Free disk space
+        uses: jlumbroso/free-disk-space@54081f138730dfa15788a46383842cd2f914a1be  # v1.3.1
+        with:
+          tool-cache: false
+          android: true
+          dotnet: true
+          haskell: true
+          large-packages: true
+          docker-images: false
+          swap-storage: false
+
+      - name: Set up Python 3.10
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405  # v6.2.0
+        with:
+          python-version: "3.10"
+
+      - name: Cache pip packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: pip-core-py310-${{ hashFiles('setup.py', 'setup.cfg') }}
+          restore-keys: pip-core-py310-
+
+      - name: Install tox
+        run: pip install tox
+
+      - name: Set up minikube
+        uses: medyagh/setup-minikube@aba8d5ff1666d19b9549133e3b92e70d4fc52cb7
+        with:
+          driver: docker
+          cpus: 2
+          memory: 6144
+
+      - name: Restore minikube image cache
+        id: image-cache
+        uses: actions/cache/restore@v4
+        with:
+          path: /tmp/minikube-image-cache
+          key: minikube-images-core-${{ matrix.backend }}-${{ hashFiles('devtools/Tiltfile') }}
+          restore-keys: minikube-images-core-${{ matrix.backend }}-
+
+      - name: Pre-load cached images into minikube
+        if: steps.image-cache.outputs.cache-hit == 'true'
+        run: devtools/ci/load-minikube-images.sh
+
+      - name: Cache Helm repos
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/helm
+            ~/.local/share/tilt-dev/.helm
+          key: helm-core-${{ matrix.backend }}-${{ hashFiles('devtools/Tiltfile', 'devtools/tilt/*.tiltfile') }}
+          restore-keys: |
+            helm-core-${{ matrix.backend }}-
+            helm-charts-
+
+      - name: Set up Helm
+        uses: azure/setup-helm@v4
+
+      - name: Cache Tilt binary
+        id: tilt-cache
+        uses: actions/cache@v4
+        with:
+          path: /usr/local/bin/tilt
+          key: tilt-v0.33.11
+
+      - name: Install Tilt
+        if: steps.tilt-cache.outputs.cache-hit != 'true'
+        run: |
+          for attempt in 1 2 3; do
+            curl -fsSL https://raw.githubusercontent.com/tilt-dev/tilt/master/scripts/install.sh \
+              | VERSION=v0.33.11 bash && break
+            echo "Attempt $attempt failed, retrying in 10s..."
+            sleep 10
+          done
+
+      - name: Pre-pull Helm repos and charts (with retry)
+        run: |
+          retry() { local cmd="$*" attempt=1; until $cmd; do attempt=$((attempt+1)); [ $attempt -gt 3 ] && return 1; sleep $((attempt*5)); done; }
+          retry helm repo add postgresql https://raw.githubusercontent.com/bitnami/charts/archive-full-index/bitnami 2>/dev/null || true
+          retry helm repo add argo     https://argoproj.github.io/argo-helm 2>/dev/null || true
+          retry helm repo add metaflow-tools https://outerbounds.github.io/metaflow-tools 2>/dev/null || true
+          retry helm repo update || true
+
+          HELM_CACHE="$HOME/.local/share/tilt-dev/.helm"
+
+          # Argo Workflows 0.45.2 (k8s + argo backends)
+          mkdir -p "$HELM_CACHE/argo/0.45.2"
+          [ -d "$HELM_CACHE/argo/0.45.2/argo-workflows" ] || \
+            retry helm pull argo/argo-workflows --version 0.45.2 --untar \
+              --destination "$HELM_CACHE/argo/0.45.2" || true
+
+          # PostgreSQL 12.5.6 — bitnami retired both the helm repo index and
+          # the charts.bitnami.com CDN.  Use the bitnami archive on GitHub
+          # (archive-full-index branch) which preserves all historical versions.
+          mkdir -p "$HELM_CACHE/postgresql/12.5.6"
+          [ -d "$HELM_CACHE/postgresql/12.5.6/postgresql" ] || \
+            retry helm pull postgresql/postgresql --version 12.5.6 --untar \
+              --destination "$HELM_CACHE/postgresql/12.5.6" || true
+
+      - name: Start devstack
+        working-directory: devtools
+        run: ci/start-devstack.sh
+        env:
+          SERVICES: ${{ matrix.services }}
+
+      - name: Start minikube tunnel
+        run: sudo minikube tunnel &
+
+      - name: Forward devstack ports to Docker bridge (sfn + batch)
+        if: matrix.backend == 'sfn' || matrix.backend == 'batch'
+        run: devtools/ci/forward-bridge-ports.sh --verbose
+
+      - name: Ensure minikube IP is routable
+        # minikube with Docker driver runs as a container.  On some runners
+        # the route to the minikube node subnet (192.168.49.0/24) is not
+        # present, causing "No route to host" when test subprocesses try to
+        # reach the Kubernetes API at <minikube-ip>:8443.  Add the route via
+        # the Docker bridge gateway if it is missing.
+        run: |
+          MINIKUBE_IP=$(minikube ip 2>/dev/null || echo "")
+          if [ -z "$MINIKUBE_IP" ]; then echo "minikube not running, skipping"; exit 0; fi
+          echo "minikube IP: $MINIKUBE_IP"
+          if ip route get "$MINIKUBE_IP" >/dev/null 2>&1; then
+            echo "Route to $MINIKUBE_IP already exists"
+          else
+            echo "No route to $MINIKUBE_IP — adding via Docker bridge gateway"
+            GW=$(docker network inspect minikube \
+                   -f '{{range .IPAM.Config}}{{.Gateway}}{{end}}' 2>/dev/null || true)
+            [ -z "$GW" ] && GW=$(docker network inspect bridge \
+                   -f '{{range .IPAM.Config}}{{.Gateway}}{{end}}' 2>/dev/null || true)
+            echo "Gateway: $GW"
+            [ -n "$GW" ] && sudo ip route add "$MINIKUBE_IP" via "$GW" || true
+          fi
+          kubectl cluster-info
+
+      - name: Wait for metadata service to be ready
+        run: |
+          for i in $(seq 1 30); do
+            curl -s -o /dev/null http://localhost:8080/ping && echo "Metadata service ready" && exit 0
+            sleep 2
+          done
+          echo "Metadata service did not become ready in time"
+          exit 1
+
+      - name: Wait for SFN local service to be ready (sfn only)
+        if: matrix.backend == 'sfn'
+        run: |
+          for i in $(seq 1 30); do
+            curl -s -o /dev/null http://localhost:8082/ && echo "SFN ready" && exit 0
+            sleep 2
+          done
+          echo "SFN local did not become ready in time"
+          exit 1
+
+      - name: Wait for EventBridge stub to be ready (sfn only)
+        if: matrix.backend == 'sfn'
+        run: |
+          for i in $(seq 1 30); do
+            curl -s -o /dev/null http://localhost:7777/ && echo "EventBridge stub ready" && exit 0
+            sleep 2
+          done
+          echo "EventBridge stub did not become ready in time"
+          exit 1
+
+      - name: Wait for MinIO to be ready (s3-backed backends)
+        if: >-
+          matrix.backend == 'sfn' || matrix.backend == 'batch' ||
+          matrix.backend == 'k8s' || matrix.backend == 'argo'
+        run: |
+          for i in $(seq 1 30); do
+            curl -sf -o /dev/null http://localhost:9000/minio/health/live && echo "MinIO ready" && exit 0
+            sleep 2
+          done
+          echo "MinIO did not become ready in time"
+          exit 1
+
+      - name: Verify scheduler pre-flight (sfn + argo)
+        # Run a quick connectivity + S3-upload sanity check before the full
+        # test suite so that any infrastructure failure produces a clear error
+        # in a dedicated CI step (rather than inside hundreds of test cases).
+        if: matrix.backend == 'sfn' || matrix.backend == 'argo'
+        env:
+          AWS_ACCESS_KEY_ID: rootuser
+          AWS_SECRET_ACCESS_KEY: rootpass123
+          AWS_DEFAULT_REGION: us-east-1
+          AWS_ENDPOINT_URL_S3: http://localhost:9000
+        run: |
+          echo "=== MinIO bucket list (confirms s3 endpoint is reachable) ==="
+          aws --endpoint-url http://localhost:9000 s3 ls \
+            && echo "MinIO OK" || { echo "MinIO s3 ls FAILED"; exit 1; }
+
+          if [ "${{ matrix.backend }}" = "sfn" ]; then
+            echo "=== SFN local health check ==="
+            curl -s http://localhost:8082/ | head -3 || echo "SFN returned error (may be ok)"
+            echo "=== localbatch health check (host-side) ==="
+            curl -sf http://localhost:8000/health && echo "localbatch OK" \
+              || { echo "localbatch health FAILED"; exit 1; }
+            echo "=== Docker bridge gateway ==="
+            BRIDGE=$(docker network inspect bridge \
+              --format='{{range .IPAM.Config}}{{.Gateway}}{{end}}' 2>/dev/null || echo "unknown")
+            echo "Bridge: ${BRIDGE}"
+            echo "=== socat listeners (should show 9000 8080 8765) ==="
+            ss -tlnp | grep -E '9000|8080|8765' | head -10 || echo "no socat listeners found"
+
+            # SFN local runs inside a minikube pod and submits batch jobs to
+            # localbatch via the Kubernetes service localbatch-host:8000 which
+            # maps to the minikube node IP (192.168.49.2 on the host).
+            # kube-proxy MASQUERADE's pod traffic to the minikube node IP before
+            # it exits the minikube container, so the host sees source
+            # 192.168.49.2 (= minikube ip), NOT the pod CIDR or the Docker bridge
+            # gateway (192.168.49.1).  Add an explicit ACCEPT for that node IP.
+            MINIKUBE_NODE_IP=$(minikube ip 2>/dev/null || echo "192.168.49.2")
+            echo "=== minikube node IP: ${MINIKUBE_NODE_IP} ==="
+            POD_CIDR=$(kubectl get nodes \
+              -o jsonpath='{.items[0].spec.podCIDR}' 2>/dev/null || echo "")
+            echo "Pod CIDR: ${POD_CIDR}"
+            sudo iptables -I INPUT -s "${MINIKUBE_NODE_IP}" -p tcp --dport 8000 -j ACCEPT || true
+            if [ -n "$POD_CIDR" ]; then
+              sudo iptables -I INPUT -s "${POD_CIDR}" -p tcp --dport 8000 -j ACCEPT || true
+            fi
+            echo "Added iptables ACCEPT for node IP ${MINIKUBE_NODE_IP} (pod CIDR ${POD_CIDR}) → port 8000"
+
+            # Hard-verify localbatch is reachable from the minikube node before
+            # running 156 tests that would all fail silently if it isn't.
+            echo "=== localbatch reachable from minikube container ==="
+            MINIKUBE_CTR=$(docker ps --filter "name=minikube" --format "{{.ID}}" | head -1)
+            if [ -n "$MINIKUBE_CTR" ]; then
+              docker exec "$MINIKUBE_CTR" sh -c \
+                "wget -q -O - http://${MINIKUBE_NODE_IP}:8000/health 2>&1 | head -3" \
+                && echo "localbatch_from_minikube_OK" \
+                || { echo "localbatch is NOT reachable from minikube — all SFN tests will fail"; exit 1; }
+            fi
+          fi
+
+          if [ "${{ matrix.backend }}" = "argo" ]; then
+            echo "=== Kubernetes API check ==="
+            kubectl cluster-info | head -3
+
+            echo "=== Argo WorkflowTemplate CRD installed? ==="
+            # Hard fail: if the CRD is missing Argo Workflows did not install,
+            # and all tests will fail with cryptic 'resource not found' errors.
+            kubectl get crd workflowtemplates.argoproj.io \
+              && echo "WorkflowTemplate CRD OK" \
+              || { echo "WorkflowTemplate CRD MISSING — Argo Workflows did not install"; exit 1; }
+
+            echo "=== Argo pods ==="
+            kubectl get pods -n default | grep argo || echo "no argo pods visible"
+          fi
+
+      - name: Pre-pull python:3.10 into minikube (k8s + argo)
+        # Pull into the CI runner's Docker daemon first (uses runner auth,
+        # higher rate limits than anonymous minikube pulls), then load into
+        # minikube's internal registry with no Docker Hub call at all.
+        # This avoids the race where 'minikube image pull' is rate-limited
+        # and continue-on-error silently leaves the image absent, causing
+        # every Argo/k8s pod to hit Docker Hub again and fail with
+        # ErrImagePull / ImagePullBackOff.
+        if: matrix.backend == 'k8s' || matrix.backend == 'argo'
+        run: |
+          docker pull python:3.10
+          minikube image load python:3.10
+
+      - name: Save minikube images to cache
+        if: steps.image-cache.outputs.cache-hit != 'true'
+        run: devtools/ci/save-minikube-images.sh
+
+      - name: Store minikube image cache
+        if: steps.image-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: /tmp/minikube-image-cache
+          key: minikube-images-core-${{ matrix.backend }}-${{ hashFiles('devtools/Tiltfile') }}
+
+      - name: Pre-test cleanup (k8s + argo)
+        # Remove stale completed/failed pods so they don't accumulate in
+        # etcd and slow down list/watch operations during the test suite.
+        if: matrix.backend == 'k8s' || matrix.backend == 'argo'
+        run: |
+          kubectl delete pods -n default \
+            --field-selector=status.phase=Succeeded 2>/dev/null || true
+          kubectl delete pods -n default \
+            --field-selector=status.phase=Failed 2>/dev/null || true
+
+      - name: Run ${{ matrix.tox_env }} tests
+        run: |
+          tox -c test/core/tox.ini -e ${{ matrix.tox_env }} -- \
+            -n ${{ matrix.workers }} \
+            --junit-xml="${GITHUB_WORKSPACE}/junit-${{ matrix.tox_env }}.xml"
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: junit-${{ matrix.tox_env }}
+          path: junit-${{ matrix.tox_env }}.xml
+          if-no-files-found: ignore
+
+      - name: Publish test results
+        if: always()
+        continue-on-error: true
+        uses: dorny/test-reporter@d61b558e8df85cb60d09ca3e5b09653b4477cea7  # v1
+        with:
+          name: "Test Results — ${{ matrix.tox_env }}"
+          path: junit-${{ matrix.tox_env }}.xml
+          reporter: java-junit
+          fail-on-error: false
+
+      - name: Dump first test failures
+        # Shows the actual subprocess error from pytest.fail() so that CI
+        # failures can be diagnosed without downloading the JUnit XML artifact.
+        if: failure()
+        run: |
+          python3 devtools/ci/dump-junit-failures.py \
+            "$GITHUB_WORKSPACE/junit-${{ matrix.tox_env }}.xml"
+
+      - name: Show Tilt logs on failure
+        if: failure()
+        run: cat /tmp/tilt.log | tail -200 || true
+
+      - name: Upload Tilt logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: tilt-logs-core-${{ matrix.backend }}
+          path: /tmp/tilt.log
+          if-no-files-found: ignore

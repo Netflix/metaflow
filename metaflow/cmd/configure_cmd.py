@@ -11,7 +11,6 @@ from metaflow.util import to_unicode
 
 from .util import echo_always, makedirs
 
-
 echo = echo_always
 
 # NOTE: This code needs to be in sync with metaflow/metaflow_config.py.

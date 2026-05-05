@@ -4,7 +4,11 @@ import sys
 import warnings
 from typing import TYPE_CHECKING, Any, Literal
 
-from metaflow._vendor.typeguard._config import CollectionCheckStrategy, ForwardRefPolicy, global_config
+from metaflow._vendor.typeguard._config import (
+    CollectionCheckStrategy,
+    ForwardRefPolicy,
+    global_config,
+)
 from metaflow._vendor.typeguard._exceptions import InstrumentationWarning
 from metaflow._vendor.typeguard._importhook import install_import_hook
 from metaflow._vendor.typeguard._utils import qualified_name, resolve_reference

@@ -1,7 +1,6 @@
 from collections import namedtuple
 from metaflow.plugins.aws.aws_utils import compute_resource_attributes
 
-
 MockDeco = namedtuple("MockDeco", ["name", "attributes"])
 
 

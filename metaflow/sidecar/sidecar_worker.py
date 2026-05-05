@@ -5,7 +5,6 @@ import sys
 
 import traceback
 
-
 # add metaflow module to python path if not already present
 myDir = os.path.dirname(os.path.abspath(__file__))
 parentDir = os.path.split(os.path.split(myDir)[0])[0]

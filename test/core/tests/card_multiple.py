@@ -1,7 +1,7 @@
-from metaflow_test import MetaflowTest, ExpectationFailed, steps, tag
+from metaflow_test import FlowDefinition, steps, tag
 
 
-class MultipleCardDecoratorTest(MetaflowTest):
+class MultipleCardDecorator(FlowDefinition):
     """
     Test that checks if the multiple card decorators work with @step code.
     - This test adds multiple `test_pathspec_card` cards to a @step
@@ -68,12 +68,11 @@ class MultipleCardDecoratorTest(MetaflowTest):
                     full_pathspec = "/".join([flow.name, task_pathspec])
                     task_id = task_pathspec.split("/")[-1]
                     cards_info = checker.list_cards(step.name, task_id)
-                    assert_equals(
+                    assert (
                         cards_info is not None
                         and "cards" in cards_info
-                        and len(cards_info["cards"]) == 2,
-                        True,
-                    )
+                        and len(cards_info["cards"]) == 2
+                    ) == (True)
                     for card in cards_info["cards"]:
                         checker.assert_card(
                             step.name,
@@ -90,12 +89,11 @@ class MultipleCardDecoratorTest(MetaflowTest):
                 for task_id in meta_check_dict:
                     full_pathspec = meta_check_dict[task_id]["task"]
                     cards_info = checker.list_cards(step.name, task_id)
-                    assert_equals(
+                    assert (
                         cards_info is not None
                         and "cards" in cards_info
-                        and len(cards_info["cards"]) == 2,
-                        True,
-                    )
+                        and len(cards_info["cards"]) == 2
+                    ) == (True)
                     for card in cards_info["cards"]:
                         checker.assert_card(
                             step.name,

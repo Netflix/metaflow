@@ -577,12 +577,10 @@ class TypeguardTransformer(NodeTransformer):
         return memo.get_import(module, name)
 
     @overload
-    def _convert_annotation(self, annotation: None) -> None:
-        ...
+    def _convert_annotation(self, annotation: None) -> None: ...
 
     @overload
-    def _convert_annotation(self, annotation: expr) -> expr:
-        ...
+    def _convert_annotation(self, annotation: expr) -> expr: ...
 
     def _convert_annotation(self, annotation: expr | None) -> expr | None:
         if annotation is None:

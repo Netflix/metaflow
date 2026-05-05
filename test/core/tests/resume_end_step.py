@@ -1,7 +1,7 @@
-from metaflow_test import MetaflowTest, ExpectationFailed, steps
+from metaflow_test import FlowDefinition, steps
 
 
-class ResumeEndStepTest(MetaflowTest):
+class ResumeEndStep(FlowDefinition):
     """
     Resuming from the end step should work
     """
@@ -54,7 +54,7 @@ class ResumeEndStepTest(MetaflowTest):
                     if step_name == "end":
                         if common_run_id is None:
                             common_run_id = resumed_metadata["origin-run-id"]
-                        assert_equals(common_run_id, resumed_metadata["origin-run-id"])
+                        assert common_run_id == resumed_metadata["origin-run-id"]
                         assert "origin-task-id" not in resumed_metadata, "Invalid clone"
                         continue
                     # Here we check if we have the correct metadata
@@ -63,11 +63,25 @@ class ResumeEndStepTest(MetaflowTest):
                     ), "Invalid cloned task"
                     if common_run_id is None:
                         common_run_id = resumed_metadata["origin-run-id"]
-                    assert_equals(common_run_id, resumed_metadata["origin-run-id"])
+                    assert common_run_id == resumed_metadata["origin-run-id"]
                     orig_metadata = run.parent[resumed_metadata["origin-run-id"]][
                         step_name
                     ][resumed_metadata["origin-task-id"]].metadata_dict
                     # Only resumes once so key not present elsewhere
-                    assert_equals_metadata(
-                        orig_metadata, resumed_metadata, exclude_keys
+                    _excl = set(exclude_keys) if exclude_keys else set()
+                    _orig_keys = set(orig_metadata) - _excl
+                    _res_keys = set(resumed_metadata) - _excl
+                    assert (
+                        _orig_keys == _res_keys
+                    ), "metadata key mismatch: orig=%s resumed=%s" % (
+                        sorted(_orig_keys),
+                        sorted(_res_keys),
                     )
+                    for _k in _orig_keys:
+                        assert (
+                            orig_metadata[_k] == resumed_metadata[_k]
+                        ), "metadata[%s]: expected %r, got %r" % (
+                            _k,
+                            orig_metadata[_k],
+                            resumed_metadata[_k],
+                        )

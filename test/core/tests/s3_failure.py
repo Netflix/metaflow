@@ -1,7 +1,7 @@
-from metaflow_test import MetaflowTest, ExpectationFailed, steps
+from metaflow_test import FlowDefinition, steps
 
 
-class S3FailureTest(MetaflowTest):
+class S3Failure(FlowDefinition):
     """
     Test that S3 failures are handled correctly.
     """
@@ -36,7 +36,7 @@ os.environ['TEST_S3_RETRY'] = '1'
         from metaflow import current
 
         run_id = "%s/%s" % (current.flow_name, current.run_id)
-        assert_equals(self.x, run_id)
+        assert self.x == run_id
 
     @steps(1, ["all"])
     def step_all(self):
@@ -48,6 +48,6 @@ os.environ['TEST_S3_RETRY'] = '1'
             # we should see TEST_S3_RETRY error in the logs
             # when --datastore=s3
             checker.assert_log("start", "stderr", "TEST_S3_RETRY", exact_match=False)
-        run_id = "S3FailureTestFlow/%s" % checker.run_id
+        run_id = "%s/%s" % (flow.name, checker.run_id)
         checker.assert_artifact("start", "x", run_id)
         checker.assert_artifact("end", "x", run_id)

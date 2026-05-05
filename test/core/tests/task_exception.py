@@ -1,7 +1,7 @@
-from metaflow_test import MetaflowTest, ExpectationFailed, steps
+from metaflow_test import FlowDefinition, steps
 
 
-class TaskExceptionTest(MetaflowTest):
+class TaskException(FlowDefinition):
     """
     A test to validate if exceptions are stored and retrieved correctly
     """
@@ -31,5 +31,5 @@ class TaskExceptionTest(MetaflowTest):
         run = checker.get_run()
         if run is not None:
             for task in run["end"]:
-                assert_equals("KeyError" in str(task.exception), True)
-                assert_equals(task.exception.exception, "'Something has gone wrong'")
+                assert "KeyError" in str(task.exception)
+                assert task.exception.exception == "'Something has gone wrong'"

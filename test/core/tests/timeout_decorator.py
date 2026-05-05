@@ -1,7 +1,7 @@
-from metaflow_test import MetaflowTest, ExpectationFailed, steps, tag
+from metaflow_test import FlowDefinition, steps, tag
 
 
-class TimeoutDecoratorTest(MetaflowTest):
+class TimeoutDecorator(FlowDefinition):
     """
     Test that checks that the timeout decorator works as intended.
     """
@@ -41,6 +41,6 @@ class TimeoutDecoratorTest(MetaflowTest):
                         extype = (
                             "metaflow.plugins.timeout_decorator." "TimeoutException"
                         )
-                        assert_equals(extype, str(task.data.ex.type))
+                        assert extype == str(task.data.ex.type)
                         timeout_raised = True
-            assert_equals(True, timeout_raised)
+            assert True == timeout_raised

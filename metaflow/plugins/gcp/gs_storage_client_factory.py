@@ -12,12 +12,23 @@ def _get_gs_storage_client_default():
     cache_key = _get_cache_key()
     if cache_key not in _client_cache:
         from google.cloud import storage
-        import google.auth
 
-        credentials, project_id = google.auth.default(scopes=storage.Client.SCOPE)
-        _client_cache[cache_key] = storage.Client(
-            credentials=credentials, project=project_id
-        )
+        if os.environ.get("STORAGE_EMULATOR_HOST"):
+            # Emulator mode: supply AnonymousCredentials explicitly so
+            # google-cloud-storage never calls google.auth.default(), which
+            # raises DefaultCredentialsError in CI environments with no ADC.
+            from google.auth.credentials import AnonymousCredentials
+
+            _client_cache[cache_key] = storage.Client(
+                credentials=AnonymousCredentials(), project="test"
+            )
+        else:
+            import google.auth
+
+            credentials, project_id = google.auth.default(scopes=storage.Client.SCOPE)
+            _client_cache[cache_key] = storage.Client(
+                credentials=credentials, project=project_id
+            )
     return _client_cache[cache_key]
 
 
