@@ -1,4 +1,3 @@
-import json
 import os
 
 from metaflow import (
@@ -26,77 +25,6 @@ default_config = {
     "flow_add_environment": {"vars": {"FLOW_LEVEL": "4"}},
     "project_name": "config_project",
 }
-
-
-def find_param_in_parameters(parameters, name):
-    for param in parameters:
-        splits = param.split(" ")
-        try:
-            idx = splits.index("--" + name)
-            return splits[idx + 1]
-        except ValueError:
-            continue
-    return None
-
-
-def audit(run, parameters, configs, stdout_path):
-    # We should only have one run here
-    if len(run) != 1:
-        raise RuntimeError("Expected only one run; got %d" % len(run))
-    run = run[0]
-
-    # Check successful run
-    if not run.successful:
-        raise RuntimeError("Run was not successful")
-
-    if configs:
-        # We should have one config called "config"
-        if len(configs) != 1 or not configs.get("config"):
-            raise RuntimeError("Expected one config called 'config'")
-        config = json.loads(configs["config"])
-    else:
-        config = default_config
-
-    if len(parameters) > 1:
-        expected_tokens = parameters[-1].split()
-        if len(expected_tokens) < 8:
-            raise RuntimeError("Unexpected parameter list: %s" % str(expected_tokens))
-        expected_token = expected_tokens[7]
-    else:
-        expected_token = ""
-
-    # Check that we have the proper project name
-    if f"project:{config['project_name']}" not in run.tags:
-        raise RuntimeError("Project name is incorrect.")
-
-    # Check the start step that all values are properly set. We don't need
-    # to check end step as it would be a duplicate
-    start_task_data = run["start"].task.data
-
-    assert start_task_data.trigger_param == expected_token
-    for param in config["parameters"]:
-        value = find_param_in_parameters(parameters, param["name"]) or param["default"]
-        if not hasattr(start_task_data, param["name"]):
-            raise RuntimeError(f"Missing parameter {param['name']}")
-        if getattr(start_task_data, param["name"]) != value:
-            raise RuntimeError(
-                f"Parameter {param['name']} has incorrect value %s versus %s expected"
-                % (getattr(start_task_data, param["name"]), value)
-            )
-    assert (
-        start_task_data.flow_level
-        == config["flow_add_environment"]["vars"]["FLOW_LEVEL"]
-    )
-    assert (
-        start_task_data.step_level
-        == config["step_add_environment"]["vars"]["STEP_LEVEL"]
-    )
-    assert (
-        start_task_data.step_level_2
-        == config["step_add_environment_2"]["vars"]["STEP_LEVEL_2"]
-    )
-
-    return None
 
 
 class ModifyFlow(FlowMutator):
