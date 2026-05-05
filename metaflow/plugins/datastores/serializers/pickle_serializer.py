@@ -42,7 +42,15 @@ class PickleSerializer(ArtifactSerializer):
                 "produces opaque binary bytes that are not safe to pass as "
                 "CLI args or inline IPC payloads."
             )
-        blob = pickle.dumps(obj, protocol=4)
+        try:
+            blob = pickle.dumps(obj, protocol=4)
+        except TypeError as e:
+            # Localised here (not in the dispatcher) so a non-pickle
+            # serializer's ``TypeError`` is not mislabeled as "unpicklable".
+            # The caller re-raises with the artifact name attached.
+            from metaflow.datastore.exceptions import UnpicklableArtifactException
+
+            raise UnpicklableArtifactException() from e
         return (
             [SerializedBlob(blob, is_reference=False)],
             SerializationMetadata(

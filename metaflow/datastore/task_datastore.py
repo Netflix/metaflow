@@ -9,7 +9,7 @@ from typing import List, Optional
 from types import MethodType, FunctionType
 
 from .. import metaflow_config
-from ..exception import MetaflowInternalError
+from ..exception import MetaflowException, MetaflowInternalError
 from ..metadata_provider import DataArtifact, MetaDatum
 from ..parameters import Parameter
 from ..util import Path, is_stringish, to_fileobj
@@ -421,15 +421,24 @@ class TaskDataStore(object):
                     blobs, metadata = serializer.serialize(
                         obj, format=SerializationFormat.STORAGE
                     )
-                except TypeError as e:
-                    # Preserve the historical "couldn't pickle this" wrapper so
-                    # existing consumers still see ``UnpicklableArtifactException``.
+                except UnpicklableArtifactException as e:
+                    # ``PickleSerializer`` raises this from inside
+                    # ``serialize()`` when ``pickle.dumps`` rejects the object;
+                    # it doesn't know the artifact name so we re-raise with
+                    # the name attached for the historical message.
                     raise UnpicklableArtifactException(name) from e
+                except MetaflowException:
+                    # Any framework-level exception (e.g. an extension
+                    # serializer surfacing an IOType validation error) is
+                    # already user-facing — let it propagate unchanged so its
+                    # original headline and message reach the user.
+                    raise
                 except Exception as e:
-                    # Extension serializers can raise anything (``ValueError``,
-                    # ``OSError``, ``RuntimeError``, ...). Without this branch,
-                    # users get an unwrapped traceback whose top frame says
-                    # nothing about which artifact or which serializer failed.
+                    # Everything else (``ValueError``, ``OSError``,
+                    # ``RuntimeError``, ...) gets wrapped so the top frame
+                    # of the traceback names the failing serializer and
+                    # artifact instead of dropping the user into the
+                    # serializer's internals.
                     raise DataException(
                         "Serializer %s failed on artifact '%s': %s: %s"
                         % (serializer.__name__, name, type(e).__name__, e)

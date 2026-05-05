@@ -401,6 +401,109 @@ def test_info_not_populated_when_serializer_returns_multi_blob(task_datastore):
         SerializerStore._ordered_cache = None
 
 
+# ---------------------------------------------------------------------------
+# Exception flow: PickleSerializer owns its own UnpicklableArtifactException;
+# extension MetaflowExceptions pass through; everything else gets wrapped.
+# ---------------------------------------------------------------------------
+
+
+def test_pickle_serializer_raises_unpicklable_with_artifact_name(task_datastore):
+    """PickleSerializer raises ``UnpicklableArtifactException`` from inside
+    ``serialize()`` (no name); ``save_artifacts`` re-raises it with the
+    artifact name attached so users see the original "named X" message."""
+    import threading
+
+    from metaflow.datastore.exceptions import UnpicklableArtifactException
+
+    # ``threading.Lock`` raises ``TypeError`` from ``pickle.dumps``, which is
+    # the path that turns into ``UnpicklableArtifactException``.
+    unpicklable = threading.Lock()
+
+    with pytest.raises(UnpicklableArtifactException, match='named "bad_one"'):
+        task_datastore.save_artifacts(iter([("bad_one", unpicklable)]))
+    assert "bad_one" not in task_datastore._info
+
+
+def test_extension_metaflow_exception_passes_through(task_datastore):
+    """An extension serializer raising a ``MetaflowException`` subclass must
+    propagate as-is — wrapping it in ``DataException`` would obscure the
+    original headline/message that is already user-facing."""
+    from metaflow.exception import MetaflowException
+
+    class _ExtensionError(MetaflowException):
+        headline = "Extension validation failed"
+
+    class _RaisingSerializer(ArtifactSerializer):
+        TYPE = "test_passthrough_ser"
+        PRIORITY = 1
+
+        @classmethod
+        def can_serialize(cls, obj):
+            return True
+
+        @classmethod
+        def can_deserialize(cls, metadata):
+            return False
+
+        @classmethod
+        def serialize(cls, obj, format=SerializationFormat.STORAGE):
+            raise _ExtensionError("schema mismatch on field 'foo'")
+
+        @classmethod
+        def deserialize(cls, data, metadata=None, format=SerializationFormat.STORAGE):
+            raise NotImplementedError
+
+    task_datastore._serializers = [_RaisingSerializer, PickleSerializer]
+    try:
+        with pytest.raises(_ExtensionError, match="schema mismatch on field 'foo'"):
+            task_datastore.save_artifacts(iter([("x", object())]))
+        assert "x" not in task_datastore._info
+    finally:
+        SerializerStore._all_serializers.pop("test_passthrough_ser", None)
+        SerializerStore._ordered_cache = None
+
+
+def test_extension_type_error_is_not_mislabeled_unpicklable(task_datastore):
+    """A non-pickle serializer raising ``TypeError`` must NOT be reported as
+    ``UnpicklableArtifactException`` — that wrapper is pickle-specific now."""
+    from metaflow.datastore.exceptions import (
+        DataException,
+        UnpicklableArtifactException,
+    )
+
+    class _TypeErrorSerializer(ArtifactSerializer):
+        TYPE = "test_typeerror_ser"
+        PRIORITY = 1
+
+        @classmethod
+        def can_serialize(cls, obj):
+            return True
+
+        @classmethod
+        def can_deserialize(cls, metadata):
+            return False
+
+        @classmethod
+        def serialize(cls, obj, format=SerializationFormat.STORAGE):
+            raise TypeError("custom serializer barfed on this type")
+
+        @classmethod
+        def deserialize(cls, data, metadata=None, format=SerializationFormat.STORAGE):
+            raise NotImplementedError
+
+    task_datastore._serializers = [_TypeErrorSerializer, PickleSerializer]
+    try:
+        with pytest.raises(DataException, match="_TypeErrorSerializer") as exc_info:
+            task_datastore.save_artifacts(iter([("x", object())]))
+        # Critically: NOT UnpicklableArtifactException — that name would lie
+        # to users about which serializer rejected the object.
+        assert not isinstance(exc_info.value, UnpicklableArtifactException)
+        assert "x" not in task_datastore._info
+    finally:
+        SerializerStore._all_serializers.pop("test_typeerror_ser", None)
+        SerializerStore._ordered_cache = None
+
+
 def test_can_serialize_exception_falls_through_to_pickle(task_datastore):
     """A buggy custom serializer's can_serialize exception must NOT crash
     save_artifacts. The buggy serializer is skipped; pickle fallback handles
