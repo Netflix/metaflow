@@ -491,20 +491,17 @@ jobs:
           fi
 
       - name: Pre-pull python:3.10 into minikube (k8s + argo)
-        # The default @kubernetes image is python:3.10 (matching the tox
-        # Python version). Without this pre-pull, Argo workflow pods and k8s
-        # step pods would pull the image from Docker Hub on EVERY test run.
-        # If the pull is rate-limited or slow, ALL tests fail with
-        # ErrImagePull / ImagePullBackOff.  minikube image pull stores the
-        # image in the minikube-internal Docker daemon; subsequent tests use
-        # the cached copy.  The minikube image cache step below persists it
-        # across runs so subsequent CI jobs skip this pull entirely.
-        # continue-on-error: the pull may be slow on a cold runner but the
-        # image will be pulled on-demand during the first test (still cached
-        # for subsequent tests).  A rate-limit should not kill the whole job.
+        # Pull into the CI runner's Docker daemon first (uses runner auth,
+        # higher rate limits than anonymous minikube pulls), then load into
+        # minikube's internal registry with no Docker Hub call at all.
+        # This avoids the race where 'minikube image pull' is rate-limited
+        # and continue-on-error silently leaves the image absent, causing
+        # every Argo/k8s pod to hit Docker Hub again and fail with
+        # ErrImagePull / ImagePullBackOff.
         if: matrix.backend == 'k8s' || matrix.backend == 'argo'
-        continue-on-error: true
-        run: minikube image pull python:3.10
+        run: |
+          docker pull python:3.10
+          minikube image load python:3.10
 
       - name: Save minikube images to cache
         if: steps.image-cache.outputs.cache-hit != 'true'
