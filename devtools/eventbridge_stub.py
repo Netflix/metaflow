@@ -67,6 +67,8 @@ class EventBridgeHandler(BaseHTTPRequestHandler):
         pass
 
 
+# hello
+
 if __name__ == "__main__":
     server = HTTPServer(("", PORT), EventBridgeHandler)
     print(f"EventBridge stub listening on port {PORT}", flush=True)
