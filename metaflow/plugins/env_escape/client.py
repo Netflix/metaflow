@@ -86,8 +86,8 @@ class Client(object):
         # Append any saved MF_ORIG_PYTHONPATH so escape-out also retains the
         # host's original additions.
         orig_pythonpath = env.pop("MF_ORIG_PYTHONPATH", "")
-        env["PYTHONPATH"] = (
-            pythonpath + (os.pathsep + orig_pythonpath if orig_pythonpath else "")
+        env["PYTHONPATH"] = pythonpath + (
+            os.pathsep + orig_pythonpath if orig_pythonpath else ""
         )
         # Restore PYTHONHOME if Site 1 saved one; otherwise ensure it's unset.
         if "MF_ORIG_PYTHONHOME" in env:
