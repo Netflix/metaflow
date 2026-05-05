@@ -15,7 +15,7 @@ export const COLORS: Record<string, string> = {
   blue: "rgb(12, 102, 222)",
   dkGrey: "#6a6a6a",
   dkPrimary: "#ef863b",
-  dkSecondary: "#13172d0",
+  dkSecondary: "#13172d",
   dkTertiary: "#0f426e",
   grey: "#e9e9e9",
   highlight: "#f8d9d8",
