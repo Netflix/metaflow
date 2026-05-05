@@ -1,6 +1,5 @@
 from collections import defaultdict
 import json
-import pickle
 import sys
 import time
 
@@ -15,9 +14,45 @@ from ..metadata_provider import DataArtifact, MetaDatum
 from ..parameters import Parameter
 from ..util import Path, is_stringish, to_fileobj
 
+from .artifacts.serializer import (
+    SerializationFormat,
+    SerializationMetadata,
+    SerializerStore,
+)
 from .exceptions import DataException, UnpicklableArtifactException
 
 _included_file_type = "<class 'metaflow.includefile.IncludedFile'>"
+
+
+def _record_dispatch_error(serializer_cls, exc):
+    """Increment dispatch_error_count + update last_error for the given serializer's
+    diagnostic record, and emit a warning so a buggy ``can_serialize`` /
+    ``can_deserialize`` override is visible to the user. No-op if the class
+    has no record (e.g., it was not registered via bootstrap)."""
+    import warnings
+
+    cls_name = getattr(serializer_cls, "__name__", repr(serializer_cls))
+    warnings.warn(
+        "Serializer %s raised %s during dispatch and was skipped: %s"
+        % (cls_name, type(exc).__name__, exc),
+        RuntimeWarning,
+        stacklevel=2,
+    )
+    try:
+        from .artifacts.serializer import SerializerStore
+
+        target_type = getattr(serializer_cls, "TYPE", None)
+        if target_type is None:
+            return
+        for rec in SerializerStore._records.values():
+            if rec.type == target_type:
+                rec.dispatch_error_count += 1
+                rec.last_error = "dispatch: %s: %s" % (type(exc).__name__, exc)
+                return
+    except Exception:
+        # Never let diagnostic bookkeeping crash dispatch — the warning above
+        # already surfaced the underlying error to the user.
+        pass
 
 
 def only_if_not_done(f):
@@ -117,12 +152,9 @@ class TaskDataStore(object):
         self._parent = flow_datastore
         self._persist = persist
 
-        # The GZIP encodings are for backward compatibility
-        self._encodings = {"pickle-v2", "gzip+pickle-v2"}
-        ver = sys.version_info[0] * 10 + sys.version_info[1]
-        if ver >= 36:
-            self._encodings.add("pickle-v4")
-            self._encodings.add("gzip+pickle-v4")
+        # Optional override consumed by the ``_serializers`` property (used by
+        # tests to swap in a fixed dispatch list).
+        self._serializers_override = None
 
         self._is_done_set = False
 
@@ -199,6 +231,24 @@ class TaskDataStore(object):
 
         else:
             raise DataException("Unknown datastore mode: '%s'" % self._mode)
+
+    @property
+    def _serializers(self):
+        # Dispatches through ``SerializerStore.get_ordered_serializers()`` on
+        # each access. The lookup is cheap (cached inside the store) and picks
+        # up serializers registered via the lazy import hook after this
+        # instance was constructed — otherwise long-lived datastores
+        # (notebooks, client sessions) would silently miss any extension
+        # registered after init. Tests can short-circuit this by assigning to
+        # ``_serializers`` directly (see the setter, which stores the override
+        # in ``_serializers_override``).
+        if self._serializers_override is not None:
+            return self._serializers_override
+        return SerializerStore.get_ordered_serializers()
+
+    @_serializers.setter
+    def _serializers(self, value):
+        self._serializers_override = value
 
     @property
     def pathspec(self):
@@ -347,38 +397,92 @@ class TaskDataStore(object):
         """
         artifact_names = []
 
-        def pickle_iter():
+        def serialize_iter():
             for name, obj in artifacts_iter:
-                encode_type = "gzip+pickle-v4"
-                if encode_type in self._encodings:
+                # Find the first serializer that can handle this object
+                serializer = None
+                for s in self._serializers:
                     try:
-                        blob = pickle.dumps(obj, protocol=4)
-                    except TypeError as e:
-                        raise UnpicklableArtifactException(name) from e
-                else:
-                    try:
-                        blob = pickle.dumps(obj, protocol=2)
-                        encode_type = "gzip+pickle-v2"
-                    except (SystemError, OverflowError) as e:
-                        raise DataException(
-                            "Artifact *%s* is very large (over 2GB). "
-                            "You need to use Python 3.6 or newer if you want to "
-                            "serialize large objects." % name
-                        ) from e
-                    except TypeError as e:
-                        raise UnpicklableArtifactException(name) from e
+                        if s.can_serialize(obj):
+                            serializer = s
+                            break
+                    except Exception as e:
+                        _record_dispatch_error(s, e)
+                        continue
+                if serializer is None:
+                    raise DataException(
+                        "No serializer claimed artifact '%s' (type: %s). "
+                        "The PickleSerializer fallback normally handles all "
+                        "objects — check that it is installed and enabled."
+                        % (name, type(obj).__name__)
+                    )
+
+                try:
+                    blobs, metadata = serializer.serialize(
+                        obj, format=SerializationFormat.STORAGE
+                    )
+                except TypeError as e:
+                    # Preserve the historical "couldn't pickle this" wrapper so
+                    # existing consumers still see ``UnpicklableArtifactException``.
+                    raise UnpicklableArtifactException(name) from e
+                except Exception as e:
+                    # Extension serializers can raise anything (``ValueError``,
+                    # ``OSError``, ``RuntimeError``, ...). Without this branch,
+                    # users get an unwrapped traceback whose top frame says
+                    # nothing about which artifact or which serializer failed.
+                    raise DataException(
+                        "Serializer %s failed on artifact '%s': %s: %s"
+                        % (serializer.__name__, name, type(e).__name__, e)
+                    ) from e
+
+                # Validate the blob shape BEFORE recording anything in
+                # ``_info`` — a failure here must not leave ``_info[name]``
+                # populated for an artifact we refused to persist.
+                if not blobs:
+                    raise DataException(
+                        "Serializer %s returned no blobs for artifact '%s'"
+                        % (serializer.__name__, name)
+                    )
+                if len(blobs) > 1:
+                    # The datastore currently stores a single blob per
+                    # artifact. Silently dropping blobs[1:] would corrupt
+                    # multi-blob IOType extensions (e.g. chunked tensors) on
+                    # load. Fail loudly until multi-blob support lands.
+                    raise DataException(
+                        "Serializer %s returned %d blobs for artifact '%s'; "
+                        "only single-blob serializers are supported at this "
+                        "time. If you have a need for multi blob serializers, "
+                        "please reach out to the Metaflow team."
+                        % (serializer.__name__, len(blobs), name)
+                    )
+
+                # Auto-inject ``source`` into serializer_info so the
+                # "no deserializer claimed artifact" load error can point at
+                # the extension to install. Authors who set their own
+                # ``source`` in the returned ``serializer_info`` are not
+                # overridden. Copy the dict so we don't mutate the
+                # serializer's returned value across calls.
+                merged_info = (
+                    dict(metadata.serializer_info) if metadata.serializer_info else {}
+                )
+                if "source" not in merged_info:
+                    auto_source = SerializerStore.get_source_for(serializer)
+                    if auto_source:
+                        merged_info["source"] = auto_source
 
                 self._info[name] = {
-                    "size": len(blob),
-                    "type": str(type(obj)),
-                    "encoding": encode_type,
+                    "size": metadata.size,
+                    "type": metadata.obj_type,
+                    "encoding": metadata.encoding,
                 }
+                if merged_info:
+                    self._info[name]["serializer_info"] = merged_info
 
                 artifact_names.append(name)
-                yield blob
+                yield blobs[0].value
 
         # Use the content-addressed store to store all artifacts
-        save_result = self._ca_store.save_blobs(pickle_iter(), len_hint=len_hint)
+        save_result = self._ca_store.save_blobs(serialize_iter(), len_hint=len_hint)
         for name, result in zip(artifact_names, save_result):
             self._objects[name] = result.key
 
@@ -414,32 +518,67 @@ class TaskDataStore(object):
                 "load artifacts" % self._path
             )
         to_load = defaultdict(list)
+        deserializers = {}  # name -> serializer class
         for name in names:
-            info = self._info.get(name)
-            # We use gzip+pickle-v2 as this is the oldest/most compatible.
-            # This datastore will always include the proper encoding version so
-            # this is just to be able to read very old artifacts
-            if info:
-                encode_type = info.get("encoding", "gzip+pickle-v2")
-            else:
-                encode_type = "gzip+pickle-v2"
-            if encode_type not in self._encodings:
+            info = self._info.get(name, {})
+            metadata = SerializationMetadata(
+                obj_type=info.get("type", "object"),
+                size=info.get("size", 0),
+                # Default to gzip+pickle-v2 for very old artifacts without encoding
+                encoding=info.get("encoding", "gzip+pickle-v2"),
+                serializer_info=info.get("serializer_info", {}),
+            )
+
+            # Find deserializer via metadata
+            deserializer = None
+            for s in self._serializers:
+                try:
+                    if s.can_deserialize(metadata):
+                        deserializer = s
+                        break
+                except Exception as e:
+                    _record_dispatch_error(s, e)
+                    continue
+            if deserializer is None:
+                source_hint = ""
+                serializer_source = metadata.serializer_info.get("source")
+                if serializer_source:
+                    source_hint = (
+                        " The artifact was written by '%s' — the "
+                        "corresponding extension may not be installed."
+                        % serializer_source
+                    )
                 raise DataException(
-                    "Python 3.6 or later is required to load artifact '%s'" % name
+                    "No deserializer claimed artifact '%s' (encoding: %s, "
+                    "serializer_info: %s).%s"
+                    % (name, metadata.encoding, metadata.serializer_info, source_hint)
                 )
-            else:
+            deserializers[name] = (deserializer, metadata)
+            try:
                 to_load[self._objects[name]].append(name)
-        # At this point, we load what we don't have from the CAS
-        # We assume that if we have one "old" style artifact, all of them are
-        # like that which is an easy assumption to make since artifacts are all
-        # stored by the same implementation of the datastore for a given task.
+            except KeyError:
+                # ``_info`` had a record for this artifact but ``_objects``
+                # did not — should not happen in normal write/read cycles,
+                # but if metadata was hand-edited or written by a partial
+                # save, surface the corruption clearly instead of bubbling a
+                # bare KeyError.
+                raise DataException(
+                    "Artifact '%s' has metadata but no stored blob "
+                    "(missing from _objects). The datastore is in an "
+                    "inconsistent state." % name
+                )
+
+        # Load blobs from CAS and deserialize
         for key, blob in self._ca_store.load_blobs(to_load.keys()):
-            names = to_load[key]
-            for name in names:
-                # We unpickle everytime to have fully distinct objects (the user
+            loaded_names = to_load[key]
+            for name in loaded_names:
+                deserializer, metadata = deserializers[name]
+                # Deserialize each time to have fully distinct objects (the user
                 # would not expect two artifacts with different names to actually
                 # be aliases of one another)
-                yield name, pickle.loads(blob)
+                yield name, deserializer.deserialize(
+                    [blob], metadata, format=SerializationFormat.STORAGE
+                )
 
     @require_mode("r")
     def get_artifact_sizes(self, names):
