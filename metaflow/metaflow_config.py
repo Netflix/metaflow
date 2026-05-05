@@ -476,6 +476,13 @@ NAMESPACED_EVENTS_PREFIX = from_conf("NAMESPACED_EVENTS_PREFIX", "mfns")
 
 ARGO_WORKFLOWS_UI_URL = from_conf("ARGO_WORKFLOWS_UI_URL")
 
+# How long (in seconds) to keep completed Argo Workflows before auto-deletion.
+# Default: 7 days (same as Kubernetes jobs). Maps to Argo's ttlStrategy.
+# Set to 0 to disable TTL (workflows persist indefinitely).
+ARGO_WORKFLOWS_TTL_SECONDS_AFTER_COMPLETION = from_conf(
+    "ARGO_WORKFLOWS_TTL_SECONDS_AFTER_COMPLETION", 7 * 24 * 60 * 60
+)
+
 ##
 # Airflow Configuration
 ##

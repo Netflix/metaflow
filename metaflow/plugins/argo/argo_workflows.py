@@ -25,6 +25,7 @@ from metaflow.metaflow_config import (
     ARGO_WORKFLOWS_CAPTURE_ERROR_SCRIPT,
     ARGO_WORKFLOWS_ENV_VARS_TO_SKIP,
     ARGO_WORKFLOWS_KUBERNETES_SECRETS,
+    ARGO_WORKFLOWS_TTL_SECONDS_AFTER_COMPLETION,
     ARGO_WORKFLOWS_UI_URL,
     AWS_SECRETS_MANAGER_DEFAULT_REGION,
     AZURE_KEY_VAULT_PREFIX,
@@ -902,6 +903,8 @@ class ArgoWorkflows(object):
                 WorkflowSpec()
                 # Set overall workflow timeout.
                 .active_deadline_seconds(self.workflow_timeout)
+                # Set TTL for completed workflows (default: 7 days).
+                .ttl_strategy(ARGO_WORKFLOWS_TTL_SECONDS_AFTER_COMPLETION)
                 # TODO: Allow Argo to optionally archive all workflow execution logs
                 #       It's disabled for now since it requires all Argo installations
                 #       to enable an artifactory repository. If log archival is
@@ -4301,6 +4304,14 @@ class WorkflowSpec(object):
             self.payload["hooks"] = {}
         for k, v in hooks.items():
             self.payload["hooks"].update({k: v.to_json()})
+        return self
+
+    def ttl_strategy(self, seconds_after_completion):
+        # https://argoproj.github.io/argo-workflows/fields/#ttlstrategy
+        if seconds_after_completion is not None and int(seconds_after_completion) > 0:
+            self.payload["ttlStrategy"] = {
+                "secondsAfterCompletion": int(seconds_after_completion)
+            }
         return self
 
     def to_json(self):
