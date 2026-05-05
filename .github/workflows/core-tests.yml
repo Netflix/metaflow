@@ -17,6 +17,7 @@ on:
   pull_request:
     branches:
       - master
+  workflow_dispatch:
 
 permissions: read-all
 
@@ -315,13 +316,35 @@ jobs:
             sleep 10
           done
 
-      - name: Pre-pull Helm repos
+      - name: Pre-pull Helm repos and charts (with retry)
         run: |
           retry() { local cmd="$*" attempt=1; until $cmd; do attempt=$((attempt+1)); [ $attempt -gt 3 ] && return 1; sleep $((attempt*5)); done; }
           retry helm repo add bitnami  https://charts.bitnami.com/bitnami 2>/dev/null || true
+          # bitnami retired charts.bitnami.com/bitnami — old versions like 12.5.6
+          # are only available via the archive index on GitHub.
+          retry helm repo add bitnami-archive \
+            https://raw.githubusercontent.com/bitnami/charts/archive-full-index/bitnami \
+            2>/dev/null || true
           retry helm repo add argo     https://argoproj.github.io/argo-helm 2>/dev/null || true
           retry helm repo add metaflow-tools https://outerbounds.github.io/metaflow-tools 2>/dev/null || true
           retry helm repo update || true
+
+          HELM_CACHE="$HOME/.local/share/tilt-dev/.helm"
+
+          # Argo Workflows 0.45.2 (k8s + argo backends)
+          mkdir -p "$HELM_CACHE/argo/0.45.2"
+          [ -d "$HELM_CACHE/argo/0.45.2/argo-workflows" ] || \
+            retry helm pull argo/argo-workflows --version 0.45.2 --untar \
+              --destination "$HELM_CACHE/argo/0.45.2" || true
+
+          # PostgreSQL 12.5.6 — bitnami retired the chart CDN so pull from their
+          # GitHub archive index which still hosts the full back-catalogue.
+          mkdir -p "$HELM_CACHE/postgresql/12.5.6"
+          [ -d "$HELM_CACHE/postgresql/12.5.6/postgresql" ] || \
+            retry helm pull bitnami-archive/postgresql --version 12.5.6 --untar \
+              --destination "$HELM_CACHE/postgresql/12.5.6" || \
+            retry helm pull bitnami/postgresql --version 12.5.6 --untar \
+              --destination "$HELM_CACHE/postgresql/12.5.6" || true
 
       - name: Start devstack
         working-directory: devtools
