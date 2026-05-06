@@ -278,7 +278,7 @@ def resume(
         # be non-integers to avoid any clashes. This condition ensures this.
         try:
             int(run_id)
-        except:
+        except (TypeError, ValueError):
             pass
         else:
             raise CommandException("run-id %s cannot be an integer" % run_id)
