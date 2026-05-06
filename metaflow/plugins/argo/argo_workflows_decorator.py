@@ -65,7 +65,7 @@ class ArgoWorkflowsInternalDecorator(StepDecorator):
             # size of the metadata field yet! However we don't really need this
             # metadata outside of the start step so we can save a few bytes in the
             # db.
-            if step_name == "start":
+            if step_name == graph.start_step:
                 meta["execution-triggers"] = json.dumps(triggers)
 
         meta["argo-workflow-template"] = os.environ["ARGO_WORKFLOW_TEMPLATE"]
@@ -152,33 +152,49 @@ class ArgoWorkflowsInternalDecorator(StepDecorator):
             # place explicit dependencies on namespaced events. Also, argo events
             # sensors don't allow for filtering against absent fields - which limits
             # our ability to subset non-project namespaced events.
+            # For the end step, we always publish with the well-known ".end"
+            # suffix (in addition to its actual name) so @trigger_on_finish
+            # subscribers — which don't know the publisher's end step name at
+            # deploy time — continue to work with custom-named end steps.
             # TODO: Check length limits for fields in Argo Events
-            event = ArgoEvent(
-                name="metaflow.%s.%s"
+            event_names = [
+                "metaflow.%s.%s"
                 % (current.get("project_flow_name", flow.name), step_name)
-            )
-            # There should only be one event generated even when the task is retried.
-            # Take care to only add to the list and not modify existing values.
-            event.add_to_payload("id", current.pathspec)
-            event.add_to_payload("pathspec", current.pathspec)
-            event.add_to_payload("flow_name", flow.name)
-            event.add_to_payload("run_id", self.run_id)
-            event.add_to_payload("step_name", step_name)
-            event.add_to_payload("task_id", self.task_id)
-            # Add @project decorator related fields. These are used to subset
-            # @trigger_on_finish related filters.
-            for key in (
-                "project_name",
-                "branch_name",
-                "is_user_branch",
-                "is_production",
-                "project_flow_name",
-            ):
-                if current.get(key):
-                    event.add_to_payload(key, current.get(key))
-            # Add more fields here...
-            event.add_to_payload("auto-generated-by-metaflow", True)
-            # Keep in mind that any errors raised here will fail the run but the task
-            # will still be marked as success. That's why we explicitly swallow any
-            # errors and instead print them to std.err.
-            event.safe_publish(ignore_errors=True)
+            ]
+            if step_name == graph.end_step and step_name != "end":
+                event_names.append(
+                    "metaflow.%s.end" % current.get("project_flow_name", flow.name)
+                )
+
+            # Note on idempotency: we publish one ArgoEvent per name in
+            # event_names (1 for most steps, 2 for custom-named end steps
+            # due to the ".end" alias). Retries of the same task will
+            # re-publish the same event(s); the `id` payload (current.pathspec)
+            # is stable across retries so Argo Events-side filtering can
+            # dedupe if needed. When adding fields below, only add to the
+            # payload — don't mutate existing values.
+            for event_name in event_names:
+                event = ArgoEvent(name=event_name)
+                event.add_to_payload("id", current.pathspec)
+                event.add_to_payload("pathspec", current.pathspec)
+                event.add_to_payload("flow_name", flow.name)
+                event.add_to_payload("run_id", self.run_id)
+                event.add_to_payload("step_name", step_name)
+                event.add_to_payload("task_id", self.task_id)
+                # Add @project decorator related fields. These are used to subset
+                # @trigger_on_finish related filters.
+                for key in (
+                    "project_name",
+                    "branch_name",
+                    "is_user_branch",
+                    "is_production",
+                    "project_flow_name",
+                ):
+                    if current.get(key):
+                        event.add_to_payload(key, current.get(key))
+                # Add more fields here...
+                event.add_to_payload("auto-generated-by-metaflow", True)
+                # Keep in mind that any errors raised here will fail the run but the task
+                # will still be marked as success. That's why we explicitly swallow any
+                # errors and instead print them to std.err.
+                event.safe_publish(ignore_errors=True)

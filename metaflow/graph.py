@@ -46,20 +46,79 @@ def deindent_docstring(doc):
         return ""
 
 
+# ---------------------------------------------------------------------------
+# Note on "sourceless" DAGNodes (used by FunctionSpec)
+# ---------------------------------------------------------------------------
+# FunctionSpec is an upcoming FlowSpec-like construct, currently shipped as an
+# out-of-tree extension, that represents a single-computation spec (one
+# `@step(start=True, end=True)` method synthesized by a metaclass). Because
+# the synthetic step is built dynamically (typically via compile()+exec()),
+# `inspect.getsourcelines()` on the resulting function fails and we cannot
+# feed it to ast.parse().
+#
+# To support FunctionSpec without pulling it into core, DAGNode accepts
+# optional `name` and `num_args` kwargs and tolerates `func_ast=None`:
+# callers that have an AST (the common @step path) use the AST branch;
+# callers that don't (FunctionSpec-style synthesized single steps) supply
+# the attributes directly. This is safe for single-step flows because they
+# have no `self.next()` transitions to analyze.
+#
+# `FunctionSpecMeta` sets `_function_spec_step_name` on the generated class
+# so step decorators applied at the class level (e.g. `@retry`) can find the
+# synthetic step. See also `_create_sourceless_single_step_node` below and
+# `_base_step_decorator` in decorators.py.
+#
+# These hooks may become unnecessary if FunctionSpec is folded into core;
+# they are intentionally minimal and narrowly scoped for now.
+# ---------------------------------------------------------------------------
+
+
 class DAGNode(object):
     def __init__(
-        self, func_ast, decos, wrappers, config_decorators, doc, source_file, lineno
+        self,
+        func_ast,
+        decos,
+        wrappers,
+        config_decorators,
+        doc,
+        source_file,
+        lineno,
+        is_start_step=False,
+        is_end_step=False,
+        node_info=None,
+        name=None,
+        num_args=None,
     ):
-        self.name = func_ast.name
+        # `name` and `num_args` are optional fallbacks used when `func_ast`
+        # is None (e.g. for FunctionSpec-synthesized steps — see the module
+        # comment above). The normal @step path always passes a `func_ast`
+        # and both values are derived from it.
+        if func_ast is None and name is None:
+            raise ValueError("name is required when func_ast is None")
+
+        # Prefer explicit `name` (the attribute name under which the step was
+        # discovered) over the AST-derived `def` name. This matters when a
+        # metaclass renames a function via __name__ — the attribute name is
+        # what getattr(cls, node.name) later looks up in FlowSpec._init_graph.
+        self.name = name if name is not None else func_ast.name
         self.source_file = source_file
         # lineno is the start line of decorators in source_file
         # func_ast.lineno is lines from decorators start to def of function
-        self.func_lineno = lineno + func_ast.lineno - 1
+        if func_ast is not None:
+            self.func_lineno = lineno + func_ast.lineno - 1
+        else:
+            self.func_lineno = lineno
         self.decorators = decos
         self.wrappers = wrappers
         self.config_decorators = config_decorators
         self.doc = deindent_docstring(doc)
         self.parallel_step = any(getattr(deco, "IS_PARALLEL", False) for deco in decos)
+        # Explicit start/end annotations from @step(start=True) / @step(end=True)
+        self.is_start_step = is_start_step
+        self.is_end_step = is_end_step
+        # Generic metadata dict for extensions to attach extra info to this node.
+        # Serialized to _graph_info via to_pod; live references accessible via flow._graph.
+        self.node_info = node_info or {}
 
         # these attributes are populated by _parse
         self.tail_next_lineno = 0
@@ -67,13 +126,17 @@ class DAGNode(object):
         self.out_funcs = []
         self.has_tail_next = False
         self.invalid_tail_next = False
-        self.num_args = 0
+        # num_args: derived from the AST by _parse() in the normal @step path;
+        # passed in explicitly by callers that synthesize a step without an AST
+        # (see module comment above).
+        self.num_args = 0 if num_args is None else num_args
         self.switch_cases = {}
         self.condition = None
         self.foreach_param = None
         self.num_parallel = 0
         self.parallel_foreach = False
-        self._parse(func_ast, lineno)
+        if func_ast is not None:
+            self._parse(func_ast, lineno)
 
         # these attributes are populated by _traverse_graph
         self.in_funcs = set()
@@ -140,10 +203,9 @@ class DAGNode(object):
         self.num_args = len(func_ast.args.args)
         tail = func_ast.body[-1]
 
-        # end doesn't need a transition
-        if self.name == "end":
-            # TYPE: end
-            self.type = "end"
+        # Note: type assignment for start/end steps is handled by
+        # FlowGraph._identify_start_end() based on graph structure,
+        # not by name.
 
         # ensure that the tail an expression
         if not isinstance(tail, ast.Expr):
@@ -212,10 +274,10 @@ class DAGNode(object):
                     self.type = "split"
                     self.invalid_tail_next = False
                 elif len(self.out_funcs) == 1:
-                    # TYPE: linear
-                    if self.name == "start":
-                        self.type = "start"
-                    elif self.num_args > 1:
+                    # TYPE: linear (or join)
+                    # Note: "start" type is assigned later by
+                    # FlowGraph._identify_start_end() based on structure.
+                    if self.num_args > 1:
                         self.type = "join"
                     else:
                         self.type = "linear"
@@ -259,29 +321,138 @@ class FlowGraph(object):
         self.doc = deindent_docstring(flow.__doc__)
         # nodes sorted in topological order.
         self.sorted_nodes = []
+        self._identify_start_end()
         self._traverse_graph()
         self._postprocess()
+
+    def _identify_start_end(self):
+        """
+        Determine the start and end steps.
+
+        Uses explicit @step(start=True) / @step(end=True) annotations if present.
+        Falls back to steps named "start" / "end" for backward compatibility.
+        Sets self.start_step and self.end_step to step name strings, or None
+        if the graph is malformed (validated later by lint).
+        """
+
+        def _resolve(attr, fallback_name):
+            """Find the unique annotated step, or fall back to a named step."""
+            annotated = [
+                name for name, node in self.nodes.items() if getattr(node, attr)
+            ]
+            if len(annotated) == 1:
+                return annotated[0]
+            if len(annotated) == 0:
+                return fallback_name if fallback_name in self.nodes else None
+            return None  # Multiple annotated, lint will catch.
+
+        self.start_step = _resolve("is_start_step", "start")
+        self.end_step = _resolve("is_end_step", "end")
+
+        # Single-step flow ergonomics: if the flow has exactly one step, that
+        # step is implicitly both the entry and terminal node. Lets users write
+        # a bare @step on the single-step case instead of requiring
+        # @step(start=True, end=True). Skipped when more than one step exists,
+        # so the explicit-annotation contract still holds for real DAGs.
+        if len(self.nodes) == 1:
+            (only_step,) = self.nodes
+            self.start_step = self.end_step = only_step
+
+        # Assign node types for graph traversal.
+        # Only upgrade "linear" -> "start" for the entry point; do NOT override
+        # "split", "foreach", etc. since those types are needed for
+        # split/join balance checking.
+        if self.start_step and self.start_step == self.end_step:
+            # Single-step flow: terminal node that is also the entry point.
+            self.nodes[self.start_step].type = "end"
+        else:
+            if self.start_step:
+                node = self.nodes[self.start_step]
+                if node.type in (None, "linear"):
+                    node.type = "start"
+            if self.end_step:
+                self.nodes[self.end_step].type = "end"
+
+    def _create_sourceless_single_step_node(
+        self, name, func, is_start_step, is_end_step
+    ):
+        """Create a DAGNode for a dynamically-generated single-step method.
+
+        When ``inspect.getsourcelines()`` fails (e.g. for steps synthesized
+        via ``compile()`` + ``exec()`` by extension metaclasses like
+        ``FunctionSpecMeta``), this method builds a DAGNode without AST
+        parsing.  This is safe because single-step flows (``start=True,
+        end=True``) have no ``self.next()`` transitions to analyze.
+
+        See the module-level comment on DAGNode for the broader FunctionSpec
+        context. This path may be removed once FunctionSpec is folded into
+        core; it's intentionally narrow to keep the core FlowSpec path
+        unaffected.
+        """
+        code = getattr(func, "__code__", None)
+        source_file = inspect.getsourcefile(func) or inspect.getfile(func)
+        lineno = getattr(code, "co_firstlineno", 0)
+
+        try:
+            num_args = len(inspect.signature(func).parameters)
+        except (TypeError, ValueError):
+            num_args = getattr(code, "co_argcount", 0)
+
+        return DAGNode(
+            None,
+            func.decorators,
+            func.wrappers,
+            func.config_decorators,
+            func.__doc__,
+            source_file,
+            lineno,
+            is_start_step=is_start_step,
+            is_end_step=is_end_step,
+            node_info=getattr(func, "node_info", None),
+            name=name,
+            num_args=num_args,
+        )
 
     def _create_nodes(self, flow):
         nodes = {}
         for element in dir(flow):
             func = getattr(flow, element)
             if callable(func) and hasattr(func, "is_step"):
-                source_file = inspect.getsourcefile(func)
-                source_lines, lineno = inspect.getsourcelines(func)
-                # This also works for code (strips out leading whitspace based on
-                # first line)
-                source_code = deindent_docstring("".join(source_lines))
-                function_ast = ast.parse(source_code).body[0]
-                node = DAGNode(
-                    function_ast,
-                    func.decorators,
-                    func.wrappers,
-                    func.config_decorators,
-                    func.__doc__,
-                    source_file,
-                    lineno,
-                )
+                is_start = getattr(func, "is_start_step", False)
+                is_end = getattr(func, "is_end_step", False)
+
+                try:
+                    source_file = inspect.getsourcefile(func) or inspect.getfile(func)
+                    source_lines, lineno = inspect.getsourcelines(func)
+                except OSError:
+                    # No readable source — only tolerated for synthesized
+                    # single-step methods (see DAGNode module comment for
+                    # the FunctionSpec context). Any other @step without a
+                    # source file is genuinely broken, so re-raise.
+                    if is_start and is_end:
+                        node = self._create_sourceless_single_step_node(
+                            element, func, is_start, is_end
+                        )
+                    else:
+                        raise
+                else:
+                    # This also works for code (strips out leading whitespace based on
+                    # first line)
+                    source_code = deindent_docstring("".join(source_lines))
+                    function_ast = ast.parse(source_code).body[0]
+                    node = DAGNode(
+                        function_ast,
+                        func.decorators,
+                        func.wrappers,
+                        func.config_decorators,
+                        func.__doc__,
+                        source_file,
+                        lineno,
+                        is_start_step=is_start,
+                        is_end_step=is_end,
+                        node_info=getattr(func, "node_info", None),
+                        name=element,
+                    )
                 nodes[element] = node
         return nodes
 
@@ -338,8 +509,8 @@ class FlowGraph(object):
                             split_branches + ([n] if add_split_branch else []),
                         )
 
-        if "start" in self:
-            traverse(self["start"], [], [], [])
+        if self.start_step and self.start_step in self:
+            traverse(self[self.start_step], [], [], [])
 
         # fix the order of in_funcs
         for node in self.nodes.values():
@@ -445,6 +616,7 @@ class FlowGraph(object):
                     for deco in chain(node.wrappers, node.config_decorators)
                 ],
                 "next": node.out_funcs,
+                "node_info": to_pod(node.node_info),
             }
             if d["type"] == "split-foreach":
                 d["foreach_artifact"] = node.foreach_param
@@ -493,9 +665,27 @@ class FlowGraph(object):
                         break
             return resulting_list
 
-        graph_structure = populate_block("start", "end")
+        if self.start_step is None or self.end_step is None:
+            missing = []
+            if self.start_step is None:
+                missing.append("start")
+            if self.end_step is None:
+                missing.append("end")
+            raise ValueError(
+                "Cannot compute graph structure: no %s step identified. "
+                "Use @step(start=True)/@step(end=True) or name your steps "
+                "'start'/'end'." % " or ".join(missing)
+            )
 
-        steps_info["end"] = node_to_dict("end", self.nodes["end"])
-        graph_structure.append("end")
+        if self.start_step == self.end_step:
+            # Single-step flow
+            graph_structure = []
+        else:
+            graph_structure = populate_block(self.start_step, self.end_step)
+
+        steps_info[self.end_step] = node_to_dict(
+            self.end_step, self.nodes[self.end_step]
+        )
+        graph_structure.append(self.end_step)
 
         return steps_info, graph_structure

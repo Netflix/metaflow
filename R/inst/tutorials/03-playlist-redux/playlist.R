@@ -15,7 +15,7 @@ start <- function(self){
     self$genre_stats <- run$artifact("stats")
 }
 
-# Pick some movies from the genre with highest median gross box office 
+# Pick some movies from the genre with highest median gross box office
 # which we calculated in MovieStatsFlow
 pick_movie <- function(self){
     sort_order <- order(self$genre_stats$median, decreasing=TRUE)
@@ -37,7 +37,7 @@ end <- function(self){
     for (i in 1:nrow(self$playlist)){
         message(sprintf("Pick %d: %s", i, self$playlist$movie_title[i]))
 
-        if (i >= self$top_k) break; 
+        if (i >= self$top_k) break;
     }
 }
 
@@ -46,13 +46,12 @@ metaflow("PlayListReduxFlow") %>%
               help = "The number of movies to recommend in the playlist.",
               default = 5,
               type = "int") %>%
-    step(step = "start", 
-         r_function = start, 
+    step(step = "start",
+         r_function = start,
          next_step = "pick_movie") %>%
     step(step = "pick_movie",
          r_function = pick_movie,
          next_step = "end") %>%
-    step(step = "end", 
+    step(step = "end",
          r_function = end) %>%
     run()
-         

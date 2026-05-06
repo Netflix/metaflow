@@ -1,5 +1,4 @@
 import os
-import platform
 import re
 import sys
 import tempfile
@@ -107,7 +106,7 @@ class CondaStepDecorator(StepDecorator):
             self.attributes["disabled"] = False
         # Set Python interpreter to user's Python if necessary.
         if not self.attributes["python"]:
-            self.attributes["python"] = platform.python_version()  # CPython!
+            self.attributes["python"] = "%d.%d.%d" % sys.version_info[:3]
 
         # @conda uses a conda environment to create a virtual environment.
         # The conda environment can be created through micromamba.

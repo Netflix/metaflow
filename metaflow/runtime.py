@@ -238,7 +238,7 @@ class SpinRuntime(object):
         if self._input_paths:
             return self._input_paths
 
-        if self._step_func.name == "start":
+        if self._step_func.name == self._flow._graph.start_step:
             from metaflow import Step
 
             flow_name, run_id, _, _ = self._spin_pathspec.split("/")
@@ -514,6 +514,37 @@ class NativeRuntime(object):
         if not self._params_task.is_cloned:
             self._params_task.persist(self._flow)
 
+            # Register start/end step metadata on _parameters task so the
+            # client can determine graph endpoints without loading _graph_info.
+            # Only write for fresh runs -- cloned tasks carry the original's metadata.
+            try:
+                self._metadata.register_metadata(
+                    self._run_id,
+                    "_parameters",
+                    self._params_task.task_id,
+                    [
+                        MetaDatum(
+                            field="start_step",
+                            value=self._graph.start_step,
+                            type="graph_structure",
+                            tags=[],
+                        ),
+                        MetaDatum(
+                            field="end_step",
+                            value=self._graph.end_step,
+                            type="graph_structure",
+                            tags=[],
+                        ),
+                    ],
+                )
+            except Exception:
+                self._logger(
+                    "Warning: failed to register graph endpoint metadata. "
+                    "The client will fall back to default step names.",
+                    system_msg=True,
+                    bad=True,
+                )
+
         self._is_cloned[self._params_task.path] = self._params_task.is_cloned
 
     def should_skip_clone_only_execution(self):
@@ -767,9 +798,12 @@ class NativeRuntime(object):
             self._active_tasks[0] = 0
         else:
             if self._params_task:
-                self._queue_push("start", {"input_paths": [self._params_task.path]})
+                self._queue_push(
+                    self._graph.start_step,
+                    {"input_paths": [self._params_task.path]},
+                )
             else:
-                self._queue_push("start", {})
+                self._queue_push(self._graph.start_step, {})
 
         progress_tstamp = time.time()
         with tempfile.NamedTemporaryFile(mode="w", encoding="utf-8") as config_file:
@@ -938,8 +972,8 @@ class NativeRuntime(object):
                                 deco.runtime_finished(exception)
                 self._run_exit_hooks()
 
-        # assert that end was executed and it was successful
-        if ("end", (), ()) in self._finished:
+        # assert that the terminal step was executed and it was successful
+        if (self._graph.end_step, (), ()) in self._finished:
             if self._run_url:
                 self._logger(
                     "Done! See the run in the UI at %s" % self._run_url,
@@ -956,7 +990,8 @@ class NativeRuntime(object):
             self._params_task.mark_resume_done()
         else:
             raise MetaflowInternalError(
-                "The *end* step was not successful by the end of flow."
+                "The terminal step *%s* was not successful by the end of flow."
+                % self._graph.end_step
             )
 
     def _run_exit_hooks(self):
@@ -966,7 +1001,11 @@ class NativeRuntime(object):
             if not exit_hook_decos:
                 return
 
-            successful = ("end", (), ()) in self._finished or self._clone_only
+            successful = (
+                self._graph.end_step,
+                (),
+                (),
+            ) in self._finished or self._clone_only
             pathspec = f"{self._graph.name}/{self._run_id}"
             flow_file = self._environment.get_environment_info()["script"]
 

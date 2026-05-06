@@ -15,14 +15,14 @@
   }
 
   let connectors: ConnectorData[] = [];
-  
+
   $: {
     connectors = [];
     if (container) {
       const containerBox = container.getBoundingClientRect();
       const top = containerBox.top;
       const left = containerBox.left;
-      
+
       Object.values(dagStructure).forEach((nodeData) => {
         const nodeRect = nodeData.node.getBoundingClientRect();
         nodeData.connections?.forEach((str) => {

@@ -330,7 +330,7 @@ class MetaflowTask(object):
         # then used later to write the foreach-stack metadata for that task
 
         # case 1) - reset the stack
-        if step_name == "start":
+        if step_name == self.flow._graph.start_step:
             self.flow._foreach_stack = []
 
         # case 2) - this is a join step
