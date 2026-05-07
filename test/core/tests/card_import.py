@@ -1,7 +1,7 @@
-from metaflow_test import MetaflowTest, ExpectationFailed, steps, tag
+from metaflow_test import FlowDefinition, steps, tag
 
 
-class CardImportTest(MetaflowTest):
+class CardImport(FlowDefinition):
     """
     This test tries to check if the import scheme for cards works as intended.
         - Importing a card and calling it via the `type` should work
@@ -52,12 +52,11 @@ class CardImportTest(MetaflowTest):
                     random_number = cli_check_dict[task_pathspec]["random_number"]
                     cards_info = checker.list_cards(step.name, task_id)
                     # Safely importable cards should be present.
-                    assert_equals(
+                    assert (
                         cards_info is not None
                         and "cards" in cards_info
-                        and len(cards_info["cards"]) == 2,
-                        True,
-                    )
+                        and len(cards_info["cards"]) == 2
+                    ) == (True)
                     impc_e = [
                         c
                         for c in cards_info["cards"]
@@ -99,12 +98,11 @@ class CardImportTest(MetaflowTest):
                         step.name,
                         task_id,
                     )
-                    assert_equals(
+                    assert (
                         cards_info is not None
                         and "cards" in cards_info
-                        and len(cards_info["cards"]) == 2,
-                        True,
-                    )
+                        and len(cards_info["cards"]) == 2
+                    ) == (True)
                     impc_e = [
                         c
                         for c in cards_info["cards"]

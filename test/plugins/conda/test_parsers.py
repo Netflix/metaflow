@@ -12,7 +12,6 @@ from metaflow.plugins.pypi.parsers import (
     requirements_txt_parser,
 )
 
-
 # ---------------------------------------------------------------------------
 # requirements_txt_parser
 # ---------------------------------------------------------------------------

@@ -16,7 +16,6 @@ from typing import Any, Dict
 from metaflow.meta_files import read_info_file
 from metaflow.util import walk_without_cycles
 
-
 #
 # This file provides the support for Metaflow's extension mechanism which allows
 # a Metaflow developer to extend metaflow by providing a package `metaflow_extensions`.
@@ -445,6 +444,42 @@ def _get_extension_packages(ignore_info_file=False, restrict_to_directories=None
                         for d in addl_spec.submodule_search_locations
                         if os.path.isdir(d)
                     ]
+                    if not new_dirs:
+                        # Modern pip editable installs may surface the path hook
+                        # itself as a search location rather than an actual directory.
+                        # Fall back to reading NAMESPACES from the finder module
+                        # (a module-level variable in the __editable__*_finder.py
+                        # file) to discover the real metaflow_extensions root.
+                        finder_cls = sys.path_importer_cache[p]
+                        finder_mod = sys.modules.get(
+                            getattr(finder_cls, "__module__", None)
+                        )
+                        namespaces = getattr(finder_mod, "NAMESPACES", {})
+                        for ns, ns_paths in namespaces.items():
+                            # Accept both the root namespace itself and child
+                            # namespaces:
+                            #   {"metaflow_extensions": ["/path/to/metaflow_extensions"]}
+                            #   {"metaflow_extensions.foo": ["/path/to/metaflow_extensions/foo"]}
+                            if (
+                                not (ns == EXT_PKG or ns.startswith(EXT_PKG + "."))
+                                or not ns_paths
+                            ):
+                                continue
+                            for ns_path in ns_paths:
+                                # Normalise to the metaflow_extensions root:
+                                # if the path already ends with the package name
+                                # use it directly; otherwise go up one level.
+                                if os.path.basename(ns_path) == EXT_PKG:
+                                    root = ns_path
+                                else:
+                                    root = os.path.dirname(ns_path)
+                                if (
+                                    os.path.isdir(root)
+                                    and os.path.basename(root) == EXT_PKG
+                                    and root not in new_dirs
+                                ):
+                                    new_dirs.append(root)
+                                    new_paths.append(root)
                     _ext_debug(
                         "Finder %s added directories %s"
                         % (finder_name, ", ".join(new_dirs))

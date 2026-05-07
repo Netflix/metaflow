@@ -1,7 +1,7 @@
-from metaflow_test import MetaflowTest, ExpectationFailed, steps
+from metaflow_test import FlowDefinition, steps
 
 
-class ResumeSucceededStepTest(MetaflowTest):
+class ResumeSucceededStep(FlowDefinition):
     """
     Resuming from the succeeded end step should work
     """

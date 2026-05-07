@@ -6,7 +6,7 @@ def setup_postgresql(ctx):
         'postgresql',
         version='12.5.6',
         repo_name='postgresql',
-        repo_url='https://charts.bitnami.com/bitnami',
+        repo_url='https://raw.githubusercontent.com/bitnami/charts/archive-full-index/bitnami',
         set=[
             'auth.username=metaflow',
             'auth.password=metaflow123',

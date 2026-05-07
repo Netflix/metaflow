@@ -1,7 +1,7 @@
-from metaflow_test import MetaflowTest, ExpectationFailed, steps
+from metaflow_test import FlowDefinition, steps
 
 
-class BasicArtifactTest(MetaflowTest):
+class BasicArtifact(FlowDefinition):
     """
     Test that an artifact defined in the first step
     is available in all steps downstream.
@@ -28,7 +28,7 @@ class BasicArtifactTest(MetaflowTest):
         import metaflow_test
 
         inputset = {inp.data for inp in inputs}
-        assert_equals({"abc"}, inputset)
+        assert {"abc"} == inputset
         self.data = list(inputset)[0]
 
     @steps(2, ["all"])

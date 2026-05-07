@@ -1,7 +1,7 @@
-from metaflow_test import MetaflowTest, steps, assert_equals
+from metaflow_test import FlowDefinition, steps
 
 
-class BranchInSwitchTest(MetaflowTest):
+class BranchInSwitch(FlowDefinition):
     PRIORITY = 2
     ONLY_GRAPHS = ["branch_in_switch"]
 
@@ -32,8 +32,8 @@ class BranchInSwitchTest(MetaflowTest):
 
     @steps(1, ["end-branch-in-switch"], required=True)
     def step_end(self):
-        assert_equals(self.final_data, ["p1_done", "p2_done"])
-        assert_equals(self.final_result, "Processed")
+        assert self.final_data == ["p1_done", "p2_done"]
+        assert self.final_result == "Processed"
 
     def check_results(self, flow, checker):
         checker.assert_artifact("end", "final_result", "Processed")

@@ -1,7 +1,7 @@
-from metaflow_test import MetaflowTest, ExpectationFailed, steps
+from metaflow_test import FlowDefinition, steps
 
 
-class BasicParameterTest(MetaflowTest):
+class BasicParameter(FlowDefinition):
     PRIORITY = 1
     SKIP_GRAPHS = [
         "simple_switch",
@@ -15,7 +15,7 @@ class BasicParameterTest(MetaflowTest):
     ]
     PARAMETERS = {
         "no_default_param": {"default": None},
-        # Note this value is overridden in contexts.json
+        # Note this value is overridden by METAFLOW_RUN_BOOL_PARAM in the tox backend env
         "bool_param": {"default": False},
         "bool_true_param": {"default": True},
         "int_param": {"default": 123},
@@ -31,17 +31,17 @@ os.environ['METAFLOW_RUN_BOOL_PARAM'] = 'False'
 
     @steps(0, ["all"])
     def step_all(self):
-        assert_equals("test_str", self.no_default_param)
-        assert_equals(False, self.bool_param)
-        assert_equals(True, self.bool_true_param)
-        assert_equals(123, self.int_param)
-        assert_equals("foobar", self.str_param)
-        assert_equals(["a", "b", "c"], self.list_param)
-        assert_equals({"a": [1, 2, 3]}, self.json_param)
+        assert "test_str" == self.no_default_param
+        assert False == self.bool_param
+        assert True == self.bool_true_param
+        assert 123 == self.int_param
+        assert "foobar" == self.str_param
+        assert ["a", "b", "c"] == self.list_param
+        assert {"a": [1, 2, 3]} == self.json_param
         try:
             # parameters should be immutable
             self.int_param = 5
-            raise ExpectationFailed(AttributeError, "nothing")
+            raise AssertionError("expected AttributeError but none was raised")
         except AttributeError:
             pass
 

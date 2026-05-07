@@ -1,7 +1,7 @@
-from metaflow_test import MetaflowTest, ExpectationFailed, steps
+from metaflow_test import FlowDefinition, steps
 
 
-class ConstantsTest(MetaflowTest):
+class Constants(FlowDefinition):
     """
     Test that an artifact defined in the first step
     is available in all steps downstream.
@@ -33,18 +33,18 @@ class ConstantsTest(MetaflowTest):
     def step_all(self):
         # make sure class attributes are available in all steps
         # through joins etc
-        assert_equals("this is a constant", self.str_const)
-        assert_equals(123, self.int_const)
+        assert "this is a constant" == self.str_const
+        assert 123 == self.int_const
         # obj_const is mutable. Not much that can be done about it
-        assert_equals([], self.obj_const)
+        assert [] == self.obj_const
 
-        assert_equals(456, self.int_param)
-        assert_equals("foobar", self.str_param)
+        assert 456 == self.int_param
+        assert "foobar" == self.str_param
 
         # make sure class variables are not listed as parameters
         from metaflow import current
 
-        assert_equals({"int_param", "str_param"}, set(current.parameter_names))
+        assert {"int_param", "str_param"} == set(current.parameter_names)
 
         try:
             self.int_param = 5

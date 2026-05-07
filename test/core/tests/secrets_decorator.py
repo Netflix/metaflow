@@ -1,5 +1,4 @@
-from metaflow_test import MetaflowTest, ExpectationFailed, steps, tag
-
+from metaflow_test import FlowDefinition, steps, tag
 
 INLINE_SECRETS_VARS = [
     {
@@ -15,7 +14,7 @@ INLINE_SECRETS_VARS = [
 ]
 
 
-class SecretsDecoratorTest(MetaflowTest):
+class SecretsDecorator(FlowDefinition):
     """
     Test that checks that the timeout decorator works as intended.
     """

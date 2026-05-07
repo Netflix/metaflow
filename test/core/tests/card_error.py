@@ -1,8 +1,8 @@
 # Todo : Write Test case on graceful error handling.
-from metaflow_test import MetaflowTest, ExpectationFailed, steps, tag
+from metaflow_test import FlowDefinition, steps, tag
 
 
-class CardErrorTest(MetaflowTest):
+class CardError(FlowDefinition):
     """
     Test that checks if the card decorator handles Errors gracefully.
     In the checker assert that the end step finished and has artifacts after failing

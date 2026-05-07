@@ -1,7 +1,7 @@
-from metaflow_test import MetaflowTest, ExpectationFailed, steps, tag
+from metaflow_test import FlowDefinition, steps, tag
 
 
-class CardWithRefreshTest(MetaflowTest):
+class CardWithRefresh(FlowDefinition):
     """
     This test Does few checks that the core user interfaces are working :
     1. It validates we can call `current.card.refresh` without any errors.
@@ -75,7 +75,7 @@ class CardWithRefreshTest(MetaflowTest):
         # The `try_to_get_card` function will keep retrying to get a card until a
         # timeout value is reached. After which the function will throw a `TimeoutError`.
         card = try_to_get_card(id="refresh_card")
-        assert_equals(isinstance(card, Card), True)
+        assert isinstance(card, Card)
 
         sleep_between_refreshes = 4  # Set based on the RUNTIME_CARD_MIN_REFRESH_INTERVAL which acts as a rate-limit to what is refreshed.
 
@@ -94,29 +94,24 @@ class CardWithRefreshTest(MetaflowTest):
             card_data = card.get_data()
             if card_data is not None:
                 # Assert that data is atleast subset of what we sent to the datastore.
-                assert_equals(
-                    _array_is_a_subset(card_data["data"]["user"]["arr"], start_arr),
-                    True,
-                )
+                assert _array_is_a_subset(card_data["data"]["user"]["arr"], start_arr)
                 # The `TestRefreshCard.refresh(task, data)` method returns the `data` object as a pass through.
                 # This test will also serve a purpose of ensuring that any changes to these keys are
                 # caught by the test framework. The minimum subset should be present and grown as
                 # need requires.
                 # We first check the keys created by the refresh-JSON created in the `card_cli.py`
                 top_level_keys = set(["data", "reload_token"])
-                assert_equals(top_level_keys.issubset(set(card_data.keys())), True)
+                assert top_level_keys.issubset(set(card_data.keys()))
                 # We then check the keys returned from the `current.card._get_latest_data` which is the
                 # `data` parameter in the `MetaflowCard.refresh ` method.
                 required_data_keys = set(
                     ["mode", "component_update_ts", "components", "render_seq", "user"]
                 )
-                assert_equals(
-                    required_data_keys.issubset(set(card_data["data"].keys())), True
-                )
+                assert required_data_keys.issubset(set(card_data["data"].keys()))
 
             time.sleep(sleep_between_refreshes)
 
-        assert_equals(card_data is not None, True)
+        assert card_data is not None
         self.final_data = {"arr": start_arr}
         # setting step name here helps us figure out what steps should be validated by the checker
         self.step_name = current.step_name
@@ -154,11 +149,11 @@ class CardWithRefreshTest(MetaflowTest):
                 card_present, card_data = checker.get_card_data(
                     step.name, task_id, "test_refresh_card", card_id="refresh_card"
                 )
-                assert_equals(card_present, True)
+                assert card_present
                 data_has_latest_artifact = _array_is_a_subset(
                     data_obj["arr"], card_data["data"]["user"]["arr"]
                 )
-                assert_equals(data_has_latest_artifact, True)
+                assert data_has_latest_artifact
                 print(
                     "Succesfully validated task pathspec %s"
                     % run[step.name][task_id].pathspec

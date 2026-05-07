@@ -325,14 +325,15 @@ python -m pytest test/unit/test_your_feature.py -v
 ### Integration Tests
 
 ```bash
-cd test/core
-PYTHONPATH=`pwd`/../../ python run_tests.py --debug --contexts dev-local
+tox -c test/core/tox.ini -e core-local
 ```
 
 **Run specific test:**
 ```bash
-PYTHONPATH=`pwd`/../../ python run_tests.py --debug --contexts dev-local --tests YourTestName
+tox -c test/core/tox.ini -e core-local -- --core-tests YourTestName
 ```
+
+See [TESTING.md](./TESTING.md) for the full guide.
 
 ### Data/S3 Tests
 

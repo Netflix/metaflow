@@ -1,7 +1,7 @@
-from metaflow_test import MetaflowTest, ExpectationFailed, steps, assert_equals
+from metaflow_test import FlowDefinition, steps
 
 
-class NestedSwitchTest(MetaflowTest):
+class NestedSwitch(FlowDefinition):
     """
     Tests a switch that leads to another switch.
     """
@@ -32,7 +32,7 @@ class NestedSwitchTest(MetaflowTest):
 
     @steps(1, ["end-nested"], required=True)
     def step_end(self):
-        assert_equals("Nested path D", self.result)
+        assert "Nested path D" == self.result
 
     def check_results(self, flow, checker):
         checker.assert_artifact("d", "result", "Nested path D")

@@ -1,7 +1,7 @@
-from metaflow_test import MetaflowTest, ExpectationFailed, steps, tag
+from metaflow_test import FlowDefinition, steps, tag
 
 
-class DefaultEditableCardWithIdTest(MetaflowTest):
+class DefaultEditableCardWithId(FlowDefinition):
     """
     `current.card.append` should add to default editable card and not the one with `id`
     when a card with `id` and non id are present
@@ -61,17 +61,16 @@ class DefaultEditableCardWithIdTest(MetaflowTest):
                     task_id = task_pathspec.split("/")[-1]
                     cards_info = checker.list_cards(step.name, task_id)
                     number = cli_check_dict[task_pathspec]["random_number"]
-                    assert_equals(
+                    assert (
                         cards_info is not None
                         and "cards" in cards_info
-                        and len(cards_info["cards"]) == 2,
-                        True,
-                    )
+                        and len(cards_info["cards"]) == 2
+                    ) == (True)
                     # Find the card without the id
                     default_editable_cards = [
                         c for c in cards_info["cards"] if c["id"] is None
                     ]
-                    assert_equals(len(default_editable_cards) == 1, True)
+                    assert len(default_editable_cards) == 1 == True
                     card = default_editable_cards[0]
                     checker.assert_card(
                         step.name,
@@ -94,16 +93,15 @@ class DefaultEditableCardWithIdTest(MetaflowTest):
                 for task_id in meta_check_dict:
                     random_number = meta_check_dict[task_id]["random_number"]
                     cards_info = checker.list_cards(step.name, task_id)
-                    assert_equals(
+                    assert (
                         cards_info is not None
                         and "cards" in cards_info
-                        and len(cards_info["cards"]) == 2,
-                        True,
-                    )
+                        and len(cards_info["cards"]) == 2
+                    ) == (True)
                     default_editable_cards = [
                         c for c in cards_info["cards"] if c["id"] is None
                     ]
-                    assert_equals(len(default_editable_cards) == 1, True)
+                    assert len(default_editable_cards) == 1 == True
                     card = default_editable_cards[0]
                     checker.assert_card(
                         step.name,

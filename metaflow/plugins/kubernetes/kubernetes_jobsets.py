@@ -533,7 +533,7 @@ class JobSetSpec(object):
             return self
         self._kwargs["environment_variables_from_selectors"] = dict(
             self._kwargs.get("environment_variables_from_selectors", {}),
-            **{name: label_value}
+            **{name: label_value},
         )
         return self
 

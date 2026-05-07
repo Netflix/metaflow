@@ -133,13 +133,11 @@ def typechecked(
     typecheck_fail_callback: TypeCheckFailCallback | Unset = unset,
     collection_check_strategy: CollectionCheckStrategy | Unset = unset,
     debug_instrumentation: bool | Unset = unset,
-) -> Callable[[T_CallableOrType], T_CallableOrType]:
-    ...
+) -> Callable[[T_CallableOrType], T_CallableOrType]: ...
 
 
 @overload
-def typechecked(target: T_CallableOrType) -> T_CallableOrType:
-    ...
+def typechecked(target: T_CallableOrType) -> T_CallableOrType: ...
 
 
 def typechecked(
@@ -215,9 +213,9 @@ def typechecked(
         return target
 
     # Find either the first Python wrapper or the actual function
-    wrapper_class: type[classmethod[Any, Any, Any]] | type[
-        staticmethod[Any, Any]
-    ] | None = None
+    wrapper_class: (
+        type[classmethod[Any, Any, Any]] | type[staticmethod[Any, Any]] | None
+    ) = None
     if isinstance(target, (classmethod, staticmethod)):
         wrapper_class = target.__class__
         target = target.__func__

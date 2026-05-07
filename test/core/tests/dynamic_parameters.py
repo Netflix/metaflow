@@ -1,7 +1,7 @@
-from metaflow_test import MetaflowTest, ExpectationFailed, steps
+from metaflow_test import FlowDefinition, steps
 
 
-class DynamicParameterTest(MetaflowTest):
+class DynamicParameter(FlowDefinition):
     PRIORITY = 3
     SKIP_GRAPHS = [
         "simple_switch",
@@ -25,10 +25,10 @@ os.environ['METAFLOW_RUN_NONDEFAULT_PARAM'] = 'False'
 def str_func(ctx):
     import os
     from metaflow import current
-    assert_equals(current.project_name, 'dynamic_parameters_project')
-    assert_equals(ctx.parameter_name, 'str_param')
-    assert_equals(ctx.flow_name, 'DynamicParameterTestFlow')
-    assert_equals(ctx.user_name, os.environ['METAFLOW_USER'])
+    assert current.project_name == 'dynamic_parameters_project'
+    assert ctx.parameter_name == 'str_param'
+    assert ctx.flow_name == current.flow_name
+    assert ctx.user_name == os.environ['METAFLOW_USER']
 
     if os.path.exists('str_func.only_once'):
         raise Exception("Dynamic parameter function invoked multiple times!")
@@ -47,9 +47,9 @@ def json_func(ctx):
 
     @steps(0, ["singleton"], required=True)
     def step_single(self):
-        assert_equals(self.str_param, "does this work?")
-        assert_equals(self.nondefault_param, False)
-        assert_equals(self.json_param, {"a": [8]})
+        assert self.str_param == "does this work?"
+        assert self.nondefault_param == False
+        assert self.json_param == {"a": [8]}
 
     @steps(1, ["all"])
     def step_all(self):

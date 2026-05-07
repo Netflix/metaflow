@@ -1,7 +1,7 @@
-from metaflow_test import MetaflowTest, ExpectationFailed, steps, tag
+from metaflow_test import FlowDefinition, steps, tag
 
 
-class CardTimeoutTest(MetaflowTest):
+class CardTimeout(FlowDefinition):
     """
     Test that checks if the card decorator works as intended with the timeout decorator.
     # This test set an artifact in the steps and also set a timeout to the card argument.
@@ -14,7 +14,7 @@ class CardTimeoutTest(MetaflowTest):
         "nested_switch",
         "branch_in_switch",
         "foreach_in_switch",
-        "switch_in_branch", 
+        "switch_in_branch",
         "switch_in_foreach",
         "recursive_switch",
         "recursive_switch_inside_foreach",

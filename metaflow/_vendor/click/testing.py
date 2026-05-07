@@ -12,7 +12,6 @@ from ._compat import iteritems
 from ._compat import PY2
 from ._compat import string_types
 
-
 if PY2:
     from cStringIO import StringIO
 else:

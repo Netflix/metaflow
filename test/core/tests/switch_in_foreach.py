@@ -1,7 +1,7 @@
-from metaflow_test import MetaflowTest, steps, assert_equals
+from metaflow_test import FlowDefinition, steps
 
 
-class SwitchInForeachTest(MetaflowTest):
+class SwitchInForeach(FlowDefinition):
     PRIORITY = 2
     ONLY_GRAPHS = ["switch_in_foreach"]
 
@@ -31,7 +31,7 @@ class SwitchInForeachTest(MetaflowTest):
 
     @steps(1, ["end"], required=True)
     def step_end(self):
-        assert_equals(self.results, ["A(200)", "A(600)", "B(100.0)"])
+        assert self.results == ["A(200)", "A(600)", "B(100.0)"]
 
     def check_results(self, flow, checker):
         checker.assert_artifact("join", "results", ["A(200)", "A(600)", "B(100.0)"])

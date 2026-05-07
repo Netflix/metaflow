@@ -1,7 +1,7 @@
-from metaflow_test import MetaflowTest, ExpectationFailed, steps
+from metaflow_test import FlowDefinition, steps
 
 
-class DetectSegFaultTest(MetaflowTest):
+class DetectSegFault(FlowDefinition):
     """
     Test that segmentation faults produce a message in the logs
     """

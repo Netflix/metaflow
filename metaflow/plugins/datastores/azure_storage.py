@@ -25,7 +25,6 @@ from metaflow.plugins.azure.blob_service_client_factory import (
     get_azure_blob_service_client,
 )
 
-
 # How many threads / connections to use per upload or download operation
 from metaflow.plugins.storage_executor import (
     StorageExecutor,
@@ -60,12 +59,22 @@ class _AzureRootClient(object):
     datastore_root.
     """
 
-    def __init__(self, datastore_root=None, token=None, shared_access_signature=None):
+    def __init__(
+        self,
+        datastore_root=None,
+        token=None,
+        shared_access_signature=None,
+        connection_string=None,
+    ):
         if datastore_root is None:
             raise MetaflowInternalError("datastore_root must be set")
-        if token is None and shared_access_signature is None:
+        if (
+            token is None
+            and shared_access_signature is None
+            and connection_string is None
+        ):
             raise MetaflowInternalError(
-                "either shared_access_signature or token must be set"
+                "either shared_access_signature, token, or connection_string must be set"
             )
         if token and shared_access_signature:
             raise MetaflowInternalError(
@@ -74,21 +83,26 @@ class _AzureRootClient(object):
         self._datastore_root = datastore_root
         self._token = token
         self._shared_access_signature = shared_access_signature
+        self._connection_string = connection_string
 
     def get_datastore_root(self):
         return self._datastore_root
 
     def get_blob_container_client(self):
-        if self._shared_access_signature:
-            credential = self._shared_access_signature
-            credential_is_cacheable = True
+        if self._connection_string:
+            from azure.storage.blob import BlobServiceClient as _BSC
+
+            service = _BSC.from_connection_string(self._connection_string)
+        elif self._shared_access_signature:
+            service = get_azure_blob_service_client(
+                credential=self._shared_access_signature,
+                credential_is_cacheable=True,
+            )
         else:
-            credential = create_static_token_credential(self._token)
-            credential_is_cacheable = True
-        service = get_azure_blob_service_client(
-            credential=credential,
-            credential_is_cacheable=credential_is_cacheable,
-        )
+            service = get_azure_blob_service_client(
+                credential=create_static_token_credential(self._token),
+                credential_is_cacheable=True,
+            )
         # datastore_root is <container_name>/<blob_prefix>
         container_name, _ = parse_azure_full_path(self._datastore_root)
         return service.get_container_client(container_name)
@@ -288,10 +302,17 @@ class AzureStorage(DataStoreStorage):
         Speed up applies mainly to the "no access key" path.
         """
         if self._root_client is None:
-            self._root_client = _AzureRootClient(
-                datastore_root=self.datastore_root,
-                token=self._get_default_token(),
-            )
+            connection_string = os.environ.get("AZURE_STORAGE_CONNECTION_STRING")
+            if connection_string:
+                self._root_client = _AzureRootClient(
+                    datastore_root=self.datastore_root,
+                    connection_string=connection_string,
+                )
+            else:
+                self._root_client = _AzureRootClient(
+                    datastore_root=self.datastore_root,
+                    token=self._get_default_token(),
+                )
         return self._root_client
 
     @classmethod

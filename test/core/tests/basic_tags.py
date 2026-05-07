@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
-from metaflow_test import MetaflowTest, ExpectationFailed, steps
+from metaflow_test import FlowDefinition, steps
 
 
-class BasicTagTest(MetaflowTest):
+class BasicTag(FlowDefinition):
     """
     Test that tags are assigned properly.
     """
@@ -27,7 +27,7 @@ class BasicTagTest(MetaflowTest):
         import os
 
         user = "user:%s" % os.environ.get("METAFLOW_USER")
-        assert_equals(user, get_namespace())
+        assert user == get_namespace()
 
     def check_results(self, flow, checker):
         import os
@@ -39,7 +39,7 @@ class BasicTagTest(MetaflowTest):
             return
         flow_obj = run.parent
         # test crazy unicode and spaces in tags
-        # these tags must be set with --tag option in contexts.json
+        # these tags must be set via the run_options in the tox backend env
         tags = (
             "project:basic_tag",
             "project_branch:user.tester",
@@ -53,39 +53,35 @@ class BasicTagTest(MetaflowTest):
             namespace(tag)
             run = flow_obj[checker.run_id]
             # the flow object should not have tags
-            assert_equals(frozenset(), frozenset(flow_obj.tags))
+            assert frozenset() == frozenset(flow_obj.tags)
             # the run object should have the namespace tags
-            assert_equals([True] * len(tags), [t in run.tags for t in tags])
+            assert [True] * len(tags) == [t in run.tags for t in tags]
             # filtering by a non-existent tag should return nothing
-            assert_equals([], list(flow_obj.runs("not_a_tag")))
+            assert [] == list(flow_obj.runs("not_a_tag"))
             # a conjunction of a non-existent tag and an existent tag
             # should return nothing
-            assert_equals([], list(flow_obj.runs("not_a_tag", tag)))
+            assert [] == list(flow_obj.runs("not_a_tag", tag))
             # all steps should be returned with tag filtering
-            assert_equals(
-                frozenset(step.name for step in flow),
-                frozenset(step.id.split("/")[-1] for step in run.steps(tag)),
+            assert frozenset(step.name for step in flow) == frozenset(
+                step.id.split("/")[-1] for step in run.steps(tag)
             )
             # a conjunction of two existent tags should return the original list
-            assert_equals(
-                frozenset(step.name for step in flow),
-                frozenset(step.id.split("/")[-1] for step in run.steps(*tags)),
+            assert frozenset(step.name for step in flow) == frozenset(
+                step.id.split("/")[-1] for step in run.steps(*tags)
             )
             # all tasks should be returned with tag filtering
             for step in run:
                 # the run object should have the tags
-                assert_equals([True] * len(tags), [t in step.tags for t in tags])
+                assert [True] * len(tags) == [t in step.tags for t in tags]
                 # filtering by a non-existent tag should return nothing
-                assert_equals([], list(step.tasks("not_a_tag")))
+                assert [] == list(step.tasks("not_a_tag"))
                 # filtering by the tag should not exclude any tasks
-                assert_equals(
-                    [task.id for task in step], [task.id for task in step.tasks(tag)]
-                )
+                assert [task.id for task in step] == [
+                    task.id for task in step.tasks(tag)
+                ]
                 for task in step.tasks(tag):
                     # the task object should have the tags
-                    assert_equals([True] * len(tags), [t in task.tags for t in tags])
+                    assert [True] * len(tags) == [t in task.tags for t in tags]
                     for data in task:
                         # the data artifact should have the tags
-                        assert_equals(
-                            [True] * len(tags), [t in data.tags for t in tags]
-                        )
+                        assert [True] * len(tags) == [t in data.tags for t in tags]

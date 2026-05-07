@@ -1,7 +1,7 @@
-from metaflow_test import MetaflowTest, ExpectationFailed, steps
+from metaflow_test import FlowDefinition, steps
 
 
-class ResumeForeachJoinTest(MetaflowTest):
+class ResumeForeachJoin(FlowDefinition):
     """
     Resuming from a foreach join should work.
     Check that data changes in all downstream steps after resume.
@@ -28,9 +28,9 @@ class ResumeForeachJoinTest(MetaflowTest):
     @steps(0, ["foreach-nested-split", "foreach-split"], required=True)
     def step_split(self):
         if self.after:
-            assert_equals("resume", self.data)
+            assert "resume" == self.data
         else:
-            assert_equals("start", self.data)
+            assert "start" == self.data
 
     @steps(0, ["foreach-inner"], required=True)
     def inner(self):
@@ -55,9 +55,9 @@ class ResumeForeachJoinTest(MetaflowTest):
     @steps(2, ["all"])
     def step_all(self):
         if self.after:
-            assert_equals("resume", self.data)
+            assert "resume" == self.data
         else:
-            assert_equals("start", self.data)
+            assert "start" == self.data
 
     def check_results(self, flow, checker):
         from itertools import product

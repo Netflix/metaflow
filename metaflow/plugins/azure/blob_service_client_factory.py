@@ -117,7 +117,7 @@ def get_azure_blob_service_client(
     The value adds are:
     - connection caching (see _ClientCache)
     - auto storage account URL detection
-    - auto credential handling (pull SAS token from environment, OR DefaultAzureCredential)
+    - auto credential handling (DefaultAzureCredential, or explicit credential when provided)
     - sensible default values for Azure SDK tunables
     """
     if not AZURE_STORAGE_BLOB_SERVICE_ENDPOINT:

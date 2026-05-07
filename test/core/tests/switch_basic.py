@@ -1,7 +1,7 @@
-from metaflow_test import MetaflowTest, steps, assert_equals
+from metaflow_test import FlowDefinition, steps
 
 
-class BasicSwitchTest(MetaflowTest):
+class BasicSwitch(FlowDefinition):
     """
     Tests a basic switch with multiple branches.
     """
@@ -31,7 +31,7 @@ class BasicSwitchTest(MetaflowTest):
 
     @steps(1, ["end"], required=True)
     def step_end(self):
-        assert_equals("Path B taken", self.result)
+        assert "Path B taken" == self.result
 
     def check_results(self, flow, checker):
         checker.assert_artifact("b", "result", "Path B taken")
