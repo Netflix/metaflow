@@ -563,19 +563,7 @@ class TaskDataStore(object):
                     % (name, metadata.encoding, metadata.serializer_info, source_hint)
                 )
             deserializers[name] = (deserializer, metadata)
-            try:
-                to_load[self._objects[name]].append(name)
-            except KeyError:
-                # ``_info`` had a record for this artifact but ``_objects``
-                # did not — should not happen in normal write/read cycles,
-                # but if metadata was hand-edited or written by a partial
-                # save, surface the corruption clearly instead of bubbling a
-                # bare KeyError.
-                raise DataException(
-                    "Artifact '%s' has metadata but no stored blob "
-                    "(missing from _objects). The datastore is in an "
-                    "inconsistent state." % name
-                )
+            to_load[self._objects[name]].append(name)
 
         # Load blobs from CAS and deserialize
         for key, blob in self._ca_store.load_blobs(to_load.keys()):

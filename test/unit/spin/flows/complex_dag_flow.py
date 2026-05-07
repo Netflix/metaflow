@@ -42,7 +42,7 @@ class ComplexDAGFlow(FlowSpec):
 
     @step
     def step_e(self):
-        print(f"I am step E. Input is: {self.input}")
+        print("I am step E.")
         self.split_e = [9, 10]
         print("My output is: ", self.my_output)
         self.next(self.step_f, foreach="split_e")
@@ -83,7 +83,7 @@ class ComplexDAGFlow(FlowSpec):
 
     @step
     def step_l(self):
-        print(f"I am step L. Input is: {self.input}")
+        print("I am step L.")
         self.my_output = self.my_output + [12]
         print("My output is: ", self.my_output)
         self.next(self.step_m)
