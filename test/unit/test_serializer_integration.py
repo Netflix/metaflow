@@ -273,6 +273,39 @@ def test_backward_compat_no_encoding(task_datastore):
     assert loaded["ancient"] == 99
 
 
+def test_missing_artifact_raises_key_error(task_datastore):
+    """Missing artifacts preserve the historical KeyError contract."""
+    task_datastore.save_artifacts(iter([("present", 1)]))
+
+    with pytest.raises(KeyError):
+        list(task_datastore.load_artifacts(["missing"]))
+
+
+def test_missing_info_with_object_uses_pickle_defaults(task_datastore):
+    """Artifacts without metadata still use very old pickle defaults."""
+    task_datastore.save_artifacts(
+        iter([("present", {"value": 1}), ("keeps_metadata_non_empty", 2)])
+    )
+    del task_datastore._info["present"]
+
+    loaded = dict(task_datastore.load_artifacts(["present"]))
+
+    assert loaded["present"] == {"value": 1}
+
+
+def test_info_without_object_raises_key_error(task_datastore):
+    """Metadata-only artifacts preserve the historical KeyError behavior."""
+    task_datastore.save_artifacts(iter([("present", 1)]))
+    task_datastore._info["metadata_only"] = {
+        "size": 1,
+        "type": "<class 'int'>",
+        "encoding": "pickle-v4",
+    }
+
+    with pytest.raises(KeyError):
+        list(task_datastore.load_artifacts(["metadata_only"]))
+
+
 # ---------------------------------------------------------------------------
 # Dynamic registry: lazy registrations reach long-lived datastores
 # ---------------------------------------------------------------------------
