@@ -80,10 +80,11 @@ class TimeoutDecorator(StepDecorator):
             signal.signal(signal.SIGALRM, self._sigalrm_handler)
             signal.alarm(self.secs)
 
-    def task_post_step(
+def task_post_step(
         self, step_name, flow, graph, retry_count, max_user_code_retries
     ):
-        signal.alarm(0)
+        if sys.platform != "win32":
+            signal.alarm(0)
 
     def _sigalrm_handler(self, signum, frame):
         def pretty_print_stack():
