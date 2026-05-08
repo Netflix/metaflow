@@ -1,15 +1,13 @@
+import sys
 import signal
 import traceback
-
 from metaflow.exception import MetaflowException
 from metaflow.decorators import StepDecorator
 from metaflow.unbounded_foreach import UBF_CONTROL
 from metaflow.metaflow_config import DEFAULT_RUNTIME_LIMIT
 
-
 class TimeoutException(MetaflowException):
     headline = "@timeout"
-
 
 class TimeoutDecorator(StepDecorator):
     """
@@ -69,6 +67,11 @@ class TimeoutDecorator(StepDecorator):
     ):
         if ubf_context != UBF_CONTROL and retry_count <= max_user_code_retries:
             # enable timeout only when executing user code
+            if sys.platform == "win32":
+                raise RuntimeError(
+                    "The @timeout decorator is not supported on Windows "
+                    "(SIGALRM is POSIX-only)."
+                )
             self.step_name = step_name
             signal.signal(signal.SIGALRM, self._sigalrm_handler)
             signal.alarm(self.secs)
@@ -76,7 +79,8 @@ class TimeoutDecorator(StepDecorator):
     def task_post_step(
         self, step_name, flow, graph, retry_count, max_user_code_retries
     ):
-        signal.alarm(0)
+        if sys.platform != "win32":
+            signal.alarm(0)
 
     def _sigalrm_handler(self, signum, frame):
         def pretty_print_stack():
@@ -96,7 +100,6 @@ class TimeoutDecorator(StepDecorator):
             "%s\nStack when the timeout was raised:\n%s"
             % (msg, "\n".join(pretty_print_stack()))
         )
-
 
 def get_run_time_limit_for_task(step_decos):
     run_time_limit = DEFAULT_RUNTIME_LIMIT
