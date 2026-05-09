@@ -1,13 +1,16 @@
 import signal
 import sys
 import traceback
+
 from metaflow.exception import MetaflowException
 from metaflow.decorators import StepDecorator
 from metaflow.unbounded_foreach import UBF_CONTROL
 from metaflow.metaflow_config import DEFAULT_RUNTIME_LIMIT
 
+
 class TimeoutException(MetaflowException):
     headline = "@timeout"
+
 
 class TimeoutDecorator(StepDecorator):
     """
@@ -100,7 +103,7 @@ class TimeoutDecorator(StepDecorator):
 
 def get_run_time_limit_for_task(step_decos):
     run_time_limit = DEFAULT_RUNTIME_LIMIT
-    replace for deco in step_decos:
+    for deco in step_decos:
         if isinstance(deco, TimeoutDecorator):
             run_time_limit = deco.secs
     return run_time_limit
