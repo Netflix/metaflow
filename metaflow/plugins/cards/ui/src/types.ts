@@ -2,6 +2,8 @@ import type { VisualizationSpec } from "svelte-vega";
 
 import type { EmbedOptions } from "vega-embed";
 
+import type {DocJson} from "@bokeh/bokehjs/build/js/lib/document"
+
 export type Route = [string, string];
 
 export type Status = "success" | "error" | "idle" | "in-progress";
@@ -36,6 +38,7 @@ export type TableDataCell =
   | TextComponent
   | ValueBoxComponent
   | VegaChartComponent
+  | BokehEmbedComponent
   | PythonCodeComponent
   | EventsTimelineComponent;
 
@@ -233,6 +236,12 @@ export interface VegaChartComponent {
   options?: EmbedOptions;
 }
 
+export interface BokehEmbedComponent {
+  type: "bokehEmbed";
+  id?: string;
+  doc_json: DocJson;
+}
+
 export interface EventsTimelineComponent {
   type: "eventsTimeline";
   id?: string;
@@ -301,6 +310,7 @@ export type CardComponent =
   | TitleComponent
   | ValueBoxComponent
   | VegaChartComponent
+  | BokehEmbedComponent
   | PythonCodeComponent
   | EventsTimelineComponent
   | JSONViewerComponent

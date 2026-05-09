@@ -1,4 +1,4 @@
-from typing import Any, List, Optional, Union, Callable
+from typing import TYPE_CHECKING, Any, List, Optional, Union, Callable
 from .basic import (
     LogComponent,
     ErrorComponent,
@@ -17,6 +17,9 @@ import uuid
 import inspect
 import textwrap
 
+if TYPE_CHECKING:
+    from bokeh.document import Document
+    from bokeh.models import UIElement
 
 def _warning_with_component(component, msg):
     if component._logger is None:
@@ -1059,6 +1062,32 @@ class VegaChart(UserComponent):
             data["spec"]["width"] = "container"
         if self._chart_inside_table and "autosize" not in self._spec:
             data["spec"]["autosize"] = "fit-x"
+        return data
+
+
+class BokehEmbed(UserComponent):
+    type = "bokehEmbed"
+
+    REALTIME_UPDATABLE = True
+
+    def __init__(self, obj: Document | UIElement):
+        from bokeh.document import Document
+        if isinstance(obj, Document):
+            document = obj
+        else:
+            document = Document()
+            document.add_root(obj)
+        self._document = document
+
+    @with_default_component_id
+    @render_safely
+    def render(self):
+        doc_json = self._document.to_json(deferred=False)
+        data = dict(
+            type=self.type,
+            id=self.component_id,
+            doc_json=doc_json,
+        )
         return data
 
 
