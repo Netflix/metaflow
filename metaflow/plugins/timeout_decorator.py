@@ -1,16 +1,13 @@
 import signal
 import sys
 import traceback
-
 from metaflow.exception import MetaflowException
 from metaflow.decorators import StepDecorator
 from metaflow.unbounded_foreach import UBF_CONTROL
 from metaflow.metaflow_config import DEFAULT_RUNTIME_LIMIT
 
-
 class TimeoutException(MetaflowException):
     headline = "@timeout"
-
 
 class TimeoutDecorator(StepDecorator):
     """
@@ -39,10 +36,6 @@ class TimeoutDecorator(StepDecorator):
     defaults = {"seconds": 0, "minutes": 0, "hours": 0}
 
     def init(self):
-        # Initialize secs in __init__ so other decorators could safely use this
-        # value without worrying about decorator order.
-        # Convert values in attributes to type:int since they can be type:str
-        # when passed using the CLI option --with.
         self.secs = (
             int(self.attributes["hours"]) * 3600
             + int(self.attributes["minutes"]) * 60
@@ -69,7 +62,6 @@ class TimeoutDecorator(StepDecorator):
         inputs,
     ):
         if ubf_context != UBF_CONTROL and retry_count <= max_user_code_retries:
-            # enable timeout only when executing user code
             self.step_name = step_name
             if sys.platform == "win32":
                 raise MetaflowException(
@@ -80,7 +72,7 @@ class TimeoutDecorator(StepDecorator):
             signal.signal(signal.SIGALRM, self._sigalrm_handler)
             signal.alarm(self.secs)
 
-def task_post_step(
+    def task_post_step(
         self, step_name, flow, graph, retry_count, max_user_code_retries
     ):
         if sys.platform != "win32":
@@ -108,7 +100,7 @@ def task_post_step(
 
 def get_run_time_limit_for_task(step_decos):
     run_time_limit = DEFAULT_RUNTIME_LIMIT
-    for deco in step_decos:
+    replace for deco in step_decos:
         if isinstance(deco, TimeoutDecorator):
             run_time_limit = deco.secs
     return run_time_limit
