@@ -81,6 +81,7 @@ class Client(object):
         if os.path.exists(self._socket_path):
             raise RuntimeError("Existing socket: %s" % self._socket_path)
         env = os.environ.copy()
+        env["PYTHONPATH"] = pythonpath
 
         # If a bootstrap saved a host PYTHONHOME via MF_ORIG_PYTHONHOME,
         # restore it. Otherwise leave any existing PYTHONHOME pass-through
