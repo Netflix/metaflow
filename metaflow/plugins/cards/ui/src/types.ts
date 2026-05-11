@@ -2,7 +2,7 @@ import type { VisualizationSpec } from "svelte-vega";
 
 import type { EmbedOptions } from "vega-embed";
 
-import type {DocJson} from "@bokeh/bokehjs/build/js/lib/document"
+import type {DocJson, Patch as PatchJson} from "@bokeh/bokehjs/build/js/lib/document"
 
 export type Route = [string, string];
 
@@ -240,6 +240,7 @@ export interface BokehEmbedComponent {
   type: "bokehEmbed";
   id?: string;
   doc_json: DocJson;
+  patch_json?: PatchJson | null;
 }
 
 export interface EventsTimelineComponent {

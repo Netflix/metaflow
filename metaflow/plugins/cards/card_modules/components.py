@@ -1,4 +1,14 @@
-from typing import TYPE_CHECKING, Any, List, Optional, Union, Callable
+from typing import (
+    TYPE_CHECKING,
+    Any,
+    Callable,
+    List,
+    Literal,
+    NotRequired,
+    Optional,
+    TypedDict,
+    Union,
+)
 from .basic import (
     LogComponent,
     ErrorComponent,
@@ -19,7 +29,10 @@ import textwrap
 
 if TYPE_CHECKING:
     from bokeh.document import Document
+    from bokeh.document.json import DocJson, PatchJson
+    from bokeh.document.events import DocumentChangedEvent
     from bokeh.models import UIElement
+
 
 def _warning_with_component(component, msg):
     if component._logger is None:
@@ -1065,8 +1078,19 @@ class VegaChart(UserComponent):
         return data
 
 
+class BokehEmbedData(TypedDict):
+    type: Literal["bokehEmbed"]
+    id: str | None
+    doc_json: DocJson
+    patch_json: NotRequired[PatchJson | None]
+
+
 class BokehEmbed(UserComponent):
-    type = "bokehEmbed"
+    type: Literal["bokehEmbed"] = "bokehEmbed"
+
+    _document: Document
+    _events: list[DocumentChangedEvent]
+    _has_rendered: bool
 
     REALTIME_UPDATABLE = True
 
@@ -1078,15 +1102,39 @@ class BokehEmbed(UserComponent):
             document = Document()
             document.add_root(obj)
         self._document = document
+        self._events: list[DocumentChangedEvent] = []
+        self._document.on_change(lambda event: self._events.append(event))
+        self._has_rendered = False
 
     @with_default_component_id
     @render_safely
     def render(self):
+        doc = self._document
         doc_json = self._document.to_json(deferred=False)
-        data = dict(
+
+        # TODO we should want to embed the document once and then only patch it
+        # if not self._has_rendered:
+        #     self._has_rendered = True
+        #     doc_json = self._document.to_json(deferred=False)
+        # else:
+        #     doc_json = None
+
+        if len(self._events) != 0:
+            # patch_doc message's logic
+            from bokeh.core.serialization import Serializer
+            from bokeh.document.json import PatchJson
+            serializer = Serializer(references=doc.models.synced_references)
+            patch_json = PatchJson(events=serializer.encode(self._events))
+            doc.models.flush_synced(lambda model: not serializer.has_ref(model))
+            self._events = []
+        else:
+            patch_json = None
+
+        data = BokehEmbedData(
             type=self.type,
             id=self.component_id,
             doc_json=doc_json,
+            patch_json=patch_json,
         )
         return data
 
