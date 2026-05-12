@@ -23,6 +23,11 @@ on:
       - master
   workflow_dispatch:
 
+# On PRs, cancel old runs when new commits are pushed.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event_name == 'push' && github.sha || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
   unit-tests:
     name: "Unit Tests"
