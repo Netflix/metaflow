@@ -723,7 +723,7 @@ def create(
                     mf_card, mode, task, data, timeout_value=timeout
                 )
                 rendered_content = rendered_info.data
-            except:
+            except Exception:
                 rendered_info = CardRenderInfo(
                     mode=mode,
                     is_implemented=True,
