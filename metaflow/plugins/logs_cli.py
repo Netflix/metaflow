@@ -36,7 +36,7 @@ class CustomGroup(click.Group):
         try:
             super().parse_args(ctx, args)
             args_parseable = True
-        except click.ClickException:
+        except Exception:
             args_parseable = False
         if not args or not args_parseable:
             original_args.insert(0, self.default_cmd)
