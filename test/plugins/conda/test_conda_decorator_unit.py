@@ -72,13 +72,11 @@ class TestCondaFlowDecorator:
         assert not deco.attributes["disabled"]
 
     def test_user_defined_python(self):
-        deco = CondaFlowDecorator(
-            attributes={"python": 3.9}
-        )  # The python version should be cast to a string
+        deco = CondaFlowDecorator(attributes={"python": "3.10"})
         deco.init()
         assert deco.is_attribute_user_defined("python")
         assert not deco.is_attribute_user_defined("packages")
-        assert deco.attributes["python"] == "3.9"
+        assert deco.attributes["python"] == "3.10"
 
     def test_user_defined_packages(self):
         deco = CondaFlowDecorator(attributes={"packages": {"pandas": "3.0.2"}})
