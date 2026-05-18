@@ -130,7 +130,6 @@ class MetaflowCodeContent:
             The environment variables that are needed to run Metaflow when it is
             packaged it present.
         """
-        dest_dir = os.path.abspath(dest_dir)
         mfcontent_info = cls._extract_mfcontent_info(dest_dir)
         if mfcontent_info is None:
             # No MFCONTENT_MARKER file found -- this is not a packaged Metaflow code
@@ -277,7 +276,6 @@ class MetaflowCodeContent:
                 "Invalid package -- unknown version %s in info: %s"
                 % (version_id, cls._mappings)
             )
-        dest_dir = os.path.abspath(dest_dir)
         v = cls._mappings[version_id].get_post_extract_env_vars_impl(dest_dir)
         v["METAFLOW_EXTRACTED_ROOT:"] = dest_dir
         return v
