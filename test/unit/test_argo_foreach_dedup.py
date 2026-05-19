@@ -17,12 +17,28 @@ import pytest
 from metaflow.plugins.argo.argo_workflows import ArgoWorkflows
 
 
+class MockGraph:
+    """Minimal graph mock that supports iteration and key access."""
+
+    def __init__(self, nodes, start_step, end_step, name):
+        self._nodes = nodes
+        self.start_step = start_step
+        self.end_step = end_step
+        self.name = name
+
+    def __getitem__(self, key):
+        return self._nodes[key]
+
+    def __iter__(self):
+        return iter(self._nodes.values())
+
+
 def _make_node(name, node_type="linear", out_funcs=None, in_funcs=None,
                is_inside_foreach=False, matching_join=None, foreach_param=None,
                parallel_foreach=False, parallel_step=False, split_parents=None,
                split_branches=None, decorators=None):
     """Create a minimal graph node stand-in."""
-    node = types.SimpleNamespace(
+    return types.SimpleNamespace(
         name=name,
         type=node_type,
         out_funcs=out_funcs or [],
@@ -37,7 +53,6 @@ def _make_node(name, node_type="linear", out_funcs=None, in_funcs=None,
         decorators=decorators or [],
         conditional_branches=[],
     )
-    return node
 
 
 def _build_repro_graph():
@@ -98,41 +113,6 @@ def _build_repro_graph():
     return nodes
 
 
-def _make_argo_instance(nodes):
-    """
-    Create a minimal ArgoWorkflows stand-in with enough state for
-    _dag_templates to run.
-    """
-    instance = object.__new__(ArgoWorkflows)
-
-    # Build a graph-like object that supports iteration and key access
-    graph = types.SimpleNamespace()
-    graph.start_step = "start"
-    graph.end_step = "end"
-    graph.name = "ForeachJoinDedupFlow"
-
-    # Make graph subscriptable and iterable
-    node_dict = nodes
-    graph.__getitem__ = lambda self, key: node_dict[key]
-    graph.__iter__ = lambda self: iter(node_dict.values())
-    # Bind methods to the instance
-    graph.__getitem__ = lambda key: node_dict[key]
-    graph.__iter__ = lambda: iter(node_dict.values())
-
-    instance.graph = graph
-
-    # Set the flow name
-    flow = types.SimpleNamespace()
-    flow.name = "ForeachJoinDedupFlow"
-    instance.flow = flow
-
-    # Run _parse_conditional_branches to populate the conditional tracking state
-    # that _dag_templates depends on
-    instance._parse_conditional_branches()
-
-    return instance
-
-
 def test_no_duplicate_dag_task_names():
     """
     Verify that _dag_templates does not emit duplicate DAGTask names
@@ -140,9 +120,24 @@ def test_no_duplicate_dag_task_names():
     matching_conditional_join.
     """
     nodes = _build_repro_graph()
-    argo = _make_argo_instance(nodes)
 
-    templates = argo._dag_templates()
+    instance = object.__new__(ArgoWorkflows)
+    instance.graph = MockGraph(
+        nodes, start_step="start", end_step="end",
+        name="ForeachJoinDedupFlow",
+    )
+
+    flow = types.SimpleNamespace()
+    flow.name = "ForeachJoinDedupFlow"
+    instance.flow = flow
+
+    # _dag_templates calls _daemon_templates which needs this
+    instance.enable_heartbeat_daemon = False
+
+    # Populate conditional tracking state that _dag_templates depends on
+    instance._parse_conditional_branches()
+
+    templates = instance._dag_templates()
 
     for template in templates:
         template_json = template.to_json()
