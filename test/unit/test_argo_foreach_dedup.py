@@ -10,111 +10,153 @@ DAGTasks with the same name. Argo rejects this at submit time with:
 This test verifies that the seen-tracking fix prevents the duplicate.
 """
 
-import json
-import subprocess
-import sys
-import textwrap
-import tempfile
-import os
+import types
 
 import pytest
 
-
-REPRO_FLOW = textwrap.dedent('''\
-    """Minimum repro: duplicate DAGTask for foreach matching_join."""
-    from metaflow import FlowSpec, step
+from metaflow.plugins.argo.argo_workflows import ArgoWorkflows
 
 
-    class ForeachJoinDedupFlow(FlowSpec):
-        @step
-        def start(self):
-            self.optional_mode = "run"
-            self.next(
-                {"skip": self.fan_gate, "run": self.optional_step},
-                condition="optional_mode",
-            )
-
-        @step
-        def optional_step(self):
-            self.next(self.fan_gate)
-
-        @step
-        def fan_gate(self):
-            self.fan_mode = "run"
-            self.next(
-                {"skip": self.end, "run": self.fan_out},
-                condition="fan_mode",
-            )
-
-        @step
-        def fan_out(self):
-            self.scan_items = [1, 2]
-            self.next(self.fan_step, foreach="scan_items")
-
-        @step
-        def fan_step(self):
-            self.next(self.join_step)
-
-        @step
-        def join_step(self, inputs):
-            self.next(self.end)
-
-        @step
-        def end(self):
-            pass
+def _make_node(name, node_type="linear", out_funcs=None, in_funcs=None,
+               is_inside_foreach=False, matching_join=None, foreach_param=None,
+               parallel_foreach=False, parallel_step=False, split_parents=None,
+               split_branches=None, decorators=None):
+    """Create a minimal graph node stand-in."""
+    node = types.SimpleNamespace(
+        name=name,
+        type=node_type,
+        out_funcs=out_funcs or [],
+        in_funcs=in_funcs or [],
+        is_inside_foreach=is_inside_foreach,
+        matching_join=matching_join,
+        foreach_param=foreach_param,
+        parallel_foreach=parallel_foreach,
+        parallel_step=parallel_step,
+        split_parents=split_parents or [],
+        split_branches=split_branches or [],
+        decorators=decorators or [],
+        conditional_branches=[],
+    )
+    return node
 
 
-    if __name__ == "__main__":
-        ForeachJoinDedupFlow()
-''')
+def _build_repro_graph():
+    """
+    Build the minimal graph that triggers the duplicate DAGTask bug.
+
+    Flow structure:
+        start (split-switch) -> optional_step, fan_gate
+        optional_step -> fan_gate
+        fan_gate (split-switch) -> fan_out, end
+        fan_out (foreach) -> fan_step
+        fan_step -> join_step (join)
+        join_step -> end
+
+    The bug: start's matching_conditional_join resolves to join_step,
+    which is also fan_out's matching_join. This causes join_step to be
+    emitted twice as a DAGTask.
+    """
+    nodes = {
+        "start": _make_node(
+            "start", node_type="split-switch",
+            out_funcs=["optional_step", "fan_gate"],
+        ),
+        "optional_step": _make_node(
+            "optional_step", node_type="linear",
+            in_funcs=["start"],
+            out_funcs=["fan_gate"],
+        ),
+        "fan_gate": _make_node(
+            "fan_gate", node_type="split-switch",
+            in_funcs=["start", "optional_step"],
+            out_funcs=["fan_out", "end"],
+        ),
+        "fan_out": _make_node(
+            "fan_out", node_type="foreach",
+            in_funcs=["fan_gate"],
+            out_funcs=["fan_step"],
+            matching_join="join_step",
+            foreach_param="scan_items",
+        ),
+        "fan_step": _make_node(
+            "fan_step", node_type="linear",
+            in_funcs=["fan_out"],
+            out_funcs=["join_step"],
+            is_inside_foreach=True,
+        ),
+        "join_step": _make_node(
+            "join_step", node_type="join",
+            in_funcs=["fan_step"],
+            out_funcs=["end"],
+            split_parents=["fan_out"],
+        ),
+        "end": _make_node(
+            "end", node_type="end",
+            in_funcs=["fan_gate", "join_step"],
+        ),
+    }
+    return nodes
+
+
+def _make_argo_instance(nodes):
+    """
+    Create a minimal ArgoWorkflows stand-in with enough state for
+    _dag_templates to run.
+    """
+    instance = object.__new__(ArgoWorkflows)
+
+    # Build a graph-like object that supports iteration and key access
+    graph = types.SimpleNamespace()
+    graph.start_step = "start"
+    graph.end_step = "end"
+    graph.name = "ForeachJoinDedupFlow"
+
+    # Make graph subscriptable and iterable
+    node_dict = nodes
+    graph.__getitem__ = lambda self, key: node_dict[key]
+    graph.__iter__ = lambda self: iter(node_dict.values())
+    # Bind methods to the instance
+    graph.__getitem__ = lambda key: node_dict[key]
+    graph.__iter__ = lambda: iter(node_dict.values())
+
+    instance.graph = graph
+
+    # Set the flow name
+    flow = types.SimpleNamespace()
+    flow.name = "ForeachJoinDedupFlow"
+    instance.flow = flow
+
+    # Run _parse_conditional_branches to populate the conditional tracking state
+    # that _dag_templates depends on
+    instance._parse_conditional_branches()
+
+    return instance
 
 
 def test_no_duplicate_dag_task_names():
     """
-    Compile the repro flow to Argo JSON and verify no DAG template
-    contains duplicate task names.
+    Verify that _dag_templates does not emit duplicate DAGTask names
+    when a foreach matching_join coincides with a split-switch
+    matching_conditional_join.
     """
-    with tempfile.NamedTemporaryFile(
-        mode='w', suffix='.py', delete=False
-    ) as f:
-        f.write(REPRO_FLOW)
-        flow_file = f.name
+    nodes = _build_repro_graph()
+    argo = _make_argo_instance(nodes)
 
-    try:
-        result = subprocess.run(
-            [
-                sys.executable, flow_file,
-                "--no-pylint",
-                "argo-workflows", "create", "--only-json",
-            ],
-            capture_output=True,
-            text=True,
-            timeout=60,
+    templates = argo._dag_templates()
+
+    for template in templates:
+        template_json = template.to_json()
+        dag = template_json.get("dag")
+        if not dag:
+            continue
+
+        task_names = [task["name"] for task in dag.get("tasks", [])]
+        duplicates = [
+            name for name in set(task_names)
+            if task_names.count(name) > 1
+        ]
+
+        assert not duplicates, (
+            f"Template '{template_json['name']}' has duplicate DAG task names: "
+            f"{duplicates}"
         )
-
-        if result.returncode != 0:
-            pytest.skip(
-                "Could not compile flow (likely missing Argo/K8s config): "
-                + result.stderr[:500]
-            )
-
-        workflow = json.loads(result.stdout)
-        templates = workflow.get("spec", {}).get("templates", [])
-
-        for template in templates:
-            dag = template.get("dag")
-            if not dag:
-                continue
-
-            task_names = [task["name"] for task in dag.get("tasks", [])]
-            duplicates = [
-                name for name in set(task_names)
-                if task_names.count(name) > 1
-            ]
-
-            assert not duplicates, (
-                f"Template '{template['name']}' has duplicate DAG task names: "
-                f"{duplicates}"
-            )
-    finally:
-        os.unlink(flow_file)
