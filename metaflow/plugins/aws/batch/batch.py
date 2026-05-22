@@ -388,7 +388,6 @@ class Batch(object):
             ]:
                 if key in attrs:
                     job.tag(key, attrs.get(key))
-            # As some values can be affected by users, sanitize them so they adhere to AWS tagging restrictions.
             for key in [
                 "metaflow.version",
                 "metaflow.user",
@@ -398,10 +397,12 @@ class Batch(object):
                     k, v = sanitize_batch_tag(key, attrs.get(key))
                     job.tag(k, v)
 
-            if aws_batch_tags is not None:
-                for key, value in aws_batch_tags.items():
-                    job.tag(key, value)
-
+        # User-defined tags (e.g. for cost attribution or compliance) should
+        # always be applied, regardless of BATCH_EMIT_TAGS which controls
+        # Metaflow's internal observability tags.
+        if aws_batch_tags is not None:
+            for key, value in aws_batch_tags.items():
+                job.tag(key, value)
         return job
 
     def launch_job(
