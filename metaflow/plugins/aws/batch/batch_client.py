@@ -79,11 +79,7 @@ class BatchJob(object):
             raise BatchJobException(
                 "Unable to launch AWS Batch job. No docker image specified."
             )
-        if self._iam_role is None:
-            raise BatchJobException(
-                "Unable to launch AWS Batch job. No IAM role specified."
-            )
-
+        
         # Multinode
         if getattr(self, "num_parallel", 0) >= 1:
             num_nodes = self.num_parallel
@@ -188,7 +184,7 @@ class BatchJob(object):
             "type": "container",
             "containerProperties": {
                 "image": image,
-                "jobRoleArn": job_role,
+                **({"jobRoleArn": job_role} if job_role else {}),
                 "command": ["echo", "hello world"],
                 "resourceRequirements": [
                     {"value": "1", "type": "VCPU"},
