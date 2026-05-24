@@ -8,6 +8,11 @@ on:
     branches:
       - master
 
+# On PRs, cancel old runs when new commits are pushed.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event_name == 'push' && github.sha || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
   test:
     runs-on: ubuntu-latest
