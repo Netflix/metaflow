@@ -73,3 +73,12 @@ def test_resolve_log_attempt_reads_from_meta_dict():
 def test_resolve_log_attempt_defaults_missing_attempt_to_zero():
     task = _minimal_task()
     assert task._resolve_log_attempt({}) == 0
+
+
+def test_resolve_log_attempt_delegates_to_current_attempt_when_meta_dict_is_none():
+    task = _minimal_task()
+
+    with patch.object(Task, "current_attempt", new_callable=PropertyMock) as attempt_mock:
+        attempt_mock.return_value = 7
+        assert task._resolve_log_attempt(None) == 7
+        attempt_mock.assert_called_once()
