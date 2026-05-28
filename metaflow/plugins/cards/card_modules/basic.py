@@ -12,7 +12,17 @@ JS_PATH = os.path.join(ABS_DIR_PATH, "main.js")
 CSS_PATH = os.path.join(ABS_DIR_PATH, "bundle.css")
 
 
-def transform_flow_graph(step_info):
+def transform_flow_graph(graph):
+    # new graph format
+    if "steps" in graph and "start_step" in graph and "end_step" in graph:
+        step_info = graph["steps"]
+        start_step = graph["start_step"]
+        end_step = graph["end_step"]
+    else:
+        step_info = graph
+        start_step = "start" if "start" in graph else None
+        end_step = "end" if "end" in graph else None
+
     def node_to_type(node_type):
         if node_type in ["linear", "start", "end", "join"]:
             return node_type
@@ -47,7 +57,11 @@ def transform_flow_graph(step_info):
 
         graph_dict[stepname] = node_info
 
-    return graph_dict
+    return {
+        "steps": graph_dict,
+        "start_step": start_step,
+        "end_step": end_step,
+    }
 
 
 def read_file(path):
@@ -603,9 +617,15 @@ class ErrorCard(MetaflowCard):
 
     RELOAD_POLICY = MetaflowCard.RELOAD_POLICY_ONCHANGE
 
-    def __init__(self, options={}, components=[], graph=None, **kwargs):
+    def __init__(
+        self, options={}, components=[], graph=None, graph_info=None, **kwargs
+    ):
         self._only_repr = True
-        self._graph = None if graph is None else transform_flow_graph(graph)
+        # Prefer graph_info (carries start_step/end_step metadata) when available
+        _graph_source = graph_info if graph_info is not None else graph
+        self._graph = (
+            None if _graph_source is None else transform_flow_graph(_graph_source)
+        )
         self._components = components
 
     def reload_content_token(self, task, data):
@@ -664,11 +684,15 @@ class DefaultCardJSON(MetaflowCard):
         options=dict(only_repr=True),
         components=[],
         graph=None,
+        graph_info=None,
         flow=None,
         **kwargs
     ):
         self._only_repr = True
-        self._graph = None if graph is None else transform_flow_graph(graph)
+        _graph_source = graph_info if graph_info is not None else graph
+        self._graph = (
+            None if _graph_source is None else transform_flow_graph(_graph_source)
+        )
         self._flow = flow
         if "only_repr" in options:
             self._only_repr = options["only_repr"]
@@ -700,13 +724,17 @@ class DefaultCard(MetaflowCard):
         options=dict(only_repr=True),
         components=[],
         graph=None,
+        graph_info=None,
         flow=None,
         **kwargs
     ):
         self._only_repr = True
         # Default max artifact size uses the global MAX_ARTIFACT_SIZE constant (200MB)
         self._max_artifact_size = MAX_ARTIFACT_SIZE
-        self._graph = None if graph is None else transform_flow_graph(graph)
+        _graph_source = graph_info if graph_info is not None else graph
+        self._graph = (
+            None if _graph_source is None else transform_flow_graph(_graph_source)
+        )
         self._flow = flow
         if "only_repr" in options:
             self._only_repr = options["only_repr"]

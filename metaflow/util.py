@@ -11,7 +11,6 @@ from io import BytesIO
 from itertools import takewhile
 from typing import Dict, Any, Tuple, Optional, List, Generator
 
-
 try:
     # python2
     unicode_type = unicode
@@ -582,6 +581,8 @@ def to_pod(value):
         return [to_pod(v) for v in value]
     if isinstance(value, DeployTimeField):
         return value.print_representation
+    if callable(value):
+        return getattr(value, "__qualname__", str(value))
     return str(value)
 
 

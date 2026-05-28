@@ -6,6 +6,8 @@
 
   export let steps: Dag;
   export let stepName: string;
+  export let startStep: string;
+  export let endStep: string | null = null;
   export let levels = 0;
   export let joins: string[] = []
   export let pathToStep: string = "";
@@ -40,8 +42,8 @@
           connections.push(fromJoins)
         }
       } else {
-        if (nextStep === 'end') {
-          connections.push("end");
+        if (endStep && nextStep === endStep) {
+          connections.push(endStep);
         } else {
           if (nextStep === stepName) {
             connections.push(fullStepPath)
@@ -63,7 +65,7 @@
   onMount(registerNode);
 
   let hasNext = currentStep?.next?.find((nextStepName) => {
-    return steps[nextStepName]?.type !== "join" && nextStepName !== 'end';
+    return steps[nextStepName]?.type !== "join" && nextStepName !== endStep;
   });
 
   // For a static analysis, increase the level for a foreach and decrease it for a join
@@ -91,10 +93,12 @@
         {#each currentStep.next as nextStepName}
           {#if nextStepName === stepName}
             <!-- noop -->
-          {:else if steps[nextStepName].type !== 'join' && nextStepName !== 'end'}
+          {:else if nextStepName !== endStep && steps[nextStepName]?.type !== 'join'}
             <svelte:self
               {steps}
               stepName={nextStepName}
+              {startStep}
+              {endStep}
               levels={childLevels}
               {dagStructure}
               pathToStep={fullStepPath}
@@ -108,11 +112,11 @@
     {/if}
     {#if currentStep.box_ends}
       <div class="gap" />
-      <svelte:self {steps} stepName={currentStep.box_ends} {levels} {dagStructure} pathToStep={fullStepPath} joins={joins} />
+      <svelte:self {steps} stepName={currentStep.box_ends} {startStep} {endStep} {levels} {dagStructure} pathToStep={fullStepPath} joins={joins} />
     {/if}
-    {#if stepName === 'start'}
+    {#if endStep && endStep !== startStep && stepName === startStep}
       <div class="gap" />
-      <svelte:self {steps} stepName="end" {levels} {dagStructure} />
+      <svelte:self {steps} stepName={endStep} {startStep} {endStep} {levels} {dagStructure} />
     {/if}
   </div>
 {/if}

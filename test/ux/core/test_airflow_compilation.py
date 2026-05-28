@@ -136,10 +136,11 @@ def _validate_dag_source(dag_source, dag_file_path=None):
 # ---------------------------------------------------------------------------
 
 
-class TestAirflowCompilation:
-    """Compile each flow type to Airflow DAG and validate."""
+@pytest.fixture
+def compile_and_validate():
+    """Compile a flow to an Airflow DAG, validate it, and clean up the tempfile."""
 
-    def _compile_and_validate(self, flow_path, **extra_tl_args):
+    def _impl(flow_path, **extra_tl_args):
         dag_source, dag_file_path = _compile_flow_to_dag(flow_path, **extra_tl_args)
         try:
             result = _validate_dag_source(dag_source, dag_file_path)
@@ -153,41 +154,51 @@ class TestAirflowCompilation:
             except OSError:
                 pass
 
-    def test_linear_flow(self):
-        """Simple start->step->end flow compiles to valid Airflow DAG."""
-        self._compile_and_validate("basic/helloworld.py")
+    return _impl
 
-    def test_branch_flow(self):
-        """Parallel branch flow compiles to valid Airflow DAG."""
-        self._compile_and_validate("dag/branch_flow.py")
 
-    def test_foreach_flow(self):
-        """Foreach flow compiles to valid Airflow DAG."""
-        self._compile_and_validate("dag/foreach_flow.py")
+def test_linear_flow(compile_and_validate):
+    """Simple start->step->end flow compiles to valid Airflow DAG."""
+    compile_and_validate("basic/helloworld.py")
 
-    def test_retry_flow(self):
-        """Flow with @retry compiles to valid Airflow DAG."""
-        self._compile_and_validate("basic/retry_flow.py")
 
-    def test_resources_flow(self):
-        """Flow with @resources compiles to valid Airflow DAG."""
-        self._compile_and_validate("basic/resources_flow.py")
+def test_branch_flow(compile_and_validate):
+    """Parallel branch flow compiles to valid Airflow DAG."""
+    compile_and_validate("dag/branch_flow.py")
 
-    def test_schedule_flow(self):
-        """Flow with @schedule compiles to valid Airflow DAG."""
-        self._compile_and_validate("lifecycle/schedule_flow.py")
 
-    # ------------------------------------------------------------------
-    # Invariant checks (specific bugs we've fixed)
-    # ------------------------------------------------------------------
+def test_foreach_flow(compile_and_validate):
+    """Foreach flow compiles to valid Airflow DAG."""
+    compile_and_validate("dag/foreach_flow.py")
 
-    def test_tags_are_list_not_tuple(self):
-        """DAG tags must be a list, not a tuple (Airflow rejects tuples)."""
-        dag_source = self._compile_and_validate("basic/helloworld.py")
-        # Check that tags assignment uses list syntax
-        tree = ast.parse(dag_source)
-        for node in ast.walk(tree):
-            if isinstance(node, ast.keyword) and node.arg == "tags":
-                assert not isinstance(
-                    node.value, ast.Tuple
-                ), "DAG tags should be a list, not a tuple"
+
+def test_retry_flow(compile_and_validate):
+    """Flow with @retry compiles to valid Airflow DAG."""
+    compile_and_validate("basic/retry_flow.py")
+
+
+def test_resources_flow(compile_and_validate):
+    """Flow with @resources compiles to valid Airflow DAG."""
+    compile_and_validate("basic/resources_flow.py")
+
+
+def test_schedule_flow(compile_and_validate):
+    """Flow with @schedule compiles to valid Airflow DAG."""
+    compile_and_validate("lifecycle/schedule_flow.py")
+
+
+# ---------------------------------------------------------------------------
+# Invariant checks (specific bugs we've fixed)
+# ---------------------------------------------------------------------------
+
+
+def test_tags_are_list_not_tuple(compile_and_validate):
+    """DAG tags must be a list, not a tuple (Airflow rejects tuples)."""
+    dag_source = compile_and_validate("basic/helloworld.py")
+    # Check that tags assignment uses list syntax
+    tree = ast.parse(dag_source)
+    for node in ast.walk(tree):
+        if isinstance(node, ast.keyword) and node.arg == "tags":
+            assert not isinstance(
+                node.value, ast.Tuple
+            ), "DAG tags should be a list, not a tuple"

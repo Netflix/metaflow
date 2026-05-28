@@ -525,9 +525,8 @@ class MetaflowAPI(object):
         # it will init all parameters (config_options will be None)
         # We ignore any errors if we don't check the configs in the click API.
 
-        # Init all values in the flow mutators and then process them
-        for decorator in self._flow_cls._flow_state[FlowStateItems.FLOW_MUTATORS]:
-            decorator.external_init()
+        # Process config decorators (this is the pre_mutate phase for both flow mutators
+        # and step mutators -- the mutate is called in init_step_decorators)
 
         new_cls = self._flow_cls._process_config_decorators(
             config_options, process_configs=CLICK_API_PROCESS_CONFIG

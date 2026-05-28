@@ -54,6 +54,12 @@ export type PathSpecObject = {
 
 export type Dag = Record<string, DagStep>;
 
+export interface DagData {
+  steps: Dag;
+  start_step: string | null;
+  end_step: string | null;
+}
+
 // TODO: add support for switch-split
 export type StepType =
   | "linear"
@@ -187,7 +193,7 @@ export interface ArtifactsComponent {
 export interface DagComponent {
   type: "dag";
   id?: string;
-  data: Dag;
+  data: DagData;
 }
 
 // handle stderr stdout strings

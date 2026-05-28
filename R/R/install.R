@@ -31,13 +31,13 @@ install_metaflow <- function(method = c("conda", "virtualenv"),
 
   env_set <- check_environment(envname)
   if (method == "conda" && env_set[["virtualenv"]]) {
-    stop("An existing virtualenv <", envname, "> detected for Metaflow installation.\n", 
+    stop("An existing virtualenv <", envname, "> detected for Metaflow installation.\n",
        "To continue, remove that environment by executing metaflow::remove_metaflow_env()",
        " and try installing Metaflow again.", call.=FALSE)
   }
 
   if (method == "virtualenv" && env_set[["conda"]]) {
-    stop("An existing conda environment <", envname, "> detected for Metaflow installation.\n", 
+    stop("An existing conda environment <", envname, "> detected for Metaflow installation.\n",
        "To continue, remove that environment by executing metaflow::remove_metaflow_env()",
        " and try installing Metaflow again.", call.=FALSE)
   }

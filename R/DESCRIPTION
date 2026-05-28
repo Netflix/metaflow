@@ -2,13 +2,13 @@ Package: metaflow
 Type: Package
 Title: Metaflow for R-Lang
 Version: 2.3.0
-Author: Jason Ge [aut] <jge@netflix.com>, 
+Author: Jason Ge [aut] <jge@netflix.com>,
   Savin Goyal [aut, cre] <savin@netflix.com>,
   David Neuzerling [ctb] <david@neuzerling.com>
 Maintainer: Jason Ge <help@metaflow.org>
-Description: Metaflow is a human-friendly R package 
-  that helps scientists and engineers build and manage real-life data science projects. 
-  Metaflow was originally developed at Netflix to boost productivity of data scientists 
+Description: Metaflow is a human-friendly R package
+  that helps scientists and engineers build and manage real-life data science projects.
+  Metaflow was originally developed at Netflix to boost productivity of data scientists
   who work on a wide variety of projects from classical statistics to state-of-the-art deep learning.
 Encoding: UTF-8
 License: Apache License (>= 2.0) | file LICENSE
@@ -30,7 +30,7 @@ Suggests:
     rmarkdown
 RoxygenNote: 7.1.1
 Roxygen: list(markdown = TRUE)
-Collate: 
+Collate:
     'decorators-aws.R'
     'decorators-environment.R'
     'decorators-errors.R'

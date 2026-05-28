@@ -373,5 +373,5 @@ class TestMetaflowE2E:
 
     @_NEEDS_CORE_BATCH_PARAMS
     def test_all_steps_have_tasks(self, simple_batch_run):
-        step_names = {s.id for s in simple_batch_run.steps()}
+        step_names = {step.id for step in simple_batch_run.steps()}
         assert {"start", "end"} <= step_names

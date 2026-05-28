@@ -240,7 +240,9 @@ class StepFunctions(object):
         workflow = StepFunctionsClient().get(name)
         if workflow is not None:
             try:
-                start = json.loads(workflow["definition"])["States"]["start"]
+                definition = json.loads(workflow["definition"])
+                start_state_name = definition.get("StartAt", "start")
+                start = definition["States"][start_state_name]
                 parameters = start["Parameters"]["Parameters"]
                 return parameters.get("metaflow.owner"), parameters.get(
                     "metaflow.production_token"
@@ -271,13 +273,22 @@ class StepFunctions(object):
             )
         try:
             state_machine_arn = state_machine.get("stateMachineArn")
+            definition = json.loads(state_machine.get("definition"))
+            start_state_name = definition.get("StartAt", "start")
+            # Explicit guards rather than chained .get() so we produce
+            # readable errors if the state machine has an unexpected shape
+            # (e.g., deployed by something other than Metaflow).
+            states = definition.get("States") or {}
+            start_state = states.get(start_state_name)
+            if start_state is None:
+                raise StepFunctionsException(
+                    "State machine *%s* has no state named *%s* in its "
+                    "States block." % (state_machine_name, start_state_name)
+                )
             environment_vars = (
-                json.loads(state_machine.get("definition"))
-                .get("States")
-                .get("start")
-                .get("Parameters")
-                .get("ContainerOverrides")
-                .get("Environment")
+                start_state.get("Parameters", {})
+                .get("ContainerOverrides", {})
+                .get("Environment", [])
             )
             parameters = {
                 item.get("Name"): item.get("Value") for item in environment_vars
@@ -478,10 +489,10 @@ class StepFunctions(object):
                 )
             return workflow
 
-        workflow = Workflow(self.name).start_at("start")
+        workflow = Workflow(self.name).start_at(self.graph.start_step)
         if self.workflow_timeout:
             workflow.timeout_seconds(self.workflow_timeout)
-        return _visit(self.graph["start"], workflow)
+        return _visit(self.graph[self.graph.start_step], workflow)
 
     def _cron(self):
         schedule = self.flow._flow_decorators.get("schedule")
@@ -597,7 +608,7 @@ class StepFunctions(object):
         # Store production token within the `start` step, so that subsequent
         # `step-functions create` calls can perform a rudimentary authorization
         # check.
-        if node.name == "start":
+        if node.name == self.graph.start_step:
             attrs["metaflow.production_token"] = self.production_token
 
         # Add env vars from the optional @environment decorator.
@@ -610,7 +621,7 @@ class StepFunctions(object):
         if S3_ENDPOINT_URL is not None:
             env["METAFLOW_S3_ENDPOINT_URL"] = S3_ENDPOINT_URL
 
-        if node.name == "start":
+        if node.name == self.graph.start_step:
             # metaflow.run_id maps to AWS Step Functions State Machine Execution in all
             # cases except for when within a for-each construct that relies on
             # Distributed Map. To work around this issue, we pass the run id from the
@@ -956,7 +967,7 @@ class StepFunctions(object):
             "--with=step_functions_internal",
         ]
 
-        if node.name == "start":
+        if node.name == self.graph.start_step:
             # We need a separate unique ID for the special _parameters task
             task_id_params = "%s-params" % task_id
             # Export user-defined parameters into runtime environment
