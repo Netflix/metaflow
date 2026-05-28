@@ -7,9 +7,9 @@ COLOR="214"
 LOGO="
 ______  ________________________________________ __________       __
 ___   |/  /__  ____/__  __/__    |__  ____/__  / __  __ \_ |     / /
-__  /|_/ /__  __/  __  /  __  /| |_  /_   __  /  _  / / /_ | /| / / 
-_  /  / / _  /___  _  /   _  ___ |  __/   _  /___/ /_/ /__ |/ |/ /  
-/_/  /_/  /_____/  /_/    /_/  |_/_/      /_____/\____/ ____/|__/   
+__  /|_/ /__  __/  __  /  __  /| |_  /_   __  /  _  / / /_ | /| / /
+_  /  / / _  /___  _  /   _  ___ |  __/   _  /___/ /_/ /__ |/ |/ /
+/_/  /_/  /_____/  /_/    /_/  |_/_/      /_____/\____/ ____/|__/
 "
 
 SERVICE_OPTIONS=(
@@ -32,24 +32,6 @@ gum style "$LOGO" \
 gum style "Select services to deploy (press enter to select all):" \
   --foreground "$COLOR" \
   --bold >&2
-
-pretty_print() {
-  local items=("$@")
-  
-  if [ "${#items[@]}" -eq 1 ]; then
-    echo "${items[0]}"
-    return
-  fi
-
-  if [ "${#items[@]}" -eq 2 ]; then
-    echo "${items[0]} and ${items[1]}"
-    return
-  fi
-
-  local last_item="${items[-1]}"
-  unset 'items[-1]'
-  echo "$(IFS=,; echo "${items[*]}"), and $last_item"
-}
 
 pretty_print() {
   local items=("$@")

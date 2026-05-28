@@ -1,4 +1,4 @@
-<!-- There are cases where we want a vertical table.  Its expected to be a very low column 
+<!-- There are cases where we want a vertical table.  Its expected to be a very low column
   count.  We basically pivot the table and style the first column to be headers -->
 <script lang="ts">
   import type * as types from "../types";

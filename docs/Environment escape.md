@@ -225,7 +225,7 @@ everything to the server:
   to do so.
 
   The server is thus started by the client, and the client is responsible for
-  terminating the server when it dies. A big part of the client and server code 
+  terminating the server when it dies. A big part of the client and server code
   consist in loading the configuration for the emulated module, particularly the
   overrides.
 

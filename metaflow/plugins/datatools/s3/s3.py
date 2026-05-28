@@ -1449,6 +1449,11 @@ class S3(object):
     # and url_unquote.
     def _read_many_files(self, op, prefixes_and_ranges, **options):
         prefixes_and_ranges = list(prefixes_and_ranges)
+        if not prefixes_and_ranges:
+            # Nothing to read. Return early to avoid calling s3op with an empty
+            # input file, which writes informational text to stderr causing the
+            # error handler below to crash with IndexError on prefixes_and_ranges[0].
+            return
         with NamedTemporaryFile(
             dir=self._tmpdir,
             mode="wb",
@@ -1489,6 +1494,12 @@ class S3(object):
 
     def _put_many_files(self, url_info, overwrite):
         url_info = list(url_info)
+        if not url_info:
+            # Nothing to upload (all blobs already exist in the content-addressed
+            # store). Return early to avoid calling s3op with an empty input file,
+            # which would write informational text to stderr and cause the error
+            # handler below to crash with IndexError on url_info[0].
+            return []
         url_dicts = [
             dict(
                 chain([("local", os.path.realpath(local)), ("url", url)], info.items())

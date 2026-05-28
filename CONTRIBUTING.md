@@ -198,6 +198,19 @@ def test_symlink_traversal_handles_circular_references():
     # Assert: Verify all modules are included correctly
 ```
 
+### Test conventions
+
+For any new test file, follow these conventions:
+
+- **pytest, not `unittest`.** Plain `assert`, no `TestCase` subclasses, no `self.assertEqual`.
+- **Module-level functions, not test classes.**
+- **`pytest-mock` (`mocker` fixture), not `unittest.mock.MagicMock` / `patch`.** Use `mocker.patch(...)` so cleanup is automatic.
+- **`@pytest.fixture` for shared setup.** File-local fixtures at the top of the test file; cross-file fixtures in the nearest `conftest.py` (e.g. `test/unit/conftest.py`).
+- **Module-level constants for immutable test data; fixtures for stateful test data.** Strings, numbers, plain dicts/tuples can live as module-level constants. `BytesIO`, file handles, datetimes, mocks, or anything with mutable internal state belongs in a fixture so each test gets a fresh instance.
+- **Factory fixtures** when per-test parameters are needed: return a callable, not the bare object.
+- **`@pytest.mark.parametrize` whenever cases share shape.** One parametrized test beats N near-identical ones.
+- File and test naming: `test/unit/test_<module>.py`, function names `test_<behavior>`.
+
 ## PR Description Template
 
 A good PR description helps reviewers and speeds up the merge process. **Use this template:**

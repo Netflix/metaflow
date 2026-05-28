@@ -346,6 +346,6 @@ ui: setup-tilt
 	@echo "🔗 Opening Metaflow UI at http://localhost:3000"
 	@open http://localhost:3000
 
-.PHONY: install-helm setup-minikube setup-tilt teardown-minikube tunnel up down check-docker install-curl install-gum install-brew up down dashboard shell ui all-up help
+.PHONY: install-helm check-docker install-brew install-curl install-gum setup-minikube setup-tilt tunnel teardown-minikube dashboard up all-up down shell wait-until-ready create-dev-shell ui help
 
 .DEFAULT_GOAL := help

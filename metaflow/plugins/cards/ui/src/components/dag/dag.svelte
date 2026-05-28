@@ -11,7 +11,7 @@
 
   export let componentData: DagComponent;
 
-  const { data: steps } = componentData;
+  const { steps, start_step: startStep, end_step: endStep } = componentData.data;
   let el: HTMLElement;
   let dagStructure: DagStructure = {};
 
@@ -42,8 +42,14 @@
   style="position: relative; line-height: 1"
   data-component="dag"
 >
-  {#if steps?.start}
-    <StepWrapper {steps} stepName="start" bind:dagStructure />
+  {#if startStep && steps?.[startStep]}
+    <StepWrapper
+      {steps}
+      stepName={startStep}
+      {startStep}
+      {endStep}
+      bind:dagStructure
+    />
   {:else}
     <p>No start step</p>
   {/if}

@@ -21,4 +21,3 @@ Helper utility to gather inputs in a join step
 gather_inputs(inputs, "alpha")
 }
 }
-
