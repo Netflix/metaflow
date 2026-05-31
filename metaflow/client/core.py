@@ -1731,6 +1731,16 @@ class Task(MetaflowObject):
             attempt = int(self.metadata_dict.get("attempt", 0))
         return attempt
 
+    def _resolve_log_attempt(self, meta_dict: Optional[Dict[str, Any]] = None) -> int:
+        """
+        Resolve the log attempt without re-fetching metadata when meta_dict is known.
+        """
+        if self._attempt is not None:
+            return self._attempt
+        if meta_dict is not None:
+            return int(meta_dict.get("attempt", 0))
+        return self.current_attempt
+
     @cached_property
     def code(self) -> Optional[MetaflowCode]:
         """
@@ -1826,7 +1836,7 @@ class Task(MetaflowObject):
         if filecache is None:
             filecache = FileCache()
 
-        attempt = self.current_attempt
+        attempt = self._resolve_log_attempt(meta_dict)
         logs = filecache.get_logs_stream(
             ds_type, ds_root, stream, attempt, *self.path_components
         )
@@ -1875,7 +1885,7 @@ class Task(MetaflowObject):
             return 0
         if filecache is None:
             filecache = FileCache()
-        attempt = self.current_attempt
+        attempt = self._resolve_log_attempt(meta_dict)
 
         return filecache.get_log_size(
             ds_type, ds_root, stream, attempt, *self.path_components
