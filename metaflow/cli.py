@@ -1,4 +1,3 @@
-import os
 import functools
 import inspect
 import os
@@ -630,14 +629,15 @@ def start(
             ctx.obj.environment.decospecs() or []
         )
 
+        # If we are in spin-args, we will not attach any decorators
+        if ctx.saved_args[0] == "spin-step":
+            all_decospecs = []
         # We add the default decospecs for everything except init and step since in those
         # cases, the decospecs will already have been handled by either a run/resume
         # or a scheduler setting them up in their own way.
-        if ctx.saved_args[0] not in ("step", "init"):
+        elif ctx.saved_args[0] not in ("step", "init"):
             all_decospecs += DEFAULT_DECOSPECS.split()
-        elif ctx.saved_args[0] == "spin-step":
-            # If we are in spin-args, we will not attach any decorators
-            all_decospecs = []
+
         if all_decospecs:
             decorators._attach_decorators(ctx.obj.flow, all_decospecs)
             # Regenerate graph if we attached more decorators
