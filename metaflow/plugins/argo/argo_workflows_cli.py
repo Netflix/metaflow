@@ -364,8 +364,7 @@ def create(
     )
 
     if only_json:
-        obj.echo_always(str(flow), err=False, no_bold=True)
-        # TODO: Support echo-ing Argo Events Sensor template
+        obj.echo_always(flow.export_all_json(), err=False, no_bold=True)
     else:
         flow.deploy()
         obj.echo(
