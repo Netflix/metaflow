@@ -1,84 +1,93 @@
 """Regression tests for redundant metadata fetches on task log accessors (#3034)."""
 
-from unittest.mock import MagicMock, PropertyMock, patch
-
 import pytest
 
 from metaflow.client.core import Task
 
+PATH_COMPONENTS = ("TestFlow", "123", "start", "1")
+LOG_METADATA = {
+    "ds-type": "local",
+    "ds-root": "/tmp/logs",
+    "attempt": "2",
+}
+SIZE_METADATA = {
+    "ds-type": "local",
+    "ds-root": "/tmp/logs",
+    "attempt": "3",
+}
 
-def _minimal_task():
+
+@pytest.fixture
+def minimal_task(mocker):
     task = Task.__new__(Task)
     task._attempt = None
-    task._path_components = ["TestFlow", "123", "start", "1"]
-    task._metaflow = MagicMock()
+    task._path_components = list(PATH_COMPONENTS)
+    task._metaflow = mocker.Mock()
     return task
 
 
-@pytest.mark.parametrize("stream", ["stdout", "stderr"])
-def test_loglines_does_not_refetch_metadata_when_meta_dict_provided(stream):
-    meta_dict = {
-        "ds-type": "local",
-        "ds-root": "/tmp/logs",
-        "attempt": "2",
-    }
-    task = _minimal_task()
+@pytest.fixture
+def metadata_dict_mock(mocker):
+    return mocker.patch.object(Task, "metadata_dict", new_callable=mocker.PropertyMock)
 
-    with patch.object(
-        Task, "metadata_dict", new_callable=PropertyMock
-    ) as metadata_dict_mock:
-        with patch("metaflow.client.core.filecache", None):
-            with patch("metaflow.client.core.FileCache") as filecache_cls:
-                filecache_cls.return_value.get_logs_stream.return_value = []
-                with patch(
-                    "metaflow.mflog.mflog.merge_logs", return_value=[]
-                ):
-                    list(task.loglines(stream, meta_dict=meta_dict))
 
-        metadata_dict_mock.assert_not_called()
+@pytest.fixture
+def filecache_cls(mocker):
+    mocker.patch("metaflow.client.core.filecache", None)
+    return mocker.patch("metaflow.client.core.FileCache")
 
 
 @pytest.mark.parametrize("stream", ["stdout", "stderr"])
-def test_log_size_does_not_refetch_metadata_when_meta_dict_provided(stream):
-    meta_dict = {
-        "ds-type": "local",
-        "ds-root": "/tmp/logs",
-        "attempt": "3",
-    }
-    task = _minimal_task()
+def test_loglines_uses_supplied_metadata_without_refetching(
+    minimal_task, metadata_dict_mock, filecache_cls, mocker, stream
+):
+    filecache_cls.return_value.get_logs_stream.return_value = []
+    merge_logs = mocker.patch("metaflow.mflog.mflog.merge_logs", return_value=[])
 
-    with patch.object(
-        Task, "metadata_dict", new_callable=PropertyMock
-    ) as metadata_dict_mock:
-        with patch("metaflow.client.core.filecache", None):
-            with patch("metaflow.client.core.FileCache") as filecache_cls:
-                filecache_cls.return_value.get_log_size.return_value = 42
-                size = task._log_size(stream, meta_dict)
+    assert list(minimal_task.loglines(stream, meta_dict=LOG_METADATA.copy())) == []
 
-        metadata_dict_mock.assert_not_called()
-        assert size == 42
+    metadata_dict_mock.assert_not_called()
+    filecache_cls.return_value.get_logs_stream.assert_called_once_with(
+        "local", "/tmp/logs", stream, 2, *PATH_COMPONENTS
+    )
+    merge_logs.assert_called_once_with([])
 
 
-def test_resolve_log_attempt_prefers_explicit_attempt():
-    task = _minimal_task()
-    task._attempt = 5
-    assert task._resolve_log_attempt({"attempt": "0"}) == 5
+@pytest.mark.parametrize("stream", ["stdout", "stderr"])
+def test_log_size_uses_supplied_metadata_without_refetching(
+    minimal_task, metadata_dict_mock, filecache_cls, stream
+):
+    filecache_cls.return_value.get_log_size.return_value = 42
+
+    assert minimal_task._log_size(stream, SIZE_METADATA.copy()) == 42
+
+    metadata_dict_mock.assert_not_called()
+    filecache_cls.return_value.get_log_size.assert_called_once_with(
+        "local", "/tmp/logs", stream, 3, *PATH_COMPONENTS
+    )
 
 
-def test_resolve_log_attempt_reads_from_meta_dict():
-    task = _minimal_task()
-    assert task._resolve_log_attempt({"attempt": "2"}) == 2
+@pytest.mark.parametrize(
+    ("explicit_attempt", "meta_dict", "expected"),
+    [
+        (5, {"attempt": "0"}, 5),
+        (None, {"attempt": "2"}, 2),
+        (None, {}, 0),
+    ],
+)
+def test_resolve_log_attempt_prefers_explicit_attempt_then_metadata(
+    minimal_task, explicit_attempt, meta_dict, expected
+):
+    minimal_task._attempt = explicit_attempt
+
+    assert minimal_task._resolve_log_attempt(meta_dict) == expected
 
 
-def test_resolve_log_attempt_defaults_missing_attempt_to_zero():
-    task = _minimal_task()
-    assert task._resolve_log_attempt({}) == 0
+def test_resolve_log_attempt_delegates_when_metadata_not_provided(minimal_task, mocker):
+    current_attempt = mocker.patch.object(
+        Task, "current_attempt", new_callable=mocker.PropertyMock
+    )
+    current_attempt.return_value = 7
 
-
-def test_resolve_log_attempt_delegates_to_current_attempt_when_meta_dict_is_none():
-    task = _minimal_task()
-
-    with patch.object(Task, "current_attempt", new_callable=PropertyMock) as attempt_mock:
-        attempt_mock.return_value = 7
-        assert task._resolve_log_attempt(None) == 7
-        attempt_mock.assert_called_once()
+    assert minimal_task._resolve_log_attempt(None) == 7
+    current_attempt.assert_called_once_with()
