@@ -20,7 +20,7 @@ class CardProcessManager:
     async_card_processes = {
         # "carduuid": {
         #     "proc": subprocess.Popen,
-        #     "started": time.time()
+        #     "started": time.monotonic()
         # }
     }
 
