@@ -28,7 +28,7 @@ class CardProcessManager:
     def _register_card_process(cls, carduuid, proc):
         cls.async_card_processes[carduuid] = {
             "proc": proc,
-            "started": time.time(),
+            "started": time.monotonic(),
         }
 
     @classmethod
@@ -197,7 +197,7 @@ class CardCreator:
     def _wait_for_async_processes_to_finish(self, card_uuid, async_timeout):
         _async_proc, _async_started = CardProcessManager._get_card_process(card_uuid)
         while _async_proc is not None and _async_proc.poll() is None:
-            if time.time() - _async_started > async_timeout:
+            if time.monotonic() - _async_started > async_timeout:
                 # This means the process has crossed the timeout and we need to kill it.
                 CardProcessManager._remove_card_process(card_uuid)
                 break
@@ -228,7 +228,7 @@ class CardCreator:
                 card_uuid
             )
             if _async_proc and _async_proc.poll() is None:
-                if time.time() - _async_started > async_timeout:
+                if time.monotonic() - _async_started > async_timeout:
                     CardProcessManager._remove_card_process(card_uuid)
                     # Since we have removed the card process, we are free to run a new one
                     # This will also ensure that when a old process is removed a new one is replaced.
