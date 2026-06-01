@@ -114,7 +114,11 @@ jobs:
 
       - name: Run spin tests
         shell: bash -el {0}
-        run: tox -e spin -- --junit-xml=junit-spin.xml
+        run: |
+          export CONDA_PKGS_DIRS="$RUNNER_TEMP/metaflow-micromamba-pkgs"
+          export MAMBA_ROOT_PREFIX="$RUNNER_TEMP/metaflow-micromamba-root"
+          export METAFLOW_TOKEN_HOME="$RUNNER_TEMP/metaflowconfig"
+          tox -e spin -- --junit-xml=junit-spin.xml
 
       - name: Upload test results
         if: always()
