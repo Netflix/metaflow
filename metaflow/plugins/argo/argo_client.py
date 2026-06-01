@@ -1,6 +1,9 @@
 import json
 
-from metaflow.metaflow_config import ARGO_EVENTS_SENSOR_NAMESPACE
+from metaflow.metaflow_config import (
+    ARGO_EVENTS_SENSOR_NAMESPACE,
+    ARGO_WORKFLOWS_USE_SCHEDULES,
+)
 from metaflow.exception import MetaflowException
 from metaflow.plugins.kubernetes.kubernetes_client import KubernetesClient
 
@@ -50,6 +53,23 @@ class ArgoClient(object):
                 version=self._version,
                 namespace=self._namespace,
                 plural="workflowtemplates",
+                name=name,
+            )
+        except client.rest.ApiException as e:
+            if e.status == 404:
+                return None
+            raise ArgoClientException(
+                json.loads(e.body)["message"] if e.body is not None else e.reason
+            )
+
+    def get_cronworkflow(self, name):
+        client = self._client.get()
+        try:
+            return client.CustomObjectsApi().get_namespaced_custom_object(
+                group=self._group,
+                version=self._version,
+                namespace=self._namespace,
+                plural="cronworkflows",
                 name=name,
             )
         except client.rest.ApiException as e:
@@ -318,6 +338,12 @@ class ArgoClient(object):
     def schedule_workflow_template(self, name, schedule=None, timezone=None):
         # Unfortunately, Kubernetes client does not handle optimistic
         # concurrency control by itself unlike kubectl
+        if ARGO_WORKFLOWS_USE_SCHEDULES:
+            # `schedules` is a list field; use an empty list (not null) when
+            # there is no schedule so the suspended CronWorkflow stays valid.
+            schedule_spec = {"schedules": [] if schedule is None else [schedule]}
+        else:
+            schedule_spec = {"schedule": schedule}
         client = self._client.get()
         body = {
             "apiVersion": "argoproj.io/v1alpha1",
@@ -325,7 +351,7 @@ class ArgoClient(object):
             "metadata": {"name": name},
             "spec": {
                 "suspend": schedule is None,
-                "schedule": schedule,
+                **schedule_spec,
                 "timezone": timezone,
                 "failedJobsHistoryLimit": 10000,  # default is unfortunately 1
                 "successfulJobsHistoryLimit": 10000,  # default is unfortunately 3
