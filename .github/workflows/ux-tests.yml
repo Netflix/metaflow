@@ -117,8 +117,17 @@ jobs:
           export MAMBA_ROOT_PREFIX="$RUNNER_TEMP/metaflow-micromamba-root"
           export XDG_CACHE_HOME="$RUNNER_TEMP/metaflow-cache"
           export METAFLOW_TOKEN_HOME="$RUNNER_TEMP/metaflowconfig"
-          tox -e spin -- --junit-xml=junit-spin.xml
-
+          tox -e spin -- --junit-xml=junit-spin.xml --cov=metaflow --cov-report=xml:coverage.xml --cov-branch
+      - name: Upload coverage data
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-spin
+          path: |
+            .coverage
+            coverage.xml
+          if-no-files-found: ignore
+          include-hidden-files: true
       - name: Upload test results
         if: always()
         uses: actions/upload-artifact@v4
