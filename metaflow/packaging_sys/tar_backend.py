@@ -1,9 +1,56 @@
+import inspect
+import os
 import tarfile
 
 from io import BytesIO
 from typing import Any, IO, List, Optional, Union
 
 from .backend import PackagingBackend
+
+
+_EXTRACTALL_SUPPORTS_FILTER = (
+    "filter" in inspect.signature(tarfile.TarFile.extractall).parameters
+)
+
+
+def _member_target_path(dest_dir: str, member_name: str) -> str:
+    return os.path.abspath(os.path.join(dest_dir, member_name))
+
+
+def _ensure_within_directory(dest_dir: str, target_path: str) -> None:
+    abs_dest = os.path.abspath(dest_dir)
+    try:
+        is_within_dest = os.path.commonpath([abs_dest, target_path]) == abs_dest
+    except ValueError:
+        is_within_dest = False
+    if not is_within_dest:
+        raise tarfile.ExtractError("Attempted path traversal in TAR file")
+
+
+def _validate_member(dest_dir: str, member: tarfile.TarInfo) -> None:
+    target_path = _member_target_path(dest_dir, member.name)
+    _ensure_within_directory(dest_dir, target_path)
+
+    if member.issym():
+        if os.path.isabs(member.linkname):
+            link_target = os.path.abspath(member.linkname)
+        else:
+            link_target = os.path.abspath(
+                os.path.join(os.path.dirname(target_path), member.linkname)
+            )
+        _ensure_within_directory(dest_dir, link_target)
+    elif member.islnk():
+        link_target = os.path.abspath(os.path.join(dest_dir, member.linkname))
+        _ensure_within_directory(dest_dir, link_target)
+
+
+def _extractall_preserving_validated_members(
+    archive: tarfile.TarFile, dest_dir: str, members: List[Any]
+) -> None:
+    kwargs = {}
+    if _EXTRACTALL_SUPPORTS_FILTER:
+        kwargs["filter"] = "tar"
+    archive.extractall(path=dest_dir, members=members, **kwargs)
 
 
 class TarPackagingBackend(PackagingBackend):
@@ -86,7 +133,10 @@ class TarPackagingBackend(PackagingBackend):
         members: Optional[List[Any]] = None,
         dest_dir: str = ".",
     ) -> None:
-        archive.extractall(path=dest_dir, members=members)
+        members = archive.getmembers() if members is None else list(members)
+        for member in members:
+            _validate_member(dest_dir, member)
+        _extractall_preserving_validated_members(archive, dest_dir, members)
 
     @classmethod
     def cls_list_members(
