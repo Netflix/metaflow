@@ -8,6 +8,7 @@ from metaflow.packaging_sys import tar_backend
 from metaflow.packaging_sys.tar_backend import TarPackagingBackend
 from metaflow.packaging_sys.tar_backend import _ensure_within_directory
 from metaflow.packaging_sys.tar_backend import _extractall_preserving_validated_members
+from metaflow.packaging_sys.tar_backend import _has_parent_reference
 from metaflow.packaging_sys.tar_backend import _member_target_path
 from metaflow.packaging_sys.tar_backend import _validate_member
 
@@ -51,6 +52,12 @@ def test_member_target_path_resolves_under_destination(tmp_path):
     assert _member_target_path(str(tmp_path), "nested/safe.txt") == os.path.abspath(
         os.path.join(str(tmp_path), "nested/safe.txt")
     )
+
+
+def test_parent_reference_check_handles_archive_separators():
+    assert _has_parent_reference("nested/../safe.txt")
+    assert _has_parent_reference(r"nested\..\safe.txt")
+    assert not _has_parent_reference("nested/..safe.txt")
 
 
 def test_directory_check_accepts_inside_path(tmp_path):
@@ -101,6 +108,21 @@ def test_extract_members_rejects_absolute_member_path(tmp_path):
             TarPackagingBackend.cls_extract_members(archive, dest_dir=str(tmp_path))
 
     assert not (tmp_path / "escaped.txt").exists()
+
+
+def test_extract_members_rejects_chained_symlink_parent_reference(tmp_path):
+    link = tarfile.TarInfo("link")
+    link.type = tarfile.SYMTYPE
+    link.linkname = str(tmp_path)
+
+    payload = tarfile.TarInfo("link/../escaped.txt")
+    payload.size = len(b"payload")
+
+    with TarPackagingBackend.cls_open(_archive_with_members(link, payload)) as archive:
+        with pytest.raises(tarfile.ExtractError):
+            TarPackagingBackend.cls_extract_members(archive, dest_dir=str(tmp_path))
+
+    assert not (tmp_path.parent / "escaped.txt").exists()
 
 
 def test_extract_members_rejects_symlink_escape(tmp_path):

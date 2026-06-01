@@ -17,6 +17,10 @@ def _member_target_path(dest_dir: str, member_name: str) -> str:
     return os.path.abspath(os.path.join(dest_dir, member_name))
 
 
+def _has_parent_reference(path: str) -> bool:
+    return ".." in path.replace("\\", "/").split("/")
+
+
 def _ensure_within_directory(dest_dir: str, target_path: str) -> None:
     abs_dest = os.path.abspath(dest_dir)
     try:
@@ -28,10 +32,15 @@ def _ensure_within_directory(dest_dir: str, target_path: str) -> None:
 
 
 def _validate_member(dest_dir: str, member: tarfile.TarInfo) -> None:
+    if _has_parent_reference(member.name):
+        raise tarfile.ExtractError("Attempted path traversal in TAR file")
+
     target_path = _member_target_path(dest_dir, member.name)
     _ensure_within_directory(dest_dir, target_path)
 
     if member.issym():
+        if _has_parent_reference(member.linkname):
+            raise tarfile.ExtractError("Attempted path traversal in TAR file")
         if os.path.isabs(member.linkname):
             link_target = os.path.abspath(member.linkname)
         else:
@@ -40,6 +49,8 @@ def _validate_member(dest_dir: str, member: tarfile.TarInfo) -> None:
             )
         _ensure_within_directory(dest_dir, link_target)
     elif member.islnk():
+        if _has_parent_reference(member.linkname):
+            raise tarfile.ExtractError("Attempted path traversal in TAR file")
         link_target = os.path.abspath(os.path.join(dest_dir, member.linkname))
         _ensure_within_directory(dest_dir, link_target)
 
