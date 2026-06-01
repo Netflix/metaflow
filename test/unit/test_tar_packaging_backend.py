@@ -8,6 +8,8 @@ from metaflow.packaging_sys import tar_backend
 from metaflow.packaging_sys.tar_backend import TarPackagingBackend
 from metaflow.packaging_sys.tar_backend import _ensure_within_directory
 from metaflow.packaging_sys.tar_backend import _extractall_preserving_validated_members
+from metaflow.packaging_sys.tar_backend import _member_target_path
+from metaflow.packaging_sys.tar_backend import _validate_member
 
 
 def _archive_with(member):
@@ -43,6 +45,40 @@ def test_extract_members_accepts_explicit_safe_member_list(tmp_path):
 
     assert (tmp_path / "included.txt").read_bytes() == b"payload"
     assert not (tmp_path.parent / "skipped.txt").exists()
+
+
+def test_member_target_path_resolves_under_destination(tmp_path):
+    assert _member_target_path(str(tmp_path), "nested/safe.txt") == os.path.abspath(
+        os.path.join(str(tmp_path), "nested/safe.txt")
+    )
+
+
+def test_directory_check_accepts_inside_path(tmp_path):
+    _ensure_within_directory(str(tmp_path), str(tmp_path / "safe.txt"))
+
+
+def test_validate_member_accepts_safe_relative_symlink(tmp_path):
+    member = tarfile.TarInfo("nested/link")
+    member.type = tarfile.SYMTYPE
+    member.linkname = "target.txt"
+
+    _validate_member(str(tmp_path), member)
+
+
+def test_validate_member_accepts_safe_absolute_symlink(tmp_path):
+    member = tarfile.TarInfo("nested/link")
+    member.type = tarfile.SYMTYPE
+    member.linkname = os.path.abspath(os.path.join(str(tmp_path), "target.txt"))
+
+    _validate_member(str(tmp_path), member)
+
+
+def test_validate_member_accepts_safe_hardlink(tmp_path):
+    member = tarfile.TarInfo("nested/link")
+    member.type = tarfile.LNKTYPE
+    member.linkname = "target.txt"
+
+    _validate_member(str(tmp_path), member)
 
 
 def test_extract_members_rejects_parent_path_traversal(tmp_path):
