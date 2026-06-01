@@ -92,6 +92,17 @@ def test_extract_members_rejects_parent_path_traversal(tmp_path):
     assert not (tmp_path.parent / "escaped.txt").exists()
 
 
+def test_extract_members_rejects_absolute_member_path(tmp_path):
+    member = tarfile.TarInfo("/escaped.txt")
+    member.size = len(b"payload")
+
+    with TarPackagingBackend.cls_open(_archive_with(member)) as archive:
+        with pytest.raises(tarfile.ExtractError):
+            TarPackagingBackend.cls_extract_members(archive, dest_dir=str(tmp_path))
+
+    assert not (tmp_path / "escaped.txt").exists()
+
+
 def test_extract_members_rejects_symlink_escape(tmp_path):
     member = tarfile.TarInfo("link")
     member.type = tarfile.SYMTYPE
