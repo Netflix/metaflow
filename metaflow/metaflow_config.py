@@ -476,7 +476,10 @@ NAMESPACED_EVENTS_PREFIX = from_conf("NAMESPACED_EVENTS_PREFIX", "mfns")
 
 # Additional argo workflows options
 ARGO_WORKFLOWS_UI_URL = from_conf("ARGO_WORKFLOWS_UI_URL")
-ARGO_WORKFLOWS_USE_SCHEDULES = from_conf("ARGO_WORKFLOWS_USE_SCHEDULES", True)
+# `schedules` (list) requires Argo Workflows >= 3.6. Default to the legacy
+# singular `schedule` so existing deployments on older Argo are unaffected;
+# opt in by setting METAFLOW_ARGO_WORKFLOWS_USE_SCHEDULES=true.
+ARGO_WORKFLOWS_USE_SCHEDULES = from_conf("ARGO_WORKFLOWS_USE_SCHEDULES", False)
 
 ##
 # Airflow Configuration
