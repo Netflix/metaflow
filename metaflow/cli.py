@@ -629,13 +629,10 @@ def start(
             ctx.obj.environment.decospecs() or []
         )
 
-        # If we are in spin-args, we will not attach any decorators
-        if ctx.saved_args[0] == "spin-step":
-            all_decospecs = []
-        # We add the default decospecs for everything except init and step since in those
-        # cases, the decospecs will already have been handled by either a run/resume
-        # or a scheduler setting them up in their own way.
-        elif ctx.saved_args[0] not in ("step", "init"):
+        # We add the default decospecs for everything except init, step, and
+        # spin-step since those decospecs are handled by run/resume/scheduler
+        # setup or are explicitly forwarded by SpinRuntime.
+        if ctx.saved_args[0] not in ("step", "init", "spin-step"):
             all_decospecs += DEFAULT_DECOSPECS.split()
 
         if all_decospecs:

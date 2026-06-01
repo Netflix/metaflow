@@ -105,6 +105,42 @@ def test_skip_decorators_bypass(simple_config_run):
         assert spin_task.finished
 
 
+def test_spin_preserves_explicit_top_level_decospecs(spin_decospec_run):
+    task = spin_decospec_run["start"].task
+    flow_path = os.path.join(FLOWS_DIR, "spin_decospec_flow.py")
+
+    with pytest.raises(Exception, match="timed out"):
+        with Runner(
+            flow_path,
+            cwd=FLOWS_DIR,
+            decospecs=["timeout:seconds=1"],
+            file_read_timeout=30,
+            show_output=False,
+        ).spin(
+            task.pathspec,
+            persist=True,
+        ):
+            pass
+
+
+def test_spin_step_does_not_apply_default_decospecs(spin_decospec_run):
+    task = spin_decospec_run["start"].task
+    flow_path = os.path.join(FLOWS_DIR, "spin_decospec_flow.py")
+
+    with Runner(
+        flow_path,
+        cwd=FLOWS_DIR,
+        env={"METAFLOW_DEFAULT_DECOSPECS": "timeout:seconds=1"},
+        file_read_timeout=30,
+        show_output=False,
+    ).spin(
+        task.pathspec,
+        persist=True,
+    ) as spin:
+        assert spin.task.finished
+        assert spin.task["done"].data is True
+
+
 def test_hidden_artifacts(simple_parameter_run):
     """Test simple flows that just need artifact validation."""
     step_name = "start"
