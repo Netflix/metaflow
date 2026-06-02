@@ -1202,6 +1202,20 @@ class ArgoWorkflows(object):
         ]
         return len(cond_in_funcs) > 1 and len(cond_in_funcs) == len(node.in_funcs)
 
+    def _skippable_input_steps_in_dag_order(self, node):
+        graph_order = {
+            node_name: index for index, node_name in enumerate(self.graph.sorted_nodes)
+        }
+        return sorted(
+            [
+                in_func
+                for in_func in node.in_funcs
+                if self.graph[in_func].type == "split-switch"
+            ],
+            key=lambda in_func: graph_order[in_func],
+            reverse=True,
+        )
+
     def _is_recursive_node(self, node):
         return node.name in self.recursive_nodes
 
@@ -2214,11 +2228,7 @@ class ArgoWorkflows(object):
                 # we need to pass in the set of conditional in_funcs to the pathspec generating script as in the case of split-switch skipping cases,
                 # non-conditional input-paths need to be ignored in favour of conditional ones when they have executed.
                 skippable_input_steps = ",".join(
-                    [
-                        in_func
-                        for in_func in node.in_funcs
-                        if self.graph[in_func].type == "split-switch"
-                    ]
+                    self._skippable_input_steps_in_dag_order(node)
                 )
                 input_paths = (
                     "$(python -m metaflow.plugins.argo.conditional_input_paths %s %s)"
