@@ -227,6 +227,7 @@ class CondaEnvironment(MetaflowEnvironment):
             pypi_create_futures = []
 
             cache_futures = []
+            local_platform = self.solvers["conda"].platform()
             # Process conda results sequentially for downloads
             for future in as_completed(conda_solve_futures):
                 result = future.result()
@@ -245,11 +246,10 @@ class CondaEnvironment(MetaflowEnvironment):
                         executor.submit(cache, storage, [result], "conda")
                     )
 
-                # Queue PyPI solve to start after LOCAL platform conda create.
+                # Queue PyPI solve to start only after the local platform conda create.
                 # Pip.solve() needs the local conda env (path_to_environment defaults
                 # to the local platform), so we must wait for the local platform's
                 # conda create — not a cross-platform one, which is a no-op.
-                local_platform = self.solvers["conda"].platform()
                 if env_id in pypi_envs and result_platform == local_platform:
                     debug.conda_exec(
                         "Solving packages for PyPI environment %s" % env_id
