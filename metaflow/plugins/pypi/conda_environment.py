@@ -230,9 +230,10 @@ class CondaEnvironment(MetaflowEnvironment):
             # Process conda results sequentially for downloads
             for future in as_completed(conda_solve_futures):
                 result = future.result()
+                env_id, _, _, result_platform = result
                 # Sequential conda download
                 debug.conda_exec(
-                    "Downloading packages for Conda environment %s" % result[0]
+                    "Downloading packages for Conda environment %s" % env_id
                 )
                 self.solvers["conda"].download(*result)
                 # Parallel conda create and cache
@@ -249,12 +250,12 @@ class CondaEnvironment(MetaflowEnvironment):
                 # to the local platform), so we must wait for the local platform's
                 # conda create — not a cross-platform one, which is a no-op.
                 local_platform = self.solvers["conda"].platform()
-                if result[0] in pypi_envs and result[3] == local_platform:
+                if env_id in pypi_envs and result_platform == local_platform:
                     debug.conda_exec(
-                        "Solving packages for PyPI environment %s" % result[0]
+                        "Solving packages for PyPI environment %s" % env_id
                     )
                     # solve pypi envs uniquely
-                    pypi_env = pypi_envs.pop(result[0])
+                    pypi_env = pypi_envs.pop(env_id)
 
                     def pypi_solve(env, conda_env_future):
                         conda_env_future.result()  # Wait for conda create
