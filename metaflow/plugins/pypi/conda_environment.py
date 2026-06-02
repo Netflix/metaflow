@@ -261,7 +261,9 @@ class CondaEnvironment(MetaflowEnvironment):
                         conda_env_future.result()  # Wait for conda create
                         return solve(*env, "pypi")
 
-                    pypi_solve_futures.append(executor.submit(pypi_solve, pypi_env, conda_create_future))
+                    pypi_solve_futures.append(
+                        executor.submit(pypi_solve, pypi_env, conda_create_future)
+                    )
                 else:
                     # add conda create future to the generic list
                     conda_create_futures.append(conda_create_future)
