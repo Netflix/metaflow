@@ -244,8 +244,12 @@ class CondaEnvironment(MetaflowEnvironment):
                         executor.submit(cache, storage, [result], "conda")
                     )
 
-                # Queue PyPI solve to start after conda create
-                if result[0] in pypi_envs:
+                # Queue PyPI solve to start after LOCAL platform conda create.
+                # Pip.solve() needs the local conda env (path_to_environment defaults
+                # to the local platform), so we must wait for the local platform's
+                # conda create — not a cross-platform one, which is a no-op.
+                local_platform = self.solvers["conda"].platform()
+                if result[0] in pypi_envs and result[3] == local_platform:
                     debug.conda_exec(
                         "Solving packages for PyPI environment %s" % result[0]
                     )
