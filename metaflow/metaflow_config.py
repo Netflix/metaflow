@@ -593,6 +593,13 @@ KUBERNETES_SANDBOX_INIT_SCRIPT = from_conf("KUBERNETES_SANDBOX_INIT_SCRIPT")
 OTEL_ENDPOINT = from_conf("OTEL_ENDPOINT")
 ZIPKIN_ENDPOINT = from_conf("ZIPKIN_ENDPOINT")
 CONSOLE_TRACE_ENABLED = from_conf("CONSOLE_TRACE_ENABLED", False)
+# service.name reported on OpenTelemetry resources. Defaults to "metaflow", but
+# respects the standard OTEL_SERVICE_NAME env var so Metaflow spans can inherit
+# the service name of a surrounding application. Set METAFLOW_OTEL_SERVICE_NAME
+# to override either of these explicitly.
+OTEL_SERVICE_NAME = from_conf(
+    "OTEL_SERVICE_NAME", os.environ.get("OTEL_SERVICE_NAME", "metaflow")
+)
 # internal env used for preventing the tracing module from loading during Conda bootstrapping.
 DISABLE_TRACING = bool(os.environ.get("DISABLE_TRACING", False))
 
