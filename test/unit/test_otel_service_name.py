@@ -4,7 +4,11 @@ import pytest
 
 # Env vars that influence how OTEL_SERVICE_NAME is resolved. Cleared before each
 # case so tests stay independent of the surrounding environment.
-SERVICE_NAME_ENV_VARS = ("OTEL_SERVICE_NAME", "METAFLOW_OTEL_SERVICE_NAME")
+SERVICE_NAME_ENV_VARS = (
+    "OTEL_SERVICE_NAME",
+    "METAFLOW_OTEL_SERVICE_NAME",
+    "METAFLOW_OTEL_INHERIT_SERVICE_NAME",
+)
 
 
 def _resolve_service_name():
@@ -28,16 +32,32 @@ def clear_service_name_env(monkeypatch):
 @pytest.mark.parametrize(
     "env, expected",
     [
-        # Neither var set: backward-compatible default.
+        # Nothing set: historical default, unchanged.
         ({}, "metaflow"),
-        # Standard OTel env var is inherited.
-        ({"OTEL_SERVICE_NAME": "my-app"}, "my-app"),
-        # Metaflow-specific override takes precedence over the standard var.
+        # A surrounding OTEL_SERVICE_NAME is IGNORED unless inheritance is opted
+        # in, so upgrades never silently relabel existing users' spans.
+        ({"OTEL_SERVICE_NAME": "from-otel"}, "metaflow"),
+        # Inheritance opted in: the standard OTEL_SERVICE_NAME is honored.
         (
-            {"OTEL_SERVICE_NAME": "my-app", "METAFLOW_OTEL_SERVICE_NAME": "metaflow"},
-            "metaflow",
+            {
+                "METAFLOW_OTEL_INHERIT_SERVICE_NAME": "1",
+                "OTEL_SERVICE_NAME": "from-otel",
+            },
+            "from-otel",
         ),
-        # Metaflow-specific override works on its own.
+        # Inheritance opted in but OTEL_SERVICE_NAME unset: falls back to default.
+        ({"METAFLOW_OTEL_INHERIT_SERVICE_NAME": "1"}, "metaflow"),
+        # Explicit METAFLOW_OTEL_SERVICE_NAME always wins, even over an inherited
+        # standard var. Distinct values so the precedence is genuinely exercised.
+        (
+            {
+                "METAFLOW_OTEL_INHERIT_SERVICE_NAME": "1",
+                "OTEL_SERVICE_NAME": "from-otel",
+                "METAFLOW_OTEL_SERVICE_NAME": "from-metaflow",
+            },
+            "from-metaflow",
+        ),
+        # Explicit override works with inheritance off too.
         ({"METAFLOW_OTEL_SERVICE_NAME": "pinned"}, "pinned"),
     ],
 )
