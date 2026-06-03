@@ -252,8 +252,18 @@ class DAGNode(object):
             else:
                 self.out_funcs = [e.attr for e in tail.value.args]
 
+            def _kw_value(node):
+                # ast.Str (and the .s alias on ast.Constant) was deprecated in
+                # Python 3.8 and removed in 3.14; ast.Constant.value holds the
+                # literal value on all supported versions.
+                if hasattr(ast, "Str") and isinstance(node, ast.Str):
+                    return node.s
+                if isinstance(node, ast.Constant):
+                    return node.value
+                return None
+
             keywords = dict(
-                (k.arg, getattr(k.value, "s", None)) for k in tail.value.keywords
+                (k.arg, _kw_value(k.value)) for k in tail.value.keywords
             )
             if len(keywords) == 1:
                 if "foreach" in keywords:
