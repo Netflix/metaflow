@@ -71,6 +71,10 @@ simple_config_run = pytest.fixture(scope="session")(
     )
 )
 
+spin_decospec_run = pytest.fixture(scope="session")(
+    create_flow_fixture("SpinDecospecFlow", "spin_decospec_flow.py")
+)
+
 
 @pytest.fixture
 def complex_dag_step_d_artifacts(complex_dag_run):
