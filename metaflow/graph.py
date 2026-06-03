@@ -253,9 +253,17 @@ class DAGNode(object):
                 self.out_funcs = [e.attr for e in tail.value.args]
 
             def _kw_value(node):
-                # ast.Str (and the .s alias on ast.Constant) was deprecated in
-                # Python 3.8 and removed in 3.14; ast.Constant.value holds the
-                # literal value on all supported versions.
+                """Extract the literal value from a keyword-argument node.
+
+                `node` is the `.value` of an `ast.keyword` (e.g. the node for
+                `"items"` in `foreach="items"`), so unwrapping is two levels:
+                    ast.keyword(arg="foreach", value=ast.Constant(value="items"))
+                                                      ^node           ^node.value
+
+                ast.Str (and the .s alias on ast.Constant) was deprecated in
+                Python 3.8 and removed in 3.14; ast.Constant.value holds the
+                literal value on all supported versions.
+                """
                 if hasattr(ast, "Str") and isinstance(node, ast.Str):
                     return node.s
                 if isinstance(node, ast.Constant):
