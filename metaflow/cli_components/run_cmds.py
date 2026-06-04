@@ -5,7 +5,7 @@ from functools import wraps
 from metaflow._vendor import click
 
 from .. import decorators, namespace, parameters, tracing
-from ..exception import CommandException
+from ..exception import CommandException, MetaflowNotFound
 from ..graph import FlowGraph
 from ..metaflow_current import current
 from ..metaflow_config import (
@@ -114,6 +114,42 @@ def write_file(file_path, content):
     if file_path is not None:
         with open(file_path, "w", encoding="utf-8") as f:
             f.write(str(content))
+
+
+def _validate_resume_run_id(flow_name, run_id, reentrant=False):
+    """
+    Validate --run-id for resume: it must name a new run, not an existing one.
+    """
+    if not run_id or reentrant:
+        return
+
+    from ..client.core import Run
+
+    pathspec = "%s/%s" % (flow_name, run_id)
+    try:
+        Run(pathspec=pathspec, _namespace_check=False)
+    except MetaflowNotFound:
+        # Expected when run doesn't exist. This is the desired outcome.
+        pass
+    else:
+        raise CommandException(
+            "Run ID %s already exists.\n\n"
+            "Did you mean:\n\n"
+            "    resume --origin-run-id %s\n\n"
+            "instead of:\n\n"
+            "    resume --run-id %s"
+            % (run_id, run_id, run_id)
+        )
+
+    # Run-ids from the metadata service are integers. External schedulers use
+    # non-integer run-ids to avoid clashes.
+    try:
+        int(run_id)
+    except ValueError:
+        # Non-integer run-id (external scheduler): OK
+        pass
+    else:
+        raise CommandException("run-id %s cannot be an integer" % run_id)
 
 
 def config_callback(ctx, param, value):
@@ -271,16 +307,7 @@ def resume(
 
         steps_to_rerun = {step_to_rerun}
 
-    if run_id:
-        # Run-ids that are provided by the metadata service are always integers.
-        # External providers or run-ids (like external schedulers) always need to
-        # be non-integers to avoid any clashes. This condition ensures this.
-        try:
-            int(run_id)
-        except:
-            pass
-        else:
-            raise CommandException("run-id %s cannot be an integer" % run_id)
+    _validate_resume_run_id(obj.flow.name, run_id, reentrant=reentrant)
 
     runtime = NativeRuntime(
         obj.flow,
