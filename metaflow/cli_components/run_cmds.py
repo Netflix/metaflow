@@ -129,6 +129,7 @@ def _validate_resume_run_id(flow_name, run_id, reentrant=False):
     try:
         Run(pathspec=pathspec, _namespace_check=False)
     except MetaflowNotFound:
+        # Expected when run doesn't exist. This is the desired outcome.
         pass
     else:
         raise CommandException(
@@ -145,6 +146,7 @@ def _validate_resume_run_id(flow_name, run_id, reentrant=False):
     try:
         int(run_id)
     except ValueError:
+        # Non-integer run-id (external scheduler): OK
         pass
     else:
         raise CommandException("run-id %s cannot be an integer" % run_id)
