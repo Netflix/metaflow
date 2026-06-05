@@ -1916,6 +1916,7 @@ class ArgoWorkflows(object):
                     )
                 )
                 dag_tasks.append(join_foreach_task)
+                seen.append(self.graph[node.matching_join].name)
                 return _visit(
                     self.graph[self.graph[node.matching_join].out_funcs[0]],
                     exit_node,
