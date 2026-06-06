@@ -1014,10 +1014,58 @@ def _process_late_attached_decorator(
 
     from .system_context import system_context
 
+    # Track which steps received a late-attached decorator so we only re-run
+    # mutators on those steps (re-running mutators on unaffected steps could
+    # break non-idempotent mutators).
+    late_attached_step_names = set()
     for s in flow:
         for deco in s.decorators:
             if deco.name in deco_names:
                 deco.external_init()
+                late_attached_step_names.add(s.__name__)
+
+    # Re-run step mutators on the affected steps so they can see the
+    # late-attached decorators. _init_step_decorators (the usual mutator pass)
+    # runs in cli.py start() *before* platform decorators such as @kubernetes
+    # are late-attached (e.g. on Argo Workflows deploys, see PR #2719), so a
+    # StepMutator that inspects decorator_specs for "kubernetes" would otherwise
+    # find nothing and its add_decorator(..., OVERRIDE) would silently no-op.
+    # This mirrors the StepMutator handling in _init_step_decorators.
+    cls = flow.__class__
+    mutators_ran = False
+    for s in cls._steps:
+        if s.name not in late_attached_step_names:
+            continue
+        for deco in s.config_decorators:
+            if isinstance(deco, StepMutator):
+                inserted_by_value = [deco.decorator_name] + (deco.inserted_by or [])
+                debug.userconf_exec(
+                    "Re-evaluating step level decorator %s for %s (mutate) after "
+                    "late attachment" % (deco.__class__.__name__, s.name)
+                )
+                deco.mutate(
+                    MutableStep(
+                        cls,
+                        s,
+                        pre_mutate=False,
+                        statically_defined=deco.statically_defined,
+                        inserted_by=inserted_by_value,
+                    )
+                )
+                mutators_ran = True
+
+    # Rebuild the graph so node.decorators reflects any changes the mutators
+    # made (e.g. add_decorator with OVERRIDE), then make sure any replacement
+    # decorators created by the mutators get external_init() before step_init().
+    # external_init() is idempotent (guarded by _ran_init), so re-calling it on
+    # already-initialized decorators is a no-op.
+    if mutators_ran:
+        cls._init_graph()
+        graph = flow._graph
+        for s in flow:
+            for deco in s.decorators:
+                if deco.name in deco_names:
+                    deco.external_init()
 
     for s in flow:
         system_context.register_step_decorators(s.__name__, list(s.decorators))
