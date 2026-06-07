@@ -80,29 +80,12 @@ def counting_mutator_factory():
     return factory
 
 
-@pytest.fixture
-def mock_datastore(mocker):
-    datastore = mocker.Mock()
-    datastore.TYPE = "gs"
-    return datastore
+class _Datastore:
+    TYPE = "gs"
 
 
-@pytest.fixture
-def mock_logger(mocker):
-    return mocker.Mock()
-
-
-class _MockFlow:
-    """Make a FlowSpec class usable by ``_process_late_attached_decorator``
-    without invoking the CLI.
-
-    Reassigning ``__class__`` to ``flow_cls`` delegates ``_steps``,
-    ``_init_graph``, ``_graph`` and ``__iter__`` (which iterates ``cls._steps``)
-    to the real FlowSpec class.
-    """
-
-    def __init__(self, flow_cls):
-        self.__class__ = flow_cls
+def _logger(*args, **kwargs):
+    pass
 
 
 def _init_mutators(*steps):
@@ -130,15 +113,15 @@ def _run_mutators_premutate(flow_cls, *steps):
                 )
 
 
-def _call_process_late_attached(flow_cls, flow_datastore, logger):
-    mock_flow = _MockFlow(flow_cls)
+def _call_process_late_attached(flow_cls):
+    flow = flow_cls(use_cli=False)
     decorators._process_late_attached_decorator(
         [KubernetesDecorator.name],
-        mock_flow,
+        flow,
         flow_cls._graph,
         environment=None,
-        flow_datastore=flow_datastore,
-        logger=logger,
+        flow_datastore=_Datastore(),
+        logger=_logger,
     )
 
 
@@ -146,9 +129,7 @@ def _kube(step_obj):
     return [d for d in step_obj.decorators if d.name == "kubernetes"]
 
 
-def test_late_attached_kubernetes_is_visible_to_step_mutator(
-    mock_datastore, mock_logger
-):
+def test_late_attached_kubernetes_is_visible_to_step_mutator():
     """The headline regression: a mutator override of late-attached
     @kubernetes must apply after ``_process_late_attached_decorator``."""
 
@@ -175,7 +156,7 @@ def test_late_attached_kubernetes_is_visible_to_step_mutator(
     assert str(_kube(start_step)[0].attributes["cpu"]) == "1"  # defaults
 
     # The fix under test: re-run mutators on late-attached steps.
-    _call_process_late_attached(TestFlow, mock_datastore, mock_logger)
+    _call_process_late_attached(TestFlow)
 
     start_k8s = _kube(start_step)
     assert len(start_k8s) == 1, "expected exactly one @kubernetes on start"
@@ -186,7 +167,7 @@ def test_late_attached_kubernetes_is_visible_to_step_mutator(
     assert str(start_k8s[0].attributes["memory"]) == "8192"
 
 
-def test_step_without_mutator_keeps_kubernetes_defaults(mock_datastore, mock_logger):
+def test_step_without_mutator_keeps_kubernetes_defaults():
     """A step with no StepMutator must keep default @kubernetes values
     (the re-run must not leak the other step's override)."""
 
@@ -206,7 +187,7 @@ def test_step_without_mutator_keeps_kubernetes_defaults(mock_datastore, mock_log
     decorators._attach_decorators_to_step(start_step, [KubernetesDecorator.name])
     decorators._attach_decorators_to_step(end_step, [KubernetesDecorator.name])
 
-    _call_process_late_attached(TestFlow, mock_datastore, mock_logger)
+    _call_process_late_attached(TestFlow)
 
     # start (has mutator) -> overridden
     start_k8s = _kube(start_step)
@@ -221,7 +202,7 @@ def test_step_without_mutator_keeps_kubernetes_defaults(mock_datastore, mock_log
     assert str(end_k8s[0].attributes["memory"]) == "4096"
 
 
-def test_no_late_attachment_is_a_noop(mock_datastore, mock_logger):
+def test_no_late_attachment_is_a_noop():
     """If no late-attached decorator is present, the re-run loop must be
     skipped and no @kubernetes should appear."""
 
@@ -239,7 +220,7 @@ def test_no_late_attachment_is_a_noop(mock_datastore, mock_logger):
     _init_mutators(start_step)
 
     # No _attach_decorators_to_step call here.
-    _call_process_late_attached(TestFlow, mock_datastore, mock_logger)
+    _call_process_late_attached(TestFlow)
 
     assert not _kube(start_step), "no @kubernetes should be created out of nothing"
 
@@ -250,7 +231,7 @@ def test_no_late_attachment_is_a_noop(mock_datastore, mock_logger):
     ids=("already_initialized", "fresh_attach"),
 )
 def test_late_attachment_reruns_mutator_only_for_fresh_decorator(
-    mock_datastore, mock_logger, counting_mutator_factory, preinitialize, expected_calls
+    counting_mutator_factory, preinitialize, expected_calls
 ):
     """A decorator already external_init'd (``_ran_init`` True, e.g. a
     statically-defined ``@kubernetes`` that ``_init_step_decorators`` already
@@ -281,5 +262,5 @@ def test_late_attachment_reruns_mutator_only_for_fresh_decorator(
             deco.external_init()
             assert deco._ran_init is True
 
-    _call_process_late_attached(TestFlow, mock_datastore, mock_logger)
+    _call_process_late_attached(TestFlow)
     assert calls == expected_calls
