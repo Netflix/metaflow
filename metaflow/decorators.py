@@ -1027,8 +1027,6 @@ def _process_late_attached_decorator(
         for deco in s.decorators:
             if deco.name in deco_names and not deco._ran_init:
                 late_attached_step_names.add(s.__name__)
-            if deco.name in deco_names:
-                deco.external_init()
 
     # Re-run step mutators on the affected steps so they can see the
     # late-attached decorators. _init_step_decorators (the usual mutator pass)
@@ -1060,18 +1058,17 @@ def _process_late_attached_decorator(
                 )
                 mutators_ran = True
 
-    # Rebuild the graph so node.decorators reflects any changes the mutators
-    # made (e.g. add_decorator with OVERRIDE), then make sure any replacement
-    # decorators created by the mutators get external_init() before step_init().
-    # external_init() is idempotent (guarded by _ran_init), so re-calling it on
-    # already-initialized decorators is a no-op.
+    # Rebuild the graph so node.decorators reflects mutator changes (OVERRIDE).
     if mutators_ran:
         cls._init_graph()
         graph = flow._graph
-        for s in flow:
-            for deco in s.decorators:
-                if deco.name in deco_names:
-                    deco.external_init()
+
+    # Init late-attached decorators only now, after mutators ran, so a decorator
+    # replaced via OVERRIDE is never external_init'd. external_init is idempotent.
+    for s in flow:
+        for deco in s.decorators:
+            if deco.name in deco_names:
+                deco.external_init()
 
     for s in flow:
         system_context.register_step_decorators(s.__name__, list(s.decorators))

@@ -22,19 +22,23 @@ These tests drive the internal ``_init_step_decorators`` ->
 (no CLI / no cloud backend required) and assert the override is applied.
 """
 
-from unittest.mock import MagicMock
-
 import pytest
 
 from metaflow import FlowSpec, StepMutator, step
 from metaflow.user_decorators.mutable_step import MutableStep
+from metaflow.user_decorators.user_step_decorator import UserStepDecoratorMeta
 from metaflow import decorators
 
-# These tests exercise the @kubernetes late-attach path.  If the Kubernetes
-# plugin is unavailable, skip rather than fail.
+# These tests exercise the @kubernetes late-attach path. If the Kubernetes module
+# is importable but the plugin is disabled in this Metaflow install, skip rather
+# than failing later with UnknownStepDecoratorException.
 KubernetesDecorator = pytest.importorskip(
     "metaflow.plugins.kubernetes.kubernetes_decorator"
 ).KubernetesDecorator
+if UserStepDecoratorMeta.get_decorator_by_name(KubernetesDecorator.name) is None:
+    pytest.skip(
+        "@kubernetes step decorator plugin is not enabled", allow_module_level=True
+    )
 
 
 class kubernetes_override(StepMutator):
@@ -54,18 +58,38 @@ class kubernetes_override(StepMutator):
                 )
 
 
-class counting_mutator(StepMutator):
-    """A StepMutator that records how many times ``mutate`` is invoked, so we
-    can assert the late-attach re-run fires exactly once and is not spuriously
-    re-run for already-initialized (statically-defined) decorators."""
+@pytest.fixture
+def counting_mutator_factory():
+    """Build a StepMutator that records each mutate() into a list captured by
+    closure, so the stateful data lives in the test rather than on the class.
+    A closure variable survives the per-step copy of decorator init args (a value
+    passed via init kwargs would not)."""
 
-    calls = []
+    def factory():
+        calls = []
 
-    def init(self, *args, **kwargs):
-        pass
+        class counting_mutator(StepMutator):
+            def init(self, *args, **kwargs):
+                pass
 
-    def mutate(self, mutable_step):
-        type(self).calls.append(mutable_step._my_step.name)
+            def mutate(self, mutable_step):
+                calls.append(mutable_step._my_step.name)
+
+        return counting_mutator, calls
+
+    return factory
+
+
+@pytest.fixture
+def mock_datastore(mocker):
+    datastore = mocker.Mock()
+    datastore.TYPE = "gs"
+    return datastore
+
+
+@pytest.fixture
+def mock_logger(mocker):
+    return mocker.Mock()
 
 
 class _MockFlow:
@@ -106,17 +130,15 @@ def _run_mutators_premutate(flow_cls, *steps):
                 )
 
 
-def _call_process_late_attached(flow_cls):
+def _call_process_late_attached(flow_cls, flow_datastore, logger):
     mock_flow = _MockFlow(flow_cls)
-    mock_datastore = MagicMock()
-    mock_datastore.TYPE = "gs"
     decorators._process_late_attached_decorator(
         [KubernetesDecorator.name],
         mock_flow,
         flow_cls._graph,
         environment=None,
-        flow_datastore=mock_datastore,
-        logger=MagicMock(),
+        flow_datastore=flow_datastore,
+        logger=logger,
     )
 
 
@@ -124,7 +146,9 @@ def _kube(step_obj):
     return [d for d in step_obj.decorators if d.name == "kubernetes"]
 
 
-def test_late_attached_kubernetes_is_visible_to_step_mutator():
+def test_late_attached_kubernetes_is_visible_to_step_mutator(
+    mock_datastore, mock_logger
+):
     """The headline regression: a mutator override of late-attached
     @kubernetes must apply after ``_process_late_attached_decorator``."""
 
@@ -151,7 +175,7 @@ def test_late_attached_kubernetes_is_visible_to_step_mutator():
     assert str(_kube(start_step)[0].attributes["cpu"]) == "1"  # defaults
 
     # The fix under test: re-run mutators on late-attached steps.
-    _call_process_late_attached(TestFlow)
+    _call_process_late_attached(TestFlow, mock_datastore, mock_logger)
 
     start_k8s = _kube(start_step)
     assert len(start_k8s) == 1, "expected exactly one @kubernetes on start"
@@ -162,7 +186,7 @@ def test_late_attached_kubernetes_is_visible_to_step_mutator():
     assert str(start_k8s[0].attributes["memory"]) == "8192"
 
 
-def test_step_without_mutator_keeps_kubernetes_defaults():
+def test_step_without_mutator_keeps_kubernetes_defaults(mock_datastore, mock_logger):
     """A step with no StepMutator must keep default @kubernetes values
     (the re-run must not leak the other step's override)."""
 
@@ -182,7 +206,7 @@ def test_step_without_mutator_keeps_kubernetes_defaults():
     decorators._attach_decorators_to_step(start_step, [KubernetesDecorator.name])
     decorators._attach_decorators_to_step(end_step, [KubernetesDecorator.name])
 
-    _call_process_late_attached(TestFlow)
+    _call_process_late_attached(TestFlow, mock_datastore, mock_logger)
 
     # start (has mutator) -> overridden
     start_k8s = _kube(start_step)
@@ -197,7 +221,7 @@ def test_step_without_mutator_keeps_kubernetes_defaults():
     assert str(end_k8s[0].attributes["memory"]) == "4096"
 
 
-def test_no_late_attachment_is_a_noop():
+def test_no_late_attachment_is_a_noop(mock_datastore, mock_logger):
     """If no late-attached decorator is present, the re-run loop must be
     skipped and no @kubernetes should appear."""
 
@@ -215,21 +239,28 @@ def test_no_late_attachment_is_a_noop():
     _init_mutators(start_step)
 
     # No _attach_decorators_to_step call here.
-    _call_process_late_attached(TestFlow)
+    _call_process_late_attached(TestFlow, mock_datastore, mock_logger)
 
     assert not _kube(start_step), "no @kubernetes should be created out of nothing"
 
 
-def test_already_initialized_decorator_does_not_retrigger_mutator():
-    """A decorator that was already external_init'd (``_ran_init`` True, e.g. a
+@pytest.mark.parametrize(
+    "preinitialize, expected_calls",
+    ((True, []), (False, ["start"])),
+    ids=("already_initialized", "fresh_attach"),
+)
+def test_late_attachment_reruns_mutator_only_for_fresh_decorator(
+    mock_datastore, mock_logger, counting_mutator_factory, preinitialize, expected_calls
+):
+    """A decorator already external_init'd (``_ran_init`` True, e.g. a
     statically-defined ``@kubernetes`` that ``_init_step_decorators`` already
-    initialized before the deploy-time late-attach) must NOT enroll its step for
-    a mutator re-run -- only a genuinely fresh attachment (``_ran_init`` False)
-    should. This guards the narrowing that avoids double-running non-idempotent
-    mutators."""
+    initialized) must NOT enroll its step for a mutator re-run; only a genuinely
+    fresh attachment (``_ran_init`` False) should. Guards the narrowing that
+    avoids double-running non-idempotent mutators."""
 
-    # Case 1: an already-initialized decorator must NOT retrigger the mutator.
-    class AlreadyInitFlow(FlowSpec):
+    counting_mutator, calls = counting_mutator_factory()
+
+    class TestFlow(FlowSpec):
         @counting_mutator()
         @step
         def start(self):
@@ -239,42 +270,16 @@ def test_already_initialized_decorator_does_not_retrigger_mutator():
         def end(self):
             pass
 
-    counting_mutator.calls = []
-    start_step = AlreadyInitFlow.start
+    start_step = TestFlow.start
     _init_mutators(start_step)
 
-    # Attach @kubernetes, then initialize it (external_init sets _ran_init=True
-    # and fills defaults) to emulate a statically-defined decorator that
-    # _init_step_decorators handled before the platform late-attach pass runs.
+    # Late-attach @kubernetes; optionally pre-initialize it to emulate a
+    # statically-defined decorator already handled by _init_step_decorators.
     decorators._attach_decorators_to_step(start_step, [KubernetesDecorator.name])
-    for deco in _kube(start_step):
-        deco.external_init()
-        assert deco._ran_init is True
+    if preinitialize:
+        for deco in _kube(start_step):
+            deco.external_init()
+            assert deco._ran_init is True
 
-    _call_process_late_attached(AlreadyInitFlow)
-    assert counting_mutator.calls == [], (
-        "an already-initialized decorator must not retrigger the mutator; "
-        "got calls=%r" % counting_mutator.calls
-    )
-
-    # Case 2 (sanity): a genuinely fresh attach (_ran_init False) DOES enroll
-    # the step and triggers exactly one mutator re-run.
-    class FreshAttachFlow(FlowSpec):
-        @counting_mutator()
-        @step
-        def start(self):
-            self.next(self.end)
-
-        @step
-        def end(self):
-            pass
-
-    counting_mutator.calls = []
-    fresh_step = FreshAttachFlow.start
-    _init_mutators(fresh_step)
-    decorators._attach_decorators_to_step(fresh_step, [KubernetesDecorator.name])
-    _call_process_late_attached(FreshAttachFlow)
-    assert counting_mutator.calls == ["start"], (
-        "a genuinely late-attached decorator must trigger exactly one mutator "
-        "re-run; got calls=%r" % counting_mutator.calls
-    )
+    _call_process_late_attached(TestFlow, mock_datastore, mock_logger)
+    assert calls == expected_calls
