@@ -1,6 +1,7 @@
 import sys
 
 from metaflow.extension_support.plugins import (
+    get_trampoline_cli_names,
     merge_lists,
     process_plugins,
     resolve_plugins,
@@ -9,8 +10,6 @@ from metaflow.extension_support.plugins import (
 # Add new CLI commands here
 CLIS_DESC = [
     ("package", ".package_cli.cli"),
-    ("batch", ".aws.batch.batch_cli.cli"),
-    ("kubernetes", ".kubernetes.kubernetes_cli.cli"),
     ("step-functions", ".aws.step_functions.step_functions_cli.cli"),
     ("airflow", ".airflow.airflow_cli.cli"),
     ("argo-workflows", ".argo.argo_workflows_cli.cli"),
@@ -18,6 +17,15 @@ CLIS_DESC = [
     ("tag", ".tag_cli.cli"),
     ("spot-metadata", ".kubernetes.spot_metadata_cli.cli"),
     ("logs", ".logs_cli.cli"),
+]
+
+# Add trampoline CLI commands here — these are compute-backend CLI groups
+# whose "step" subcommand delegates to a remote system rather than executing
+# user code directly. They are merged into the regular CLI pipeline but also
+# tracked separately so system_context can detect the TRAMPOLINE phase.
+TRAMPOLINE_CLIS_DESC = [
+    ("batch", ".aws.batch.batch_cli.cli"),
+    ("kubernetes", ".kubernetes.kubernetes_cli.cli"),
 ]
 
 # Add additional commands to the runner here
@@ -179,6 +187,12 @@ TL_PLUGINS_DESC = [
     ("conda_environment_yml_parser", ".pypi.parsers.conda_environment_yml_parser"),
 ]
 
+# Add artifact serializers here. Ordering is by PRIORITY (lower = tried first).
+# PickleSerializer is the universal fallback (PRIORITY=9999).
+ARTIFACT_SERIALIZERS_DESC = [
+    ("pickle", ".datastores.serializers.pickle_serializer.PickleSerializer"),
+]
+
 process_plugins(globals())
 
 
@@ -273,3 +287,12 @@ def _import_tl_plugins(globals_dict):
 
     for name, p in TL_PLUGINS.items():
         globals_dict[name] = p
+
+
+# Drive every ARTIFACT_SERIALIZERS_DESC entry through the serializer state
+# machine — this is what makes serializer classes reachable via
+# ``SerializerStore.get_ordered_serializers()`` at dispatch time.
+from metaflow.datastore.artifacts.serializer import SerializerStore as _SerializerStore
+
+_SerializerStore.bootstrap()
+del _SerializerStore

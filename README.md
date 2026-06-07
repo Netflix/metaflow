@@ -17,7 +17,7 @@ Metaflow provides a simple and friendly pythonic [API](https://docs.metaflow.org
 2. [Effortlessly scale horizontally and vertically in your cloud](https://docs.metaflow.org/scaling/remote-tasks/introduction), utilizing both CPUs and GPUs, with [fast data access](https://docs.metaflow.org/scaling/data) for running [massive embarrassingly parallel](https://docs.metaflow.org/metaflow/basics#foreach) as well as [gang-scheduled](https://docs.metaflow.org/scaling/remote-tasks/distributed-computing) compute workloads [reliably](https://docs.metaflow.org/scaling/failures) and [efficiently](https://docs.metaflow.org/scaling/checkpoint/introduction).
 3. [Easily manage dependencies](https://docs.metaflow.org/scaling/dependencies) and [deploy with one-click](https://docs.metaflow.org/production/introduction) to highly available production orchestrators with built in support for [reactive orchestration](https://docs.metaflow.org/production/event-triggering).
 
-For full documentation, check out our [API Reference](https://docs.metaflow.org/api) or see our [Release Notes](https://github.com/Netflix/metaflow/releases) for the latest features and improvements. 
+For full documentation, check out our [API Reference](https://docs.metaflow.org/api) or see our [Release Notes](https://github.com/Netflix/metaflow/releases) for the latest features and improvements.
 
 
 ## Getting started
@@ -37,11 +37,11 @@ Alternatively, using [conda-forge](https://anaconda.org/conda-forge/metaflow):
 conda install -c conda-forge metaflow
 ```
 
-Once installed, a great way to get started is by following our [tutorial](https://docs.metaflow.org/getting-started/tutorials). It walks you through creating and running your first Metaflow flow step by step.  
+Once installed, a great way to get started is by following our [tutorial](https://docs.metaflow.org/getting-started/tutorials). It walks you through creating and running your first Metaflow flow step by step.
 
 For more details on Metaflow’s features and best practices, check out:
-- [How Metaflow works](https://docs.metaflow.org/metaflow/basics)  
-- [Additional resources](https://docs.metaflow.org/introduction/metaflow-resources)  
+- [How Metaflow works](https://docs.metaflow.org/metaflow/basics)
+- [Additional resources](https://docs.metaflow.org/introduction/metaflow-resources)
 
 If you need help, don’t hesitate to reach out on our [Slack community](http://slack.outerbounds.co/)!
 
@@ -50,8 +50,8 @@ If you need help, don’t hesitate to reach out on our [Slack community](http://
 <img src="./docs/multicloud.png" width="800px">
 
 
-While you can get started with Metaflow easily on your laptop, the main benefits of Metaflow lie in its ability to [scale out to external compute clusters](https://docs.metaflow.org/scaling/remote-tasks/introduction) 
-and to [deploy to production-grade workflow orchestrators](https://docs.metaflow.org/production/introduction). To benefit from these features, follow this [guide](https://outerbounds.com/engineering/welcome/) to 
+While you can get started with Metaflow easily on your laptop, the main benefits of Metaflow lie in its ability to [scale out to external compute clusters](https://docs.metaflow.org/scaling/remote-tasks/introduction)
+and to [deploy to production-grade workflow orchestrators](https://docs.metaflow.org/production/introduction). To benefit from these features, follow this [guide](https://outerbounds.com/engineering/welcome/) to
 configure Metaflow and the infrastructure behind it appropriately.
 
 

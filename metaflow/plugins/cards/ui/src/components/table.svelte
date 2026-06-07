@@ -1,4 +1,4 @@
-<!-- this component exists because we support two types 
+<!-- this component exists because we support two types
  of tables.  And we want to avoid the circular dependency.-->
 <script lang="ts">
   import type * as types from "../types";

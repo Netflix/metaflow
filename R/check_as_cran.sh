@@ -1,7 +1,7 @@
 rm -rf cran_check
 mkdir -p cran_check;
-cp -r inst ./cran_check/ 
-cp -r man ./cran_check/ 
+cp -r inst ./cran_check/
+cp -r man ./cran_check/
 cp -r R ./cran_check/
 cp -r vignettes ./cran_check/
 cp DESCRIPTION ./cran_check/

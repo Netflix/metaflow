@@ -241,6 +241,17 @@ class FlowDataStore(object):
             )
             for v in latest_to_fetch
         ]
+        if pathspecs:
+            # The set operations above (latest_started_attempts & done_attempts)
+            # discard the original pathspecs ordering. When the caller provides
+            # pathspecs, they expect results back in that same order -- e.g. foreach
+            # join inputs must arrive in split order. Sort to restore it.
+            # pathspec format: run_id/step_name/task_id[/attempt]
+            position = {
+                (ps.split("/")[1], ps.split("/")[2]): i
+                for i, ps in enumerate(pathspecs)
+            }
+            latest_to_fetch.sort(key=lambda v: position[v[1], v[2]])
         return list(itertools.starmap(self.get_task_datastore, latest_to_fetch))
 
     def get_task_datastore(

@@ -25,7 +25,7 @@
             },
             "python": "python3",
             "top_options": [
-                "batch = TRUE", 
+                "batch = TRUE",
                 "max_workers = 16",
                 "package_suffixes = c('.R', '.py', '.csv')",
                 "metadata='service'",

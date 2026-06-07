@@ -48,6 +48,19 @@ unsupported_decorators = {
 }
 
 
+def _write_deployer_attributes(obj, deployer_attribute_file, additional_info=None):
+    if deployer_attribute_file:
+        payload = {
+            "name": obj.workflow_name,
+            "flow_name": obj.flow.name,
+            "metadata": obj.metadata.metadata_str(),
+        }
+        if additional_info is not None:
+            payload["additional_info"] = additional_info
+        with open(deployer_attribute_file, "w", encoding="utf-8") as f:
+            json.dump(payload, f)
+
+
 class IncorrectProductionToken(MetaflowException):
     headline = "Incorrect production token"
 
@@ -278,16 +291,8 @@ def create(
 
     validate_tags(tags)
 
-    if deployer_attribute_file:
-        with open(deployer_attribute_file, "w", encoding="utf-8") as f:
-            json.dump(
-                {
-                    "name": obj.workflow_name,
-                    "flow_name": obj.flow.name,
-                    "metadata": obj.metadata.metadata_str(),
-                },
-                f,
-            )
+    if not only_json:
+        _write_deployer_attributes(obj, deployer_attribute_file)
 
     obj.echo("Deploying *%s* to Argo Workflows..." % obj.flow.name, bold=True)
 
@@ -364,6 +369,11 @@ def create(
     )
 
     if only_json:
+        _write_deployer_attributes(
+            obj,
+            deployer_attribute_file,
+            additional_info={"workflow_template": flow._workflow_template.to_json()},
+        )
         obj.echo_always(str(flow), err=False, no_bold=True)
         # TODO: Support echo-ing Argo Events Sensor template
     else:
@@ -963,7 +973,8 @@ def trigger(obj, run_id_file=None, deployer_attribute_file=None, **kwargs):
             obj.echo("re-deploy your flow in order to get rid of this message.")
             workflow_name_to_deploy = obj._v1_workflow_name
     response = ArgoWorkflows.trigger(workflow_name_to_deploy, params)
-    run_id = "argo-" + response["metadata"]["name"]
+    argo_workflow_id = response["metadata"]["name"]
+    run_id = f"argo-{argo_workflow_id}"
 
     if run_id_file:
         with open(run_id_file, "w") as f:
@@ -986,11 +997,33 @@ def trigger(obj, run_id_file=None, deployer_attribute_file=None, **kwargs):
         bold=True,
     )
 
+    workflow_url = (
+        "%s/workflows/%s/%s"
+        % (
+            ARGO_WORKFLOWS_UI_URL.rstrip("/"),
+            KUBERNETES_NAMESPACE,
+            argo_workflow_id,
+        )
+        if ARGO_WORKFLOWS_UI_URL
+        else None
+    )
+
     run_url = (
         "%s/%s/%s" % (UI_URL.rstrip("/"), obj.flow.name, run_id) if UI_URL else None
     )
 
-    if run_url:
+    if workflow_url and run_url:
+        obj.echo(
+            "See the run in the UI at %s\nand in the Argo Workflows UI at %s"
+            % (run_url, workflow_url),
+            bold=True,
+        )
+    elif workflow_url:
+        obj.echo(
+            "See the run in the Argo Workflows UI at %s" % workflow_url,
+            bold=True,
+        )
+    elif run_url:
         obj.echo(
             "See the run in the UI at %s" % run_url,
             bold=True,

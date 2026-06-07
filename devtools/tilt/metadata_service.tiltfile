@@ -1,0 +1,44 @@
+load('ext://helm_remote', 'helm_remote')
+load('./_result.tiltfile', 'new_result')
+
+def setup_metadata_service(ctx):
+    helm_remote(
+        'metaflow-service',
+        repo_name='metaflow-tools',
+        repo_url='https://outerbounds.github.io/metaflow-tools',
+        set=[
+            'metadatadb.user=metaflow',
+            'metadatadb.password=metaflow123',
+            'metadatadb.database=metaflow',
+            'metadatadb.host=postgresql',
+            'image.repository=public.ecr.aws/outerbounds/metaflow_metadata_service',
+            'image.tag=2.5.0',
+            'resources.requests.cpu=25m',
+            'resources.requests.memory=256Mi',
+            'resources.limits.cpu=500m',
+            'resources.limits.memory=1Gi',
+            'livenessProbe.failureThreshold=10',
+            'livenessProbe.periodSeconds=10',
+            'livenessProbe.timeoutSeconds=5',
+            'readinessProbe.failureThreshold=10',
+            'readinessProbe.periodSeconds=10',
+            'readinessProbe.timeoutSeconds=5',
+        ]
+    )
+
+    k8s_resource(
+        'metaflow-service',
+        port_forwards=['8080:8080'],
+        links=[link('http://localhost:8080/ping', 'Ping Metaflow Service')],
+        labels=['metadata-service'],
+        resource_deps=ctx.components['metadata-service'],
+    )
+
+    return new_result(
+        config={
+            "METAFLOW_DEFAULT_METADATA": "service",
+            "METAFLOW_SERVICE_URL": "http://localhost:8080",
+            "METAFLOW_SERVICE_INTERNAL_URL": "http://metaflow-service.default.svc.cluster.local:8080",
+        },
+        config_resources=['metaflow-service'],
+    )

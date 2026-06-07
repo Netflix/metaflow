@@ -371,7 +371,7 @@ def _validate_foreach_constraints(graph):
             for func in node.out_funcs:
                 traverse_graph(graph[func], state)
 
-    traverse_graph(graph["start"], {})
+    traverse_graph(graph[graph.start_step], {})
 
 
 def _validate_workflow(flow, graph, flow_datastore, metadata, workflow_timeout):

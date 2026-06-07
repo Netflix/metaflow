@@ -5,6 +5,12 @@ from metaflow.metaflow_config_funcs import from_conf
 
 from . import _ext_debug, alias_submodules, get_modules, lazy_load_aliases
 
+_trampoline_cli_names = set()
+
+
+def get_trampoline_cli_names():
+    return frozenset(_trampoline_cli_names)
+
 
 def process_plugins(module_globals):
     _resolve_relative_paths(module_globals)
@@ -22,6 +28,14 @@ def process_plugins(module_globals):
         globals()[_list_for_category(plugin_category)] = _get_ext_plugins(
             module_globals, plugin_category
         )
+
+    # Merge core TRAMPOLINE_CLIS_DESC into the CLI pipeline and track their names
+    global _trampoline_cli_names
+    _trampoline_cli_names = set()
+    core_trampoline = module_globals.get("TRAMPOLINE_CLIS_DESC", [])
+    for name, _ in core_trampoline:
+        _trampoline_cli_names.add(name)
+    globals()[_list_for_category("cli")].extend(core_trampoline)
 
     try:
         modules_to_import = get_modules("plugins")
@@ -45,6 +59,11 @@ def process_plugins(module_globals):
                 globals()[_list_for_category(plugin_category)].extend(
                     _get_ext_plugins(m.module.__dict__, plugin_category)
                 )
+            # Merge extension TRAMPOLINE_CLIS_DESC into the CLI pipeline
+            ext_trampoline = m.module.__dict__.get("TRAMPOLINE_CLIS_DESC", [])
+            for name, _ in ext_trampoline:
+                _trampoline_cli_names.add(name)
+            globals()[_list_for_category("cli")].extend(ext_trampoline)
     except Exception as e:
         _ext_debug("\tWARNING: ignoring all plugins due to error during import: %s" % e)
         print(
@@ -270,4 +289,13 @@ def _resolve_relative_paths(module_globals):
                     _get_ext_plugins(module_globals, plugin_category),
                 )
             ),
+        )
+
+    # Also resolve relative paths in TRAMPOLINE_CLIS_DESC if present
+    if "TRAMPOLINE_CLIS_DESC" in module_globals:
+        module_globals["TRAMPOLINE_CLIS_DESC"] = list(
+            map(
+                lambda p: (p[0], resolve_path(p[1])),
+                module_globals["TRAMPOLINE_CLIS_DESC"],
+            )
         )
