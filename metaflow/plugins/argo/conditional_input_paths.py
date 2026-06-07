@@ -22,6 +22,8 @@ def generate_input_paths(input_paths, skippable_steps):
         if "{{" in path:
             return False
         parts = path.split("/")
+        # Paths from skipped conditional steps resolve to "argo-<run>/<step>/"
+        # (empty task-id segment), which must be filtered out.
         if len(parts) < 3 or not parts[-1]:
             return False
         return True
