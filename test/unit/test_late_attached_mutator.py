@@ -54,6 +54,20 @@ class kubernetes_override(StepMutator):
                 )
 
 
+class counting_mutator(StepMutator):
+    """A StepMutator that records how many times ``mutate`` is invoked, so we
+    can assert the late-attach re-run fires exactly once and is not spuriously
+    re-run for already-initialized (statically-defined) decorators."""
+
+    calls = []
+
+    def init(self, *args, **kwargs):
+        pass
+
+    def mutate(self, mutable_step):
+        type(self).calls.append(mutable_step._my_step.name)
+
+
 class _MockFlow:
     """Make a FlowSpec class usable by ``_process_late_attached_decorator``
     without invoking the CLI.
@@ -204,3 +218,63 @@ def test_no_late_attachment_is_a_noop():
     _call_process_late_attached(TestFlow)
 
     assert not _kube(start_step), "no @kubernetes should be created out of nothing"
+
+
+def test_already_initialized_decorator_does_not_retrigger_mutator():
+    """A decorator that was already external_init'd (``_ran_init`` True, e.g. a
+    statically-defined ``@kubernetes`` that ``_init_step_decorators`` already
+    initialized before the deploy-time late-attach) must NOT enroll its step for
+    a mutator re-run -- only a genuinely fresh attachment (``_ran_init`` False)
+    should. This guards the narrowing that avoids double-running non-idempotent
+    mutators."""
+
+    # Case 1: an already-initialized decorator must NOT retrigger the mutator.
+    class AlreadyInitFlow(FlowSpec):
+        @counting_mutator()
+        @step
+        def start(self):
+            self.next(self.end)
+
+        @step
+        def end(self):
+            pass
+
+    counting_mutator.calls = []
+    start_step = AlreadyInitFlow.start
+    _init_mutators(start_step)
+
+    # Attach @kubernetes, then initialize it (external_init sets _ran_init=True
+    # and fills defaults) to emulate a statically-defined decorator that
+    # _init_step_decorators handled before the platform late-attach pass runs.
+    decorators._attach_decorators_to_step(start_step, [KubernetesDecorator.name])
+    for deco in _kube(start_step):
+        deco.external_init()
+        assert deco._ran_init is True
+
+    _call_process_late_attached(AlreadyInitFlow)
+    assert counting_mutator.calls == [], (
+        "an already-initialized decorator must not retrigger the mutator; "
+        "got calls=%r" % counting_mutator.calls
+    )
+
+    # Case 2 (sanity): a genuinely fresh attach (_ran_init False) DOES enroll
+    # the step and triggers exactly one mutator re-run.
+    class FreshAttachFlow(FlowSpec):
+        @counting_mutator()
+        @step
+        def start(self):
+            self.next(self.end)
+
+        @step
+        def end(self):
+            pass
+
+    counting_mutator.calls = []
+    fresh_step = FreshAttachFlow.start
+    _init_mutators(fresh_step)
+    decorators._attach_decorators_to_step(fresh_step, [KubernetesDecorator.name])
+    _call_process_late_attached(FreshAttachFlow)
+    assert counting_mutator.calls == ["start"], (
+        "a genuinely late-attached decorator must trigger exactly one mutator "
+        "re-run; got calls=%r" % counting_mutator.calls
+    )

@@ -1014,15 +1014,21 @@ def _process_late_attached_decorator(
 
     from .system_context import system_context
 
-    # Track which steps received a late-attached decorator so we only re-run
-    # mutators on those steps (re-running mutators on unaffected steps could
-    # break non-idempotent mutators).
+    # Track which steps received a *genuinely new* late-attached decorator so we
+    # only re-run mutators on those steps (re-running mutators on unaffected
+    # steps could break non-idempotent mutators). A freshly attached decorator
+    # has not been external_init'd yet (_ran_init is False); a statically
+    # defined decorator that _init_step_decorators already initialized has
+    # _ran_init True and must NOT trigger a mutator re-run. The _ran_init check
+    # therefore has to happen BEFORE external_init() flips the flag, so
+    # enrollment is recorded separately from initialization.
     late_attached_step_names = set()
     for s in flow:
         for deco in s.decorators:
+            if deco.name in deco_names and not deco._ran_init:
+                late_attached_step_names.add(s.__name__)
             if deco.name in deco_names:
                 deco.external_init()
-                late_attached_step_names.add(s.__name__)
 
     # Re-run step mutators on the affected steps so they can see the
     # late-attached decorators. _init_step_decorators (the usual mutator pass)
