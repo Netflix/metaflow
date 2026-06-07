@@ -1373,7 +1373,7 @@ class ArgoWorkflows(object):
                     input_paths_value = compress_list(
                         [_build_input_path(n) for n in node.in_funcs],
                         zlibmin=inf,
-                    )                  
+                    )
                 parameters = [Parameter("input-paths").value(input_paths_value)]
                 # NOTE: Due to limitations with Argo Workflows Parameter size we
                 #       can not pass arbitrarily large lists of task id's to join tasks.
