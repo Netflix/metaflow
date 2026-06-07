@@ -129,9 +129,9 @@ def test_late_attached_kubernetes_mutator_is_reflected_in_argo_template(
     start_resources = _container_template_for_step(workflow_template, "start")[
         "container"
     ]["resources"]
-    end_resources = _container_template_for_step(workflow_template, "end")[
-        "container"
-    ]["resources"]
+    end_resources = _container_template_for_step(workflow_template, "end")["container"][
+        "resources"
+    ]
 
     assert start_resources["requests"]["cpu"] == "2"
     assert start_resources["requests"]["memory"] == "8192M"
