@@ -202,14 +202,30 @@ def test_symlink_traversal_handles_circular_references():
 
 For any new test file, follow these conventions:
 
-- **pytest, not `unittest`.** Plain `assert`, no `TestCase` subclasses, no `self.assertEqual`.
-- **Module-level functions, not test classes.**
-- **`pytest-mock` (`mocker` fixture), not `unittest.mock.MagicMock` / `patch`.** Use `mocker.patch(...)` so cleanup is automatic.
-- **`@pytest.fixture` for shared setup.** File-local fixtures at the top of the test file; cross-file fixtures in the nearest `conftest.py` (e.g. `test/unit/conftest.py`).
-- **Module-level constants for immutable test data; fixtures for stateful test data.** Strings, numbers, plain dicts/tuples can live as module-level constants. `BytesIO`, file handles, datetimes, mocks, or anything with mutable internal state belongs in a fixture so each test gets a fresh instance.
-- **Factory fixtures** when per-test parameters are needed: return a callable, not the bare object.
-- **`@pytest.mark.parametrize` whenever cases share shape.** One parametrized test beats N near-identical ones.
-- File and test naming: `test/unit/test_<module>.py`, function names `test_<behavior>`.
+- **pytest, not `unittest`.** Plain `assert`, no `TestCase` subclasses, no
+  `self.assertEqual`. Prefer module-level functions for new files.
+- **Module-level functions, not test classes.** Group related cases by file,
+  not by `class`. `pytest.mark.parametrize` replaces grouping classes for
+  shape-shared cases.
+- **`pytest-mock` (`mocker` fixture), not `unittest.mock.MagicMock` / `patch`.**
+  Use `mocker.patch(...)` so cleanup is automatic. `monkeypatch` from pytest is
+  fine for env vars and attribute swaps.
+- **`@pytest.fixture` for shared setup.** File-local fixtures at the top of the
+  test file; cross-file fixtures in the nearest `conftest.py`.
+- **Module-level constants for immutable test data; fixtures for stateful test
+  data.** Plain dicts/strings/numbers can be module-level constants. Anything
+  with mutable internal state (`BytesIO`, file handles, mocks, datetimes)
+  belongs in a fixture so each test gets a fresh instance.
+- **Factory fixtures** when per-test parameters are needed: return a callable,
+  not the bare object.
+- **Prefer pure-function tests over mocks.** When a helper extracts a pure
+  computation, test it directly with real inputs instead of mocking the whole
+  call graph.
+- **`@pytest.mark.parametrize` whenever cases share shape.** One parametrized
+  test beats N near-identical ones. Give explicit `ids=[...]` when the generated
+  IDs would be hard to read or awkward to select from the shell.
+- **File and test naming:** `test/<area>/test_<module>.py`, function names
+  `test_<behavior>`.
 
 ## PR Description Template
 
