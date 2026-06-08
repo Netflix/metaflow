@@ -32,6 +32,8 @@ def _assert_only_json_structure(workflow_template, deployed_flow_name):
     assert workflow_template["kind"] == "WorkflowTemplate"
     assert workflow_template["metadata"]["name"] == deployed_flow_name
     assert workflow_template["spec"]["templates"]
+
+
 def _container_template_for_step(workflow_template, step_name):
     for template in workflow_template.get("spec", {}).get("templates", []):
         annotations = template.get("metadata", {}).get("annotations", {})
