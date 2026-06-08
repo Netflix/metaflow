@@ -84,7 +84,7 @@ def deploy_flow_to_scheduler(
     )
 
     # Evict the module cache so that config_value / FlowMutator are always
-    # applied to a freshly loaded class.  Without this, a previous test that
+    # applied to a freshly loaded class. Without this, a previous test that
     # loaded the same flow (with different config) leaves the class in a
     # _configs_processed=True state, causing _process_config_decorators to
     # skip mutation and leaving added parameters (e.g. param3) absent from
@@ -93,13 +93,16 @@ def deploy_flow_to_scheduler(
 
     filtered_tl_args = prepare_runner_deployer_args(tl_args)
     deployer = Deployer(flow_file=flow_path, **filtered_tl_args)
+
     # Normalize scheduler_args: translate the generic 'cluster' key to
     # the scheduler-specific arg, and drop unsupported keys.
     normalized_sched_type = scheduler_type.replace("-", "_")
     norm_sched_args = dict(scheduler_args)
+
     # Drop 'cluster' — it's the k8s namespace which comes from METAFLOW_KUBERNETES_NAMESPACE
     # in the global config, not passed as a create() argument.
     norm_sched_args.pop("cluster", None)
+
     deployed_flow = getattr(deployer, normalized_sched_type)(**norm_sched_args).create(
         **deploy_args
     )
@@ -302,10 +305,10 @@ def send_event(scheduler_type, event_name, payload, scheduler_config):
 def get_run_pathspecs(flow_name, tags, timeout=10, polling_interval=60):
     """Get pathspecs for runs matching flow_name and tags.
 
-    Convenience wrapper around track_runs_by_tags for use in trigger tests
+    Convenience wrapper around wait_for_runs_by_tags for use in trigger tests
     where we need to find runs that were triggered asynchronously.
     """
-    return track_runs_by_tags(flow_name, tags, timeout, polling_interval)
+    return wait_for_runs_by_tags(flow_name, tags, timeout, polling_interval)
 
 
 def execute_test_flow(

@@ -1,11 +1,13 @@
 import time
+from typing import Any, Dict, List
+
 import pytest
 
 pytestmark = pytest.mark.scheduler_only
 from .test_utils import (
+    _is_failed_status,
     deploy_flow_to_scheduler,
     wait_for_deployed_run,
-    _is_failed_status,
 )
 
 
@@ -53,59 +55,10 @@ def _wait_for_resumed_run(triggered_run, timeout=3600, polling_interval=3):
     return triggered_run.run
 
 
-def test_resume_hello_world(decospecs, compute_env, tag, scheduler_config):
-    """Resume a successful run — all steps should be cloned."""
-    sched_type = scheduler_config.scheduler_type
-    if sched_type is None:
-        pytest.skip("No scheduler configured")
-
-    test_unique_tag = "test_resume_hello_world"
-    combined_tags = tag + [test_unique_tag]
-
-    deployed_flow = deploy_flow_to_scheduler(
-        flow_name="basic/resumeflow.py",
-        tl_args={"decospecs": decospecs, "env": compute_env},
-        scheduler_args={"cluster": scheduler_config.cluster},
-        deploy_args={"tags": combined_tags, **(scheduler_config.deploy_args or {})},
-        scheduler_type=sched_type,
-    )
-
-    # First run: should succeed (should_fail defaults to False)
-    run1 = wait_for_deployed_run(deployed_flow)
-    assert run1.successful, "First run was not successful"
-    assert run1["start"].task.data.start_value == "started"
-    assert run1["process"].task.data.process_value == "processed"
-    assert run1["end"].task.data.end_value == "done"
-
-    # Resume: all steps should be cloned from the successful run
-    resumed = _try_resume(deployed_flow, sched_type, origin_run_id=run1.id)
-    run2 = _wait_for_resumed_run(resumed)
-    assert run2.successful, "Resumed run was not successful"
-    assert run2["start"].task.data.start_value == "started"
-    assert run2["process"].task.data.process_value == "processed"
-    assert run2["end"].task.data.end_value == "done"
-
-
-def test_resume_failed_flow(decospecs, compute_env, tag, scheduler_config):
-    """Resume a failed run — failed step should re-execute, earlier steps cloned."""
-    sched_type = scheduler_config.scheduler_type
-    if sched_type is None:
-        pytest.skip("No scheduler configured")
-
-    test_unique_tag = "test_resume_failed_flow"
-    combined_tags = tag + [test_unique_tag]
-
-    deployed_flow = deploy_flow_to_scheduler(
-        flow_name="basic/resumeflow.py",
-        tl_args={"decospecs": decospecs, "env": compute_env},
-        scheduler_args={"cluster": scheduler_config.cluster},
-        deploy_args={"tags": combined_tags, **(scheduler_config.deploy_args or {})},
-        scheduler_type=sched_type,
-    )
-
-    # First run: trigger with should_fail=True — process step will fail
+def _trigger_and_wait(deployed_flow, sched_type, trigger_kwargs):
+    """Helper to trigger a flow and wait for completion (success or failure)."""
     try:
-        triggered = deployed_flow.trigger(should_fail=True)
+        triggered = deployed_flow.trigger(**trigger_kwargs)
     except Exception as e:
         pytest.skip(f"{sched_type}: cannot trigger with parameters: {e}")
 
@@ -118,31 +71,88 @@ def test_resume_failed_flow(decospecs, compute_env, tag, scheduler_config):
             break
         time.sleep(3)
 
-    failed_run_id = triggered.run.id if triggered.run else None
-    assert failed_run_id is not None, "Could not get failed run ID"
+    assert triggered.run is not None, "Could not get triggered run ID"
+    return triggered.run
 
-    # Resume: process and end should re-execute, start should be cloned
+
+# ---------------------------------------------------------------------------
+# Tests
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    "trigger_kwargs, expect_first_run_success, resume_kwargs",
+    [
+        pytest.param({}, True, {}, id="successful_run_clones_all"),
+        pytest.param(
+            {"should_fail": True},
+            False,
+            {"should_fail": False},
+            id="failed_run_reexecutes_failed_step",
+        ),
+        pytest.param(
+            {},
+            True,
+            {"step_to_rerun": "process"},
+            id="step_to_rerun_forces_downstream_execution",
+        ),
+    ],
+)
+def test_resume_basic_flow(
+    decospecs: Any,
+    compute_env: Dict[str, str],
+    tag: List[str],
+    scheduler_config: Any,
+    trigger_kwargs: Dict[str, Any],
+    expect_first_run_success: bool,
+    resume_kwargs: Dict[str, Any],
+):
+    """Parametrized test covering standard successful resume, failed run resume,
+    and explicit step-to-rerun behavior on basic/resumeflow.py."""
+    sched_type = scheduler_config.scheduler_type
+    if sched_type is None:
+        pytest.skip("No scheduler configured")
+
+    combined_tags = tag + ["test_resume_basic_flow"]
+
+    deployed_flow = deploy_flow_to_scheduler(
+        flow_name="basic/resumeflow.py",
+        tl_args={"decospecs": decospecs, "env": compute_env},
+        scheduler_args={"cluster": scheduler_config.cluster},
+        deploy_args={"tags": combined_tags, **(scheduler_config.deploy_args or {})},
+        scheduler_type=sched_type,
+    )
+
+    # First run
+    run1 = _trigger_and_wait(deployed_flow, sched_type, trigger_kwargs)
+
+    if expect_first_run_success:
+        assert run1.successful, "First run was unexpectedly unsuccessful"
+    else:
+        assert not run1.successful, "First run was unexpectedly successful"
+
+    # Resume
     resumed = _try_resume(
-        deployed_flow,
-        sched_type,
-        origin_run_id=failed_run_id,
-        should_fail=False,
+        deployed_flow, sched_type, origin_run_id=run1.id, **resume_kwargs
     )
     run2 = _wait_for_resumed_run(resumed)
+
+    # Final Assertions (Standard across all basic/resumeflow scenarios)
     assert run2.successful, "Resumed run was not successful"
     assert run2["start"].task.data.start_value == "started"
     assert run2["process"].task.data.process_value == "processed"
     assert run2["end"].task.data.end_value == "done"
 
 
-def test_resume_foreach(decospecs, compute_env, tag, scheduler_config):
+def test_resume_foreach(
+    decospecs: Any, compute_env: Dict[str, str], tag: List[str], scheduler_config: Any
+) -> None:
     """Resume a failed foreach run — failed iteration re-executes, completed ones are cloned."""
     sched_type = scheduler_config.scheduler_type
     if sched_type is None:
         pytest.skip("No scheduler configured")
 
-    test_unique_tag = "test_resume_foreach"
-    combined_tags = tag + [test_unique_tag]
+    combined_tags = tag + ["test_resume_foreach"]
 
     deployed_flow = deploy_flow_to_scheduler(
         flow_name="dag/foreach_resume_flow.py",
@@ -153,69 +163,21 @@ def test_resume_foreach(decospecs, compute_env, tag, scheduler_config):
     )
 
     # First run: item 1 fails, items 2 and 3 succeed
-    try:
-        triggered = deployed_flow.trigger(fail_on_item=1)
-    except Exception as e:
-        pytest.skip(f"{sched_type}: cannot trigger with parameters: {e}")
-
-    start_time = time.time()
-    while time.time() - start_time < 600:
-        status = triggered.status
-        if _is_failed_status(status):
-            break
-        if triggered.run and triggered.run.finished:
-            break
-        time.sleep(3)
-
-    failed_run_id = triggered.run.id if triggered.run else None
-    assert failed_run_id is not None, "Could not get failed run ID"
+    run1 = _trigger_and_wait(deployed_flow, sched_type, {"fail_on_item": 1})
+    assert not run1.successful, "Expected first run to fail on item 1"
 
     # Resume: item 1 should re-execute (fail_on_item=-1), others are cloned
     resumed = _try_resume(
         deployed_flow,
         sched_type,
-        origin_run_id=failed_run_id,
+        origin_run_id=run1.id,
         fail_on_item=-1,
     )
     run2 = _wait_for_resumed_run(resumed)
+
     assert run2.successful, "Resumed foreach run was not successful"
-    assert run2["join"].task.data.results == [2, 4, 6], (
-        "Resumed foreach results didn't match: got %r" % run2["join"].task.data.results
-    )
-
-
-def test_resume_step_to_rerun(decospecs, compute_env, tag, scheduler_config):
-    """Resume with --step-to-rerun forces re-execution of specified step and downstream."""
-    sched_type = scheduler_config.scheduler_type
-    if sched_type is None:
-        pytest.skip("No scheduler configured")
-
-    test_unique_tag = "test_resume_step_to_rerun"
-    combined_tags = tag + [test_unique_tag]
-
-    deployed_flow = deploy_flow_to_scheduler(
-        flow_name="basic/resumeflow.py",
-        tl_args={"decospecs": decospecs, "env": compute_env},
-        scheduler_args={"cluster": scheduler_config.cluster},
-        deploy_args={"tags": combined_tags, **(scheduler_config.deploy_args or {})},
-        scheduler_type=sched_type,
-    )
-
-    # First run: succeed
-    run1 = wait_for_deployed_run(deployed_flow)
-    assert run1.successful, "First run was not successful"
-
-    # Resume with step_to_rerun="process" — process and end should re-execute
-    resumed = _try_resume(
-        deployed_flow,
-        sched_type,
-        origin_run_id=run1.id,
-        step_to_rerun="process",
-    )
-    run2 = _wait_for_resumed_run(resumed)
-    assert run2.successful, "Resumed run was not successful"
-    # start should be cloned (not in rerun set)
-    assert run2["start"].task.data.start_value == "started"
-    # process and end should have been re-executed
-    assert run2["process"].task.data.process_value == "processed"
-    assert run2["end"].task.data.end_value == "done"
+    assert run2["join"].task.data.results == [
+        2,
+        4,
+        6,
+    ], f"Resumed foreach results didn't match: got {run2['join'].task.data.results}"
