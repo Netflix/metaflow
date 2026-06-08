@@ -1,7 +1,13 @@
-import pytest
-from metaflow import Runner
 import os
+import tempfile
+import pytest
+
+from metaflow import Runner
 from spin_test_helpers import assert_artifacts, run_step, FLOWS_DIR, ARTIFACTS_DIR
+
+# ---------------------------------------------------------------------------
+# Simple Flow Tests
+# ---------------------------------------------------------------------------
 
 
 @pytest.mark.parametrize(
@@ -14,67 +20,81 @@ from spin_test_helpers import assert_artifacts, run_step, FLOWS_DIR, ARTIFACTS_D
     ],
     ids=["merge_artifacts", "simple_config", "simple_parameter", "complex_dag"],
 )
-def test_simple_flows(flow_file, fixture_name, request):
-    """Test simple flows that just need artifact validation."""
+def test_simple_flows_validate_artifacts(flow_file, fixture_name, request):
+    """Test that basic flows run steps correctly and validate their artifacts."""
     run = request.getfixturevalue(fixture_name)
-    print(f"Running test for {flow_file}: {run}")
+
+    # Act & Assert: Iterate through and run each step
     for step in run.steps():
-        print("-" * 100)
         if fixture_name == "complex_dag_run":
             run_step(flow_file, run, step.id, environment="conda")
         else:
             run_step(flow_file, run, step.id)
 
 
-def test_artifacts_module(complex_dag_run):
-    print(f"Running test for artifacts module in ComplexDAGFlow: {complex_dag_run}")
+# ---------------------------------------------------------------------------
+# Artifacts Module Tests
+# ---------------------------------------------------------------------------
+
+
+def test_artifacts_module_evaluates_correctly(complex_dag_run):
+    """Test that an external artifacts module correctly injects state into a spun step."""
+    # Setup
     step_name = "step_a"
     task = complex_dag_run[step_name].task
     flow_path = os.path.join(FLOWS_DIR, "complex_dag_flow.py")
     artifacts_path = os.path.join(ARTIFACTS_DIR, "complex_dag_step_a.py")
 
+    # Act
     with Runner(flow_path, cwd=FLOWS_DIR, environment="conda").spin(
         task.pathspec,
         artifacts_module=artifacts_path,
         persist=True,
     ) as spin:
-        print("-" * 50)
-        print(f"Running test for step: step_a with task pathspec: {task.pathspec}")
+
+        # Assert
         spin_task = spin.task
-        print(f"my_output: {spin_task['my_output']}")
         assert spin_task["my_output"].data == [10, 11, 12, 3]
 
 
-def test_artifacts_module_join_step(
+def test_artifacts_module_injects_dynamic_data_in_join_step(
     complex_dag_run, complex_dag_step_d_artifacts, tmp_path
 ):
-    print(f"Running test for artifacts module in ComplexDAGFlow: {complex_dag_run}")
+    """Test that dynamically generated artifacts are correctly loaded during a join step."""
+    # Setup
     step_name = "step_d"
     task = complex_dag_run[step_name].task
     flow_path = os.path.join(FLOWS_DIR, "complex_dag_flow.py")
 
-    # Create a temporary artifacts file with dynamic data
+    # Setup: Create a temporary artifacts file with dynamic data
     temp_artifacts_file = tmp_path / "temp_complex_dag_step_d.py"
     temp_artifacts_file.write_text(f"ARTIFACTS = {repr(complex_dag_step_d_artifacts)}")
 
+    # Act
     with Runner(flow_path, cwd=FLOWS_DIR, environment="conda").spin(
         task.pathspec,
         artifacts_module=str(temp_artifacts_file),
         persist=True,
     ) as spin:
-        print("-" * 50)
-        print(f"Running test for step: step_d with task pathspec: {task.pathspec}")
+
+        # Assert
         spin_task = spin.task
         assert spin_task["my_output"].data == [-1]
 
 
-def test_timeout_decorator_enforcement(simple_config_run):
-    """Test that timeout decorator properly enforces timeout limits."""
+# ---------------------------------------------------------------------------
+# Decorator & Config Tests
+# ---------------------------------------------------------------------------
+
+
+def test_timeout_decorator_enforces_time_limit(simple_config_run):
+    """Test that a configured timeout decorator stops execution and raises an exception."""
+    # Setup
     step_name = "start"
     task = simple_config_run[step_name].task
     flow_path = os.path.join(FLOWS_DIR, "simple_config_flow.py")
 
-    # With decorator enabled (should timeout and raise exception)
+    # Act & Assert
     with pytest.raises(Exception):
         with Runner(
             flow_path, cwd=FLOWS_DIR, config_value=[("config", {"timeout": 2})]
@@ -85,13 +105,14 @@ def test_timeout_decorator_enforcement(simple_config_run):
             pass
 
 
-def test_skip_decorators_bypass(simple_config_run):
-    """Test that skip_decorators successfully bypasses timeout decorator."""
+def test_skip_decorators_bypasses_timeout(simple_config_run):
+    """Test that using skip_decorators=True successfully ignores the timeout limit."""
+    # Setup
     step_name = "start"
     task = simple_config_run[step_name].task
     flow_path = os.path.join(FLOWS_DIR, "simple_config_flow.py")
 
-    # With skip_decorators=True (should succeed despite timeout)
+    # Act
     with Runner(
         flow_path, cwd=FLOWS_DIR, config_value=[("config", {"timeout": 2})]
     ).spin(
@@ -99,16 +120,18 @@ def test_skip_decorators_bypass(simple_config_run):
         skip_decorators=True,
         persist=True,
     ) as spin:
-        print(f"Running test for step: {step_name} with skip_decorators=True")
-        # Should complete successfully even though sleep(5) > timeout(2)
-        spin_task = spin.task
-        assert spin_task.finished
+
+        # Assert: Should complete successfully even though step length > timeout
+        assert spin.task.finished
 
 
 def test_spin_preserves_explicit_top_level_decospecs(spin_decospec_run):
+    """Test that spin respects top-level decorator specifications provided to Runner."""
+    # Setup
     task = spin_decospec_run["start"].task
     flow_path = os.path.join(FLOWS_DIR, "spin_decospec_flow.py")
 
+    # Act & Assert
     with pytest.raises(Exception, match="timed out"):
         with Runner(
             flow_path,
@@ -123,10 +146,13 @@ def test_spin_preserves_explicit_top_level_decospecs(spin_decospec_run):
             pass
 
 
-def test_spin_step_does_not_apply_default_decospecs(spin_decospec_run):
+def test_spin_step_ignores_default_decospecs(spin_decospec_run):
+    """Test that spin does NOT inadvertently apply METAFLOW_DEFAULT_DECOSPECS."""
+    # Setup
     task = spin_decospec_run["start"].task
     flow_path = os.path.join(FLOWS_DIR, "spin_decospec_flow.py")
 
+    # Act
     with Runner(
         flow_path,
         cwd=FLOWS_DIR,
@@ -137,44 +163,59 @@ def test_spin_step_does_not_apply_default_decospecs(spin_decospec_run):
         task.pathspec,
         persist=True,
     ) as spin:
+
+        # Assert
         assert spin.task.finished
         assert spin.task["done"].data is True
 
 
-def test_hidden_artifacts(simple_parameter_run):
-    """Test simple flows that just need artifact validation."""
+# ---------------------------------------------------------------------------
+# Internal State & Integration Tests
+# ---------------------------------------------------------------------------
+
+
+def test_spin_persists_internal_hidden_artifacts(simple_parameter_run):
+    """Test that spinning a task retains internal Metaflow graph and state artifacts."""
+    # Setup
     step_name = "start"
     task = simple_parameter_run[step_name].task
     flow_path = os.path.join(FLOWS_DIR, "simple_parameter_flow.py")
-    print(f"Running test for hidden artifacts in {flow_path}: {simple_parameter_run}")
 
+    # Act
     with Runner(flow_path, cwd=FLOWS_DIR).spin(task.pathspec, persist=True) as spin:
         spin_task = spin.task
+
+        # Assert
         assert "_graph_info" in spin_task
         assert "_foreach_stack" in spin_task
 
 
-def test_card_flow(simple_card_run):
-    """Test a simple flow that has @card decorator."""
+def test_spin_generates_cards_correctly(simple_card_run):
+    """Test that spinning a flow with the @card decorator successfully outputs cards."""
+    # Setup
+    from metaflow.cards import get_cards
+
     step_name = "start"
     task = simple_card_run[step_name].task
     flow_path = os.path.join(FLOWS_DIR, "simple_card_flow.py")
-    print(f"Running test for cards in {flow_path}: {simple_card_run}")
 
+    # Act
     with Runner(flow_path, cwd=FLOWS_DIR).spin(task.pathspec, persist=True) as spin:
-        spin_task = spin.task
-        from metaflow.cards import get_cards
+        res = get_cards(spin.task, follow_resumed=False)
 
-        res = get_cards(spin_task, follow_resumed=False)
-        print(res)
+        # Assert
+        assert res is not None, "Cards should be generated and retrievable"
+        # Optional: assert len(res) > 0 if you expect a specific number of cards
 
 
-def test_spin_with_parameters_raises_error(simple_parameter_run):
-    """Test that passing flow parameters to spin raises an error."""
+def test_spin_with_flow_parameters_raises_error(simple_parameter_run):
+    """Test that passing standard flow parameters to spin() raises an Unknown argument error."""
+    # Setup
     step_name = "start"
     task = simple_parameter_run[step_name].task
     flow_path = os.path.join(FLOWS_DIR, "simple_parameter_flow.py")
 
+    # Act & Assert
     with pytest.raises(Exception, match="Unknown argument"):
         with Runner(flow_path, cwd=FLOWS_DIR).spin(
             task.pathspec,
@@ -184,41 +225,42 @@ def test_spin_with_parameters_raises_error(simple_parameter_run):
             pass
 
 
-# NOTE: This test has to be the last test because it modifies the metadata
-# provider when calling inspect_spin
-def test_inspect_spin_client_access(simple_parameter_run):
-    """Test accessing spin artifacts using inspect_spin client directly."""
+# ---------------------------------------------------------------------------
+# WARNING: State-Modifying Test
+# This test modifies the global metadata provider via `inspect_spin`.
+# It is kept at the bottom of the file to prevent side-effects on other tests.
+# ---------------------------------------------------------------------------
+
+
+def test_inspect_spin_client_allows_artifact_access(simple_parameter_run):
+    """Test accessing spun artifacts directly using the inspect_spin client."""
+    # Setup
     from metaflow import inspect_spin, Task
-    import tempfile
 
     step_name = "start"
     task = simple_parameter_run[step_name].task
     flow_path = os.path.join(FLOWS_DIR, "simple_parameter_flow.py")
 
     with tempfile.TemporaryDirectory() as _:
-        # Run spin to generate artifacts
+        # Setup: Run spin to generate artifacts
         with Runner(flow_path, cwd=FLOWS_DIR).spin(
             task.pathspec,
             persist=True,
         ) as spin:
             spin_task = spin.task
             spin_pathspec = spin_task.pathspec
+
             assert spin_task["a"] is not None
             assert spin_task["b"] is not None
+            assert spin_pathspec is not None
 
-        assert spin_pathspec is not None
-
-        # Set metadata provider to spin
+        # Act: Set metadata provider to spin
         inspect_spin(FLOWS_DIR)
         client_task = Task(spin_pathspec, _namespace_check=False)
 
-        # Verify task is accessible
+        # Assert: Verify task and artifacts are accessible via client
         assert client_task is not None
-
-        # Verify artifacts
         assert hasattr(client_task, "artifacts")
-
-        # Verify artifact data
         assert client_task.artifacts.a.data == 10
         assert client_task.artifacts.b.data == 20
         assert client_task.artifacts.alpha.data == 0.05
