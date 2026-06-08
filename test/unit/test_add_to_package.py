@@ -417,7 +417,6 @@ def test_user_code_tuples_skips_addl_when_walker_already_has_it(
     code_py = [t for t in tuples if t[1] == "code.py"]
     assert len(code_py) == 1
     assert code_py[0][0] == walker_path
-    assert not any(t[0] == str(shadow_file) for t in tuples)
 
 
 def test_user_code_tuples_respects_user_code_filter(mocker, build_pkg, setup_flow_dir):

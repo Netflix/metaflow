@@ -30,7 +30,9 @@ def test_last_in_ordering(monkeypatch):
     """PickleSerializer should be last (highest PRIORITY) among registered serializers."""
     # Use monkeypatch to safely append PickleSerializer to active state and clear cache.
     # This ensures automatic cleanup after the test runs.
-    updated_serializers = SerializerStore._active_serializers.copy()
+    updated_serializers = type(SerializerStore._active_serializers)(
+        SerializerStore._active_serializers
+    )
     updated_serializers.add(PickleSerializer)
 
     monkeypatch.setattr(SerializerStore, "_active_serializers", updated_serializers)

@@ -16,12 +16,11 @@ def test_extract_code_package_creates_temp_dir(mocker):
     """Test that extract_code_package safely unpacks the tarball into a temporary directory."""
 
     mock_run = mocker.patch("metaflow.cmd.code.Run")
-    mock_run.return_value.code.tarball.getmembers.return_value = []
-    mock_run.return_value.code.tarball.extractall = mocker.MagicMock()
 
-    mock_tmp = mocker.patch("tempfile.TemporaryDirectory")
-    mock_tmp.return_value.name = "/fake/tmp/dir"
+    mock_tmp = mocker.MagicMock()
+    mock_tmp.name = "/fake/tmp/dir"
 
+    mock_run.return_value.code.extract.return_value = mock_tmp
     runspec = "HelloFlow/3"
 
     # Act
@@ -29,6 +28,7 @@ def test_extract_code_package_creates_temp_dir(mocker):
 
     # Assert
     mock_run.assert_called_once_with(runspec, _namespace_check=False)
+    mock_run.return_value.code.extract.assert_called_once()
     assert tmp.name == "/fake/tmp/dir"
 
 
@@ -127,6 +127,7 @@ def test_run_op_cleans_up_temporary_directory_after_execution(mocker):
     """Test that run_op delegates to op_diff and correctly tears down the temp directory."""
     mock_rmtree = mocker.patch("shutil.rmtree")
     mock_extract = mocker.patch("metaflow.cmd.code.extract_code_package")
+    mocker.patch("os.path.exists", return_value=True)
     mock_op_diff = mocker.MagicMock()
 
     # Setup: Mock the temporary directory object returned by extract_code_package
