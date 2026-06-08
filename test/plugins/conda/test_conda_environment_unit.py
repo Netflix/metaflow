@@ -76,12 +76,8 @@ def test_cleanup_temp_file(tmp_path):
 
 
 def test_cleanup_nonexistent_file_no_error(tmp_path):
-    """Cleaning up a file that doesn't exist should not raise."""
+    """Verify standard Python behavior for missing files."""
     nonexistent = tmp_path / "nonexistent.tmp"
 
-    # os.unlink on a non-existent file raises FileNotFoundError
-    # Verify the code handles this gracefully
-    try:
+    with pytest.raises(FileNotFoundError):
         nonexistent.unlink()
-    except FileNotFoundError:
-        pass
