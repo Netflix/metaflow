@@ -1,33 +1,127 @@
+import time
 import uuid
 import pytest
 
-pytestmark = pytest.mark.basic
 from .test_utils import (
-    execute_test_flow,
     deploy_flow_to_scheduler,
-    wait_for_deployed_run,
+    execute_test_flow,
     verify_run_provenance,
+    wait_for_deployed_run,
 )
 
+pytestmark = pytest.mark.basic
 
-def test_hello_world(exec_mode, decospecs, compute_env, tag, scheduler_config):
-    run = execute_test_flow(
-        flow_name="basic/helloworld.py",
-        exec_mode=exec_mode,
-        decospecs=decospecs,
-        tag=tag,
-        scheduler_config=scheduler_config,
-        test_name="hello_world",
-        tl_args_extra={"env": compute_env},
-    )
+# ---------------------------------------------------------------------------
+# Assertion Callbacks for Basic Flows
+# ---------------------------------------------------------------------------
 
+
+def _assert_hello_world(run):
     assert run.successful, "Run was not successful"
     assert (
         run["hello"].task.data.message == "Metaflow says: Hi!"
     ), "Hello world message didn't match"
 
 
+def _assert_retry(run):
+    assert run.successful, "Run was not successful"
+    assert run["flaky"].task.data.attempts == 1, "Expected success on retry attempt 1"
+
+
+def _assert_resources(run):
+    assert run.successful, "Run was not successful"
+    assert run["join"].task.data.labels == [
+        "medium",
+        "small",
+    ], "Resource branch labels didn't match"
+
+
+def _assert_catch(run):
+    assert run.successful, "Run was not successful"
+    assert (
+        run["failing"].task.data.error is not None
+    ), "@catch did not store the exception"
+
+
+def _assert_timeout(run):
+    assert run.successful, "Run was not successful"
+    assert run["work"].task.data.done is True, "Timeout step did not complete"
+
+
+def _assert_resources_cpu(run):
+    assert run.successful, "Run was not successful"
+    assert (
+        run["end"].task.data.message == "Metaflow says: Hi Resources CPU!"
+    ), "Message didn't match"
+
+
+# ---------------------------------------------------------------------------
+# Tests
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    "flow_name, test_name, assertion_fn, extra_marks",
+    [
+        pytest.param(
+            "basic/helloworld.py",
+            "hello_world",
+            _assert_hello_world,
+            [],
+            id="hello_world",
+        ),
+        pytest.param("basic/retry_flow.py", "retry", _assert_retry, [], id="retry"),
+        pytest.param(
+            "basic/resources_flow.py",
+            "resources",
+            _assert_resources,
+            [],
+            id="resources",
+        ),
+        pytest.param("basic/catch_flow.py", "catch", _assert_catch, [], id="catch"),
+        pytest.param(
+            "basic/timeout_flow.py", "timeout", _assert_timeout, [], id="timeout"
+        ),
+        pytest.param(
+            "basic/resources_cpu_flow.py",
+            "resources_cpu",
+            _assert_resources_cpu,
+            [pytest.mark.scheduler_only],
+            id="resources_cpu",
+        ),
+    ],
+)
+def test_basic_flow_behaviors(
+    exec_mode,
+    decospecs,
+    compute_env,
+    tag,
+    scheduler_config,
+    request,
+    flow_name,
+    test_name,
+    assertion_fn,
+    extra_marks,
+):
+    """Parametrized test for standard flow features."""
+    for mark in extra_marks:
+        request.node.add_marker(mark)
+
+    run = execute_test_flow(
+        flow_name=flow_name,
+        exec_mode=exec_mode,
+        decospecs=decospecs,
+        tag=tag,
+        scheduler_config=scheduler_config,
+        test_name=test_name,
+        tl_args_extra={"env": compute_env},
+    )
+
+    assertion_fn(run)
+
+
 def test_hello_project(exec_mode, decospecs, compute_env, tag, scheduler_config):
+    """Verify branch propagation."""
     branch = str(uuid.uuid4())[:8]
     run = execute_test_flow(
         flow_name="basic/helloproject.py",
@@ -41,7 +135,7 @@ def test_hello_project(exec_mode, decospecs, compute_env, tag, scheduler_config)
 
     assert run.successful, "Run was not successful"
     rbranch = run["end"].task.data.branch
-    assert "test." + branch == rbranch, "Branch name does not match expected"
+    assert f"test.{branch}" == rbranch, "Branch name does not match expected"
 
 
 @pytest.mark.scheduler_only
@@ -49,12 +143,13 @@ def test_from_deployment(exec_mode, decospecs, compute_env, tag, scheduler_confi
     """Verify DeployedFlow.from_deployment() works for all schedulers."""
     from metaflow.runner.deployer import DeployedFlow
 
-    test_unique_tag = "test_from_deployment_%s" % exec_mode
+    test_unique_tag = f"test_from_deployment_{exec_mode}"
     combined_tags = tag + [test_unique_tag]
 
     scheduler_type = scheduler_config.scheduler_type
     if scheduler_type is None:
         pytest.skip("No scheduler configured — deployer tests require a scheduler_type")
+
     # Normalize to the impl key used by DeployedFlow.from_deployment(impl=...)
     impl = scheduler_type.replace("-", "_")
 
@@ -89,75 +184,6 @@ def test_from_deployment(exec_mode, decospecs, compute_env, tag, scheduler_confi
         assert run3["start"].task.data.message == "Metaflow says: Hi!"
 
 
-def test_retry(exec_mode, decospecs, compute_env, tag, scheduler_config):
-    """Verify @retry retries a failing step and succeeds on the second attempt."""
-    run = execute_test_flow(
-        flow_name="basic/retry_flow.py",
-        exec_mode=exec_mode,
-        decospecs=decospecs,
-        tag=tag,
-        scheduler_config=scheduler_config,
-        test_name="retry",
-        tl_args_extra={"env": compute_env},
-    )
-
-    assert run.successful, "Run was not successful"
-    assert run["flaky"].task.data.attempts == 1, "Expected success on retry attempt 1"
-
-
-def test_resources(exec_mode, decospecs, compute_env, tag, scheduler_config):
-    """Verify @resources decorator does not break execution across backends."""
-    run = execute_test_flow(
-        flow_name="basic/resources_flow.py",
-        exec_mode=exec_mode,
-        decospecs=decospecs,
-        tag=tag,
-        scheduler_config=scheduler_config,
-        test_name="resources",
-        tl_args_extra={"env": compute_env},
-    )
-
-    assert run.successful, "Run was not successful"
-    assert run["join"].task.data.labels == [
-        "medium",
-        "small",
-    ], "Resource branch labels didn't match"
-
-
-def test_catch(exec_mode, decospecs, compute_env, tag, scheduler_config):
-    """Verify @catch stores the exception and allows the flow to continue."""
-    run = execute_test_flow(
-        flow_name="basic/catch_flow.py",
-        exec_mode=exec_mode,
-        decospecs=decospecs,
-        tag=tag,
-        scheduler_config=scheduler_config,
-        test_name="catch",
-        tl_args_extra={"env": compute_env},
-    )
-
-    assert run.successful, "Run was not successful"
-    assert (
-        run["failing"].task.data.error is not None
-    ), "@catch did not store the exception"
-
-
-def test_timeout(exec_mode, decospecs, compute_env, tag, scheduler_config):
-    """Verify @timeout decorator does not break normal execution."""
-    run = execute_test_flow(
-        flow_name="basic/timeout_flow.py",
-        exec_mode=exec_mode,
-        decospecs=decospecs,
-        tag=tag,
-        scheduler_config=scheduler_config,
-        test_name="timeout",
-        tl_args_extra={"env": compute_env},
-    )
-
-    assert run.successful, "Run was not successful"
-    assert run["work"].task.data.done is True, "Timeout step did not complete"
-
-
 @pytest.mark.conda
 def test_hello_conda(exec_mode, decospecs, compute_env, tag, scheduler_config):
     run = execute_test_flow(
@@ -183,37 +209,11 @@ def test_hello_conda(exec_mode, decospecs, compute_env, tag, scheduler_config):
 
 
 @pytest.mark.scheduler_only
-def test_resources_cpu(exec_mode, decospecs, compute_env, tag, scheduler_config):
-    """Verify @resources(cpu=N, memory=N) deploys and runs on each scheduler backend."""
-    run = execute_test_flow(
-        flow_name="basic/resources_cpu_flow.py",
-        exec_mode=exec_mode,
-        decospecs=decospecs,
-        tag=tag,
-        scheduler_config=scheduler_config,
-        test_name="resources_cpu",
-        tl_args_extra={"env": compute_env},
-    )
-
-    assert run.successful, "Run was not successful"
-    assert (
-        run["end"].task.data.message == "Metaflow says: Hi Resources CPU!"
-    ), "Message didn't match"
-
-
-@pytest.mark.scheduler_only
 @pytest.mark.deployer
 def test_fail_flow_reports_failed_status(
     exec_mode, decospecs, compute_env, tag, scheduler_config
 ):
-    """Verify schedulers report FAILED (not RUNNING/PENDING) when a step raises.
-
-    Catches A03-1: _check_sysroot_completion returns RUNNING forever for flows
-    that crash before reaching the end step, because end/ dir never appears.
-    """
-    import time
-    from .test_utils import deploy_flow_to_scheduler
-
+    """Verify schedulers report FAILED (not RUNNING/PENDING) when a step raises."""
     scheduler_type = scheduler_config.scheduler_type
     if scheduler_type is None:
         pytest.skip("No scheduler configured — requires a scheduler_type")
@@ -227,9 +227,9 @@ def test_fail_flow_reports_failed_status(
     )
 
     triggered = deployed_flow.trigger()
-
     deadline = time.time() + 300
     final_status = None
+
     while time.time() < deadline:
         s = triggered.status
         # Normalize to uppercase — Argo returns "Failed"/"Succeeded", SFN "FAILED"/"SUCCEEDED"
@@ -238,10 +238,9 @@ def test_fail_flow_reports_failed_status(
             break
         time.sleep(5)
 
-    assert final_status == "FAILED", (
-        "A flow that raises RuntimeError mid-step should report FAILED, got %r"
-        % final_status
-    )
+    assert (
+        final_status == "FAILED"
+    ), f"A flow that raises RuntimeError mid-step should report FAILED, got {final_status}"
 
 
 @pytest.mark.scheduler_only
@@ -249,14 +248,7 @@ def test_fail_flow_reports_failed_status(
 def test_split_in_branch_deployer(
     exec_mode, decospecs, compute_env, tag, scheduler_config
 ):
-    """Verify a split nested inside a branch compiles and executes correctly.
-
-    Catches A02-2: _find_join_step's while loop follows only out_funcs[0],
-    causing it to return the inner join instead of the outer join. Without the
-    fix, outer_join and end are silently dropped from the compiled flow.
-    """
-    from .test_utils import deploy_flow_to_scheduler, wait_for_deployed_run
-
+    """Verify a split nested inside a branch compiles and executes correctly."""
     scheduler_type = scheduler_config.scheduler_type
     if scheduler_type is None:
         pytest.skip("No scheduler configured — requires a scheduler_type")
@@ -281,86 +273,98 @@ def test_split_in_branch_deployer(
     ], "inner_join should receive results from inner_x and inner_y"
 
 
-def test_custom_step_names(exec_mode, decospecs, compute_env, tag, scheduler_config):
-    """Verify a linear flow with @step(start=True)/@step(end=True) annotations."""
-    run = execute_test_flow(
-        flow_name="basic/hello_custom_steps.py",
-        exec_mode=exec_mode,
-        decospecs=decospecs,
-        tag=tag,
-        scheduler_config=scheduler_config,
-        test_name="custom_step_names",
-        tl_args_extra={"env": compute_env},
-    )
+# ---------------------------------------------------------------------------
+# Custom Endpoint Verification
+# ---------------------------------------------------------------------------
 
-    assert run.successful, "Run was not successful"
-    step_names = {step.id for step in run}
-    assert step_names == {"begin", "process", "finish"}, (
-        "Expected custom step names, got %s" % step_names
-    )
+
+def _assert_custom_steps(run):
     assert (
         run["finish"].task.data.result
         == "Hello from custom start step -> processed -> done"
     ), "Data did not flow through custom-named steps"
 
-    # Verify graph endpoint metadata is persisted and readable via client API.
-    # This exercises the init -> persist_constants -> register_metadata chain
-    # which runs for all backends (local Runner AND scheduler deployer).
-    start, end = run._graph_endpoints
-    assert start == "begin", "Expected start_step=begin, got %s" % start
-    assert end == "finish", "Expected end_step=finish, got %s" % end
-    assert run.end_task is not None, "end_task should resolve for custom terminal step"
 
-
-def test_single_step_flow(exec_mode, decospecs, compute_env, tag, scheduler_config):
-    """Verify a single-step flow with @step(start=True, end=True)."""
-    run = execute_test_flow(
-        flow_name="basic/single_step_flow.py",
-        exec_mode=exec_mode,
-        decospecs=decospecs,
-        tag=tag,
-        scheduler_config=scheduler_config,
-        test_name="single_step",
-        tl_args_extra={"env": compute_env},
-    )
-
-    assert run.successful, "Run was not successful"
-    step_names = {step.id for step in run}
-    assert step_names == {"only"}, "Expected single step 'only', got %s" % step_names
+def _assert_single_step(run):
     assert run["only"].task.data.result == 42, "Single step data incorrect"
 
-    start, end = run._graph_endpoints
-    assert start == "only", "Expected start_step=only, got %s" % start
-    assert end == "only", "Expected end_step=only, got %s" % end
-    assert run.end_task is not None
 
-
-def test_custom_branch_flow(exec_mode, decospecs, compute_env, tag, scheduler_config):
-    """Verify a branching flow with custom start/end step annotations."""
-    run = execute_test_flow(
-        flow_name="basic/custom_branch_flow.py",
-        exec_mode=exec_mode,
-        decospecs=decospecs,
-        tag=tag,
-        scheduler_config=scheduler_config,
-        test_name="custom_branch",
-        tl_args_extra={"env": compute_env},
-    )
-
-    assert run.successful, "Run was not successful"
-    step_names = {step.id for step in run}
-    assert step_names == {"entry", "left", "right", "merge", "done"}, (
-        "Expected custom branch step names, got %s" % step_names
-    )
+def _assert_custom_branch(run):
     assert sorted(run["done"].task.data.result) == [
         "left",
         "right",
     ], "Branch data did not merge correctly"
 
+
+@pytest.mark.parametrize(
+    "flow_name, test_name, expected_steps, expected_start, expected_end, assertion_fn",
+    [
+        pytest.param(
+            "basic/hello_custom_steps.py",
+            "custom_step_names",
+            {"begin", "process", "finish"},
+            "begin",
+            "finish",
+            _assert_custom_steps,
+            id="custom_step_names",
+        ),
+        pytest.param(
+            "basic/single_step_flow.py",
+            "single_step",
+            {"only"},
+            "only",
+            "only",
+            _assert_single_step,
+            id="single_step",
+        ),
+        pytest.param(
+            "basic/custom_branch_flow.py",
+            "custom_branch",
+            {"entry", "left", "right", "merge", "done"},
+            "entry",
+            "done",
+            _assert_custom_branch,
+            id="custom_branch",
+        ),
+    ],
+)
+def test_custom_endpoints_behaviors(
+    exec_mode,
+    decospecs,
+    compute_env,
+    tag,
+    scheduler_config,
+    flow_name,
+    test_name,
+    expected_steps,
+    expected_start,
+    expected_end,
+    assertion_fn,
+):
+    """Verify various flow structures with @step(start=True)/@step(end=True) annotations."""
+    run = execute_test_flow(
+        flow_name=flow_name,
+        exec_mode=exec_mode,
+        decospecs=decospecs,
+        tag=tag,
+        scheduler_config=scheduler_config,
+        test_name=test_name,
+        tl_args_extra={"env": compute_env},
+    )
+
+    assert run.successful, "Run was not successful"
+    step_names = {step.id for step in run}
+    assert (
+        step_names == expected_steps
+    ), f"Expected custom step names {expected_steps}, got {step_names}"
+
+    assertion_fn(run)
+
+    # Verify graph endpoint metadata is persisted and readable via client API.
     start, end = run._graph_endpoints
-    assert start == "entry", "Expected start_step=entry, got %s" % start
-    assert end == "done", "Expected end_step=done, got %s" % end
-    assert run.end_task is not None
+    assert start == expected_start, f"Expected start_step={expected_start}, got {start}"
+    assert end == expected_end, f"Expected end_step={expected_end}, got {end}"
+    assert run.end_task is not None, "end_task should resolve for custom terminal step"
 
 
 @pytest.mark.scheduler_only
