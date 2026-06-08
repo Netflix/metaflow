@@ -21,16 +21,25 @@ This file pins those hooks against silent regressions. It uses ``compile()`` +
 produce, without depending on the extension package.
 """
 
+import pytest
+
 from metaflow import FlowSpec, step
 from metaflow.lint import linter
 
+# ---------------------------------------------------------------------------
+# Fixtures
+# ---------------------------------------------------------------------------
 
-def _make_dynamic_single_step_flow():
+
+@pytest.fixture
+def dynamic_single_step_flow_class():
+    """Fixture to dynamically generate a FlowSpec class without an inspectable source file."""
     namespace = {}
     exec(
         compile("def only(self):\n    self.x = 42\n", "<synthetic>", "exec"), namespace
     )
     only = step(start=True, end=True)(namespace["only"])
+
     return type(
         "DynamicSingleStepFlow",
         (FlowSpec,),
@@ -38,10 +47,17 @@ def _make_dynamic_single_step_flow():
     )
 
 
-def test_dynamic_single_step_without_inspectable_source():
-    """Dynamically-generated @step(start=True, end=True) works without source."""
-    graph = _make_dynamic_single_step_flow()._graph
+# ---------------------------------------------------------------------------
+# Tests
+# ---------------------------------------------------------------------------
 
+
+def test_sourceless_single_step_generates_valid_graph(dynamic_single_step_flow_class):
+    """Test that a dynamically-generated @step(start=True, end=True) parses and lints correctly without source."""
+    # Act
+    graph = dynamic_single_step_flow_class._graph
+
+    # Assert: Graph properties are correctly synthesized
     assert graph.start_step == "only"
     assert graph.end_step == "only"
     assert graph["only"].type == "end"
@@ -49,4 +65,5 @@ def test_dynamic_single_step_without_inspectable_source():
     assert graph["only"].func_lineno == 1
     assert graph["only"].source_file == "<synthetic>"
 
+    # Assert: The synthesized graph passes standard lint checks without crashing
     linter.run_checks(graph)
