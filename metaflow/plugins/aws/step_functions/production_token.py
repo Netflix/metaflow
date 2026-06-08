@@ -44,6 +44,9 @@ def _path(token_prefix):
 
 
 def new_token(token_prefix, prev_token=None):
+    # prev_token was used for deterministic sequence iteration in the old
+    # implementation. With cryptographic randomness a fresh token can always
+    # be generated, so the parameter is retained only for API compatibility.
     return _generate_token(token_prefix)
 
 
