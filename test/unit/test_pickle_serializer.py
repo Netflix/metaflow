@@ -1,5 +1,4 @@
 import pickle
-
 import pytest
 
 from metaflow.datastore.artifacts.serializer import (
@@ -27,21 +26,20 @@ def test_registered_in_store():
     assert SerializerStore._all_serializers["pickle"] is PickleSerializer
 
 
-def test_last_in_ordering():
+def test_last_in_ordering(monkeypatch):
     """PickleSerializer should be last (highest PRIORITY) among registered serializers."""
-    # Dispatch is driven by _active_serializers (post-Phase-6). Ensure Pickle
-    # is active for this test regardless of whether bootstrap() has already
-    # run in the current process.
-    was_active = PickleSerializer in SerializerStore._active_serializers
-    SerializerStore._active_serializers.add(PickleSerializer)
-    SerializerStore._ordered_cache = None
-    try:
-        ordered = SerializerStore.get_ordered_serializers()
-        assert ordered[-1] is PickleSerializer
-    finally:
-        if not was_active:
-            SerializerStore._active_serializers.discard(PickleSerializer)
-            SerializerStore._ordered_cache = None
+    # Use monkeypatch to safely append PickleSerializer to active state and clear cache.
+    # This ensures automatic cleanup after the test runs.
+    updated_serializers = type(SerializerStore._active_serializers)(
+        SerializerStore._active_serializers
+    )
+    updated_serializers.add(PickleSerializer)
+
+    monkeypatch.setattr(SerializerStore, "_active_serializers", updated_serializers)
+    monkeypatch.setattr(SerializerStore, "_ordered_cache", None)
+
+    ordered = SerializerStore.get_ordered_serializers()
+    assert ordered[-1] is PickleSerializer
 
 
 # ---------------------------------------------------------------------------
@@ -90,6 +88,7 @@ def test_can_serialize_any_object(obj):
 @pytest.mark.parametrize(
     "encoding",
     ["pickle-v2", "pickle-v4", "gzip+pickle-v2", "gzip+pickle-v4"],
+    ids=["pickle-v2", "pickle-v4", "gzip-pickle-v2", "gzip-pickle-v4"],
 )
 def test_can_deserialize_valid_encodings(encoding):
     meta = SerializationMetadata("object", 100, encoding, {})
@@ -99,6 +98,7 @@ def test_can_deserialize_valid_encodings(encoding):
 @pytest.mark.parametrize(
     "encoding",
     ["json", "iotype:text", "msgpack", "unknown", ""],
+    ids=["json", "iotype-text", "msgpack", "unknown", "empty-string"],
 )
 def test_cannot_deserialize_unknown_encodings(encoding):
     meta = SerializationMetadata("object", 100, encoding, {})
@@ -181,6 +181,8 @@ def test_round_trip(obj):
 
 
 class _CustomObj:
+    """Helper class to verify custom object serialization properties."""
+
     def __init__(self, x):
         self.x = x
 
