@@ -8,8 +8,9 @@ hashing/dedup logic. Uses temp files — no conda installation needed.
 import json
 import os
 import threading
-import fcntl
 import pytest
+
+fcntl = pytest.importorskip("fcntl")
 
 
 def _write_manifest_worker(manifest_path, thread_id, writes_per_thread, errors):
