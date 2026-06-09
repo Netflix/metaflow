@@ -127,7 +127,7 @@ class SplitStartFlow(FlowSpec):
 
 
 class _SingleStepWithConfig(FlowSpec):
-    """Single-step flow utilizing a Config descriptor descriptor."""
+    """Single-step flow with a Config descriptor."""
 
     cfg = Config("cfg", default_value={"x": 7})
 
@@ -187,7 +187,7 @@ class _SingleStepWithFlowMutator(FlowSpec):
     ],
 )
 def flow_with_endpoints(request):
-    """Yield pairs of (flow_class, expected_start, expected_end) across topologies."""
+    """Yields (flow_class, expected_start, expected_end) for each topology."""
     return request.param
 
 
@@ -530,7 +530,15 @@ def test_single_step_with_multiple_step_decorators():
 
 
 def test_single_step_with_flow_mutator_registered():
-    """Verify class-level mutators link successfully to simple pipeline tracking arrays."""
+    """FlowMutator is registered on a single-step flow at class-definition time.
+
+    pre_mutate only fires when the flow is processed via the CLI layer, so
+    the decorator it adds won't appear on the graph in a unit test. What we
+    can verify here is that the mutator syntax is accepted by a single-step
+    FlowSpec and that it's registered as a flow mutator. End-to-end execution
+    is covered by the matching integration test.
+    """
+
     flow_cls = _SingleStepWithFlowMutator._flow_cls
     graph = flow_cls._graph
     assert graph.start_step == "only" == graph.end_step
