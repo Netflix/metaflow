@@ -12,13 +12,16 @@ from metaflow.cmd.code import (
 )
 
 
-def test_extract_code_package_creates_temp_dir(mocker):
+def test_extract_code_package_creates_temp_dir(mocker, tmp_path):
     """Test that extract_code_package safely unpacks the tarball into a temporary directory."""
 
     mock_run = mocker.patch("metaflow.cmd.code.Run")
 
+    real_tmp_dir = tmp_path / "mocked_extract_dir"
+    real_tmp_dir.mkdir()
+
     mock_tmp = mocker.MagicMock()
-    mock_tmp.name = "/fake/tmp/dir"
+    mock_tmp.name = str(real_tmp_dir)
 
     mock_run.return_value.code.extract.return_value = mock_tmp
     runspec = "HelloFlow/3"
@@ -29,7 +32,10 @@ def test_extract_code_package_creates_temp_dir(mocker):
     # Assert
     mock_run.assert_called_once_with(runspec, _namespace_check=False)
     mock_run.return_value.code.extract.assert_called_once()
-    assert tmp.name == "/fake/tmp/dir"
+
+    assert tmp.name == str(real_tmp_dir)
+    assert os.path.exists(tmp.name)
+    assert os.path.isdir(tmp.name)
 
 
 @pytest.mark.parametrize(
