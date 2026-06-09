@@ -107,6 +107,7 @@ def _trigger_and_wait(
     ],
 )
 def test_resume_basic_flow(
+    request,
     decospecs: Any,
     compute_env: Dict[str, str],
     tag: List[str],
@@ -122,7 +123,8 @@ def test_resume_basic_flow(
     if sched_type is None:
         pytest.skip("No scheduler configured")
 
-    combined_tags = tag + ["test_resume_basic_flow"]
+    variant_suffix = request.node.callspec.id
+    combined_tags = tag + [f"test_resume_basic_flow_{variant_suffix}"]
 
     deployed_flow = deploy_flow_to_scheduler(
         flow_name="basic/resumeflow.py",
