@@ -1,1 +1,1 @@
-BEFORE you do ANYTHING ELSE, ALWAYS refer to the AGENTS.md document for complete guidelines.
+AGENTS.md
