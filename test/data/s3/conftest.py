@@ -9,11 +9,13 @@ if S3ROOT:
         S3ROOT.rstrip("/"),
         S3ROOT if S3ROOT.endswith("/") else S3ROOT + "/",
     ]
+    S3ROOT_IDS = ["no_slash", "with_slash"]
 else:
     S3ROOT_VARIANTS = [None]
+    S3ROOT_IDS = ["no_s3root"]
 
 
-@pytest.fixture(params=S3ROOT_VARIANTS, ids=["no_slash", "with_slash"])
+@pytest.fixture(params=S3ROOT_VARIANTS, ids=S3ROOT_IDS)
 def s3root(request):
     """
     Fixture that provides S3ROOT with and without trailing slash.
