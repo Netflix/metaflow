@@ -68,9 +68,9 @@ def test_job_definition_omits_job_role_arn_when_none():
     )
     source_text = batch_client_path.read_text()
 
-    assert "jobRoleArn" in source_text, (
-        "jobRoleArn reference not found in batch_client.py"
-    )
+    assert (
+        "jobRoleArn" in source_text
+    ), "jobRoleArn reference not found in batch_client.py"
     # The fix uses conditional dict unpacking: **({"jobRoleArn": ...} if ... else {})
     # If jobRoleArn is assigned unconditionally, this pattern won't be present
     assert "if job_role" in source_text, (

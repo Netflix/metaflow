@@ -79,7 +79,7 @@ class BatchJob(object):
             raise BatchJobException(
                 "Unable to launch AWS Batch job. No docker image specified."
             )
-        
+
         # Multinode
         if getattr(self, "num_parallel", 0) >= 1:
             num_nodes = self.num_parallel
