@@ -1,7 +1,7 @@
 """Tests for parsing, validating, and resolving SecretSpecs and environment variables."""
 
 import os
-
+import uuid
 import pytest
 
 import metaflow.metaflow_config
@@ -133,8 +133,10 @@ def test_secret_spec_from_dict_rejects_invalid(spec_dict, default_secrets_backen
 
 def test_secrets_provider_resolution_unknown_backend():
     """Test that resolving an unregistered backend type raises an exception."""
+    unique_backend_name = f"non_existent_{uuid.uuid4().hex}"
+
     with pytest.raises(MetaflowException):
-        get_secrets_backend_provider("non_existent_backend_type_123")
+        get_secrets_backend_provider(unique_backend_name)
 
 
 def test_validate_env_vars_across_secrets_rejects_overlap():
