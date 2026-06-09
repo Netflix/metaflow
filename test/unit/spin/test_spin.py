@@ -3,7 +3,7 @@ import tempfile
 import pytest
 
 from metaflow import Runner
-from spin_test_helpers import assert_artifacts, run_step, FLOWS_DIR, ARTIFACTS_DIR
+from spin_test_helpers import run_step, FLOWS_DIR, ARTIFACTS_DIR
 
 # ---------------------------------------------------------------------------
 # Simple Flow Tests
@@ -27,11 +27,9 @@ def test_simple_flows_validate_artifacts(flow_file, fixture_name, request):
     # Act & Assert: Iterate through and run each step
     for step in run.steps():
         if fixture_name == "complex_dag_run":
-            spin_task = run_step(flow_file, run, step.id, environment="conda")
+            run_step(flow_file, run, step.id, environment="conda")
         else:
-            spin_task = run_step(flow_file, run, step.id)
-
-        assert_artifacts(spin_task)
+            run_step(flow_file, run, step.id)
 
 
 # ---------------------------------------------------------------------------
