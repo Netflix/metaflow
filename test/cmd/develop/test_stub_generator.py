@@ -468,9 +468,9 @@ def test_class_objects_in_generic_types_do_not_leak_class_repr(tmp_path, mocker)
     )
 
     def custom_getmodule(obj):
-        if obj == MetaflowDataFrame:
+        if obj is MetaflowDataFrame:
             return mock_df_module
-        elif obj == FunctionParameters:
+        elif obj is FunctionParameters:
             return mock_fp_module
         return None
 
