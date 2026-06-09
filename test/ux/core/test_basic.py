@@ -86,7 +86,7 @@ def _assert_resources_cpu(run):
             "basic/resources_cpu_flow.py",
             "resources_cpu",
             _assert_resources_cpu,
-            [pytest.mark.scheduler_only],
+            marks=pytest.mark.scheduler_only,
             id="resources_cpu",
         ),
     ],
@@ -104,8 +104,6 @@ def test_basic_flow_behaviors(
     extra_marks,
 ):
     """Parametrized test for standard flow features."""
-    for mark in extra_marks:
-        request.node.add_marker(mark)
 
     run = execute_test_flow(
         flow_name=flow_name,
