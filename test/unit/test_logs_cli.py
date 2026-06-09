@@ -71,3 +71,28 @@ def test_logs_legacy_pathspec_routes_to_default_show():
             },
         )
     ]
+
+
+def test_logs_legacy_show_option_routes_to_default_show():
+    calls = []
+    logs_group = _make_logs_group(calls)
+
+    obj = SimpleNamespace(
+        echo=lambda *args, **kwargs: None,
+        flow_datastore=object(),
+    )
+    result = CliRunner().invoke(logs_group, ["--stdout", "123/start/1"], obj=obj)
+
+    assert result.exit_code == 0
+    assert calls == [
+        (
+            "123/start/1",
+            {
+                "stdout": True,
+                "stderr": False,
+                "both": True,
+                "timestamps": False,
+                "attempt": None,
+            },
+        )
+    ]

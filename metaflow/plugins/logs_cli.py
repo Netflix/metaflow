@@ -34,14 +34,6 @@ class CustomGroup(click.Group):
         # copy args as trying to parse will destroy them.
         original_args = list(args)
 
-        help_option = self.get_help_option(ctx)
-        help_option_names = set(ctx.help_option_names)
-        if help_option is not None:
-            help_option_names.update(help_option.opts)
-        if original_args and original_args[0] in help_option_names:
-            click.echo(ctx.get_help(), color=ctx.color)
-            ctx.exit()
-
         if not original_args:
             return super().parse_args(ctx, [self.default_cmd])
 
