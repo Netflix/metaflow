@@ -8,37 +8,15 @@ from metaflow.plugins.argo.argo_workflows_deployer_objects import (
     ArgoWorkflowsDeployedFlow,
 )
 
-
-@pytest.mark.parametrize(
-    "name, expected",
-    [
-        ("a-valid-name", "a-valid-name"),
-        ("removing---@+_characters@_+", "removing---characters"),
-        ("numb3rs-4r3-0k-123", "numb3rs-4r3-0k-123"),
-        ("proj3ct.br4nch.flow_name", "proj3ct.br4nch.flowname"),
-        # should not break RFC 1123 subdomain requirements,
-        # though trailing characters do not need to be sanitized due to a hash being appended to them.
-        (
-            "---1breaking1---.--2subdomain2--.-3rules3----",
-            "1breaking1.2subdomain2.3rules3----",
-        ),
-        (
-            "1brea---king1.2sub---domain2.-3ru-les3--",
-            "1brea---king1.2sub---domain2.3ru-les3--",
-        ),
-        ("project.branch-cut-short-.flowname", "project.branch-cut-short.flowname"),
-        ("test...name", "test.name"),
-    ],
-)
-def test_sanitize_for_argo(name, expected):
-    sanitized = sanitize_for_argo(name)
-    assert sanitized == expected
+# ---------------------------------------------------------------------------
+# Shared Fixtures
+# ---------------------------------------------------------------------------
 
 
 @pytest.fixture
 def make_argo_with_schedule():
-    """
-    Factory fixture: returns a callable that builds a minimal ArgoWorkflows-like
+    """Factory fixture: returns a callable that builds a minimal ArgoWorkflows-like
+
     object whose _get_schedule() can be called without instantiating the full
     class (which requires a live graph, environment, datastore, etc.).
 
@@ -65,6 +43,47 @@ def argo_without_schedule():
     instance = object.__new__(ArgoWorkflows)
     instance.flow = flow
     return instance
+
+
+# ---------------------------------------------------------------------------
+# Argo Sanitization and Scheduling Tests
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    "name, expected",
+    [
+        ("a-valid-name", "a-valid-name"),
+        ("removing---@+_characters@_+", "removing---characters"),
+        ("numb3rs-4r3-0k-123", "numb3rs-4r3-0k-123"),
+        ("proj3ct.br4nch.flow_name", "proj3ct.br4nch.flowname"),
+        # should not break RFC 1123 subdomain requirements,
+        # though trailing characters do not need to be sanitized due to a hash being appended to them.
+        (
+            "---1breaking1---.--2subdomain2--.-3rules3----",
+            "1breaking1.2subdomain2.3rules3----",
+        ),
+        (
+            "1brea---king1.2sub---domain2.-3ru-les3--",
+            "1brea---king1.2sub---domain2.3ru-les3--",
+        ),
+        ("project.branch-cut-short-.flowname", "project.branch-cut-short.flowname"),
+        ("test...name", "test.name"),
+    ],
+    ids=[
+        "valid-string",
+        "strip-special-chars",
+        "alphanumeric-with-dashes",
+        "strip-subdomain-underscores",
+        "rfc1123-subdomain-edge-dashes",
+        "rfc1123-subdomain-internal-dashes",
+        "strip-trailing-dash-before-dot",
+        "collapse-consecutive-dots",
+    ],
+)
+def test_sanitize_for_argo(name, expected):
+    """Verify string processing safely conforms to Argo resource naming limitations."""
+    assert sanitize_for_argo(name) == expected
 
 
 def test_get_schedule_no_decorator_returns_none(argo_without_schedule):
@@ -94,70 +113,95 @@ def test_get_schedule_no_decorator_returns_none(argo_without_schedule):
 def test_get_schedule(
     make_argo_with_schedule, schedule_value, timezone_value, expected
 ):
+    """Verify cron parsing extraction, payload truncation, and timezone options."""
     argo = make_argo_with_schedule(
         schedule_value=schedule_value, timezone_value=timezone_value
     )
     assert argo._get_schedule() == expected
 
 
-def test_trigger_explanation_no_schedule_does_not_claim_cronworkflow(
+@pytest.mark.parametrize(
+    "has_decorator, schedule_value, internal_schedule, flow_name, expected_substrings, unexpected_substrings",
+    [
+        (False, None, None, None, [], ["CronWorkflow"]),
+        (True, None, None, None, [], ["CronWorkflow"]),
+        (
+            True,
+            "0 0 * * ? *",
+            "0 0 * * ?",
+            "myflow",
+            ["CronWorkflow", "myflow"],
+            [],
+        ),
+    ],
+    ids=[
+        "no-schedule-decorator",
+        "schedule-decorator-resolves-to-none",
+        "active-schedule-claims-cronworkflow",
+    ],
+)
+def test_trigger_explanation_behavior(
+    make_argo_with_schedule,
     argo_without_schedule,
+    has_decorator,
+    schedule_value,
+    internal_schedule,
+    flow_name,
+    expected_substrings,
+    unexpected_substrings,
 ):
-    """With no schedule, trigger_explanation() must not mention CronWorkflow."""
-    argo_without_schedule._schedule = None
-    argo_without_schedule.triggers = []
-    result = argo_without_schedule.trigger_explanation()
-    assert "CronWorkflow" not in result
+    """Verify if trigger explanations correctly list or omit CronWorkflow rules based on state."""
+    argo = (
+        make_argo_with_schedule(schedule_value=schedule_value)
+        if has_decorator
+        else argo_without_schedule
+    )
 
-
-def test_trigger_explanation_schedule_none_does_not_claim_cronworkflow(
-    make_argo_with_schedule,
-):
-    """
-    When @schedule is present but resolved to None, trigger_explanation()
-    must not claim the workflow triggers via a CronWorkflow.
-    """
-    argo = make_argo_with_schedule(schedule_value=None)
-    argo._schedule = None  # mirrors what _get_schedule() would set
+    argo._schedule = internal_schedule
     argo.triggers = []
+    if flow_name:
+        argo.name = flow_name
+
     result = argo.trigger_explanation()
-    assert "CronWorkflow" not in result
+
+    for substring in expected_substrings:
+        assert substring in result
+    for substring in unexpected_substrings:
+        assert substring not in result
 
 
-def test_trigger_explanation_active_schedule_claims_cronworkflow(
-    make_argo_with_schedule,
-):
-    """When a real schedule is set, trigger_explanation() names the CronWorkflow."""
-    argo = make_argo_with_schedule(schedule_value="0 0 * * ? *")
-    argo._schedule = "0 0 * * ?"
-    argo.name = "myflow"
-    result = argo.trigger_explanation()
-    assert result is not None
-    assert "CronWorkflow" in result
-    assert "myflow" in result
+# ---------------------------------------------------------------------------
+# Deployed Flow Object Tests
+# ---------------------------------------------------------------------------
 
 
-def test_deployed_flow_workflow_template_returns_only_json_payload():
-    workflow_template = {"kind": "WorkflowTemplate", "metadata": {"name": "myflow"}}
-    deployer = types.SimpleNamespace(
-        name="myflow",
-        flow_name="MyFlow",
-        metadata="local@user:test",
-        additional_info={"workflow_template": workflow_template},
-    )
+@pytest.mark.parametrize(
+    "additional_info, expected_template",
+    [
+        (
+            {
+                "workflow_template": {
+                    "kind": "WorkflowTemplate",
+                    "metadata": {"name": "myflow"},
+                }
+            },
+            {"kind": "WorkflowTemplate", "metadata": {"name": "myflow"}},
+        ),
+        (None, None),
+    ],
+    ids=["with-json-payload", "without-payload"],
+)
+def test_deployed_flow_workflow_template_resolution(additional_info, expected_template):
+    """Verify workflow template extraction handles missing or present payloads cleanly."""
+    fields = {
+        "name": "myflow",
+        "flow_name": "MyFlow",
+        "metadata": "local@user:test",
+    }
+    if additional_info is not None:
+        fields["additional_info"] = additional_info
 
+    deployer = types.SimpleNamespace(**fields)
     deployed_flow = ArgoWorkflowsDeployedFlow(deployer)
 
-    assert deployed_flow.workflow_template == workflow_template
-
-
-def test_deployed_flow_workflow_template_returns_none_without_payload():
-    deployer = types.SimpleNamespace(
-        name="myflow",
-        flow_name="MyFlow",
-        metadata="local@user:test",
-    )
-
-    deployed_flow = ArgoWorkflowsDeployedFlow(deployer)
-
-    assert deployed_flow.workflow_template is None
+    assert deployed_flow.workflow_template == expected_template

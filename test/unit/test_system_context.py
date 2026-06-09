@@ -10,122 +10,117 @@ from metaflow.system_context import (
 from metaflow.decorators import Decorator, StepDecorator, FlowDecorator
 
 # ---------------------------------------------------------------------------
-# Fixtures to ensure singleton is reset between tests
+# Fixtures
 # ---------------------------------------------------------------------------
 
 
 @pytest.fixture(autouse=True)
 def reset_singleton():
+    """Ensure the system context singleton is reset between tests."""
     yield
     system_context._reset()
 
 
-# ---------------------------------------------------------------------------
-# ExecutionPhase
-# ---------------------------------------------------------------------------
-
-
-def test_execution_phase_enum_values():
-    assert ExecutionPhase.LAUNCH.value == "launch"
-    assert ExecutionPhase.TRAMPOLINE.value == "trampoline"
-    assert ExecutionPhase.TASK.value == "task"
-
-
-# ---------------------------------------------------------------------------
-# _phase_from_cli_args
-# ---------------------------------------------------------------------------
-
-
-def test_phase_from_cli_args_none():
-    assert _phase_from_cli_args(None) == ExecutionPhase.LAUNCH
-
-
-def test_phase_from_cli_args_empty():
-    assert _phase_from_cli_args([]) == ExecutionPhase.LAUNCH
-
-
-def test_phase_from_cli_args_run_is_launch():
-    assert _phase_from_cli_args(["run"]) == ExecutionPhase.LAUNCH
-
-
-def test_phase_from_cli_args_resume_is_launch():
-    assert _phase_from_cli_args(["resume"]) == ExecutionPhase.LAUNCH
-
-
-def test_phase_from_cli_args_step_is_task():
-    assert _phase_from_cli_args(["step", "mystep"]) == ExecutionPhase.TASK
-
-
-def test_phase_from_cli_args_init_is_task():
-    assert _phase_from_cli_args(["init"]) == ExecutionPhase.TASK
-
-
-def test_phase_from_cli_args_spin_step_is_task():
-    assert _phase_from_cli_args(["spin-step"]) == ExecutionPhase.TASK
-
-
-def test_phase_from_cli_args_batch_is_trampoline(mocker):
+@pytest.fixture
+def mock_trampoline_plugins(mocker):
+    """Mock the trampoline plugin names to return a deterministic set."""
     mocker.patch(
         "metaflow.plugins.get_trampoline_cli_names",
         return_value=frozenset({"batch", "kubernetes"}),
     )
-    assert _phase_from_cli_args(["batch", "step", "train"]) == ExecutionPhase.TRAMPOLINE
-
-
-def test_phase_from_cli_args_kubernetes_is_trampoline(mocker):
-    mocker.patch(
-        "metaflow.plugins.get_trampoline_cli_names",
-        return_value=frozenset({"batch", "kubernetes"}),
-    )
-    assert (
-        _phase_from_cli_args(["kubernetes", "step", "train"])
-        == ExecutionPhase.TRAMPOLINE
-    )
-
-
-def test_phase_from_cli_args_deployment_is_launch():
-    assert _phase_from_cli_args(["argo-workflows", "create"]) == ExecutionPhase.LAUNCH
-    assert _phase_from_cli_args(["step-functions", "create"]) == ExecutionPhase.LAUNCH
-
-
-def test_phase_from_cli_args_unknown_is_launch():
-    assert _phase_from_cli_args(["show"]) == ExecutionPhase.LAUNCH
-    assert _phase_from_cli_args(["status"]) == ExecutionPhase.LAUNCH
 
 
 # ---------------------------------------------------------------------------
-# SystemContext: phase queries
+# ExecutionPhase & CLI Arg Resolution
 # ---------------------------------------------------------------------------
 
 
-def test_system_context_launch_phase_queries():
-    system_context._update(phase=ExecutionPhase.LAUNCH)
-    assert system_context.is_launch
-    assert not system_context.is_trampoline
-    assert not system_context.is_task
-    assert system_context.phase == ExecutionPhase.LAUNCH
+@pytest.mark.parametrize(
+    "phase, expected_string",
+    [
+        (ExecutionPhase.LAUNCH, "launch"),
+        (ExecutionPhase.TRAMPOLINE, "trampoline"),
+        (ExecutionPhase.TASK, "task"),
+    ],
+    ids=["launch_phase", "trampoline_phase", "task_phase"],
+)
+def test_execution_phase_enum_values_match_expected_strings(phase, expected_string):
+    """Test that the ExecutionPhase enum values evaluate to the correct string literals."""
+    assert phase.value == expected_string
 
 
-def test_system_context_trampoline_phase_queries():
-    system_context._update(phase=ExecutionPhase.TRAMPOLINE)
-    assert not system_context.is_launch
-    assert system_context.is_trampoline
-    assert not system_context.is_task
-
-
-def test_system_context_task_phase_queries():
-    system_context._update(phase=ExecutionPhase.TASK)
-    assert not system_context.is_launch
-    assert not system_context.is_trampoline
-    assert system_context.is_task
+@pytest.mark.parametrize(
+    "cli_args, expected_phase",
+    [
+        (None, ExecutionPhase.LAUNCH),
+        ([], ExecutionPhase.LAUNCH),
+        (["run"], ExecutionPhase.LAUNCH),
+        (["resume"], ExecutionPhase.LAUNCH),
+        (["argo-workflows", "create"], ExecutionPhase.LAUNCH),
+        (["step-functions", "create"], ExecutionPhase.LAUNCH),
+        (["show"], ExecutionPhase.LAUNCH),
+        (["status"], ExecutionPhase.LAUNCH),
+        (["step", "mystep"], ExecutionPhase.TASK),
+        (["init"], ExecutionPhase.TASK),
+        (["spin-step"], ExecutionPhase.TASK),
+        (["batch", "step", "train"], ExecutionPhase.TRAMPOLINE),
+        (["kubernetes", "step", "train"], ExecutionPhase.TRAMPOLINE),
+    ],
+    ids=[
+        "none",
+        "empty",
+        "run",
+        "resume",
+        "argo_create",
+        "step_functions_create",
+        "show",
+        "status",
+        "step",
+        "init",
+        "spin_step",
+        "batch_plugin",
+        "k8s_plugin",
+    ],
+)
+def test_phase_from_cli_args_resolves_correct_execution_phase(
+    mock_trampoline_plugins, cli_args, expected_phase
+):
+    """Test that the CLI argument parser correctly maps commands to ExecutionPhases."""
+    assert _phase_from_cli_args(cli_args) == expected_phase
 
 
 # ---------------------------------------------------------------------------
-# SystemContext: progressive update
+# SystemContext: Phase Queries
 # ---------------------------------------------------------------------------
 
 
-def test_system_context_initial_values_are_none():
+@pytest.mark.parametrize(
+    "target_phase, expect_launch, expect_trampoline, expect_task",
+    [
+        (ExecutionPhase.LAUNCH, True, False, False),
+        (ExecutionPhase.TRAMPOLINE, False, True, False),
+        (ExecutionPhase.TASK, False, False, True),
+    ],
+    ids=["launch_active", "trampoline_active", "task_active"],
+)
+def test_system_context_boolean_flags_reflect_current_phase(
+    target_phase, expect_launch, expect_trampoline, expect_task
+):
+    """Test that the boolean helper properties correctly reflect the underlying phase."""
+    system_context._update(phase=target_phase)
+
+    assert system_context.phase == target_phase
+    assert system_context.is_launch is expect_launch
+    assert system_context.is_trampoline is expect_trampoline
+    assert system_context.is_task is expect_task
+
+
+# ---------------------------------------------------------------------------
+# SystemContext: Progressive Update
+# ---------------------------------------------------------------------------
+
+
+def test_system_context_initializes_with_none_values():
     assert system_context.flow is None
     assert system_context.graph is None
     assert system_context.environment is None
@@ -133,7 +128,7 @@ def test_system_context_initial_values_are_none():
     assert system_context.task_id is None
 
 
-def test_system_context_progressive_update():
+def test_system_context_supports_progressive_updates():
     # Flow-level info arrives first
     system_context._update(flow="my_flow", graph="my_graph")
     assert system_context.flow == "my_flow"
@@ -150,66 +145,52 @@ def test_system_context_progressive_update():
     assert system_context.retry_count == 2
 
 
-def test_system_context_update_overwrites():
+def test_system_context_updates_overwrite_existing_values():
     system_context._update(run_id="run-1")
     assert system_context.run_id == "run-1"
+
     system_context._update(run_id="run-2")
     assert system_context.run_id == "run-2"
 
 
-def test_system_context_update_invalid_key_raises():
+def test_system_context_update_raises_attribute_error_on_invalid_keys():
     with pytest.raises(AttributeError, match="no_such_field"):
         system_context._update(no_such_field="value")
 
 
-def test_system_context_reset():
+def test_system_context_reset_clears_all_attributes():
     system_context._update(phase=ExecutionPhase.TASK, flow="f", run_id="r")
     system_context._reset()
+
     assert system_context.phase is None
     assert system_context.flow is None
     assert system_context.run_id is None
 
 
-# ---------------------------------------------------------------------------
-# SystemContext: input_paths
-# ---------------------------------------------------------------------------
-
-
-def test_system_context_input_paths_initial_none():
+def test_system_context_input_paths_lifecycle():
     assert system_context.input_paths is None
 
-
-def test_system_context_input_paths_update():
     system_context._update(input_paths=["run/step/1", "run/step/2"])
     assert system_context.input_paths == ["run/step/1", "run/step/2"]
 
 
 # ---------------------------------------------------------------------------
-# Decorator base class: system_ctx property
+# Decorator Base Classes
 # ---------------------------------------------------------------------------
 
 
-def test_decorator_system_ctx_property():
-    d = Decorator()
+@pytest.mark.parametrize(
+    "decorator_cls",
+    [Decorator, StepDecorator, FlowDecorator],
+    ids=["base_decorator", "step_decorator", "flow_decorator"],
+)
+def test_decorator_classes_expose_system_context_singleton(decorator_cls):
+    """Test that all decorator base classes correctly expose the context singleton."""
+    d = decorator_cls()
     assert d.system_ctx is system_context
 
 
-def test_step_decorator_system_ctx_property():
-    d = StepDecorator()
-    assert d.system_ctx is system_context
-
-
-def test_flow_decorator_system_ctx_property():
-    d = FlowDecorator()
-    assert d.system_ctx is system_context
-
-
-# ---------------------------------------------------------------------------
-# _ctx variant defaults
-# ---------------------------------------------------------------------------
-
-
-def test_step_decorator_ctx_variants_are_none():
+def test_step_decorator_ctx_variants_default_to_none():
     d = StepDecorator()
     assert d.step_init_ctx is None
     assert d.runtime_init_ctx is None
@@ -222,17 +203,17 @@ def test_step_decorator_ctx_variants_are_none():
     assert d.task_finished_ctx is None
 
 
-def test_flow_decorator_ctx_variant_is_none():
+def test_flow_decorator_ctx_variant_defaults_to_none():
     d = FlowDecorator()
     assert d.flow_init_ctx is None
 
 
 # ---------------------------------------------------------------------------
-# _ctx variant overrides
+# _ctx Variant Overrides
 # ---------------------------------------------------------------------------
 
 
-def test_step_init_ctx_override():
+def test_step_init_ctx_override_is_called_successfully():
     class MyDeco(StepDecorator):
         name = "test_deco"
         called = False
@@ -242,11 +223,12 @@ def test_step_init_ctx_override():
 
     d = MyDeco()
     assert d.step_init_ctx is not None
+
     d.step_init_ctx("train")
     assert MyDeco.called
 
 
-def test_task_step_completed_ctx_override_success():
+def test_task_step_completed_ctx_handles_exceptions_correctly():
     class MyDeco(StepDecorator):
         name = "test_deco"
         last_exception = "NOT_CALLED"
@@ -266,7 +248,7 @@ def test_task_step_completed_ctx_override_success():
     assert MyDeco.last_exception is err
 
 
-def test_task_step_completed_ctx_handles_exception():
+def test_task_step_completed_ctx_returns_true_when_handling_exception():
     class CatchDeco(StepDecorator):
         name = "catch"
 
@@ -276,11 +258,11 @@ def test_task_step_completed_ctx_handles_exception():
             return None
 
     d = CatchDeco()
-    assert bool(d.task_step_completed_ctx("train", exception=ValueError("x"))) is True
+    assert d.task_step_completed_ctx("train", exception=ValueError("x")) is True
     assert not d.task_step_completed_ctx("train")
 
 
-def test_task_decorate_ctx_override():
+def test_task_decorate_ctx_successfully_wraps_functions():
     class WrapDeco(StepDecorator):
         name = "wrap"
 
@@ -293,11 +275,12 @@ def test_task_decorate_ctx_override():
     d = WrapDeco()
     original = lambda: 42
     wrapped = d.task_decorate_ctx("train", original)
+
     assert wrapped is not original
     assert wrapped() == 42
 
 
-def test_flow_init_ctx_override():
+def test_flow_init_ctx_receives_options_dictionary():
     class MyFlowDeco(FlowDecorator):
         name = "test_flow_deco"
         received_options = None
@@ -307,10 +290,11 @@ def test_flow_init_ctx_override():
 
     d = MyFlowDeco()
     d.flow_init_ctx({"name": "test"})
+
     assert MyFlowDeco.received_options == {"name": "test"}
 
 
-def test_legacy_hook_still_works():
+def test_legacy_hooks_trigger_when_ctx_variants_are_missing():
     """Decorators that don't define _ctx variants still use legacy hooks."""
 
     class LegacyDeco(StepDecorator):
@@ -330,47 +314,50 @@ def test_legacy_hook_still_works():
             LegacyDeco.called_with = step_name
 
     d = LegacyDeco()
+
     assert d.step_init_ctx is None
     d.step_init("f", "g", "train", [], "env", "ds", "log")
+
     assert LegacyDeco.called_with == "train"
 
 
 # ---------------------------------------------------------------------------
-# SystemContext: shared state (inter-decorator communication)
+# SystemContext: Shared State (Inter-Decorator Communication)
 # ---------------------------------------------------------------------------
 
 
-def test_shared_state_publish_and_get():
+def test_shared_state_publish_and_retrieve_values():
     system_context.publish("train", "timeout", "seconds", 300)
     assert system_context.get_published("train", "timeout", "seconds") == 300
 
 
-def test_shared_state_get_missing_namespace():
-    assert system_context.get_published("train", "nonexistent", "key") is None
-
-
-def test_shared_state_get_missing_key():
+@pytest.mark.parametrize(
+    "namespace, key, fallback",
+    [
+        ("train", "nonexistent", "key"),
+        ("train", "timeout", "nonexistent"),
+    ],
+    ids=["missing_namespace", "missing_key"],
+)
+def test_shared_state_returns_none_for_missing_keys(namespace, key, fallback):
     system_context.publish("train", "timeout", "seconds", 300)
-    assert system_context.get_published("train", "timeout", "nonexistent") is None
+    assert system_context.get_published(namespace, key, fallback) is None
 
 
-def test_shared_state_get_default():
-    assert system_context.get_published("train", "timeout", "seconds", 60) == 60
+def test_shared_state_get_published_respects_default_fallback_values():
+    assert system_context.get_published("train", "timeout", "seconds", default=60) == 60
 
 
-def test_shared_state_has_published_namespace():
+def test_shared_state_has_published_returns_booleans():
     assert not system_context.has_published("train", "timeout")
     system_context.publish("train", "timeout", "seconds", 300)
+
     assert system_context.has_published("train", "timeout")
-
-
-def test_shared_state_has_published_key():
-    system_context.publish("train", "timeout", "seconds", 300)
     assert system_context.has_published("train", "timeout", "seconds")
     assert not system_context.has_published("train", "timeout", "minutes")
 
 
-def test_shared_state_get_all_published():
+def test_shared_state_get_all_published_returns_full_dictionary():
     system_context.publish("train", "resources", "cpu", "4")
     system_context.publish("train", "resources", "memory", "8192")
     system_context.publish("train", "resources", "gpu", "1")
@@ -379,57 +366,46 @@ def test_shared_state_get_all_published():
     assert all_resources == {"cpu": "4", "memory": "8192", "gpu": "1"}
 
 
-def test_shared_state_get_all_published_missing():
+def test_shared_state_get_all_published_returns_empty_dict_on_missing_namespace():
     assert system_context.get_all_published("train", "nonexistent") == {}
 
 
-def test_shared_state_overwrite_published():
+def test_shared_state_publishing_overwrites_existing_keys():
     system_context.publish("train", "resources", "cpu", "4")
     system_context.publish("train", "resources", "cpu", "8")
     assert system_context.get_published("train", "resources", "cpu") == "8"
 
 
-def test_shared_state_multiple_namespaces():
+def test_shared_state_isolates_data_across_namespaces_and_steps():
     system_context.publish("train", "resources", "cpu", "4")
     system_context.publish("train", "timeout", "seconds", 300)
-    system_context.publish("train", "batch", "image", "my-image:latest")
-
-    assert system_context.get_published("train", "resources", "cpu") == "4"
-    assert system_context.get_published("train", "timeout", "seconds") == 300
-    assert system_context.get_published("train", "batch", "image") == "my-image:latest"
-
-
-# ---------------------------------------------------------------------------
-# SystemContext: step isolation for shared state
-# ---------------------------------------------------------------------------
-
-
-def test_step_isolation_shared_state():
-    system_context.publish("train", "resources", "cpu", "4")
     system_context.publish("predict", "resources", "cpu", "16")
 
     assert system_context.get_published("train", "resources", "cpu") == "4"
+    assert system_context.get_published("train", "timeout", "seconds") == 300
     assert system_context.get_published("predict", "resources", "cpu") == "16"
 
 
 # ---------------------------------------------------------------------------
-# SystemContext: step decorator registration
+# SystemContext: Step Decorator Registration
 # ---------------------------------------------------------------------------
 
 
-def test_registration_register_and_get_step_decorators():
+def test_decorator_registration_stores_and_retrieves_lists():
     decos = ["deco1", "deco2"]
     system_context.register_step_decorators("train", decos)
     assert system_context.get_step_decorators("train") == decos
 
 
-def test_registration_get_step_decorators_missing_step():
+def test_decorator_registration_returns_empty_list_for_missing_steps():
     assert system_context.get_step_decorators("nonexistent") == []
 
 
-def test_registration_reset_clears_shared_and_decorators():
+def test_reset_clears_shared_state_and_decorator_registrations():
     system_context.publish("train", "timeout", "seconds", 300)
     system_context.register_step_decorators("train", ["d"])
+
     system_context._reset()
+
     assert system_context.get_step_decorators("train") == []
     assert system_context.get_published("train", "timeout", "seconds") is None
