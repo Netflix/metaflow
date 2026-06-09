@@ -287,7 +287,7 @@ def test_get_many_benchmark(benchmark, inject_failure_rate, pathspecs, expected)
     argnames=["blobs", "expected"], **s3_data.pytest_benchmark_put_case()
 )
 @pytest.mark.benchmark(max_time=60)
-def test_put_one_benchmark(benchmark, tempdir, blobs, expected):
+def test_put_one_benchmark(benchmark, tempdir, s3root, blobs, expected):
     # We generate the files here to avoid having them saved in the benchmark
     # result file which then prevents comparisons
     def _generate_files(blobs):
@@ -304,7 +304,7 @@ def test_put_one_benchmark(benchmark, tempdir, blobs, expected):
     all_files = list(_generate_files(blobs))
 
     def _do():
-        with S3(s3root=S3ROOT) as s3:
+        with S3(s3root=s3root) as s3:
             res = []
             for key, obj in all_files:
                 key = str(uuid4())  # New "name" every time
@@ -321,7 +321,9 @@ def test_put_one_benchmark(benchmark, tempdir, blobs, expected):
     argnames=["blobs", "expected"], **s3_data.pytest_benchmark_put_many_case()
 )
 @pytest.mark.benchmark(max_time=60)
-def test_put_many_benchmark(benchmark, tempdir, inject_failure_rate, blobs, expected):
+def test_put_many_benchmark(
+    benchmark, tempdir, s3root, inject_failure_rate, blobs, expected
+):
     def _generate_files(blobs):
         generated_paths = {}
         for blob in blobs:
@@ -344,7 +346,7 @@ def test_put_many_benchmark(benchmark, tempdir, inject_failure_rate, blobs, expe
 
     def _do():
         new_files = [(str(uuid4()), path) for _, path in all_files]
-        with S3(s3root=S3ROOT, inject_failure_rate=inject_failure_rate) as s3:
+        with S3(s3root=s3root, inject_failure_rate=inject_failure_rate) as s3:
             s3urls = s3.put_files(new_files, overwrite=False)
         return s3urls
 
