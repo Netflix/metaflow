@@ -61,27 +61,23 @@ def _assert_resources_cpu(run):
 
 
 @pytest.mark.parametrize(
-    "flow_name, test_name, assertion_fn, extra_marks",
+    "flow_name, test_name, assertion_fn",
     [
         pytest.param(
             "basic/helloworld.py",
             "hello_world",
             _assert_hello_world,
-            [],
             id="hello_world",
         ),
-        pytest.param("basic/retry_flow.py", "retry", _assert_retry, [], id="retry"),
+        pytest.param("basic/retry_flow.py", "retry", _assert_retry, id="retry"),
         pytest.param(
             "basic/resources_flow.py",
             "resources",
             _assert_resources,
-            [],
             id="resources",
         ),
-        pytest.param("basic/catch_flow.py", "catch", _assert_catch, [], id="catch"),
-        pytest.param(
-            "basic/timeout_flow.py", "timeout", _assert_timeout, [], id="timeout"
-        ),
+        pytest.param("basic/catch_flow.py", "catch", _assert_catch, id="catch"),
+        pytest.param("basic/timeout_flow.py", "timeout", _assert_timeout, id="timeout"),
         pytest.param(
             "basic/resources_cpu_flow.py",
             "resources_cpu",
@@ -97,11 +93,9 @@ def test_basic_flow_behaviors(
     compute_env,
     tag,
     scheduler_config,
-    request,
     flow_name,
     test_name,
     assertion_fn,
-    extra_marks,
 ):
     """Parametrized test for standard flow features."""
 

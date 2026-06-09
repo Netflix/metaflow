@@ -164,7 +164,10 @@ def test_resume_basic_flow(
                 f"cloned (Task ID matched original: {task1_id})"
             )
         else:
-            pass
+            assert task1_id == task2_id, (
+                f"Expected step '{step}' to be CLONED, but it appears to have been "
+                f"re-executed (Task ID changed from {task1_id} to {task2_id})"
+            )
 
 
 def test_resume_foreach(
