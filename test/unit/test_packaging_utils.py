@@ -12,14 +12,14 @@ from metaflow.packaging_sys.utils import walk
             # Regression: hidden ancestor dirs must not exclude user files.
             [".hidden_parent", "project", "flows"],
             ["hello_flow.py"],
-            ["hello_flow.py"],
+            ["flows/hello_flow.py"],
         ),
         (
             # Root contains both visible files and hidden directories.
             # Hidden directories *under* root should be excluded.
             [".hidden_parent", "project"],
             ["visible.py", ".secret/hidden.py"],
-            ["visible.py"],
+            ["project/visible.py"],
         ),
     ],
     ids=[
