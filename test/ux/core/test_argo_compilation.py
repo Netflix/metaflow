@@ -47,15 +47,6 @@ def _container_template_for_step(workflow_template, step_name):
     )
 
 
-def test_argo_only_json_exposes_workflow_template(
-    exec_mode, decospecs, tag, scheduler_config
-):
-    if exec_mode != "deployer":
-        pytest.skip("Argo compilation tests require deployer mode")
-    if scheduler_config.scheduler_type != "argo-workflows":
-        pytest.skip("Argo compilation tests require the argo-workflows scheduler")
-
-
 def _assert_deduplicated_task_names(workflow_template, deployed_flow_name):
     """Verify that complex DAG topologies do not produce duplicate task names in Argo."""
     assert workflow_template is not None
