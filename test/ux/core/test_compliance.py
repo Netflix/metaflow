@@ -48,9 +48,12 @@ def _deploy_and_run_compliance(
     tl_args = {"decospecs": decospecs}
 
     if tl_args_extra:
-        if "env" in tl_args_extra:
-            env_vars.update(tl_args_extra.pop("env"))
-        tl_args.update(tl_args_extra)
+        tl_args_extra_copy = tl_args_extra.copy()
+
+        if "env" in tl_args_extra_copy:
+            env_vars.update(tl_args_extra_copy.pop("env") or {})
+
+        tl_args.update(tl_args_extra_copy)
 
     tl_args["env"] = env_vars
 
