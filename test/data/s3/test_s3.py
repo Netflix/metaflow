@@ -32,6 +32,14 @@ except ImportError:
     # python3
     from urllib.parse import urlparse
 
+INJECT_FAILURE_RATES = [0, 10, 50, 90]
+INJECT_FAILURE_RATE_IDS = [
+    "fail_rate_0",
+    "fail_rate_10",
+    "fail_rate_50",
+    "fail_rate_90",
+]
+
 
 @pytest.fixture
 def tempdir():
@@ -204,9 +212,7 @@ def test_info_one_benchmark(benchmark, pathspecs, expected):
 
 
 @pytest.mark.parametrize(
-    "inject_failure_rate",
-    [0, 10, 50, 90],
-    ids=["fail_rate_0", "fail_rate_10", "fail_rate_50", "fail_rate_90"],
+    "inject_failure_rate", INJECT_FAILURE_RATES, ids=INJECT_FAILURE_RATE_IDS
 )
 @pytest.mark.parametrize(
     argnames=["pathspecs", "expected"], **s3_data.pytest_benchmark_many_case()
@@ -251,9 +257,7 @@ def test_get_one_benchmark(benchmark, pathspecs, expected):
 
 
 @pytest.mark.parametrize(
-    "inject_failure_rate",
-    [0, 10, 50, 90],
-    ids=["fail_rate_0", "fail_rate_10", "fail_rate_50", "fail_rate_90"],
+    "inject_failure_rate", INJECT_FAILURE_RATES, ids=INJECT_FAILURE_RATE_IDS
 )
 @pytest.mark.parametrize(
     argnames=["pathspecs", "expected"], **s3_data.pytest_benchmark_many_case()
@@ -311,9 +315,7 @@ def test_put_one_benchmark(benchmark, tempdir, blobs, expected):
 
 
 @pytest.mark.parametrize(
-    "inject_failure_rate",
-    [0, 10, 50, 90],
-    ids=["fail_rate_0", "fail_rate_10", "fail_rate_50", "fail_rate_90"],
+    "inject_failure_rate", INJECT_FAILURE_RATES, ids=INJECT_FAILURE_RATE_IDS
 )
 @pytest.mark.parametrize(
     argnames=["blobs", "expected"], **s3_data.pytest_benchmark_put_many_case()
@@ -350,9 +352,7 @@ def test_put_many_benchmark(benchmark, tempdir, inject_failure_rate, blobs, expe
 
 
 @pytest.mark.parametrize(
-    "inject_failure_rate",
-    [0, 10, 50, 90],
-    ids=["fail_rate_0", "fail_rate_10", "fail_rate_50", "fail_rate_90"],
+    "inject_failure_rate", INJECT_FAILURE_RATES, ids=INJECT_FAILURE_RATE_IDS
 )
 @pytest.mark.parametrize(
     argnames=["pathspecs", "expected"], **s3_data.pytest_fakerun_cases()
@@ -468,9 +468,7 @@ def test_info_one(s3root, prefixes, expected):
 
 
 @pytest.mark.parametrize(
-    "inject_failure_rate",
-    [0, 10, 50, 90],
-    ids=["fail_rate_0", "fail_rate_10", "fail_rate_50", "fail_rate_90"],
+    "inject_failure_rate", INJECT_FAILURE_RATES, ids=INJECT_FAILURE_RATE_IDS
 )
 @pytest.mark.parametrize(
     argnames=["prefixes", "expected"], **s3_data.pytest_basic_case()
@@ -511,9 +509,7 @@ def test_info_many(s3root, inject_failure_rate, prefixes, expected):
 
 
 @pytest.mark.parametrize(
-    "inject_failure_rate",
-    [0, 10, 50, 90],
-    ids=["fail_rate_0", "fail_rate_10", "fail_rate_50", "fail_rate_90"],
+    "inject_failure_rate", INJECT_FAILURE_RATES, ids=INJECT_FAILURE_RATE_IDS
 )
 @pytest.mark.parametrize(
     argnames=["prefixes", "expected"], **s3_data.pytest_fakerun_cases()
@@ -609,9 +605,7 @@ def test_get_one_wo_meta(s3root, prefixes, expected):
 
 
 @pytest.mark.parametrize(
-    "inject_failure_rate",
-    [0, 10, 50, 90],
-    ids=["fail_rate_0", "fail_rate_10", "fail_rate_50", "fail_rate_90"],
+    "inject_failure_rate", INJECT_FAILURE_RATES, ids=INJECT_FAILURE_RATE_IDS
 )
 @pytest.mark.parametrize(
     argnames=["prefixes", "expected"], **s3_data.pytest_large_case()
@@ -632,9 +626,7 @@ def test_get_all(inject_failure_rate, s3root, prefixes, expected):
 
 
 @pytest.mark.parametrize(
-    "inject_failure_rate",
-    [0, 10, 50, 90],
-    ids=["fail_rate_0", "fail_rate_10", "fail_rate_50", "fail_rate_90"],
+    "inject_failure_rate", INJECT_FAILURE_RATES, ids=INJECT_FAILURE_RATE_IDS
 )
 @pytest.mark.parametrize(
     argnames=["prefixes", "expected"], **s3_data.pytest_basic_case()
@@ -655,9 +647,7 @@ def test_get_all_with_meta(inject_failure_rate, s3root, prefixes, expected):
 
 
 @pytest.mark.parametrize(
-    "inject_failure_rate",
-    [0, 10, 50, 90],
-    ids=["fail_rate_0", "fail_rate_10", "fail_rate_50", "fail_rate_90"],
+    "inject_failure_rate", INJECT_FAILURE_RATES, ids=INJECT_FAILURE_RATE_IDS
 )
 @pytest.mark.parametrize(
     argnames=["prefixes", "expected"], **s3_data.pytest_basic_case()
@@ -833,9 +823,7 @@ def test_list_recursive(s3root, prefixes, expected):
 
 
 @pytest.mark.parametrize(
-    "inject_failure_rate",
-    [0, 10, 50, 90],
-    ids=["fail_rate_0", "fail_rate_10", "fail_rate_50", "fail_rate_90"],
+    "inject_failure_rate", INJECT_FAILURE_RATES, ids=INJECT_FAILURE_RATE_IDS
 )
 @pytest.mark.parametrize(
     argnames=["prefixes", "expected"], **s3_data.pytest_many_prefixes_case()
@@ -887,9 +875,7 @@ def test_get_recursive(s3root, inject_failure_rate, prefixes, expected):
 
 
 @pytest.mark.parametrize(
-    "inject_failure_rate",
-    [0, 10, 50, 90],
-    ids=["fail_rate_0", "fail_rate_10", "fail_rate_50", "fail_rate_90"],
+    "inject_failure_rate", INJECT_FAILURE_RATES, ids=INJECT_FAILURE_RATE_IDS
 )
 def test_put_exceptions(inject_failure_rate):
     with S3(inject_failure_rate=inject_failure_rate) as s3:
@@ -973,9 +959,7 @@ def test_put_one(s3root, objs, expected, s3_server_side_encryption):
 
 
 @pytest.mark.parametrize(
-    "inject_failure_rate",
-    [0, 10, 50, 90],
-    ids=["fail_rate_0", "fail_rate_10", "fail_rate_50", "fail_rate_90"],
+    "inject_failure_rate", INJECT_FAILURE_RATES, ids=INJECT_FAILURE_RATE_IDS
 )
 @pytest.mark.parametrize(
     argnames=["blobs", "expected"], **s3_data.pytest_put_blobs_case()
@@ -1046,9 +1030,7 @@ def test_put_files(
 
 
 @pytest.mark.parametrize(
-    "inject_failure_rate",
-    [0, 10, 50, 90],
-    ids=["fail_rate_0", "fail_rate_10", "fail_rate_50", "fail_rate_90"],
+    "inject_failure_rate", INJECT_FAILURE_RATES, ids=INJECT_FAILURE_RATE_IDS
 )
 def test_list_recursive_sibling_prefix_filtering(s3root, inject_failure_rate):
     test_prefix = f"test_log_filtering_{uuid4().hex[:8]}"
