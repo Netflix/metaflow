@@ -45,7 +45,9 @@ def test_perform_diff_triggers_git_and_less_when_output_false(
     mocker, tmp_path, use_tty
 ):
     """Test that perform_diff executes git diff and pipes stdout to less when output is False."""
-    mock_isatty = mocker.patch("sys.stdout.isatty", return_value=use_tty)
+
+    mocker.patch("sys.stdout.isatty", return_value=use_tty)
+
     mock_run = mocker.patch("metaflow.cmd.code.run")
 
     # Setup: Create a fake git diff process output
