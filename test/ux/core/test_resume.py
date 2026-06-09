@@ -55,7 +55,9 @@ def _wait_for_resumed_run(triggered_run, timeout=3600, polling_interval=3):
     return triggered_run.run
 
 
-def _trigger_and_wait(deployed_flow, sched_type, trigger_kwargs):
+def _trigger_and_wait(
+    deployed_flow, sched_type, trigger_kwargs, timeout=600, polling_interval=3
+):
     """Helper to trigger a flow and wait for completion (success or failure)."""
     try:
         triggered = deployed_flow.trigger(**trigger_kwargs)
@@ -63,14 +65,18 @@ def _trigger_and_wait(deployed_flow, sched_type, trigger_kwargs):
         pytest.skip(f"{sched_type}: cannot trigger with parameters: {e}")
 
     start_time = time.time()
-    while time.time() - start_time < 600:
+    while time.time() - start_time < timeout:
         status = triggered.status
         if _is_failed_status(status):
             break
         if triggered.run and triggered.run.finished:
             break
-        time.sleep(3)
-
+        time.sleep(polling_interval)
+    else:
+        raise TimeoutError(
+            f"Triggered run failed to reach a terminal state within {timeout} seconds. "
+            f"Last known status: {triggered.status}"
+        )
     assert triggered.run is not None, "Could not get triggered run ID"
     return triggered.run
 
@@ -81,19 +87,21 @@ def _trigger_and_wait(deployed_flow, sched_type, trigger_kwargs):
 
 
 @pytest.mark.parametrize(
-    "trigger_kwargs, expect_first_run_success, resume_kwargs",
+    "trigger_kwargs, expect_first_run_success, resume_kwargs, expected_reexec_steps",
     [
-        pytest.param({}, True, {}, id="successful_run_clones_all"),
+        pytest.param({}, True, {}, [], id="successful_run_clones_all"),
         pytest.param(
             {"should_fail": True},
             False,
             {"should_fail": False},
+            ["process", "end"],
             id="failed_run_reexecutes_failed_step",
         ),
         pytest.param(
             {},
             True,
             {"step_to_rerun": "process"},
+            ["process", "end"],
             id="step_to_rerun_forces_downstream_execution",
         ),
     ],
@@ -106,6 +114,7 @@ def test_resume_basic_flow(
     trigger_kwargs: Dict[str, Any],
     expect_first_run_success: bool,
     resume_kwargs: Dict[str, Any],
+    expected_reexec_steps: List[str],
 ):
     """Parametrized test covering standard successful resume, failed run resume,
     and explicit step-to-rerun behavior on basic/resumeflow.py."""
@@ -142,6 +151,18 @@ def test_resume_basic_flow(
     assert run2["start"].task.data.start_value == "started"
     assert run2["process"].task.data.process_value == "processed"
     assert run2["end"].task.data.end_value == "done"
+
+    for step in ["start", "process", "end"]:
+        task1_id = run1[step].task.id
+        task2_id = run2[step].task.id
+
+        if step in expected_reexec_steps:
+            assert task1_id != task2_id, (
+                f"Expected step '{step}' to be re-executed, but it appears to have been "
+                f"cloned (Task ID matched original: {task1_id})"
+            )
+        else:
+            pass
 
 
 def test_resume_foreach(
