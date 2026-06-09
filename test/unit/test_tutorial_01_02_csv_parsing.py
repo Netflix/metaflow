@@ -1,10 +1,11 @@
 import csv
+import io
 import pytest
 
 # Module-level constant for immutable test data
 SAMPLE_CSV = (
     "movie_title,title_year,genres,gross\n"
-    '"Monsters, Inc.",2001,Animation|Comedy,289907418\n'
+    '"Monsters,\n Inc.",2001,"Animation|\nComedy",289907418\n'
     '"I, Robot",2004,Action|Sci-Fi,144795350\n'
 )
 
@@ -16,8 +17,7 @@ def parse_csv(data, cols):
     result = {c: [] for c in cols}
     int_cols = ("title_year", "gross")
 
-    # Note: If testing quoted newlines, replace data.splitlines() with io.StringIO(data)
-    for row in csv.DictReader(data.splitlines()):
+    for row in csv.DictReader(io.StringIO(data)):
         for c in cols:
             val = int(row[c]) if c in int_cols else row[c]
             result[c].append(val)
@@ -35,16 +35,16 @@ def parse_csv(data, cols):
         (
             ["movie_title", "genres"],
             {
-                "movie_title": ["Monsters, Inc.", "I, Robot"],
-                "genres": ["Animation|Comedy", "Action|Sci-Fi"],
+                "movie_title": ["Monsters,\n Inc.", "I, Robot"],
+                "genres": ["Animation|\nComedy", "Action|Sci-Fi"],
             },
         ),
         (
             ["movie_title", "title_year", "genres", "gross"],
             {
-                "movie_title": ["Monsters, Inc.", "I, Robot"],
+                "movie_title": ["Monsters,\n Inc.", "I, Robot"],
                 "title_year": [2001, 2004],
-                "genres": ["Animation|Comedy", "Action|Sci-Fi"],
+                "genres": ["Animation|\nComedy", "Action|Sci-Fi"],
                 "gross": [289907418, 144795350],
             },
         ),
