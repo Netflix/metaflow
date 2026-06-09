@@ -27,9 +27,11 @@ def test_simple_flows_validate_artifacts(flow_file, fixture_name, request):
     # Act & Assert: Iterate through and run each step
     for step in run.steps():
         if fixture_name == "complex_dag_run":
-            run_step(flow_file, run, step.id, environment="conda")
+            spin_task = run_step(flow_file, run, step.id, environment="conda")
         else:
-            run_step(flow_file, run, step.id)
+            spin_task = run_step(flow_file, run, step.id)
+
+        assert_artifacts(spin_task)
 
 
 # ---------------------------------------------------------------------------
@@ -204,8 +206,8 @@ def test_spin_generates_cards_correctly(simple_card_run):
         res = get_cards(spin.task, follow_resumed=False)
 
         # Assert
-        assert res is not None, "Cards should be generated and retrievable"
-        # Optional: assert len(res) > 0 if you expect a specific number of cards
+        assert res is not None, "Cards collection should be generated and retrievable"
+        assert len(res) > 0, "Expected at least one card to be present in the results"
 
 
 def test_spin_with_flow_parameters_raises_error(simple_parameter_run):
