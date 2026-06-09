@@ -47,14 +47,22 @@ def reset_current_env():
         if attr.startswith("_") and not attr.startswith("__")
     ]
 
+    # 1. Clean up attributes created during the test
     for attr in current_attrs:
-        try:
-            if attr not in saved_state:
-                # Remove attributes created during the test
+        if attr not in saved_state:
+            try:
                 delattr(current, attr)
+            except AttributeError:
+                pass
+
+    # 2. Restore all original attributes (re-creating any that were deleted)
+    for attr, value in saved_state.items():
+        try:
+            if value is None:
+                # Remove if it was strictly None/non-existent before
+                if hasattr(current, attr):
+                    delattr(current, attr)
             else:
-                # Restore original values
-                setattr(current, attr, saved_state[attr])
+                setattr(current, attr, value)
         except (AttributeError, TypeError):
-            # Some internal attributes in 'current' may be read-only or immutable
             pass
