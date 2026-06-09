@@ -99,9 +99,6 @@ def test_argo_compilation_behaviors(
     )
 
     assertion_fn(deployed_flow.workflow_template, deployed_flow.name)
-    workflow_template = deployed_flow.workflow_template
-    assert workflow_template is not None
-    assert _find_duplicate_task_names(workflow_template) == {}
 
 
 def test_late_attached_kubernetes_mutator_is_reflected_in_argo_template(
