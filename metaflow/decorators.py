@@ -939,6 +939,11 @@ def _init_step_decorators(
             inserted_by_value = [deco.decorator_name] + (deco.inserted_by or [])
 
             if isinstance(deco, StepMutator):
+                # We do not want to perform step mutation more than once due to this possibly having adverse effects when
+                # f.ex. attaching decorators with allow_multiple=True
+                if getattr(deco, "_mutate_called", False):
+                    continue
+
                 debug.userconf_exec(
                     "Evaluating step level decorator %s for %s (mutate)"
                     % (deco.__class__.__name__, step.name)
@@ -952,6 +957,7 @@ def _init_step_decorators(
                         inserted_by=inserted_by_value,
                     )
                 )
+                setattr(deco, "_mutate_called", True)
             else:
                 raise MetaflowInternalError(
                     "A non StepMutator found in step custom decorators"
@@ -1042,6 +1048,10 @@ def _process_late_attached_decorator(
             continue
         for deco in s.config_decorators:
             if isinstance(deco, StepMutator):
+                # We do not want to perform step mutation more than once due to this possibly having adverse effects when
+                # f.ex. attaching decorators with allow_multiple=True
+                if getattr(deco, "_mutate_called", False):
+                    continue
                 inserted_by_value = [deco.decorator_name] + (deco.inserted_by or [])
                 debug.userconf_exec(
                     "Re-evaluating step level decorator %s for %s (mutate) after "
@@ -1056,6 +1066,7 @@ def _process_late_attached_decorator(
                         inserted_by=inserted_by_value,
                     )
                 )
+                setattr(deco, "_mutate_called", True)
                 mutators_ran = True
 
     # Rebuild the graph so node.decorators reflects mutator changes (OVERRIDE).
