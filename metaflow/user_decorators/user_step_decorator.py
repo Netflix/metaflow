@@ -746,6 +746,8 @@ class StepMutator(UserStepDecoratorBase):
     _step_field = "config_decorators"
     _allowed_args = True
     _allowed_kwargs = True
+    _mutate_called = False
+    _late_mutate_called = False
 
     def init(self, *args, **kwargs):
         """

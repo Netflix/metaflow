@@ -939,22 +939,12 @@ def _init_step_decorators(
             inserted_by_value = [deco.decorator_name] + (deco.inserted_by or [])
 
             if isinstance(deco, StepMutator):
-                # Before (re)running the mutator, remove any decorators it
-                # previously inserted in order to prevent adding duplicate decorators.
-                mutator_name = deco.decorator_name
-                step.decorators = [
-                    d
-                    for d in step.decorators
-                    if not (d.inserted_by and d.inserted_by[0] == mutator_name)
-                ]
-                step.wrappers = [
-                    d
-                    for d in (step.wrappers or [])
-                    if not (
-                        getattr(d, "inserted_by", None)
-                        and d.inserted_by[0] == mutator_name
-                    )
-                ]
+                # Guard against calling mutate more than once (e.g. if
+                # _init_step_decorators is invoked multiple times), which could
+                # have adverse effects for allow_multiple decorators like @card.
+                if deco._mutate_called:
+                    continue
+
                 debug.userconf_exec(
                     "Evaluating step level decorator %s for %s (mutate)"
                     % (deco.__class__.__name__, step.name)
@@ -968,6 +958,7 @@ def _init_step_decorators(
                         inserted_by=inserted_by_value,
                     )
                 )
+                deco._mutate_called = True
             else:
                 raise MetaflowInternalError(
                     "A non StepMutator found in step custom decorators"
@@ -1058,17 +1049,30 @@ def _process_late_attached_decorator(
             continue
         for deco in s.config_decorators:
             if isinstance(deco, StepMutator):
-                # Before (re)running the mutator, remove any decorators it
-                # previously inserted in order to prevent adding duplicate decorators.
+                # Guard against calling the same mutator more than once within
+                # this late-attached pass (e.g. if this function is called
+                # multiple times).  We use a separate flag (_late_mutate_called)
+                # so that a mutator already called by _init_step_decorators
+                # (_mutate_called=True) is still re-run here when @kubernetes
+                # (or similar) is genuinely late-attached.
+                if deco._late_mutate_called:
+                    continue
+                # Before re-running, remove any step decorators that this
+                # mutator inserted during the earlier _init_step_decorators
+                # pass so that the re-run is idempotent. Without this,
+                # allow_multiple decorators (e.g. @card) added by the mutator would duplicate.
                 mutator_name = deco.decorator_name
                 s.decorators = [
                     d
                     for d in s.decorators
-                    if not (d.inserted_by and d.inserted_by[0] == mutator_name)
+                    if not (
+                        getattr(d, "inserted_by", None)
+                        and d.inserted_by[0] == mutator_name
+                    )
                 ]
                 s.wrappers = [
                     d
-                    for d in (s.wrappers or [])
+                    for d in s.wrappers
                     if not (
                         getattr(d, "inserted_by", None)
                         and d.inserted_by[0] == mutator_name
@@ -1088,6 +1092,7 @@ def _process_late_attached_decorator(
                         inserted_by=inserted_by_value,
                     )
                 )
+                deco._late_mutate_called = True
                 mutators_ran = True
 
     # Rebuild the graph so node.decorators reflects mutator changes (OVERRIDE).
