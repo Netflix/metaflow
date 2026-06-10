@@ -66,9 +66,69 @@ def _call_process_late_attached(flow_cls):
         logger=_logger,
     )
 
+def _call_init_step_decorators(flow_cls):
+    flow = flow_cls(use_cli=False)
+    decorators._init_step_decorators(
+        flow,
+        flow_cls._graph,
+        environment=None,
+        flow_datastore=_Datastore(),
+        logger=_logger,
+    )
+
 
 def _kube(step_obj):
     return [d for d in step_obj.decorators if d.name == "kubernetes"]
+
+
+def test_allow_multiple_decorator_not_duplicated_on_mutator_rerun(
+    counting_mutator_factory,
+):
+    """Regression test: a StepMutator that adds an allow_multiple decorator (e.g.
+    @card) must not accumulate a duplicate when _process_late_attached_decorator
+    re-runs the mutator because a platform decorator (@kubernetes) was late-attached
+    to the same step."""
+
+    card = pytest.importorskip("metaflow").card
+
+    _, calls = counting_mutator_factory()
+
+    class AddCardMutator(StepMutator):
+        def mutate(self, mutable_step):
+            mutable_step.add_decorator(card, deco_kwargs={"id": "test_card"})
+
+    class TestFlow(FlowSpec):
+        @AddCardMutator()
+        @step
+        def start(self):
+            self.next(self.end)
+
+        @step
+        def end(self):
+            pass
+
+    start_step = TestFlow.start
+    _init_mutators(start_step)
+    _call_init_step_decorators(TestFlow)
+
+    card_count_before = sum(
+        1 for d in start_step.decorators if d.name == "card" and d.inserted_by
+    )
+    assert card_count_before == 1, "expected exactly one mutator-added @card before re-run"
+
+    # Late-attach @kubernetes (fresh — _ran_init=False) so the step enters
+    # late_attached_step_names and the mutator re-run is triggered.
+    decorators._attach_decorators_to_step(start_step, [KubernetesDecorator.name])
+
+    _call_process_late_attached(TestFlow)
+
+    card_count_after = sum(
+        1 for d in start_step.decorators if d.name == "card" and d.inserted_by
+    )
+    assert card_count_after == 1, (
+        "mutator re-run must not duplicate allow_multiple decorators; "
+        "got %d @card(id='test_card') instances" % card_count_after
+    )
 
 
 @pytest.mark.parametrize(
