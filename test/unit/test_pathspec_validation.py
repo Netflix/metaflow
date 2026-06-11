@@ -60,18 +60,39 @@ class TestPathspecValidation(unittest.TestCase):
                 result = MetaflowObject._validate_pathspec_format(pathspec, "run")
                 self.assertEqual(len(result), 2)
 
+    def test_run_valid_orchestrator_run_ids(self):
+        """Test that orchestrator-produced non-numeric run IDs are accepted.
+
+        Argo Workflows produces run IDs like "argo-<workflow-name>-<hash>"
+        and AWS Step Functions produces "sfn-<execution-name>".  These must
+        not be rejected by the pathspec validator.
+
+        Regression test for #948 (Bug 1): the original validation used a
+        numeric-only pattern which broke all Client API usage for users of
+        Argo Workflows and Step Functions.
+        """
+        valid_pathspecs = [
+            # Argo Workflows — e.g. from tutorials/08-autopilot
+            ("MovieStatsFlow/argo-moviestatsflow-68z2h", "argo run ID with hash suffix"),
+            ("MyFlow/argo-myflow-abc12", "short argo run ID"),
+            # AWS Step Functions
+            ("MyFlow/sfn-my-execution-name", "sfn run ID"),
+            ("MyFlow/sfn-prod-batch-20240101", "sfn run ID with date"),
+        ]
+        for pathspec, description in valid_pathspecs:
+            with self.subTest(pathspec=pathspec, reason=description):
+                result = MetaflowObject._validate_pathspec_format(pathspec, "run")
+                self.assertEqual(len(result), 2)
+
     def test_run_invalid_pathspecs(self):
         """Test that invalid run pathspecs are rejected."""
         invalid_cases = [
             ("MyFlow", "too few components"),
             ("MyFlow/123/extra", "too many components"),
-            ("MyFlow/abc", "non-numeric run ID"),
             ("MyFlow//123", "empty component"),
             ("MyFlow/123/", "trailing slash"),
             ("/MyFlow/123", "leading slash"),
             ("123Flow/123", "invalid flow name"),
-            ("MyFlow/12.3", "decimal run ID"),
-            ("MyFlow/-123", "negative run ID"),
         ]
         for pathspec, description in invalid_cases:
             with self.subTest(pathspec=pathspec, reason=description):
@@ -117,6 +138,30 @@ class TestPathspecValidation(unittest.TestCase):
         ]
         for pathspec in valid_pathspecs:
             with self.subTest(pathspec=pathspec):
+                result = MetaflowObject._validate_pathspec_format(pathspec, "task")
+                self.assertEqual(len(result), 4)
+
+    def test_task_valid_orchestrator_run_and_task_ids(self):
+        """Test that orchestrator-produced non-numeric run/task IDs in task pathspecs are accepted.
+
+        When a run was created via Argo Workflows or Step Functions the run ID is
+        a prefixed string.  Constructing a Task object from such a pathspec must
+        not raise MetaflowInvalidPathspec.
+
+        Regression test for #948 (Bug 1).
+        """
+        valid_pathspecs = [
+            (
+                "MyFlow/argo-myflow-abc12/start/1",
+                "argo run ID in task pathspec",
+            ),
+            (
+                "MyFlow/sfn-my-execution/start/1",
+                "sfn run ID in task pathspec",
+            ),
+        ]
+        for pathspec, description in valid_pathspecs:
+            with self.subTest(pathspec=pathspec, reason=description):
                 result = MetaflowObject._validate_pathspec_format(pathspec, "task")
                 self.assertEqual(len(result), 4)
 
