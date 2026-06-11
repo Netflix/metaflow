@@ -62,14 +62,11 @@ current_namespace = False
 current_metadata = False
 
 # Pathspec validation patterns
-# Flow names and step names should be valid Python identifiers (start with letter/underscore)
-_FLOW_NAME_PATTERN = re.compile(r'^[a-zA-Z_][a-zA-Z0-9_]*$')
-# Run IDs and Task IDs are numeric
+# Flow names, step names, and artifact names must be valid Python identifiers:
+# start with a letter or underscore, followed by alphanumerics or underscores.
+_IDENTIFIER_PATTERN = re.compile(r'^[a-zA-Z_][a-zA-Z0-9_]*$')
+# Run IDs and Task IDs are numeric (plain integer strings).
 _NUMERIC_ID_PATTERN = re.compile(r'^[0-9]+$')
-# Step names should be valid Python identifiers
-_STEP_NAME_PATTERN = re.compile(r'^[a-zA-Z_][a-zA-Z0-9_]*$')
-# Artifact names should be valid Python identifiers
-_ARTIFACT_NAME_PATTERN = re.compile(r'^[a-zA-Z_][a-zA-Z0-9_]*$')
 
 
 def metadata(ms: str) -> str:
@@ -338,7 +335,7 @@ class MetaflowObject(object):
         # Validate each component based on its position
         for idx, component in enumerate(ids):
             if idx == 0:  # Flow name
-                if not _FLOW_NAME_PATTERN.match(component):
+                if not _IDENTIFIER_PATTERN.match(component):
                     raise MetaflowInvalidPathspec(
                         f"Invalid flow name '{component}'. "
                         f"Flow names must start with a letter or underscore and contain only "
@@ -350,7 +347,7 @@ class MetaflowObject(object):
                         f"Invalid run ID '{component}'. Run IDs must be numeric."
                     )
             elif idx == 2:  # Step name
-                if not _STEP_NAME_PATTERN.match(component):
+                if not _IDENTIFIER_PATTERN.match(component):
                     raise MetaflowInvalidPathspec(
                         f"Invalid step name '{component}'. "
                         f"Step names must start with a letter or underscore and contain only "
@@ -362,7 +359,7 @@ class MetaflowObject(object):
                         f"Invalid task ID '{component}'. Task IDs must be numeric."
                     )
             elif idx == 4:  # Artifact name
-                if not _ARTIFACT_NAME_PATTERN.match(component):
+                if not _IDENTIFIER_PATTERN.match(component):
                     raise MetaflowInvalidPathspec(
                         f"Invalid artifact name '{component}'. "
                         f"Artifact names must start with a letter or underscore and contain only "
