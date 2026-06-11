@@ -2,7 +2,7 @@
 
 import pytest
 
-from metaflow import FlowSpec, StepMutator, step
+from metaflow import FlowSpec, StepMutator, step, card
 from metaflow.user_decorators.user_step_decorator import UserStepDecoratorMeta
 from metaflow import decorators
 
@@ -81,18 +81,11 @@ def _kube(step_obj):
     return [d for d in step_obj.decorators if d.name == "kubernetes"]
 
 
-def test_allow_multiple_decorator_not_duplicated_on_mutator_rerun(
-    counting_mutator_factory,
-):
+def test_allow_multiple_decorator_not_duplicated_on_mutator_rerun():
     """Regression test: a StepMutator that adds an allow_multiple decorator (e.g.
     @card) must not accumulate a duplicate when _process_late_attached_decorator
     re-runs the mutator because a platform decorator (@kubernetes) was late-attached
     to the same step."""
-
-    card = pytest.importorskip("metaflow").card
-
-    _, calls = counting_mutator_factory()
-
     class AddCardMutator(StepMutator):
         def mutate(self, mutable_step):
             mutable_step.add_decorator(card, deco_kwargs={"id": "test_card"})
