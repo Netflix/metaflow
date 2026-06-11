@@ -29,6 +29,7 @@
 #' @export
 run <- function(flow = NULL, ...) {
   flow_file <- tempfile(flow$get_name(), tmpdir = ".", fileext = ".RDS")
+  on.exit(file.remove(flow_file), add = TRUE)
   tryCatch(
     {
       saveRDS(flow, flow_file)
@@ -41,7 +42,6 @@ run <- function(flow = NULL, ...) {
   cmd <- run_cmd(flow_file = flow_file, ...)
   #message(paste0("Flow cli:\n", cmd))
   status_code <- system(cmd)
-  invisible(file.remove(flow_file))
   return(invisible(status_code))
 }
 
@@ -55,6 +55,8 @@ run_cmd <- function(flow_file, ...) {
     if (is.logical(flags$resume)) {
       if (flags$resume) {
         run <- "resume"
+      } else {
+        run <- "run"
       }
     } else {
       run <- paste0("resume", " ", flags$resume)

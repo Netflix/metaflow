@@ -93,7 +93,7 @@ step_client <- R6::R6Class("StepClient",
     created_at = function() super$get_obj()$created_at,
 
     #' @field pathspec The path spec that uniquely identifies this step object,
-    #  for example, HellowWorldFlow/2/start.
+    #  for example, HelloWorldFlow/2/start.
     pathspec = function() super$get_obj()$pathspec,
 
     #' @field parent The parent object (run object) identifier of this step object.

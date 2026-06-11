@@ -61,11 +61,8 @@ cannot begin with a number.")
     } else {
       .step <- c(.step, fmt_next_step(next_step))
     }
-  } else {
-    if (!is.null(r_function)) {
-    } else {
-      .step <- c(.step, c(space(8), "pass", space(2, type = "v")))
-    }
+  } else if (is.null(r_function)) {
+    .step <- c(.step, c(space(8), "pass", space(2, type = "v")))
   }
   flow$add_step(paste0(.step, collapse = ""))
 }

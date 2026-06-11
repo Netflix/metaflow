@@ -240,7 +240,7 @@ is_valid_python_identifier_py2 <- function(identifier) {
 }
 
 #' @rdname is_valid_python_identifier
-is_valid_python_identifier_py3<- function(identifier) {
+is_valid_python_identifier_py3 <- function(identifier) {
   identifier <- as.character(identifier)
   py_str <- reticulate::r_to_py(identifier)
   py_str$isidentifier() %>% reticulate::py_to_r()
@@ -257,22 +257,18 @@ metaflow_location <- function(flowRDS) {
   )
 }
 
+extract_str <- function(x) {
+  chr <- as.character(x)
+  gsub("'", "", regmatches(chr, gregexpr("'([^']*)'", chr))[[1]])
+}
+
 extract_ids <- function(obj) {
-  extract_str <- function(x) {
-    chr <- as.character(x)
-    gsub("'", "", regmatches(chr, gregexpr("'([^']*)'", chr))[[1]])
-  }
   unlist(lapply(
     reticulate::import_builtins()$list(obj),
     function(x) {
       sub(".*/", "", extract_str(x))
     }
   ))
-}
-
-extract_str <- function(x) {
-  chr <- as.character(x)
-  gsub("'", "", regmatches(chr, gregexpr("'([^']*)'", chr))[[1]])
 }
 
 #' Return a vector of all flow ids.

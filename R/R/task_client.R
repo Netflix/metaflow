@@ -68,7 +68,7 @@ task_client <- R6::R6Class("TaskClient",
       } else {
         time <- paste0(round(as.numeric(difftime), 2), " ", unit)
       }
-      objects <- paste(x$artifacts, collapse = paste(c("\n", strrep(" ", 28)), collapse = ""))
+      objects <- paste(self$artifacts, collapse = paste(c("\n", strrep(" ", 28)), collapse = ""))
       cat(
         cli::rule(left = paste0("Task Summary: ", self$id)), "\n",
         paste0(strrep(" ", 4), "Successful: ", strrep(" ", 11), successful, "\n"),
