@@ -269,6 +269,12 @@ class MetaflowObject(object):
     _CHILD_CLASS = None
     _PARENT_CLASS = None
 
+    # Subclasses must override _NAME.  Instantiating MetaflowObject directly
+    # with a pathspec would skip all component-count validation (because "base"
+    # is not in the expected-lengths table), producing hard-to-diagnose bugs.
+    # The guard below makes that misuse explicit.
+    _KNOWN_NAMES = frozenset({"flow", "run", "step", "task", "artifact"})
+
     def __init__(
         self,
         pathspec: Optional[str] = None,
@@ -319,6 +325,17 @@ class MetaflowObject(object):
             # attempt exists".
 
         if pathspec and _object is None:
+            if self._NAME not in self._KNOWN_NAMES:
+                raise MetaflowInternalError(
+                    "MetaflowObject subclass '%s' has _NAME='%s' which is not a "
+                    "recognised object type. Subclasses must set _NAME to one of: %s."
+                    % (
+                        type(self).__name__,
+                        self._NAME,
+                        ", ".join(sorted(self._KNOWN_NAMES)),
+                    )
+                )
+
             ids = pathspec.split("/")
 
             if self._NAME == "flow" and len(ids) != 1:
