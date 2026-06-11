@@ -66,6 +66,7 @@ def _call_process_late_attached(flow_cls):
         logger=_logger,
     )
 
+
 def _call_init_step_decorators(flow_cls):
     flow = flow_cls(use_cli=False)
     decorators._init_step_decorators(
@@ -86,6 +87,7 @@ def test_allow_multiple_decorator_not_duplicated_on_mutator_rerun():
     @card) must not accumulate a duplicate when _process_late_attached_decorator
     re-runs the mutator because a platform decorator (@kubernetes) was late-attached
     to the same step."""
+
     class AddCardMutator(StepMutator):
         def mutate(self, mutable_step):
             mutable_step.add_decorator(card, deco_kwargs={"id": "test_card"})
@@ -107,7 +109,9 @@ def test_allow_multiple_decorator_not_duplicated_on_mutator_rerun():
     card_count_before = sum(
         1 for d in start_step.decorators if d.name == "card" and d.inserted_by
     )
-    assert card_count_before == 1, "expected exactly one mutator-added @card before re-run"
+    assert (
+        card_count_before == 1
+    ), "expected exactly one mutator-added @card before re-run"
 
     # Late-attach @kubernetes (fresh — _ran_init=False) so the step enters
     # late_attached_step_names and the mutator re-run is triggered.
