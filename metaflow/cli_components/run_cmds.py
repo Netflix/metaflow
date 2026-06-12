@@ -361,7 +361,7 @@ def resume(
     "tags assigned to the objects produced by this run, just "
     "what existing objects are visible in the client API. You "
     "can enable the global namespace with an empty string."
-    "--namespace=",
+    " --namespace=",
 )
 @click.pass_obj
 def run(
