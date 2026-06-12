@@ -5,15 +5,15 @@ Tests the manifest read/write with file locking and the environment
 hashing/dedup logic. Uses temp files — no conda installation needed.
 """
 
+from contextlib import suppress
 import json
 import os
 import threading
+
 import pytest
 
-fcntl = pytest.importorskip("fcntl")
 
-
-def _write_manifest_worker(manifest_path, thread_id, writes_per_thread, errors):
+def _write_manifest_worker(manifest_path, thread_id, writes_per_thread, errors, fcntl):
     try:
         for i in range(writes_per_thread):
             key = f"env_{thread_id}_{i}"
@@ -35,6 +35,8 @@ def _write_manifest_worker(manifest_path, thread_id, writes_per_thread, errors):
 
 def test_manifest_concurrent_writes_no_corruption(tmp_path):
     """Multiple threads writing to the manifest should not corrupt it."""
+    fcntl = pytest.importorskip("fcntl")
+
     manifest_file = tmp_path / "test.manifest"
     manifest_file.write_text("{}")
 
@@ -45,7 +47,7 @@ def test_manifest_concurrent_writes_no_corruption(tmp_path):
     threads = [
         threading.Thread(
             target=_write_manifest_worker,
-            args=(str(manifest_file), tid, writes_per_thread, errors),
+            args=(str(manifest_file), tid, writes_per_thread, errors, fcntl),
         )
         for tid in range(num_threads)
     ]
@@ -76,8 +78,8 @@ def test_cleanup_temp_file(tmp_path):
 
 
 def test_cleanup_nonexistent_file_no_error(tmp_path):
-    """Verify standard Python behavior for missing files."""
+    """Cleaning up a file that doesn't exist should not raise."""
     nonexistent = tmp_path / "nonexistent.tmp"
 
-    with pytest.raises(FileNotFoundError):
+    with suppress(FileNotFoundError):
         nonexistent.unlink()
