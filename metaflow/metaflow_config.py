@@ -437,6 +437,8 @@ KUBERNETES_MEMORY = from_conf("KUBERNETES_MEMORY", None)
 KUBERNETES_DISK = from_conf("KUBERNETES_DISK", None)
 # Default kubernetes QoS class
 KUBERNETES_QOS = from_conf("KUBERNETES_QOS", "burstable")
+# Default kubernetes PriorityClass name
+KUBERNETES_PRIORITY_CLASS = from_conf("KUBERNETES_PRIORITY_CLASS", None)
 
 # Architecture of kubernetes nodes - used for @conda/@pypi in metaflow-dev
 KUBERNETES_CONDA_ARCH = from_conf("KUBERNETES_CONDA_ARCH")

@@ -724,9 +724,7 @@ class JobSetSpec(object):
                                     for secret in self._kwargs.get("image_pull_secrets")
                                     or []
                                 ],
-                                # TODO (savin): Support preemption policies
-                                # preemption_policy=?,
-                                #
+                                priority_class_name=self._kwargs.get("priority_class"),
                                 # A Container in a Pod may fail for a number of
                                 # reasons, such as because the process in it exited
                                 # with a non-zero exit code, or the Container was

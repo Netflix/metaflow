@@ -31,6 +31,7 @@ from metaflow.metaflow_config import (
     KUBERNETES_SHARED_MEMORY,
     KUBERNETES_TOLERATIONS,
     KUBERNETES_QOS,
+    KUBERNETES_PRIORITY_CLASS,
     KUBERNETES_CONDA_ARCH,
 )
 from metaflow.plugins.resources_decorator import ResourcesDecorator
@@ -129,6 +130,11 @@ class KubernetesDecorator(StepDecorator):
     qos: str, default: Burstable
         Quality of Service class to assign to the pod. Supported values are: Guaranteed, Burstable, BestEffort
 
+    priority_class : str, optional, default None
+        Kubernetes PriorityClass name to assign to the pod. This controls the
+        scheduling priority of the pod relative to other pods. The priority class
+        must already exist in the cluster. See
+        https://kubernetes.io/docs/concepts/scheduling-eviction/pod-priority-preemption/
     security_context: Dict[str, Any], optional, default None
         Container security context. Applies to the task container. Allows the following keys:
         - privileged: bool, optional, default None
@@ -167,12 +173,14 @@ class KubernetesDecorator(StepDecorator):
         "executable": None,
         "hostname_resolution_timeout": 10 * 60,
         "qos": KUBERNETES_QOS,
+        "priority_class": KUBERNETES_PRIORITY_CLASS,
         "security_context": None,
     }
     package_metadata = None
     package_url = None
     package_sha = None
     run_time_limit = None
+    _local_mode = False
 
     # Conda environment support
     supports_conda_environment = True
@@ -312,8 +320,17 @@ class KubernetesDecorator(StepDecorator):
 
     # Refer https://github.com/Netflix/metaflow/blob/master/docs/lifecycle.png
     def step_init(self, flow, graph, step, decos, environment, flow_datastore, logger):
-        # Executing Kubernetes jobs requires a non-local datastore.
+        # When @kubernetes is defined statically in source code but the user
+        # is running locally (e.g., `python flow.py run`), the decorator
+        # should act like @resources -- just provide resource hints without
+        # redirecting execution to Kubernetes. The decorator only redirects
+        # to Kubernetes when explicitly requested via `--with kubernetes`
+        # or through a deployer (Argo, Airflow, etc.).
         if flow_datastore.TYPE not in ("s3", "azure", "gs"):
+            if self.statically_defined:
+                # Local mode: act like @resources, skip K8s-specific setup.
+                self._local_mode = True
+                return
             raise KubernetesException(
                 "The *@kubernetes* decorator requires --datastore=s3 or --datastore=azure or --datastore=gs at the moment."
             )
@@ -438,6 +455,8 @@ class KubernetesDecorator(StepDecorator):
         # TODO: add validation to annotations as well?
 
     def package_init(self, flow, step_name, environment):
+        if self._local_mode:
+            return
         try:
             # Kubernetes is a soft dependency.
             from kubernetes import client, config
@@ -452,6 +471,8 @@ class KubernetesDecorator(StepDecorator):
             )
 
     def runtime_init(self, flow, graph, package, run_id):
+        if self._local_mode:
+            return
         # Set some more internal state.
         self.flow = flow
         self.graph = graph
@@ -461,6 +482,8 @@ class KubernetesDecorator(StepDecorator):
     def runtime_task_created(
         self, task_datastore, task_id, split_index, input_paths, is_cloned, ubf_context
     ):
+        if self._local_mode:
+            return
         # To execute the Kubernetes job, the job container needs to have
         # access to the code package. We store the package in the datastore
         # which the pod is able to download as part of it's entrypoint.
@@ -470,6 +493,8 @@ class KubernetesDecorator(StepDecorator):
     def runtime_step_cli(
         self, cli_args, retry_count, max_user_code_retries, ubf_context
     ):
+        if self._local_mode:
+            return
         if retry_count <= max_user_code_retries:
             # After all attempts to run the user code have failed, we don't need
             # to execute on Kubernetes anymore. We can execute possible fallback
