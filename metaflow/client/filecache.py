@@ -29,6 +29,22 @@ from metaflow.plugins import DATASTORES
 
 NEW_FILE_QUARANTINE = 10
 
+if sys.version_info[0] >= 3:
+    _replace = os.replace
+else:
+    import errno
+
+    def _replace(src, dst):
+        try:
+            os.rename(src, dst)
+        except OSError as e:
+            if e.errno == errno.EEXIST or (os.name == "nt" and e.errno in (13, 17)):
+                os.remove(dst)
+                os.rename(src, dst)
+            else:
+                raise
+
+
 if sys.version_info[0] >= 3 and sys.version_info[1] >= 2:
 
     def od_move_to_end(od, key):
@@ -279,7 +295,7 @@ class FileCache(object):
             os.fsync(tmpfile.fileno())
             tmpfile.close()
 
-            os.replace(tmpfile.name, path)
+            _replace(tmpfile.name, path)
 
         except Exception:  # noqa E722
             tmpfile.close()
