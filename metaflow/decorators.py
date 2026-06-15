@@ -939,11 +939,6 @@ def _init_step_decorators(
             inserted_by_value = [deco.decorator_name] + (deco.inserted_by or [])
 
             if isinstance(deco, StepMutator):
-                # We do not want to perform step mutation more than once due to this possibly having adverse effects when
-                # f.ex. attaching decorators with allow_multiple=True
-                if getattr(deco, "_mutate_called", False):
-                    continue
-
                 debug.userconf_exec(
                     "Evaluating step level decorator %s for %s (mutate)"
                     % (deco.__class__.__name__, step.name)
@@ -957,7 +952,6 @@ def _init_step_decorators(
                         inserted_by=inserted_by_value,
                     )
                 )
-                setattr(deco, "_mutate_called", True)
             else:
                 raise MetaflowInternalError(
                     "A non StepMutator found in step custom decorators"
@@ -1048,10 +1042,22 @@ def _process_late_attached_decorator(
             continue
         for deco in s.config_decorators:
             if isinstance(deco, StepMutator):
-                # We do not want to perform step mutation more than once due to this possibly having adverse effects when
-                # f.ex. attaching decorators with allow_multiple=True
-                if getattr(deco, "_mutate_called", False):
-                    continue
+                # Before re-running the mutator, remove any decorators it
+                # previously inserted in order to prevent adding duplicate decorators.
+                mutator_name = deco.decorator_name
+                s.decorators = [
+                    d
+                    for d in s.decorators
+                    if not (d.inserted_by and d.inserted_by[0] == mutator_name)
+                ]
+                s.wrappers = [
+                    d
+                    for d in (s.wrappers or [])
+                    if not (
+                        getattr(d, "inserted_by", None)
+                        and d.inserted_by[0] == mutator_name
+                    )
+                ]
                 inserted_by_value = [deco.decorator_name] + (deco.inserted_by or [])
                 debug.userconf_exec(
                     "Re-evaluating step level decorator %s for %s (mutate) after "
@@ -1066,7 +1072,6 @@ def _process_late_attached_decorator(
                         inserted_by=inserted_by_value,
                     )
                 )
-                setattr(deco, "_mutate_called", True)
                 mutators_ran = True
 
     # Rebuild the graph so node.decorators reflects mutator changes (OVERRIDE).
