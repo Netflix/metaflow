@@ -154,7 +154,7 @@ def kubernetes():
 )
 @click.option(
     "--extended-resources",
-   default=None,
+    default=None,
     type=JSONTypeClass(),
     multiple=False,
 )
