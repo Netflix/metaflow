@@ -1,14 +1,15 @@
 import importlib
 import json
 import os
-
+from collections.abc import Mapping
 from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 
 from metaflow._vendor import click
 from metaflow.debug import debug
 
-from .config_parameters import CONFIG_FILE, ConfigValue
+from .config_parameters import ConfigValue
 from ..exception import MetaflowException, MetaflowInternalError
+from ..packaging_sys import MetaflowCodeContent
 from ..parameters import DeployTimeField, ParameterContext, current_flow
 from ..util import get_username
 
@@ -24,12 +25,16 @@ _CONVERTED_DEFAULT_NO_FILE = _CONVERTED_DEFAULT + _NO_FILE
 
 def _load_config_values(info_file: Optional[str] = None) -> Optional[Dict[Any, Any]]:
     if info_file is None:
-        info_file = os.path.basename(CONFIG_FILE)
-    try:
-        with open(info_file, encoding="utf-8") as contents:
-            return json.load(contents).get("user_configs", {})
-    except IOError:
-        return None
+        config_content = MetaflowCodeContent.get_config()
+    else:
+        try:
+            with open(info_file, encoding="utf-8") as f:
+                config_content = json.load(f)
+        except IOError:
+            return None
+    if config_content:
+        return config_content.get("user_configs", {})
+    return None
 
 
 class ConvertPath(click.Path):
@@ -139,7 +144,7 @@ class ConfigInput:
         self,
         req_configs: List[str],
         defaults: Dict[str, Tuple[Union[str, Dict[Any, Any]], bool]],
-        parsers: Dict[str, Union[str, Callable[[str], Dict[Any, Any]]]],
+        parsers: Dict[str, Tuple[Union[str, Callable[[str], Dict[Any, Any]]], bool]],
     ):
         self._req_configs = set(req_configs)
         self._defaults = defaults
@@ -152,7 +157,7 @@ class ConfigInput:
         # Special mark to indicate that the configuration value is not content or a file
         # name but a value that should be read in the config file (effectively where
         # the value has already been materialized).
-        return "kv." + name.lower()
+        return "kv." + name
 
     @classmethod
     def set_config_file(cls, config_file: str):
@@ -169,7 +174,7 @@ class ConfigInput:
                     "Please contact support."
                 )
             cls.loaded_configs = all_configs
-        return cls.loaded_configs.get(config_name, None)
+        return cls.loaded_configs[config_name]
 
     def process_configs(
         self,
@@ -181,7 +186,7 @@ class ConfigInput:
         click_obj: Optional[Any] = None,
     ):
         from ..cli import echo_always, echo_dev_null  # Prevent circular import
-        from ..flowspec import _FlowState  # Prevent circular import
+        from ..flowspec import FlowStateItems  # Prevent circular import
 
         flow_cls = getattr(current_flow, "flow_cls", None)
         if flow_cls is None:
@@ -220,14 +225,14 @@ class ConfigInput:
         # and is clearer
         if param_name == "config_value":
             self._value_values = {
-                k.lower(): v
-                for k, v in param_value
+                k: v
+                for k, v in param_value.items()
                 if v is not None and not v.startswith(_CONVERTED_DEFAULT)
             }
         else:
             self._path_values = {
-                k.lower(): v
-                for k, v in param_value
+                k: v
+                for k, v in param_value.items()
                 if v is not None and not v.startswith(_CONVERTED_DEFAULT)
             }
         if do_return:
@@ -255,7 +260,6 @@ class ConfigInput:
             for k in all_keys
         )
 
-        flow_cls._flow_state[_FlowState.CONFIGS] = {}
         to_return = {}
 
         if not has_all_kv:
@@ -282,7 +286,7 @@ class ConfigInput:
             merged_configs = {}
             # Now look at everything (including defaults)
             for name, (val, is_path) in self._defaults.items():
-                n = name.lower()
+                n = name
                 if n in all_values:
                     # We have the value provided by the user -- use that.
                     merged_configs[n] = all_values[n]
@@ -326,45 +330,74 @@ class ConfigInput:
         for name, val in merged_configs.items():
             if val is None:
                 missing_configs.add(name)
-                continue
-            if val.startswith(_CONVERTED_DEFAULT_NO_FILE):
-                no_default_file.append(name)
+                to_return[name] = None
+                flow_cls._flow_state.self_data[FlowStateItems.CONFIGS][name] = (
+                    None,
+                    self._parsers[name][1],
+                )
                 continue
             if val.startswith(_CONVERTED_NO_FILE):
                 no_file.append(name)
                 continue
+            if val.startswith(_CONVERTED_DEFAULT_NO_FILE):
+                no_default_file.append(name)
+                continue
 
+            parser, is_plain = self._parsers[name]
             val = val[len(_CONVERT_PREFIX) :]  # Remove the _CONVERT_PREFIX
             if val.startswith(_DEFAULT_PREFIX):  # Remove the _DEFAULT_PREFIX if needed
                 val = val[len(_DEFAULT_PREFIX) :]
             if val.startswith("kv."):
                 # This means to load it from a file
-                read_value = self.get_config(val[3:])
-                if read_value is None:
+                try:
+                    read_value, read_is_plain = self.get_config(val[3:])
+                except KeyError as e:
                     exc = click.UsageError(
                         "Could not find configuration '%s' in INFO file" % val
                     )
                     if click_obj:
                         click_obj.delayed_config_exception = exc
                         return None
-                    raise exc
-                flow_cls._flow_state[_FlowState.CONFIGS][name] = read_value
-                to_return[name] = ConfigValue(read_value)
+                    raise exc from e
+                if read_is_plain != is_plain:
+                    raise click.UsageError(
+                        "Configuration '%s' mismatched `plain` attribute -- "
+                        "this is a bug, please report it." % val[3:]
+                    )
+                flow_cls._flow_state.self_data[FlowStateItems.CONFIGS][name] = (
+                    read_value,
+                    is_plain,
+                )
+                to_return[name] = (
+                    read_value
+                    if read_value is None or is_plain
+                    else ConfigValue(read_value)
+                )
             else:
-                if self._parsers[name]:
-                    read_value = self._call_parser(self._parsers[name], val)
+                if parser:
+                    read_value = self._call_parser(parser, val, is_plain)
                 else:
-                    try:
-                        read_value = json.loads(val)
-                    except json.JSONDecodeError as e:
-                        msgs.append(
-                            "configuration value for '%s' is not valid JSON: %s"
-                            % (name, e)
-                        )
-                        continue
-                    # TODO: Support YAML
-                flow_cls._flow_state[_FlowState.CONFIGS][name] = read_value
-                to_return[name] = ConfigValue(read_value)
+                    if is_plain:
+                        read_value = val
+                    else:
+                        try:
+                            read_value = json.loads(val)
+                        except json.JSONDecodeError as e:
+                            msgs.append(
+                                "configuration value for '%s' is not valid JSON: %s"
+                                % (name, e)
+                            )
+                            continue
+                        # TODO: Support YAML
+                flow_cls._flow_state.self_data[FlowStateItems.CONFIGS][name] = (
+                    read_value,
+                    is_plain,
+                )
+                to_return[name] = (
+                    read_value
+                    if read_value is None or is_plain
+                    else ConfigValue(read_value)
+                )
 
         reqs = missing_configs.intersection(self._req_configs)
         for missing in reqs:
@@ -395,7 +428,7 @@ class ConfigInput:
         return self.process_configs(
             ctx.obj.flow.name,
             param.name,
-            value,
+            dict(value),
             ctx.params["quiet"],
             ctx.params["datastore"],
             click_obj=ctx.obj,
@@ -408,7 +441,7 @@ class ConfigInput:
         return "ConfigInput"
 
     @staticmethod
-    def _call_parser(parser, val):
+    def _call_parser(parser, val, is_plain):
         if isinstance(parser, str):
             if len(parser) and parser[0] == ".":
                 parser = "metaflow" + parser
@@ -423,14 +456,20 @@ class ConfigInput:
                     "Parser %s is either not part of %s or not a callable"
                     % (func, path)
                 )
-        return parser(val)
+        return_value = parser(val)
+        if not is_plain and not isinstance(return_value, Mapping):
+            raise ValueError(
+                "Parser %s returned a value that is not a mapping (got type %s): %s"
+                % (str(parser), type(return_value), return_value)
+            )
+        return return_value
 
 
 class LocalFileInput(click.Path):
     # Small wrapper around click.Path to set the value from which to read configuration
     # values. This is set immediately upon processing the --local-config-file
     # option and will therefore then be available when processing any of the other
-    # --config options (which will call ConfigInput.process_configs
+    # --config options (which will call ConfigInput.process_configs)
     name = "LocalFileInput"
 
     def convert(self, value, param, ctx):
@@ -459,23 +498,22 @@ def config_options_with_config_input(cmd):
     # List all the configuration options
     for arg in parameters[::-1]:
         kwargs = arg.option_kwargs(False)
-        if arg.name.lower() in config_seen:
+        if arg.name in config_seen:
             msg = (
-                "Multiple configurations use the same name '%s'. Note that names are "
-                "case-insensitive. Please change the "
+                "Multiple configurations use the same name '%s'. Please change the "
                 "names of some of your configurations" % arg.name
             )
             raise MetaflowException(msg)
-        config_seen.add(arg.name.lower())
+        config_seen.add(arg.name)
         if kwargs["required"]:
             required_names.append(arg.name)
 
-        defaults[arg.name.lower()] = (
+        defaults[arg.name] = (
             arg.kwargs.get("default", None),
             arg._default_is_file,
         )
-        help_strs.append("  - %s: %s" % (arg.name.lower(), kwargs.get("help", "")))
-        parsers[arg.name.lower()] = arg.parser
+        help_strs.append("  - %s: %s" % (arg.name, kwargs.get("help", "")))
+        parsers[arg.name] = (arg.parser, arg.kwargs["plain"])
 
     if not config_seen:
         # No configurations -- don't add anything; we set it to False so that it
@@ -518,7 +556,7 @@ def config_options_with_config_input(cmd):
     cmd.params.insert(
         0,
         click.Option(
-            ["--config", "config_file"],
+            ["--config", "config"],
             nargs=2,
             multiple=True,
             type=MultipleTuple([click.Choice(config_seen), ConvertPath()]),

@@ -1,5 +1,9 @@
 import json
 
+from metaflow.metaflow_config import (
+    ARGO_EVENTS_SENSOR_NAMESPACE,
+    ARGO_WORKFLOWS_USE_SCHEDULES,
+)
 from metaflow.exception import MetaflowException
 from metaflow.plugins.kubernetes.kubernetes_client import KubernetesClient
 
@@ -58,21 +62,60 @@ class ArgoClient(object):
                 json.loads(e.body)["message"] if e.body is not None else e.reason
             )
 
-    def get_workflow_templates(self):
+    def get_cronworkflow(self, name):
         client = self._client.get()
         try:
-            return client.CustomObjectsApi().list_namespaced_custom_object(
+            return client.CustomObjectsApi().get_namespaced_custom_object(
                 group=self._group,
                 version=self._version,
                 namespace=self._namespace,
-                plural="workflowtemplates",
-            )["items"]
+                plural="cronworkflows",
+                name=name,
+            )
         except client.rest.ApiException as e:
             if e.status == 404:
                 return None
             raise ArgoClientException(
                 json.loads(e.body)["message"] if e.body is not None else e.reason
             )
+
+    def get_workflow_templates(self, page_size=100):
+        client = self._client.get()
+        continue_token = None
+
+        while True:
+            try:
+                params = {"limit": page_size}
+                if continue_token:
+                    params["_continue"] = continue_token
+
+                response = client.CustomObjectsApi().list_namespaced_custom_object(
+                    group=self._group,
+                    version=self._version,
+                    namespace=self._namespace,
+                    plural="workflowtemplates",
+                    **params,
+                )
+
+                for item in response.get("items", []):
+                    yield item
+
+                metadata = response.get("metadata", {})
+                continue_token = metadata.get("continue")
+
+                if not continue_token:
+                    break
+            except client.rest.ApiException as e:
+                error_body = json.loads(e.body) if e.body else {}
+                error_message = error_body.get("message", e.reason)
+                if e.status == 404:
+                    return None
+                elif e.status == 410 and error_body.get("reason") == "Expired":
+                    new_token = error_body.get("metadata", {}).get("continue")
+                    if new_token:
+                        continue_token = new_token
+                        continue
+                raise ArgoClientException(error_message)
 
     def register_workflow_template(self, name, workflow_template):
         # Unfortunately, Kubernetes client does not handle optimistic
@@ -256,12 +299,19 @@ class ArgoClient(object):
                 json.loads(e.body)["message"] if e.body is not None else e.reason
             )
 
-    def trigger_workflow_template(self, name, parameters={}):
+    def trigger_workflow_template(self, name, usertype, username, parameters={}):
         client = self._client.get()
         body = {
             "apiVersion": "argoproj.io/v1alpha1",
             "kind": "Workflow",
-            "metadata": {"generateName": name + "-"},
+            "metadata": {
+                "generateName": name + "-",
+                "annotations": {
+                    "metaflow/triggered_by_user": json.dumps(
+                        {"type": usertype, "name": username}
+                    )
+                },
+            },
             "spec": {
                 "workflowTemplateRef": {"name": name},
                 "arguments": {
@@ -288,6 +338,12 @@ class ArgoClient(object):
     def schedule_workflow_template(self, name, schedule=None, timezone=None):
         # Unfortunately, Kubernetes client does not handle optimistic
         # concurrency control by itself unlike kubectl
+        if ARGO_WORKFLOWS_USE_SCHEDULES:
+            # `schedules` is a list field; use an empty list (not null) when
+            # there is no schedule so the suspended CronWorkflow stays valid.
+            schedule_spec = {"schedules": [] if schedule is None else [schedule]}
+        else:
+            schedule_spec = {"schedule": schedule}
         client = self._client.get()
         body = {
             "apiVersion": "argoproj.io/v1alpha1",
@@ -295,11 +351,12 @@ class ArgoClient(object):
             "metadata": {"name": name},
             "spec": {
                 "suspend": schedule is None,
-                "schedule": schedule,
+                **schedule_spec,
                 "timezone": timezone,
                 "failedJobsHistoryLimit": 10000,  # default is unfortunately 1
                 "successfulJobsHistoryLimit": 10000,  # default is unfortunately 3
                 "workflowSpec": {"workflowTemplateRef": {"name": name}},
+                "startingDeadlineSeconds": 3540,  # configuring this to 59 minutes so a failed trigger of cron workflow can succeed at most 59 mins after scheduled execution
             },
         }
         try:
@@ -353,12 +410,15 @@ class ArgoClient(object):
                 json.loads(e.body)["message"] if e.body is not None else e.reason
             )
 
-    def register_sensor(self, name, sensor=None):
+    def register_sensor(
+        self, name, sensor=None, sensor_namespace=ARGO_EVENTS_SENSOR_NAMESPACE
+    ):
         if sensor is None:
             sensor = {}
         # Unfortunately, Kubernetes client does not handle optimistic
         # concurrency control by itself unlike kubectl
         client = self._client.get()
+
         if not sensor:
             sensor["metadata"] = {}
 
@@ -368,7 +428,7 @@ class ArgoClient(object):
             ] = client.CustomObjectsApi().get_namespaced_custom_object(
                 group=self._group,
                 version=self._version,
-                namespace=self._namespace,
+                namespace=sensor_namespace,
                 plural="sensors",
                 name=name,
             )[
@@ -383,7 +443,7 @@ class ArgoClient(object):
                     return client.CustomObjectsApi().create_namespaced_custom_object(
                         group=self._group,
                         version=self._version,
-                        namespace=self._namespace,
+                        namespace=sensor_namespace,
                         plural="sensors",
                         body=sensor,
                     )
@@ -401,7 +461,7 @@ class ArgoClient(object):
             return client.CustomObjectsApi().replace_namespaced_custom_object(
                 group=self._group,
                 version=self._version,
-                namespace=self._namespace,
+                namespace=sensor_namespace,
                 plural="sensors",
                 body=sensor,
                 name=name,
@@ -411,7 +471,7 @@ class ArgoClient(object):
                 json.loads(e.body)["message"] if e.body is not None else e.reason
             )
 
-    def delete_sensor(self, name):
+    def delete_sensor(self, name, sensor_namespace):
         """
         Issues an API call for deleting a sensor
 
@@ -423,7 +483,7 @@ class ArgoClient(object):
             return client.CustomObjectsApi().delete_namespaced_custom_object(
                 group=self._group,
                 version=self._version,
-                namespace=self._namespace,
+                namespace=sensor_namespace,
                 plural="sensors",
                 name=name,
             )

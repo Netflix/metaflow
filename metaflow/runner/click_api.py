@@ -1,74 +1,51 @@
 import os
 import sys
 
-if sys.version_info < (3, 7):
+_py_ver = sys.version_info[:2]
+
+if _py_ver >= (3, 8):
+    from metaflow._vendor.typeguard import TypeCheckError, check_type
+elif _py_ver >= (3, 7):
+    from metaflow._vendor.v3_7.typeguard import TypeCheckError, check_type
+else:
     raise RuntimeError(
         """
         The Metaflow Programmatic API is not supported for versions of Python less than 3.7
     """
     )
 
-import datetime
 import functools
 import importlib
 import inspect
 import itertools
-import uuid
 import json
 from collections import OrderedDict
-from typing import Any, Callable, Dict, List, Optional
+from typing import Any, Callable, Dict, List, Optional, Type
 from typing import OrderedDict as TOrderedDict
 from typing import Tuple as TTuple
 from typing import Union
 
 from metaflow import FlowSpec, Parameter
 from metaflow._vendor import click
-from metaflow._vendor.click.types import (
-    BoolParamType,
-    Choice,
-    DateTime,
-    File,
-    FloatParamType,
-    IntParamType,
-    Path,
-    StringParamType,
-    Tuple,
-    UUIDParameterType,
-)
-from metaflow._vendor.typeguard import TypeCheckError, check_type
 from metaflow.decorators import add_decorator_options
 from metaflow.exception import MetaflowException
-from metaflow.includefile import FilePathClass
-from metaflow.metaflow_config import CLICK_API_PROCESS_CONFIG
-from metaflow.parameters import JSONTypeClass, flow_context
+from metaflow.flowspec import FlowStateItems
+from metaflow.metaflow_config import (
+    CLICK_API_PROCESS_CONFIG,
+    JSON,
+    get_click_to_python_types,
+)
+from metaflow.parameters import flow_context
 from metaflow.user_configs.config_options import (
     ConfigValue,
     ConvertDictOrStr,
     ConvertPath,
-    LocalFileInput,
-    MultipleTuple,
     config_options_with_config_input,
 )
+from metaflow.user_decorators.user_flow_decorator import FlowMutator
 
-# Define a recursive type alias for JSON
-JSON = Union[Dict[str, "JSON"], List["JSON"], str, int, float, bool, None]
-
-click_to_python_types = {
-    StringParamType: str,
-    IntParamType: int,
-    FloatParamType: float,
-    BoolParamType: bool,
-    UUIDParameterType: uuid.UUID,
-    Path: str,
-    DateTime: datetime.datetime,
-    Tuple: tuple,
-    Choice: str,
-    File: str,
-    JSONTypeClass: JSON,
-    FilePathClass: str,
-    LocalFileInput: str,
-    MultipleTuple: TTuple[str, Union[JSON, ConfigValue]],
-}
+# Import Click type mappings from config (allows extensions to add custom types)
+click_to_python_types = get_click_to_python_types()
 
 
 def _method_sanity_check(
@@ -96,8 +73,14 @@ def _method_sanity_check(
             check_type(supplied_v, annotations[supplied_k])
         except TypeCheckError:
             raise TypeError(
-                "Invalid type for '%s', expected: '%s', default is '%s'"
-                % (supplied_k, annotations[supplied_k], defaults[supplied_k])
+                "Invalid type for '%s' (%s), expected: '%s', default is '%s' but found '%s'"
+                % (
+                    supplied_k,
+                    type(supplied_k),
+                    annotations[supplied_k],
+                    defaults[supplied_k],
+                    str(supplied_v),
+                )
             )
 
         # Clean up values to make them into what click expects
@@ -153,13 +136,23 @@ def _method_sanity_check(
     return method_params
 
 
+def _cleanup_flow_parameters(cmd_obj: Union[click.Command, click.Group]):
+    if hasattr(cmd_obj, "original_params"):
+        cmd_obj.params = list(cmd_obj.original_params)
+
+    if isinstance(cmd_obj, click.Group):
+        for sub_cmd_name in cmd_obj.list_commands(None):
+            sub_cmd = cmd_obj.get_command(None, sub_cmd_name)
+            if sub_cmd:
+                _cleanup_flow_parameters(sub_cmd)
+
+
 def _lazy_load_command(
     cli_collection: click.Group,
     flow_parameters: Union[str, List[Parameter]],
     _self,
     name: str,
 ):
-
     # Context is not used in get_command so we can pass None. Since we pin click,
     # this won't change from under us.
 
@@ -169,6 +162,7 @@ def _lazy_load_command(
         flow_parameters = getattr(_self, flow_parameters)()
     cmd_obj = cli_collection.get_command(None, name)
     if cmd_obj:
+        _cleanup_flow_parameters(cmd_obj)
         if isinstance(cmd_obj, click.Group):
             # TODO: possibly check for fake groups with cmd_obj.name in ["cli", "main"]
             result = functools.partial(extract_group(cmd_obj, flow_parameters), _self)
@@ -184,26 +178,39 @@ def _lazy_load_command(
         raise AttributeError()
 
 
-def get_annotation(param: Union[click.Argument, click.Option]):
+def get_annotation(param: click.Parameter) -> TTuple[Type, bool]:
     py_type = click_to_python_types[type(param.type)]
+    if param.nargs == -1:
+        # This is the equivalent of *args effectively
+        # so the type annotation should be the type of the
+        # elements in the list
+        return py_type, True
     if not param.required:
-        if param.multiple or param.nargs == -1:
-            return Optional[List[py_type]]
+        if param.multiple or param.nargs > 1:
+            return Optional[Union[List[py_type], TTuple[py_type]]], False
         else:
-            return Optional[py_type]
+            return Optional[py_type], False
     else:
-        if param.multiple or param.nargs == -1:
-            return List[py_type]
+        if param.multiple or param.nargs > 1:
+            return Union[List[py_type], TTuple[py_type]], False
         else:
-            return py_type
+            return py_type, False
 
 
 def get_inspect_param_obj(p: Union[click.Argument, click.Option], kind: str):
-    return inspect.Parameter(
-        name=p.name,
-        kind=kind,
-        default=p.default,
-        annotation=get_annotation(p),
+    annotation, is_vararg = get_annotation(p)
+    return (
+        inspect.Parameter(
+            name="args" if is_vararg else p.name,
+            kind=inspect.Parameter.VAR_POSITIONAL if is_vararg else kind,
+            default=inspect.Parameter.empty if is_vararg else p.default,
+            annotation=annotation,
+        ),
+        (
+            Optional[Union[TTuple[annotation], List[annotation]]]
+            if is_vararg
+            else annotation
+        ),
     )
 
 
@@ -224,22 +231,34 @@ def extract_flow_class_from_file(flow_file: str) -> FlowSpec:
         path_was_added = True
 
     try:
+        # Get module name from the file path
+        module_name = os.path.splitext(os.path.basename(flow_file))[0]
+
         # Check if the module has already been loaded
         if flow_file in loaded_modules:
             module = loaded_modules[flow_file]
         else:
             # Load the module if it's not already loaded
-            spec = importlib.util.spec_from_file_location("module", flow_file)
+            spec = importlib.util.spec_from_file_location(module_name, flow_file)
             module = importlib.util.module_from_spec(spec)
             spec.loader.exec_module(module)
             # Cache the loaded module
             loaded_modules[flow_file] = module
-        classes = inspect.getmembers(module, inspect.isclass)
 
+        classes = inspect.getmembers(
+            module, lambda x: inspect.isclass(x) or isinstance(x, FlowMutator)
+        )
         flow_cls = None
+
         for _, kls in classes:
-            if kls != FlowSpec and issubclass(kls, FlowSpec):
-                if flow_cls is not None:
+            if isinstance(kls, FlowMutator):
+                kls = kls._flow_cls
+            if (
+                kls is not FlowSpec
+                and kls.__module__ == module_name
+                and issubclass(kls, FlowSpec)
+            ):
+                if flow_cls is not None and flow_cls != kls:
                     raise MetaflowException(
                         "Multiple FlowSpec classes found in %s" % flow_file
                     )
@@ -302,8 +321,10 @@ class MetaflowAPI(object):
         class_dict = {
             "__module__": "metaflow",
             "_API_NAME": flow_file,
-            "_internal_getattr": functools.partial(
-                _lazy_load_command, cli_collection, "_compute_flow_parameters"
+            "_internal_getattr": staticmethod(
+                functools.partial(
+                    _lazy_load_command, cli_collection, "_compute_flow_parameters"
+                )
             ),
             "__getattr__": getattr_wrapper,
         }
@@ -319,7 +340,7 @@ class MetaflowAPI(object):
             defaults,
         ) = extract_all_params(cli_collection)
 
-        def _method(_self, **kwargs):
+        def _method(_self, *args, **kwargs):
             method_params = _method_sanity_check(
                 possible_arg_params,
                 possible_opt_params,
@@ -365,12 +386,16 @@ class MetaflowAPI(object):
                 options = params.pop("options", {})
 
                 for _, v in args.items():
-                    if isinstance(v, list):
+                    if v is None:
+                        continue
+                    if isinstance(v, (list, tuple)):
                         for i in v:
                             components.append(i)
                     else:
                         components.append(v)
                 for k, v in options.items():
+                    if v is None:
+                        continue
                     if isinstance(v, list):
                         for i in v:
                             if isinstance(i, tuple):
@@ -379,6 +404,9 @@ class MetaflowAPI(object):
                             else:
                                 components.append("--%s" % k)
                                 components.append(str(i))
+                    elif v is None:
+                        continue  # Skip None values -- they are defaults and converting
+                        # them to string will not be what the user wants
                     else:
                         components.append("--%s" % k)
                         if v != "flag":
@@ -416,31 +444,62 @@ class MetaflowAPI(object):
 
                 ds = opts.get("datastore", defaults["datastore"])
                 quiet = opts.get("quiet", defaults["quiet"])
+
+                # Order to find config or config_value:
+                # 1. Passed directly to the Click API
+                # 2. If not found, check if passed through an environment variable
+                # 3. If not found, use the default value
                 is_default = False
-                config_file = opts.get("config-file")
+                config_file = opts.get("config")
                 if config_file is None:
-                    is_default = True
-                    config_file = defaults.get("config_file")
+                    # Check if it was set through an environment variable -- we
+                    # don't have click process them here so we need to "fake" it.
+                    env_config_file = os.environ.get("METAFLOW_FLOW_CONFIG")
+                    if env_config_file:
+                        # Convert dict items to list of tuples
+                        config_file = list(json.loads(env_config_file).items())
+                        is_default = False
+                    else:
+                        is_default = True
+                        config_file = defaults.get("config")
 
                 if config_file:
-                    config_file = map(
-                        lambda x: (x[0], ConvertPath.convert_value(x[1], is_default)),
-                        config_file,
+                    config_file = dict(
+                        map(
+                            lambda x: (
+                                x[0],
+                                ConvertPath.convert_value(x[1], is_default),
+                            ),
+                            config_file,
+                        )
                     )
 
                 is_default = False
                 config_value = opts.get("config-value")
                 if config_value is None:
-                    is_default = True
-                    config_value = defaults.get("config_value")
+                    env_config_value = os.environ.get("METAFLOW_FLOW_CONFIG_VALUE")
+                    if env_config_value:
+                        # Parse environment variable using MultipleTuple logic
+                        loaded = json.loads(env_config_value)
+                        # Convert dict items to list of tuples with JSON-serialized values
+                        config_value = [
+                            (k, json.dumps(v) if not isinstance(v, str) else v)
+                            for k, v in loaded.items()
+                        ]
+                        is_default = False
+                    else:
+                        is_default = True
+                        config_value = defaults.get("config_value")
 
                 if config_value:
-                    config_value = map(
-                        lambda x: (
-                            x[0],
-                            ConvertDictOrStr.convert_value(x[1], is_default),
-                        ),
-                        config_value,
+                    config_value = dict(
+                        map(
+                            lambda x: (
+                                x[0],
+                                ConvertDictOrStr.convert_value(x[1], is_default),
+                            ),
+                            config_value,
+                        )
                     )
 
                 if (config_file is None) ^ (config_value is None):
@@ -453,7 +512,7 @@ class MetaflowAPI(object):
                     # Process both configurations; the second one will return all the merged
                     # configuration options properly processed.
                     self._config_input.process_configs(
-                        self._flow_cls.__name__, "config_file", config_file, quiet, ds
+                        self._flow_cls.__name__, "config", config_file, quiet, ds
                     )
                     config_options = self._config_input.process_configs(
                         self._flow_cls.__name__, "config_value", config_value, quiet, ds
@@ -461,12 +520,16 @@ class MetaflowAPI(object):
 
         # At this point, we are like in start() in cli.py -- we obtained the
         # properly processed config_options which we can now use to process
-        # the config decorators (including CustomStep/FlowDecorators)
+        # the config decorators (including StepMutator/FlowMutator)
         # Note that if CLICK_API_PROCESS_CONFIG is False, we still do this because
         # it will init all parameters (config_options will be None)
         # We ignore any errors if we don't check the configs in the click API.
+
+        # Process config decorators (this is the pre_mutate phase for both flow mutators
+        # and step mutators -- the mutate is called in init_step_decorators)
+
         new_cls = self._flow_cls._process_config_decorators(
-            config_options, ignore_errors=not CLICK_API_PROCESS_CONFIG
+            config_options, process_configs=CLICK_API_PROCESS_CONFIG
         )
         if new_cls:
             self._flow_cls = new_cls
@@ -490,17 +553,18 @@ def extract_all_params(cmd_obj: Union[click.Command, click.Group]):
 
     for each_param in cmd_obj.params:
         if isinstance(each_param, click.Argument):
-            arg_params_sigs[each_param.name] = get_inspect_param_obj(
-                each_param, inspect.Parameter.POSITIONAL_ONLY
-            )
+            (
+                arg_params_sigs[each_param.name],
+                annotations[each_param.name],
+            ) = get_inspect_param_obj(each_param, inspect.Parameter.POSITIONAL_ONLY)
             arg_parameters[each_param.name] = each_param
         elif isinstance(each_param, click.Option):
-            opt_params_sigs[each_param.name] = get_inspect_param_obj(
-                each_param, inspect.Parameter.KEYWORD_ONLY
-            )
+            (
+                opt_params_sigs[each_param.name],
+                annotations[each_param.name],
+            ) = get_inspect_param_obj(each_param, inspect.Parameter.KEYWORD_ONLY)
             opt_parameters[each_param.name] = each_param
 
-        annotations[each_param.name] = get_annotation(each_param)
         defaults[each_param.name] = each_param.default
 
     # first, fill in positional arguments
@@ -537,7 +601,7 @@ def extract_group(cmd_obj: click.Group, flow_parameters: List[Parameter]) -> Cal
         defaults,
     ) = extract_all_params(cmd_obj)
 
-    def _method(_self, **kwargs):
+    def _method(_self, *args, **kwargs):
         method_params = _method_sanity_check(
             possible_arg_params, possible_opt_params, annotations, defaults, **kwargs
         )
@@ -570,7 +634,7 @@ def extract_command(
         defaults,
     ) = extract_all_params(cmd_obj)
 
-    def _method(_self, **kwargs):
+    def _method(_self, *args, **kwargs):
         method_params = _method_sanity_check(
             possible_arg_params, possible_opt_params, annotations, defaults, **kwargs
         )
@@ -608,6 +672,7 @@ if __name__ == "__main__":
         .kubernetes()
         .step(
             step_name="process",
+            code_package_metadata="some_version",
             code_package_sha="some_sha",
             code_package_url="some_url",
         )

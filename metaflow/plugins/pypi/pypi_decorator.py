@@ -24,12 +24,12 @@ class PyPIStepDecorator(StepDecorator):
     name = "pypi"
     defaults = {"packages": {}, "python": None, "disabled": None}  # wheels
 
-    def __init__(self, attributes=None, statically_defined=False):
+    def __init__(self, attributes=None, statically_defined=False, inserted_by=None):
         self._attributes_with_user_values = (
             set(attributes.keys()) if attributes is not None else set()
         )
 
-        super().__init__(attributes, statically_defined)
+        super().__init__(attributes, statically_defined, inserted_by)
 
     def step_init(self, flow, graph, step, decos, environment, flow_datastore, logger):
         # The init_environment hook for Environment creates the relevant virtual
@@ -128,12 +128,12 @@ class PyPIFlowDecorator(FlowDecorator):
     name = "pypi_base"
     defaults = {"packages": {}, "python": None, "disabled": None}
 
-    def __init__(self, attributes=None, statically_defined=False):
+    def __init__(self, attributes=None, statically_defined=False, inserted_by=None):
         self._attributes_with_user_values = (
             set(attributes.keys()) if attributes is not None else set()
         )
 
-        super().__init__(attributes, statically_defined)
+        super().__init__(attributes, statically_defined, inserted_by)
 
     def flow_init(
         self, flow, graph, environment, flow_datastore, metadata, logger, echo, options
@@ -141,7 +141,14 @@ class PyPIFlowDecorator(FlowDecorator):
         from metaflow import decorators
 
         decorators._attach_decorators(flow, ["pypi"])
-        decorators._init(flow)
+        decorators._process_late_attached_decorator(
+            ["pypi"],
+            flow,
+            graph,
+            environment,
+            flow_datastore,
+            logger,
+        )
 
         # @pypi uses a conda environment to create a virtual environment.
         # The conda environment can be created through micromamba.

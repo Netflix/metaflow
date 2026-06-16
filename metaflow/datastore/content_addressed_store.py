@@ -38,7 +38,7 @@ class ContentAddressedStore(object):
     def set_blob_cache(self, blob_cache):
         self._blob_cache = blob_cache
 
-    def save_blobs(self, blob_iter, raw=False, len_hint=0):
+    def save_blobs(self, blob_iter, raw=False, len_hint=0, is_transfer=False):
         """
         Saves blobs of data to the datastore
 
@@ -60,11 +60,16 @@ class ContentAddressedStore(object):
 
         Parameters
         ----------
-        blob_iter : Iterator over bytes objects to save
-        raw : bool, optional
+        blob_iter : Iterator
+            Iterator over bytes objects to save
+        raw : bool, default False
             Whether to save the bytes directly or process them, by default False
-        len_hint : Hint of the number of blobs that will be produced by the
+        len_hint : int, default 0
+            Hint of the number of blobs that will be produced by the
             iterator, by default 0
+        is_transfer : bool, default False
+            If True, this indicates we are saving blobs directly from the output of another
+            content addressed store's
 
         Returns
         -------
@@ -76,6 +81,20 @@ class ContentAddressedStore(object):
 
         def packing_iter():
             for blob in blob_iter:
+                if is_transfer:
+                    key, blob_data, meta = blob
+                    path = self._storage_impl.path_join(self._prefix, key[:2], key)
+                    # Transfer data is always raw/decompressed, so mark it as such
+                    meta_corrected = {"cas_raw": True, "cas_version": 1}
+
+                    results.append(
+                        self.save_blobs_result(
+                            uri=self._storage_impl.full_uri(path),
+                            key=key,
+                        )
+                    )
+                    yield path, (BytesIO(blob_data), meta_corrected)
+                    continue
                 sha = sha1(blob).hexdigest()
                 path = self._storage_impl.path_join(self._prefix, sha[:2], sha)
                 results.append(
@@ -100,7 +119,7 @@ class ContentAddressedStore(object):
         self._storage_impl.save_bytes(packing_iter(), overwrite=True, len_hint=len_hint)
         return results
 
-    def load_blobs(self, keys, force_raw=False):
+    def load_blobs(self, keys, force_raw=False, is_transfer=False):
         """
         Mirror function of save_blobs
 
@@ -111,15 +130,20 @@ class ContentAddressedStore(object):
         ----------
         keys : List of string
             Key describing the object to load
-        force_raw : bool, optional
+        force_raw : bool, default False
             Support for backward compatibility with previous datastores. If
             True, this will force the key to be loaded as is (raw). By default,
             False
+        is_transfer : bool, default False
+            If True, this indicates we are loading blobs to transfer them directly
+            to another datastore. We will, in this case, also transfer the metadata
+            and do minimal processing. This is for internal use only.
 
         Returns
         -------
         Returns an iterator of (string, bytes) tuples; the iterator may return keys
-        in a different order than were passed in.
+        in a different order than were passed in. If is_transfer is True, the tuple
+        has three elements with the third one being the metadata.
         """
         load_paths = []
         for key in keys:
@@ -127,7 +151,11 @@ class ContentAddressedStore(object):
             if self._blob_cache:
                 blob = self._blob_cache.load_key(key)
             if blob is not None:
-                yield key, blob
+                if is_transfer:
+                    # Cached blobs are decompressed/processed bytes regardless of original format
+                    yield key, blob, {"cas_raw": False, "cas_version": 1}
+                else:
+                    yield key, blob
             else:
                 path = self._storage_impl.path_join(self._prefix, key[:2], key)
                 load_paths.append((key, path))
@@ -149,7 +177,8 @@ class ContentAddressedStore(object):
                             version = meta.get("cas_version", -1)
                             if version == -1:
                                 raise DataException(
-                                    "Could not extract encoding version for '%s'" % path
+                                    "Could not extract encoding version for '%s'"
+                                    % path_key
                                 )
                             unpack_code = getattr(self, "_unpack_v%d" % version, None)
                             if unpack_code is None:
@@ -157,19 +186,22 @@ class ContentAddressedStore(object):
                                     "Unknown encoding version %d for '%s' -- "
                                     "the artifact is either corrupt or you "
                                     "need to update Metaflow to the latest "
-                                    "version" % (version, path)
+                                    "version" % (version, path_key)
                                 )
                         try:
                             blob = unpack_code(f)
                         except Exception as e:
                             raise DataException(
-                                "Could not unpack artifact '%s': %s" % (path, e)
+                                "Could not unpack artifact '%s': %s" % (path_key, e)
                             )
 
                 if self._blob_cache:
                     self._blob_cache.store_key(key, blob)
 
-                yield key, blob
+                if is_transfer:
+                    yield key, blob, meta  # Preserve exact original metadata from storage
+                else:
+                    yield key, blob
 
     def _unpack_backward_compatible(self, blob):
         # This is the backward compatible unpack

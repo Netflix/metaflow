@@ -3,11 +3,55 @@ from metaflow_test import MetaflowTest, ExpectationFailed, steps
 
 class BasicForeachTest(MetaflowTest):
     PRIORITY = 0
+    SKIP_GRAPHS = [
+        "simple_switch",
+        "nested_switch",
+        "branch_in_switch",
+        "foreach_in_switch",
+        "switch_in_branch",
+        "switch_in_foreach",
+        "recursive_switch",
+        "recursive_switch_inside_foreach",
+    ]
 
     @steps(0, ["foreach-split"], required=True)
     def split(self):
         self.my_index = None
-        self.arr = range(32)
+        # Non-monotonic to catch foreach join ordering bugs
+        self.arr = [
+            26,
+            5,
+            10,
+            15,
+            25,
+            11,
+            22,
+            6,
+            19,
+            12,
+            16,
+            9,
+            28,
+            14,
+            24,
+            20,
+            30,
+            1,
+            13,
+            18,
+            2,
+            17,
+            21,
+            3,
+            29,
+            4,
+            27,
+            31,
+            8,
+            23,
+            0,
+            7,
+        ]
 
     @steps(0, ["foreach-inner"], required=True)
     def inner(self):
@@ -20,8 +64,44 @@ class BasicForeachTest(MetaflowTest):
 
     @steps(0, ["foreach-join"], required=True)
     def join(self, inputs):
-        got = sorted([inp.my_input for inp in inputs])
-        assert_equals(list(range(32)), got)
+        got = [inp.my_input for inp in inputs]
+        assert_equals(
+            [
+                26,
+                5,
+                10,
+                15,
+                25,
+                11,
+                22,
+                6,
+                19,
+                12,
+                16,
+                9,
+                28,
+                14,
+                24,
+                20,
+                30,
+                1,
+                13,
+                18,
+                2,
+                17,
+                21,
+                3,
+                29,
+                4,
+                27,
+                31,
+                8,
+                23,
+                0,
+                7,
+            ],
+            got,
+        )
 
     @steps(1, ["all"])
     def step_all(self):

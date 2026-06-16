@@ -1,0 +1,13 @@
+{
+    "name": "recursive_switch",
+    "graph": {
+        "start": { "linear": "loop_step", "quals": ["start"] },
+        "loop_step": {
+            "switch": { "continue": "loop_step", "exit": "exit_loop" },
+            "condition": "loop_status",
+            "quals": ["loop"]
+        },
+        "exit_loop": { "linear": "end", "quals": ["exit"] },
+        "end": { "quals": ["end"] }
+    }
+}

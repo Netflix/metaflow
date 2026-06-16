@@ -1,0 +1,12 @@
+{
+    "name": "switch_in_branch",
+    "graph": {
+        "start": {"branch": ["a", "b"], "quals": ["start-split"]},
+        "a": { "switch": {"case1": "c", "case2": "d"}, "condition": "condition", "quals": ["switch-a"] },
+        "b": {"linear": "join", "quals": ["branch-b"]},
+        "c": {"linear": "join", "quals": ["branch-c"]},
+        "d": {"linear": "join", "quals": ["branch-d"]},
+        "join": {"linear": "end", "join": true, "quals": ["join"]},
+        "end": {"quals": ["end"]}
+    }
+}

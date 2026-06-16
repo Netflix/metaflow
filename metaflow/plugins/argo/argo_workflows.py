@@ -1,12 +1,15 @@
 import base64
 import json
 import os
+import random
 import re
 import shlex
+import string
 import sys
 from collections import defaultdict
 from hashlib import sha1
 from math import inf
+from typing import List
 
 from metaflow import JSONType, current
 from metaflow.decorators import flow_decorators
@@ -18,6 +21,7 @@ from metaflow.metaflow_config import (
     ARGO_EVENTS_EVENT_BUS,
     ARGO_EVENTS_EVENT_SOURCE,
     ARGO_EVENTS_INTERNAL_WEBHOOK_URL,
+    ARGO_EVENTS_SENSOR_NAMESPACE,
     ARGO_EVENTS_SERVICE_ACCOUNT,
     ARGO_EVENTS_WEBHOOK_AUTH,
     ARGO_WORKFLOWS_CAPTURE_ERROR_SCRIPT,
@@ -64,10 +68,16 @@ from metaflow.util import (
 )
 
 from .argo_client import ArgoClient
+from .exit_hooks import ExitHookHack, HttpExitHook, ContainerHook
+from metaflow.util import resolve_identity
 
 
 class ArgoWorkflowsException(MetaflowException):
     headline = "Argo Workflows error"
+
+
+class ArgoWorkflowsSensorCleanupException(MetaflowException):
+    headline = "Argo Workflows sensor clean up error"
 
 
 class ArgoWorkflowsSchedulingException(MetaflowException):
@@ -77,13 +87,9 @@ class ArgoWorkflowsSchedulingException(MetaflowException):
 # List of future enhancements -
 #     1. Configure Argo metrics.
 #     2. Support resuming failed workflows within Argo Workflows.
-#     3. Support gang-scheduled clusters for distributed PyTorch/TF - One option is to
-#        use volcano - https://github.com/volcano-sh/volcano/tree/master/example/integrations/argo
-#     4. Support GitOps workflows.
-#     5. Add Metaflow tags to labels/annotations.
-#     6. Support Multi-cluster scheduling - https://github.com/argoproj/argo-workflows/issues/3523#issuecomment-792307297
-#     7. Support R lang.
-#     8. Ping @savin at slack.outerbounds.co for any feature request
+#     3. Add Metaflow tags to labels/annotations.
+#     4. Support R lang.
+#     5. Ping @savin at slack.outerbounds.co for any feature request
 
 
 class ArgoWorkflows(object):
@@ -92,6 +98,7 @@ class ArgoWorkflows(object):
         name,
         graph: FlowGraph,
         flow,
+        code_package_metadata,
         code_package_sha,
         code_package_url,
         production_token,
@@ -111,8 +118,13 @@ class ArgoWorkflows(object):
         notify_on_success=False,
         notify_slack_webhook_url=None,
         notify_pager_duty_integration_key=None,
+        notify_incident_io_api_key=None,
+        incident_io_alert_source_config_id=None,
+        incident_io_metadata: List[str] = None,
         enable_heartbeat_daemon=True,
         enable_error_msg_capture=False,
+        workflow_title=None,
+        workflow_description=None,
     ):
         # Some high-level notes -
         #
@@ -140,7 +152,9 @@ class ArgoWorkflows(object):
 
         self.name = name
         self.graph = graph
+        self._parse_conditional_branches()
         self.flow = flow
+        self.code_package_metadata = code_package_metadata
         self.code_package_sha = code_package_sha
         self.code_package_url = code_package_url
         self.production_token = production_token
@@ -160,8 +174,15 @@ class ArgoWorkflows(object):
         self.notify_on_success = notify_on_success
         self.notify_slack_webhook_url = notify_slack_webhook_url
         self.notify_pager_duty_integration_key = notify_pager_duty_integration_key
+        self.notify_incident_io_api_key = notify_incident_io_api_key
+        self.incident_io_alert_source_config_id = incident_io_alert_source_config_id
+        self.incident_io_metadata = self.parse_incident_io_metadata(
+            incident_io_metadata
+        )
         self.enable_heartbeat_daemon = enable_heartbeat_daemon
         self.enable_error_msg_capture = enable_error_msg_capture
+        self.workflow_title = workflow_title
+        self.workflow_description = workflow_description
         self.parameters = self._process_parameters()
         self.config_parameters = self._process_config_parameters()
         self.triggers, self.trigger_options = self._process_triggers()
@@ -176,6 +197,7 @@ class ArgoWorkflows(object):
         return str(self._workflow_template)
 
     def deploy(self):
+        self.cleanup_previous_sensors()
         try:
             # Register workflow template.
             ArgoClient(namespace=KUBERNETES_NAMESPACE).register_workflow_template(
@@ -183,6 +205,37 @@ class ArgoWorkflows(object):
             )
         except Exception as e:
             raise ArgoWorkflowsException(str(e))
+
+    def cleanup_previous_sensors(self):
+        try:
+            client = ArgoClient(namespace=KUBERNETES_NAMESPACE)
+            # Check for existing deployment and do cleanup
+            old_template = client.get_workflow_template(self.name)
+            if not old_template:
+                return None
+            # Clean up old sensors
+            old_sensor_namespace = old_template["metadata"]["annotations"].get(
+                "metaflow/sensor_namespace"
+            )
+
+            if old_sensor_namespace is None:
+                # This workflow was created before sensor annotations
+                # and may have a sensor in the default namespace
+                # we will delete it and it'll get recreated if need be
+                old_sensor_name = ArgoWorkflows._sensor_name(self.name)
+                client.delete_sensor(old_sensor_name, client._namespace)
+            else:
+                # delete old sensor only if it was somewhere else, otherwise it'll get replaced
+                old_sensor_name = old_template["metadata"]["annotations"][
+                    "metaflow/sensor_name"
+                ]
+                if (
+                    not self._sensor
+                    or old_sensor_namespace != ARGO_EVENTS_SENSOR_NAMESPACE
+                ):
+                    client.delete_sensor(old_sensor_name, old_sensor_namespace)
+        except Exception as e:
+            raise ArgoWorkflowsSensorCleanupException(str(e))
 
     @staticmethod
     def _sanitize(name):
@@ -198,27 +251,32 @@ class ArgoWorkflows(object):
         return name.replace(".", "-")
 
     @staticmethod
-    def list_templates(flow_name, all=False):
+    def list_templates(flow_name, all=False, page_size=100):
         client = ArgoClient(namespace=KUBERNETES_NAMESPACE)
 
-        templates = client.get_workflow_templates()
-        if templates is None:
-            return []
-
-        template_names = [
-            template["metadata"]["name"]
-            for template in templates
-            if all
-            or flow_name
-            == template["metadata"]
-            .get("annotations", {})
-            .get("metaflow/flow_name", None)
-        ]
-        return template_names
+        for template in client.get_workflow_templates(page_size=page_size):
+            if all or flow_name == template["metadata"].get("annotations", {}).get(
+                "metaflow/flow_name", None
+            ):
+                yield template["metadata"]["name"]
 
     @staticmethod
     def delete(name):
         client = ArgoClient(namespace=KUBERNETES_NAMESPACE)
+
+        # the workflow template might not exist, but we still want to try clean up associated sensors and schedules.
+        workflow_template = client.get_workflow_template(name) or {}
+        workflow_annotations = workflow_template.get("metadata", {}).get(
+            "annotations", {}
+        )
+
+        sensor_name = ArgoWorkflows._sensor_name(
+            workflow_annotations.get("metaflow/sensor_name", name)
+        )
+        # if below is missing then it was deployed before custom sensor namespaces
+        sensor_namespace = workflow_annotations.get(
+            "metaflow/sensor_namespace", KUBERNETES_NAMESPACE
+        )
 
         # Always try to delete the schedule. Failure in deleting the schedule should not
         # be treated as an error, due to any of the following reasons
@@ -229,7 +287,7 @@ class ArgoWorkflows(object):
 
         # The workflow might have sensors attached to it, which consume actual resources.
         # Try to delete these as well.
-        sensor_deleted = client.delete_sensor(ArgoWorkflows._sensor_name(name))
+        sensor_deleted = client.delete_sensor(sensor_name, sensor_namespace)
 
         # After cleaning up related resources, delete the workflow in question.
         # Failure in deleting is treated as critical and will be made visible to the user
@@ -253,6 +311,7 @@ class ArgoWorkflows(object):
                     flow_name=flow_name, run_id=name
                 )
             )
+        return True
 
     @staticmethod
     def get_workflow_status(flow_name, name):
@@ -286,6 +345,21 @@ class ArgoWorkflows(object):
 
         return True
 
+    @staticmethod
+    def parse_incident_io_metadata(metadata: List[str] = None):
+        "parse key value pairs into a dict for incident.io metadata if given"
+        parsed_metadata = None
+        if metadata is not None:
+            parsed_metadata = {}
+            for kv in metadata:
+                key, value = kv.split("=", 1)
+                if key in parsed_metadata:
+                    raise MetaflowException(
+                        "Incident.io Metadata *%s* provided multiple times" % key
+                    )
+                parsed_metadata[key] = value
+        return parsed_metadata
+
     @classmethod
     def trigger(cls, name, parameters=None):
         if parameters is None:
@@ -313,8 +387,16 @@ class ArgoWorkflows(object):
                     "Workflows before proceeding." % name
                 )
         try:
+            id_parts = resolve_identity().split(":")
+            parts_size = len(id_parts)
+            usertype = id_parts[0] if parts_size > 0 else "unknown"
+            username = id_parts[1] if parts_size > 1 else "unknown"
+
             return ArgoClient(namespace=KUBERNETES_NAMESPACE).trigger_workflow_template(
-                name, parameters
+                name,
+                usertype,
+                username,
+                parameters,
             )
         except Exception as e:
             raise ArgoWorkflowsException(str(e))
@@ -354,6 +436,25 @@ class ArgoWorkflows(object):
                     "metaflow/project_flow_name": current.project_flow_name,
                 }
             )
+
+        # Add Argo Workflows title and description annotations
+        # https://argo-workflows.readthedocs.io/en/latest/title-and-description/
+        # Use CLI-provided values or auto-populate from metadata
+        title = (
+            (self.workflow_title.strip() if self.workflow_title else None)
+            or current.get("project_flow_name")
+            or self.flow.name
+        )
+
+        description = (
+            self.workflow_description.strip() if self.workflow_description else None
+        ) or (self.flow.__doc__.strip() if self.flow.__doc__ else None)
+
+        if title:
+            annotations["workflows.argoproj.io/title"] = title
+        if description:
+            annotations["workflows.argoproj.io/description"] = description
+
         return annotations
 
     def _get_schedule(self):
@@ -361,6 +462,11 @@ class ArgoWorkflows(object):
         if schedule:
             # Remove the field "Year" if it exists
             schedule = schedule[0]
+            if schedule.schedule is None:
+                # @schedule decorator is present but all scheduling flags are
+                # falsy (e.g. @schedule(daily=False)). Treat this the same as
+                # no decorator — do not create a CronWorkflow.
+                return None, None
             return " ".join(schedule.schedule.split()[:5]), schedule.timezone
         return None, None
 
@@ -374,17 +480,16 @@ class ArgoWorkflows(object):
             # Metaflow will overwrite any existing sensor.
             sensor_name = ArgoWorkflows._sensor_name(self.name)
             if self._sensor:
-                argo_client.register_sensor(sensor_name, self._sensor.to_json())
-            else:
-                # Since sensors occupy real resources, delete existing sensor if needed
-                # Deregister sensors that might have existed before this deployment
-                argo_client.delete_sensor(sensor_name)
+                # The new sensor will go into the sensor namespace specified
+                ArgoClient(namespace=ARGO_EVENTS_SENSOR_NAMESPACE).register_sensor(
+                    sensor_name, self._sensor.to_json(), ARGO_EVENTS_SENSOR_NAMESPACE
+                )
         except Exception as e:
             raise ArgoWorkflowsSchedulingException(str(e))
 
     def trigger_explanation(self):
         # Trigger explanation for cron workflows
-        if self.flow._flow_decorators.get("schedule"):
+        if self._schedule is not None:
             return (
                 "This workflow triggers automatically via the CronWorkflow *%s*."
                 % self.name
@@ -463,10 +568,17 @@ class ArgoWorkflows(object):
         return None
 
     def _process_parameters(self):
+        reserved_argo_params = ["script"]
         parameters = {}
         has_schedule = self.flow._flow_decorators.get("schedule") is not None
         seen = set()
         for var, param in self.flow._get_parameters():
+            # protect the reserved params
+            if param.name.lower() in reserved_argo_params:
+                raise MetaflowException(
+                    "Parameter name *%s* is a reserved word when running on Argo Workflows. Please use a different name for your parameter."
+                    % param.name.lower()
+                )
             # Throw an exception if the parameter is specified twice.
             norm = param.name.lower()
             if norm in seen:
@@ -511,16 +623,26 @@ class ArgoWorkflows(object):
             # the JSON equivalent of None to please argo-workflows. Unfortunately it
             # has the side effect of casting the parameter value to string null during
             # execution - which needs to be fixed imminently.
-            if not is_required or default_value is not None:
+            if default_value is None:
+                default_value = json.dumps(None)
+            elif param_type == "JSON":
+                if not isinstance(default_value, str):
+                    # once to serialize the default value if needed.
+                    default_value = json.dumps(default_value)
+                # adds outer quotes to param
+                default_value = json.dumps(default_value)
+            else:
+                # Make argo sensors happy
                 default_value = json.dumps(default_value)
 
             parameters[param.name] = dict(
+                python_var_name=var,
                 name=param.name,
                 value=default_value,
                 type=param_type,
                 description=param.kwargs.get("help"),
                 is_required=is_required,
-                **extra_attrs
+                **extra_attrs,
             )
         return parameters
 
@@ -624,6 +746,16 @@ class ArgoWorkflows(object):
             for event in trigger_on_finish_deco.triggers:
                 # Actual filters are deduced here since we don't have access to
                 # the current object in the @trigger_on_finish decorator.
+                project_name = event.get("project") or current.get("project_name")
+                branch_name = event.get("branch") or current.get("branch_name")
+                # validate that we have complete project info for an event name
+                if project_name or branch_name:
+                    if not (project_name and branch_name):
+                        # if one of the two is missing, we would end up listening to an event that will never be broadcast.
+                        raise ArgoWorkflowsException(
+                            "Incomplete project info. Please specify both 'project' and 'project_branch' or use the @project decorator"
+                        )
+
                 triggers.append(
                     {
                         # Make sure this remains consistent with the event name format
@@ -632,18 +764,16 @@ class ArgoWorkflows(object):
                         % ".".join(
                             v
                             for v in [
-                                event.get("project") or current.get("project_name"),
-                                event.get("branch") or current.get("branch_name"),
+                                project_name,
+                                branch_name,
                                 event["flow"],
                             ]
                             if v
                         ),
                         "filters": {
                             "auto-generated-by-metaflow": True,
-                            "project_name": event.get("project")
-                            or current.get("project_name"),
-                            "branch_name": event.get("branch")
-                            or current.get("branch_name"),
+                            "project_name": project_name,
+                            "branch_name": branch_name,
                             # TODO: Add a time filters to guard against cached events
                         },
                         "type": "run",
@@ -696,6 +826,7 @@ class ArgoWorkflows(object):
         # references to them within the DAGTask.
 
         annotations = {}
+
         if self._schedule is not None:
             # timezone is an optional field and json dumps on None will result in null
             # hence configuring it to an empty string
@@ -718,7 +849,9 @@ class ArgoWorkflows(object):
                             {key: trigger.get(key) for key in ["name", "type"]}
                             for trigger in self.triggers
                         ]
-                    )
+                    ),
+                    "metaflow/sensor_name": ArgoWorkflows._sensor_name(self.name),
+                    "metaflow/sensor_namespace": ARGO_EVENTS_SENSOR_NAMESPACE,
                 }
             )
         if self.notify_on_error:
@@ -728,6 +861,7 @@ class ArgoWorkflows(object):
                         {
                             "slack": bool(self.notify_slack_webhook_url),
                             "pager_duty": bool(self.notify_pager_duty_integration_key),
+                            "incident_io": bool(self.notify_incident_io_api_key),
                         }
                     )
                 }
@@ -739,6 +873,7 @@ class ArgoWorkflows(object):
                         {
                             "slack": bool(self.notify_slack_webhook_url),
                             "pager_duty": bool(self.notify_pager_duty_integration_key),
+                            "incident_io": bool(self.notify_incident_io_api_key),
                         }
                     )
                 }
@@ -755,6 +890,7 @@ class ArgoWorkflows(object):
 
         dag_annotation = {"metaflow/dag": json.dumps(graph_info)}
 
+        lifecycle_hooks = self._lifecycle_hooks()
         return (
             WorkflowTemplate()
             .metadata(
@@ -804,7 +940,16 @@ class ArgoWorkflows(object):
                     .annotations(
                         {
                             **annotations,
-                            **self._base_annotations,
+                            **{
+                                k: v
+                                for k, v in self._base_annotations.items()
+                                if k
+                                # Skip custom title/description for workflows as this makes it harder to find specific runs.
+                                not in [
+                                    "workflows.argoproj.io/title",
+                                    "workflows.argoproj.io/description",
+                                ]
+                            },
                             **{"metaflow/run_id": "argo-{{workflow.name}}"},
                         }
                     )
@@ -841,8 +986,15 @@ class ArgoWorkflows(object):
                     Metadata()
                     .labels(self._base_labels)
                     .label("app.kubernetes.io/name", "metaflow-task")
-                    .annotations(annotations)
-                    .annotations(self._base_annotations)
+                    .annotations(
+                        {
+                            **annotations,
+                            **self._base_annotations,
+                            **{
+                                "metaflow/run_id": "argo-{{workflow.name}}"
+                            },  # we want pods of the workflow to have the run_id as an annotation as well
+                        }
+                    )
                 )
                 # Set the entrypoint to flow name
                 .entrypoint(self.flow.name)
@@ -852,79 +1004,234 @@ class ArgoWorkflows(object):
                     if self.enable_error_msg_capture
                     else None
                 )
-                # Set exit hook handlers if notifications are enabled
+                # Set lifecycle hooks if notifications are enabled
                 .hooks(
                     {
-                        **(
-                            {
-                                # workflow status maps to Completed
-                                "notify-slack-on-success": LifecycleHook()
-                                .expression("workflow.status == 'Succeeded'")
-                                .template("notify-slack-on-success"),
-                            }
-                            if self.notify_on_success and self.notify_slack_webhook_url
-                            else {}
-                        ),
-                        **(
-                            {
-                                # workflow status maps to Completed
-                                "notify-pager-duty-on-success": LifecycleHook()
-                                .expression("workflow.status == 'Succeeded'")
-                                .template("notify-pager-duty-on-success"),
-                            }
-                            if self.notify_on_success
-                            and self.notify_pager_duty_integration_key
-                            else {}
-                        ),
-                        **(
-                            {
-                                # workflow status maps to Failed or Error
-                                "notify-slack-on-failure": LifecycleHook()
-                                .expression("workflow.status == 'Failed'")
-                                .template("notify-slack-on-error"),
-                                "notify-slack-on-error": LifecycleHook()
-                                .expression("workflow.status == 'Error'")
-                                .template("notify-slack-on-error"),
-                            }
-                            if self.notify_on_error and self.notify_slack_webhook_url
-                            else {}
-                        ),
-                        **(
-                            {
-                                # workflow status maps to Failed or Error
-                                "notify-pager-duty-on-failure": LifecycleHook()
-                                .expression("workflow.status == 'Failed'")
-                                .template("notify-pager-duty-on-error"),
-                                "notify-pager-duty-on-error": LifecycleHook()
-                                .expression("workflow.status == 'Error'")
-                                .template("notify-pager-duty-on-error"),
-                            }
-                            if self.notify_on_error
-                            and self.notify_pager_duty_integration_key
-                            else {}
-                        ),
-                        # Warning: terrible hack to workaround a bug in Argo Workflow
-                        #          where the hooks listed above do not execute unless
-                        #          there is an explicit exit hook. as and when this
-                        #          bug is patched, we should remove this effectively
-                        #          no-op hook.
-                        **(
-                            {"exit": LifecycleHook().template("exit-hook-hack")}
-                            if self.notify_on_error or self.notify_on_success
-                            else {}
-                        ),
+                        lifecycle.name: lifecycle
+                        for hook in lifecycle_hooks
+                        for lifecycle in hook.lifecycle_hooks
                     }
                 )
                 # Top-level DAG template(s)
                 .templates(self._dag_templates())
                 # Container templates
                 .templates(self._container_templates())
+                # Lifecycle hook template(s)
+                .templates([hook.template for hook in lifecycle_hooks])
                 # Exit hook template(s)
                 .templates(self._exit_hook_templates())
                 # Sidecar templates (Daemon Containers)
                 .templates(self._daemon_templates())
             )
         )
+
+    # Visit every node and record information on conditional step structure
+    def _parse_conditional_branches(self):
+        self.conditional_nodes = set()
+        self.conditional_join_nodes = set()
+        self.matching_conditional_join_dict = {}
+        self.recursive_nodes = set()
+
+        node_conditional_parents = {}
+        node_conditional_branches = {}
+
+        def _visit(node, conditional_branch, conditional_parents=None):
+            if not node.type == "split-switch" and not (
+                conditional_branch and conditional_parents
+            ):
+                # skip regular non-conditional nodes entirely
+                return
+
+            if node.type == "split-switch":
+                conditional_branch = conditional_branch + [node.name]
+                c_br = node_conditional_branches.get(node.name, [])
+                node_conditional_branches[node.name] = c_br + [
+                    b for b in conditional_branch if b not in c_br
+                ]
+
+                conditional_parents = (
+                    [node.name]
+                    if not conditional_parents
+                    else conditional_parents + [node.name]
+                )
+                node_conditional_parents[node.name] = conditional_parents
+
+                # check for recursion. this split is recursive if any of its out functions are itself.
+                if any(
+                    out_func for out_func in node.out_funcs if out_func == node.name
+                ):
+                    self.recursive_nodes.add(node.name)
+
+            if conditional_parents and not node.type == "split-switch":
+                node_conditional_parents[node.name] = conditional_parents
+                conditional_branch = conditional_branch + [node.name]
+                c_br = node_conditional_branches.get(node.name, [])
+                node_conditional_branches[node.name] = c_br + [
+                    b for b in conditional_branch if b not in c_br
+                ]
+
+                self.conditional_nodes.add(node.name)
+
+            if conditional_branch and conditional_parents:
+                for n in node.out_funcs:
+                    child = self.graph[n]
+                    if child.name == node.name:
+                        continue
+                    _visit(child, conditional_branch, conditional_parents)
+
+        # First we visit all nodes to determine conditional parents and branches
+        for n in self.graph:
+            _visit(n, [])
+
+        # helper to clean up conditional info for all children of a node, until a new split-switch is encountered.
+        def _cleanup_conditional_status(node_name, seen):
+            if self.graph[node_name].type == "split-switch":
+                # stop recursive cleanup if we hit a new split-switch
+                return
+            if node_name in self.conditional_nodes:
+                self.conditional_nodes.remove(node_name)
+            node_conditional_parents[node_name] = []
+            node_conditional_branches[node_name] = []
+            for p in self.graph[node_name].out_funcs:
+                if p not in seen:
+                    _cleanup_conditional_status(p, seen + [p])
+
+        # Then we traverse again in order to determine conditional join nodes, and matching conditional join info
+        for node in self.graph:
+            if node_conditional_parents.get(node.name, False):
+                # do the required postprocessing for anything requiring node.in_funcs
+
+                # check that in previous parsing we have not closed all conditional in_funcs.
+                # If so, this step can not be conditional either
+                is_conditional = any(
+                    in_func in self.conditional_nodes
+                    or self.graph[in_func].type == "split-switch"
+                    for in_func in node.in_funcs
+                )
+                if is_conditional:
+                    self.conditional_nodes.add(node.name)
+                else:
+                    if node.name in self.conditional_nodes:
+                        self.conditional_nodes.remove(node.name)
+
+                # does this node close the latest conditional parent branches?
+                conditional_in_funcs = [
+                    in_func
+                    for in_func in node.in_funcs
+                    if node_conditional_branches.get(in_func, False)
+                ]
+                closed_conditional_parents = []
+                for last_split_switch in node_conditional_parents.get(node.name, [])[
+                    ::-1
+                ]:
+                    last_conditional_split_nodes = self.graph[
+                        last_split_switch
+                    ].out_funcs
+                    # NOTE: How do we define a conditional join step?
+                    # The idea here is that we check if the conditional branches(e.g. chains of conditional steps leading to) of all the in_funcs
+                    # manage to tick off every step name that follows a split-switch
+                    # For example, consider the following structure
+                    # switch_step -> A, B, C
+                    # A -> A2 -> A3 -> A4 -> B2
+                    # B -> B2 -> B3 -> C3
+                    # C -> C2 -> C3 -> end
+                    #
+                    # if we look at the in_funcs for C3, they are (C2, B3)
+                    # B3 closes off branches started by A and B
+                    # C3 closes off branches started by C
+                    # therefore C3 is a conditional join step for the 'switch_step'
+                    # NOTE: Then what about a skip step?
+                    # some switch cases might not introduce any distinct steps of their own, opting to instead skip ahead to a later common step.
+                    # Example:
+                    # switch_step -> A, B, C
+                    # A -> A1 -> B2 -> C
+                    # B -> B1 -> B2 -> C
+                    #
+                    # In this case, C is a skip step as it does not add any conditional branching of its own.
+                    # C is also a conditional join, as it closes all branches started by 'switch_step'
+
+                    closes_branches = all(
+                        (
+                            # branch_root_node_name needs to be in at least one conditional_branch for it to be closed.
+                            any(
+                                branch_root_node_name
+                                in node_conditional_branches.get(in_func, [])
+                                for in_func in conditional_in_funcs
+                            )
+                            # need to account for a switch case skipping completely, not having a conditional-branch of its own.
+                            if branch_root_node_name != node.name
+                            else True
+                        )
+                        for branch_root_node_name in last_conditional_split_nodes
+                    )
+                    if closes_branches:
+                        closed_conditional_parents.append(last_split_switch)
+
+                        self.conditional_join_nodes.add(node.name)
+                        self.matching_conditional_join_dict[last_split_switch] = (
+                            node.name
+                        )
+
+                # Did we close all conditionals? Then this branch and all its children are not conditional anymore (unless a new conditional branch is encountered).
+                if not [
+                    p
+                    for p in node_conditional_parents.get(node.name, [])
+                    if p not in closed_conditional_parents
+                ]:
+                    _cleanup_conditional_status(node.name, [])
+
+    def _is_conditional_node(self, node):
+        return node.name in self.conditional_nodes
+
+    def _is_conditional_skip_node(self, node):
+        return (
+            self._is_conditional_node(node)
+            and any(
+                self.graph[in_func].type == "split-switch" for in_func in node.in_funcs
+            )
+            and len(
+                [
+                    in_func
+                    for in_func in node.in_funcs
+                    if self._is_conditional_node(self.graph[in_func])
+                    or self.graph[in_func].type == "split-switch"
+                ]
+            )
+            > 1
+        )
+
+    def _is_conditional_join_node(self, node):
+        return node.name in self.conditional_join_nodes
+
+    def _many_in_funcs_all_conditional(self, node):
+        cond_in_funcs = [
+            in_func
+            for in_func in node.in_funcs
+            if self._is_conditional_node(self.graph[in_func])
+        ]
+        return len(cond_in_funcs) > 1 and len(cond_in_funcs) == len(node.in_funcs)
+
+    def _skippable_input_steps_in_dag_order(self, node):
+        graph_order = {
+            node_name: index for index, node_name in enumerate(self.graph.sorted_nodes)
+        }
+        return sorted(
+            [
+                in_func
+                for in_func in node.in_funcs
+                if self.graph[in_func].type == "split-switch"
+            ],
+            key=lambda in_func: graph_order[in_func],
+            reverse=True,
+        )
+
+    def _is_recursive_node(self, node):
+        return node.name in self.recursive_nodes
+
+    def _matching_conditional_join(self, node):
+        # If no earlier conditional join step is found during parsing,
+        # fall back to the graph's terminal step.
+        return self.matching_conditional_join_dict.get(node.name, self.graph.end_step)
 
     # Visit every node and yield the uber DAGTemplate(s).
     def _dag_templates(self):
@@ -934,6 +1241,7 @@ class ArgoWorkflows(object):
             templates=None,
             dag_tasks=None,
             parent_foreach=None,
+            seen=None,
         ):  # Returns Tuple[List[Template], List[DAGTask]]
             """ """
             # Every for-each node results in a separate subDAG and an equivalent
@@ -943,18 +1251,28 @@ class ArgoWorkflows(object):
             # of the for-each node.
 
             # Emit if we have reached the end of the sub workflow
+            if seen is None:
+                seen = []
             if dag_tasks is None:
                 dag_tasks = []
             if templates is None:
                 templates = []
+
             if exit_node is not None and exit_node is node.name:
                 return templates, dag_tasks
-            if node.name == "start":
+            if node.name in seen:
+                return templates, dag_tasks
+
+            seen.append(node.name)
+
+            # helper variable for recursive conditional inputs
+            has_foreach_inputs = False
+            if node.name == self.graph.start_step:
                 # Start node has no dependencies.
                 dag_task = DAGTask(self._sanitize(node.name)).template(
                     self._sanitize(node.name)
                 )
-            elif (
+            if (
                 node.is_inside_foreach
                 and self.graph[node.in_funcs[0]].type == "foreach"
                 and not self.graph[node.in_funcs[0]].parallel_foreach
@@ -962,9 +1280,10 @@ class ArgoWorkflows(object):
                 # vs what is a "num_parallel" based foreach (i.e. something that follows gang semantics.)
                 # A `regular` foreach is basically any arbitrary kind of foreach.
             ):
+                # helper variable for recursive conditional inputs
+                has_foreach_inputs = True
                 # Child of a foreach node needs input-paths as well as split-index
                 # This child is the first node of the sub workflow and has no dependency
-
                 parameters = [
                     Parameter("input-paths").value("{{inputs.parameters.input-paths}}"),
                     Parameter("split-index").value("{{inputs.parameters.split-index}}"),
@@ -1014,7 +1333,19 @@ class ArgoWorkflows(object):
                         "{{=sprig.int(sprig.sub(sprig.int(inputs.parameters['num-parallel']),1))}}"
                     ),
                 ]
-                if any(d.name == "retry" for d in node.decorators):
+                # Resolve retry strategy to determine if we should add retry-related parameters.
+                # {{retries}} is only available if retryStrategy is specified in the template.
+                max_user_code_retries = 0
+                max_error_retries = 0
+                for decorator in node.decorators:
+                    user_code_retries, error_retries = decorator.step_task_retry_count()
+                    max_user_code_retries = max(
+                        max_user_code_retries, user_code_retries
+                    )
+                    max_error_retries = max(max_error_retries, error_retries)
+
+                total_retries = max_user_code_retries + max_error_retries
+                if total_retries > 0:
                     parameters.extend(
                         [
                             Parameter("retryCount").value("{{retries}}"),
@@ -1088,23 +1419,179 @@ class ArgoWorkflows(object):
                             ]
                         )
 
+                conditional_deps = [
+                    "%s.Succeeded" % self._sanitize(in_func)
+                    for in_func in node.in_funcs
+                    if self._is_conditional_node(self.graph[in_func])
+                    or self.graph[in_func].type == "split-switch"
+                ]
+                required_deps = [
+                    "%s.Succeeded" % self._sanitize(in_func)
+                    for in_func in node.in_funcs
+                    if not self._is_conditional_node(self.graph[in_func])
+                    and self.graph[in_func].type != "split-switch"
+                ]
+                if self._is_conditional_skip_node(
+                    node
+                ) or self._many_in_funcs_all_conditional(node):
+                    # skip nodes need unique condition handling
+                    conditional_deps = [
+                        "%s.Succeeded" % self._sanitize(in_func)
+                        for in_func in node.in_funcs
+                    ]
+                    required_deps = []
+
+                # join steps in_funcs need special handling, as there can be disjoint sets of always-executing and conditional branches.
+                if node.type == "join" and any(
+                    self._is_conditional_node(self.graph[fn]) for fn in node.in_funcs
+                ):
+
+                    def _split_switch_ancestors(step_name, first_ancestor):
+                        acc = []
+                        for in_fn in self.graph[step_name].in_funcs:
+                            if self.graph[in_fn].type == "split-switch":
+                                acc.append(in_fn)
+                            if not in_fn == first_ancestor:
+                                acc.extend(
+                                    _split_switch_ancestors(in_fn, first_ancestor)
+                                )
+
+                        return acc
+
+                    node_groups = {}
+                    node_switch_ancestors = {}
+                    for fn in node.in_funcs:
+                        if self.graph[fn].split_branches:
+                            # This is the latest split in the DAG.
+                            last_split = self.graph[fn].split_branches[-1]
+                            switch_ancestors = _split_switch_ancestors(
+                                fn, node.split_parents[-1]
+                            )
+                            if switch_ancestors:
+                                node_switch_ancestors[fn] = switch_ancestors
+                            new_funcs = node_groups.get(last_split, [])
+                            new_funcs.append(fn)
+                            node_groups[last_split] = new_funcs
+
+                    def build_ancestor_tree(node_groups, switch_ancestors):
+                        result = {}
+                        for parent, children in node_groups.items():
+                            nodes = [
+                                n
+                                for g in children
+                                for n in (g if isinstance(g, list) else [g])
+                            ]
+
+                            # Group nodes by their ancestor set
+                            by_anc = defaultdict(list)
+                            for n in nodes:
+                                by_anc[frozenset(switch_ancestors.get(n, []))].append(n)
+
+                            # Sort from most specific (most ancestors) to least
+                            groups = sorted(
+                                by_anc.items(), key=lambda x: len(x[0]), reverse=True
+                            )
+
+                            # Greedily build chains: add to a chain if this key is a subset of its first (largest) key
+                            chains = []
+                            for key, grp in groups:
+                                for chain in chains:
+                                    if key <= chain[0][0]:
+                                        chain.append((key, grp))
+                                        break
+                                else:
+                                    chains.append([(key, grp)])
+
+                            result[parent] = [[g for _, g in chain] for chain in chains]
+                        return result
+
+                    if node_groups:
+                        conditional_deps = []
+                        required_deps = []
+                        for parent, chains in build_ancestor_tree(
+                            node_groups, node_switch_ancestors
+                        ).items():
+                            parts = []
+                            for chain in chains:
+                                groups = [
+                                    "({})".format(
+                                        " || ".join(
+                                            "%s.Succeeded" % self._sanitize(g)
+                                            for g in grp
+                                        )
+                                    )
+                                    for grp in chain
+                                ]
+                                parts.append("({})".format(" || ".join(groups)))
+                            required_deps.append("&&".join(parts))
+
+                both_conditions = required_deps and conditional_deps
+
+                depends_str = "{required}{_and}{conditional}".format(
+                    required=("(%s)" if both_conditions else "%s")
+                    % " && ".join(required_deps),
+                    _and=" && " if both_conditions else "",
+                    conditional=("(%s)" if both_conditions else "%s")
+                    % " || ".join(conditional_deps),
+                )
                 dag_task = (
                     DAGTask(self._sanitize(node.name))
-                    .dependencies(
-                        [self._sanitize(in_func) for in_func in node.in_funcs]
-                    )
+                    .depends(depends_str)
                     .template(self._sanitize(node.name))
                     .arguments(Arguments().parameters(parameters))
                 )
 
+                # Add conditional if this is the first step in a conditional branch
+                switch_in_funcs = [
+                    in_func
+                    for in_func in node.in_funcs
+                    if self.graph[in_func].type == "split-switch"
+                ]
+                if (
+                    self._is_conditional_node(node)
+                    or self._is_conditional_skip_node(node)
+                    or self._is_conditional_join_node(node)
+                ) and switch_in_funcs:
+                    # It is possible that the some of the leading steps did not execute at all. In this case the switch-step output would be missing and needs to be accounted for.
+                    # NOTE: Due to an issue in Argo Workflows 'when' clauses, we can not use ternaries or 'safe' getters directly on a tasks['step-name'] due to this leading to errors when the step has not executed.
+                    conditional_when = "||".join(
+                        [
+                            "({{=(tasks['%s'].status == 'Succeeded' ? tasks['%s'].outputs.parameters['switch-step'] : nil) == '%s'}})"
+                            % (
+                                self._sanitize(switch_in_func),
+                                self._sanitize(switch_in_func),
+                                node.name,
+                            )
+                            for switch_in_func in switch_in_funcs
+                        ]
+                    )
+
+                    non_switch_in_funcs = [
+                        in_func
+                        for in_func in node.in_funcs
+                        if in_func not in switch_in_funcs
+                    ]
+                    status_when = ""
+                    if non_switch_in_funcs:
+                        status_when = "||".join(
+                            [
+                                "{{tasks.%s.status}}==Succeeded"
+                                % self._sanitize(in_func)
+                                for in_func in non_switch_in_funcs
+                            ]
+                        )
+
+                    total_when = (
+                        f"({status_when}) || ({conditional_when})"
+                        if status_when
+                        else conditional_when
+                    )
+                    dag_task.when(total_when)
+
             dag_tasks.append(dag_task)
             # End the workflow if we have reached the end of the flow
             if node.type == "end":
-                return [
-                    Template(self.flow.name).dag(
-                        DAGTemplate().fail_fast().tasks(dag_tasks)
-                    )
-                ] + templates, dag_tasks
+                return templates, dag_tasks
             # For split nodes traverse all the children
             if node.type == "split":
                 for n in node.out_funcs:
@@ -1114,6 +1601,7 @@ class ArgoWorkflows(object):
                         templates,
                         dag_tasks,
                         parent_foreach,
+                        seen,
                     )
                 return _visit(
                     self.graph[node.matching_join],
@@ -1121,6 +1609,118 @@ class ArgoWorkflows(object):
                     templates,
                     dag_tasks,
                     parent_foreach,
+                    seen,
+                )
+            elif node.type == "split-switch":
+                if self._is_recursive_node(node):
+                    # we need an additional recursive template if the step is recursive
+                    # NOTE: in the recursive case, the original step is renamed in the container templates to 'recursive-<step_name>'
+                    # so that we do not have to touch the step references in the DAG.
+                    #
+                    # NOTE: The way that recursion in Argo Workflows is achieved is with the following structure:
+                    # - the usual 'example-step' template which would match example_step in flow code is renamed to 'recursive-example-step'
+                    # - templates has another template with the original task name: 'example-step'
+                    # - the template 'example-step' in turn has steps
+                    #   - 'example-step-internal' which uses the metaflow step executing template 'recursive-example-step'
+                    #   - 'example-step-recursion' which calls the parent template 'example-step' if switch-step output from 'example-step-internal' matches the condition.
+                    sanitized_name = self._sanitize(node.name)
+                    templates.append(
+                        Template(sanitized_name)
+                        .steps(
+                            [
+                                WorkflowStep()
+                                .name("%s-internal" % sanitized_name)
+                                .template("recursive-%s" % sanitized_name)
+                                .arguments(
+                                    Arguments().parameters(
+                                        [
+                                            Parameter("input-paths").value(
+                                                "{{inputs.parameters.input-paths}}"
+                                            )
+                                        ]
+                                        # Add the additional inputs required by specific node types.
+                                        # We do not need to cover joins or @parallel, as a split-switch step can not be either one of these.
+                                        + (
+                                            [
+                                                Parameter("split-index").value(
+                                                    "{{inputs.parameters.split-index}}"
+                                                )
+                                            ]
+                                            if has_foreach_inputs
+                                            else []
+                                        )
+                                    )
+                                )
+                            ]
+                        )
+                        .steps(
+                            [
+                                WorkflowStep()
+                                .name("%s-recursion" % sanitized_name)
+                                .template(sanitized_name)
+                                .when(
+                                    "{{steps.%s-internal.outputs.parameters.switch-step}}==%s"
+                                    % (sanitized_name, node.name)
+                                )
+                                .arguments(
+                                    Arguments().parameters(
+                                        [
+                                            Parameter("input-paths").value(
+                                                "argo-{{workflow.name}}/%s/{{steps.%s-internal.outputs.parameters.task-id}}"
+                                                % (node.name, sanitized_name)
+                                            )
+                                        ]
+                                        + (
+                                            [
+                                                Parameter("split-index").value(
+                                                    "{{inputs.parameters.split-index}}"
+                                                )
+                                            ]
+                                            if has_foreach_inputs
+                                            else []
+                                        )
+                                    )
+                                ),
+                            ]
+                        )
+                        .inputs(Inputs().parameters(parameters))
+                        .outputs(
+                            # NOTE: We try to read the output parameters from the recursive template call first (<step>-recursion), and the internal step second (<step>-internal).
+                            # This guarantees that we always get the output parameters of the last recursive step that executed.
+                            Outputs().parameters(
+                                [
+                                    Parameter("task-id").valueFrom(
+                                        {
+                                            "expression": "(steps['%s-recursion']?.outputs ?? steps['%s-internal']?.outputs).parameters['task-id']"
+                                            % (sanitized_name, sanitized_name)
+                                        }
+                                    ),
+                                    Parameter("switch-step").valueFrom(
+                                        {
+                                            "expression": "(steps['%s-recursion']?.outputs ?? steps['%s-internal']?.outputs).parameters['switch-step']"
+                                            % (sanitized_name, sanitized_name)
+                                        }
+                                    ),
+                                ]
+                            )
+                        )
+                    )
+                for n in node.out_funcs:
+                    _visit(
+                        self.graph[n],
+                        self._matching_conditional_join(node),
+                        templates,
+                        dag_tasks,
+                        parent_foreach,
+                        seen,
+                    )
+                return _visit(
+                    self.graph[self._matching_conditional_join(node)],
+                    exit_node,
+                    templates,
+                    dag_tasks,
+                    parent_foreach,
+                    seen,
                 )
             # For foreach nodes generate a new sub DAGTemplate
             # We do this for "regular" foreaches (ie. `self.next(self.a, foreach=)`)
@@ -1149,7 +1749,7 @@ class ArgoWorkflows(object):
                 #
                 foreach_task = (
                     DAGTask(foreach_template_name)
-                    .dependencies([self._sanitize(node.name)])
+                    .depends(f"{self._sanitize(node.name)}.Succeeded")
                     .template(foreach_template_name)
                     .arguments(
                         Arguments().parameters(
@@ -1194,6 +1794,16 @@ class ArgoWorkflows(object):
                         % self._sanitize(node.name)
                     )
                 )
+                # Add conditional if this is the first step in a conditional branch
+                if self._is_conditional_node(node) and not any(
+                    self._is_conditional_node(self.graph[in_func])
+                    for in_func in node.in_funcs
+                ):
+                    in_func = node.in_funcs[0]
+                    foreach_task.when(
+                        "{{tasks.%s.outputs.parameters.switch-step}}==%s"
+                        % (self._sanitize(in_func), node.name)
+                    )
                 dag_tasks.append(foreach_task)
                 templates, dag_tasks_1 = _visit(
                     self.graph[node.out_funcs[0]],
@@ -1201,6 +1811,7 @@ class ArgoWorkflows(object):
                     templates,
                     [],
                     node.name,
+                    seen,
                 )
 
                 # How do foreach's work on Argo:
@@ -1237,7 +1848,22 @@ class ArgoWorkflows(object):
                                             self.graph[node.matching_join].in_funcs[0]
                                         )
                                     }
-                                )
+                                    if not self._is_conditional_join_node(
+                                        self.graph[node.matching_join]
+                                    )
+                                    else
+                                    # Note: If the nodes leading to the join are conditional, then we need to use an expression to pick the outputs from the task that executed.
+                                    # ref for operators: https://github.com/expr-lang/expr/blob/master/docs/language-definition.md
+                                    {
+                                        "expression": "get((%s)?.parameters, 'task-id')"
+                                        % " ?? ".join(
+                                            f"tasks['{self._sanitize(func)}']?.outputs"
+                                            for func in self.graph[
+                                                node.matching_join
+                                            ].in_funcs
+                                        )
+                                    }
+                                ),
                             ]
                             if not node.parallel_foreach
                             else [
@@ -1270,7 +1896,7 @@ class ArgoWorkflows(object):
                 join_foreach_task = (
                     DAGTask(self._sanitize(self.graph[node.matching_join].name))
                     .template(self._sanitize(self.graph[node.matching_join].name))
-                    .dependencies([foreach_template_name])
+                    .depends(f"{foreach_template_name}.Succeeded")
                     .arguments(
                         Arguments().parameters(
                             (
@@ -1313,12 +1939,14 @@ class ArgoWorkflows(object):
                     )
                 )
                 dag_tasks.append(join_foreach_task)
+                seen.append(self.graph[node.matching_join].name)
                 return _visit(
                     self.graph[self.graph[node.matching_join].out_funcs[0]],
                     exit_node,
                     templates,
                     dag_tasks,
                     parent_foreach,
+                    seen,
                 )
             # For linear nodes continue traversing to the next node
             if node.type in ("linear", "join", "start"):
@@ -1328,6 +1956,7 @@ class ArgoWorkflows(object):
                     templates,
                     dag_tasks,
                     parent_foreach,
+                    seen,
                 )
             else:
                 raise ArgoWorkflowsException(
@@ -1341,7 +1970,13 @@ class ArgoWorkflows(object):
             for daemon_template in self._daemon_templates()
         ]
 
-        templates, _ = _visit(node=self.graph["start"], dag_tasks=daemon_tasks)
+        templates, dag_tasks = _visit(
+            node=self.graph[self.graph.start_step], dag_tasks=daemon_tasks
+        )
+        # Add the DAG template only after fully traversing the graph so we are guaranteed to have all the dag_tasks collected.
+        templates.append(
+            Template(self.flow.name).dag(DAGTemplate().fail_fast().tasks(dag_tasks))
+        )
         return templates
 
     # Visit every node and yield ContainerTemplates.
@@ -1389,7 +2024,7 @@ class ArgoWorkflows(object):
             # input paths and parallel join will derive input paths based on a
             # formulaic approach using `num-parallel` and `task-id-entropy`.
             if not (
-                node.name == "start"
+                node.name == self.graph.start_step
                 or (node.type == "join" and self.graph[node.in_funcs[0]].parallel_step)
             ):
                 # For parallel joins we don't pass the INPUT_PATHS but are dynamically constructed.
@@ -1397,6 +2032,28 @@ class ArgoWorkflows(object):
                 input_paths_expr = (
                     "export INPUT_PATHS={{inputs.parameters.input-paths}}"
                 )
+                if (
+                    (
+                        self._is_conditional_join_node(node)
+                        or self._many_in_funcs_all_conditional(node)
+                        or self._is_conditional_skip_node(node)
+                    )
+                    and not (
+                        node.type == "join"
+                        and self.graph[node.split_parents[-1]].type == "foreach"
+                    )  # base64 encoding input-paths for foreach joins is unnecessary, as this is simply the task id of the splitting step.
+                    and not (
+                        node.is_inside_foreach
+                        and self.graph[node.out_funcs[0]].type == "join"
+                    )  # do not base64 encode the input-paths of a step inside a foreach that leads to a join, as this would not match the task-id generation logic that the join relies on.
+                ):
+                    # NOTE: Argo template expressions that fail to resolve, output the expression itself as a value.
+                    # With conditional steps, some of the input-paths are therefore 'broken' due to containing a nil expression
+                    # e.g. "{{ tasks['A'].outputs.parameters.task-id }}" when task A never executed.
+                    # We base64 encode the input-paths in order to not pollute the execution environment with templating expressions.
+                    # NOTE: Adding conditionals that check if a key exists or not does not work either, due to an issue with how Argo
+                    # handles tasks in a nested foreach (withParam template) leading to all such expressions getting evaluated as false.
+                    input_paths_expr = "export INPUT_PATHS={{=toBase64(inputs.parameters['input-paths'])}}"
                 input_paths = "$(echo $INPUT_PATHS)"
             if any(self.graph[n].type == "foreach" for n in node.in_funcs):
                 task_idx = "{{inputs.parameters.split-index}}"
@@ -1412,7 +2069,6 @@ class ArgoWorkflows(object):
                     # foreaches
                     task_idx = "{{inputs.parameters.split-index}}"
                     root_input = "{{inputs.parameters.root-input-path}}"
-
             # Task string to be hashed into an ID
             task_str = "-".join(
                 [
@@ -1495,7 +2151,9 @@ class ArgoWorkflows(object):
                     mflog_expr,
                 ]
                 + self.environment.get_package_commands(
-                    self.code_package_url, self.flow_datastore.TYPE
+                    self.code_package_url,
+                    self.flow_datastore.TYPE,
+                    self.code_package_metadata,
                 )
             )
             step_cmds = self.environment.bootstrap_commands(
@@ -1507,6 +2165,7 @@ class ArgoWorkflows(object):
                     decorator.make_decorator_spec()
                     for decorator in node.decorators
                     if not decorator.statically_defined
+                    and decorator.inserted_by is None
                 ]
             }
             # FlowDecorators can define their own top-level options. They are
@@ -1528,7 +2187,7 @@ class ArgoWorkflows(object):
                 % self.auto_emit_argo_events,
             ]
 
-            if node.name == "start":
+            if node.name == self.graph.start_step:
                 # Execute `init` before any step of the workflow executes
                 task_id_params = "%s-params" % task_id
                 init = (
@@ -1539,20 +2198,36 @@ class ArgoWorkflows(object):
                         "--run-id %s" % run_id,
                         "--task-id %s" % task_id_params,
                     ]
-                    + [
+                )
+                # Export user-defined parameters into runtime environment
+                # NOTE: We save some characters from the cmd by making the bulk of the exports be written to a file instead.
+                # We can't easily get around having to pass the parameter values through the template though, as the source of these could change depending on Argo implementation.
+                param_file = "".join(
+                    random.choice(string.ascii_lowercase) for _ in range(10)
+                )
+                # Setup Parameters as environment variables which are stored in a dictionary.
+                param_csv = " ".join(
+                    [
                         # Parameter names can be hyphenated, hence we use
                         # {{foo.bar['param_name']}}.
                         # https://argoproj.github.io/argo-events/tutorials/02-parameterization/
                         # http://masterminds.github.io/sprig/strings.html
-                        (
-                            "--%s='{{workflow.parameters.%s}}'"
-                            if parameter["type"] == "JSON"
-                            else "--%s={{workflow.parameters.%s}}"
+                        "%s,%s,{{=toBase64(workflow.parameters['%s'])}}"
+                        % (
+                            parameter["name"],
+                            "t" if parameter["value"] == "null" else "f",
+                            parameter["name"],
                         )
-                        % (parameter["name"], parameter["name"])
                         for parameter in self.parameters.values()
                     ]
                 )
+
+                export_params = (
+                    "python -m "
+                    "metaflow.plugins.argo.set_parameters %s %s"
+                    " && . `pwd`/%s" % (param_file, param_csv, param_file)
+                )
+
                 if self.tags:
                     init.extend("--tag %s" % tag for tag in self.tags)
                 # if the start step gets retried, we must be careful
@@ -1563,17 +2238,48 @@ class ArgoWorkflows(object):
                     "--max-value-size=0",
                     "%s/_parameters/%s" % (run_id, task_id_params),
                 ]
+                # params export needs to happen before bootstrap commands
+                step_cmds.insert(0, export_params)
                 step_cmds.extend(
                     [
                         "if ! %s >/dev/null 2>/dev/null; then %s; fi"
-                        % (" ".join(exists), " ".join(init))
+                        % (
+                            " ".join(exists),
+                            " ".join(init),
+                        )
                     ]
                 )
                 input_paths = "%s/_parameters/%s" % (run_id, task_id_params)
+            # Only for static joins and conditional_joins
+            elif (
+                self._is_conditional_join_node(node)
+                or self._many_in_funcs_all_conditional(node)
+                or self._is_conditional_skip_node(node)
+            ) and not (
+                node.type == "join"
+                and self.graph[node.split_parents[-1]].type == "foreach"
+            ):
+                # we need to pass in the set of conditional in_funcs to the pathspec generating script as in the case of split-switch skipping cases,
+                # non-conditional input-paths need to be ignored in favour of conditional ones when they have executed.
+                skippable_input_steps = ",".join(
+                    self._skippable_input_steps_in_dag_order(node)
+                )
+                input_paths = (
+                    "$(python -m metaflow.plugins.argo.conditional_input_paths %s %s)"
+                    % (input_paths, skippable_input_steps)
+                )
             elif (
                 node.type == "join"
                 and self.graph[node.split_parents[-1]].type == "foreach"
             ):
+                # foreach-joins straight out of conditional branches are not yet supported
+                if self._is_conditional_join_node(node) and len(node.in_funcs) > 1:
+                    raise ArgoWorkflowsException(
+                        "Conditional steps inside a foreach that transition directly into a join step are not currently supported.\n"
+                        "As a workaround, add a common step after the conditional steps %s "
+                        "that will transition to a join."
+                        % ", ".join("*%s*" % f for f in node.in_funcs)
+                    )
                 # Set aggregated input-paths for a for-each join
                 foreach_step = next(
                     n for n in node.in_funcs if self.graph[n].is_inside_foreach
@@ -1595,6 +2301,8 @@ class ArgoWorkflows(object):
                             foreach_step,
                         )
                     )
+            # NOTE: input-paths might be extremely lengthy so we dump these to disk instead of passing them directly to the cmd
+            step_cmds.append("echo %s >> /tmp/mf-input-paths" % input_paths)
             step = [
                 "step",
                 node.name,
@@ -1602,7 +2310,7 @@ class ArgoWorkflows(object):
                 "--task-id %s" % task_id,
                 "--retry-count %s" % retry_count,
                 "--max-user-code-retries %d" % user_code_retries,
-                "--input-paths %s" % input_paths,
+                "--input-paths-filename /tmp/mf-input-paths",
             ]
             if node.parallel_step:
                 step.append(
@@ -1677,6 +2385,7 @@ class ArgoWorkflows(object):
                     **{
                         # These values are needed by Metaflow to set it's internal
                         # state appropriately.
+                        "METAFLOW_CODE_METADATA": self.code_package_metadata,
                         "METAFLOW_CODE_URL": self.code_package_url,
                         "METAFLOW_CODE_SHA": self.code_package_sha,
                         "METAFLOW_CODE_DS": self.flow_datastore.TYPE,
@@ -1705,6 +2414,7 @@ class ArgoWorkflows(object):
                     },
                     **{
                         # Some optional values for bookkeeping
+                        "METAFLOW_FLOW_FILENAME": os.path.basename(sys.argv[0]),
                         "METAFLOW_FLOW_NAME": self.flow.name,
                         "METAFLOW_STEP_NAME": node.name,
                         "METAFLOW_RUN_ID": run_id,
@@ -1795,7 +2505,7 @@ class ArgoWorkflows(object):
             # input paths and parallel join will derive input paths based on a
             # formulaic approach.
             if not (
-                node.name == "start"
+                node.name == self.graph.start_step
                 or (node.type == "join" and self.graph[node.in_funcs[0]].parallel_step)
             ):
                 inputs.append(Parameter("input-paths"))
@@ -1814,7 +2524,7 @@ class ArgoWorkflows(object):
                         [Parameter("num-parallel"), Parameter("task-id-entropy")]
                     )
                 else:
-                    # append this only for joins of foreaches, not static splits
+                    # append these only for joins of foreaches, not static splits
                     inputs.append(Parameter("split-cardinality"))
             # check if the node is a @parallel node.
             elif node.parallel_step:
@@ -1826,7 +2536,9 @@ class ArgoWorkflows(object):
                         Parameter("workerCount"),
                     ]
                 )
-                if any(d.name == "retry" for d in node.decorators):
+                # {{retries}} is only available if retryStrategy is specified in the template.
+                # Only add retryCount input parameter if total_retries > 0.
+                if total_retries > 0:
                     inputs.append(Parameter("retryCount"))
 
             if node.is_inside_foreach and self.graph[node.out_funcs[0]].type == "join":
@@ -1847,8 +2559,15 @@ class ArgoWorkflows(object):
             outputs = []
             # @parallel steps will not have a task-id as an output parameter since task-ids
             # are derived at runtime.
-            if not (node.name == "end" or node.parallel_step):
+            if not (node.name == self.graph.end_step or node.parallel_step):
                 outputs = [Parameter("task-id").valueFrom({"path": "/mnt/out/task_id"})]
+
+            # If this step is a split-switch one, we need to output the switch step name
+            if node.type == "split-switch":
+                outputs.append(
+                    Parameter("switch-step").valueFrom({"path": "/mnt/out/switch_step"})
+                )
+
             if node.type == "foreach":
                 # Emit split cardinality from foreach task
                 outputs.append(
@@ -1910,6 +2629,14 @@ class ArgoWorkflows(object):
 
             qos_requests = {**qos_requests, **extended_resources}
             qos_limits = {**qos_limits, **extended_resources}
+            security_context = resources.get("security_context", None)
+            _security_context = {}
+            if security_context is not None and len(security_context) > 0:
+                _security_context = {
+                    "security_context": kubernetes_sdk.V1SecurityContext(
+                        **security_context
+                    )
+                }
 
             # Create a ContainerTemplate for this node. Ideally, we would have
             # liked to inline this ContainerTemplate and avoid scanning the workflow
@@ -1931,6 +2658,7 @@ class ArgoWorkflows(object):
                     namespace=resources["namespace"],
                     image=resources["image"],
                     image_pull_policy=resources["image_pull_policy"],
+                    image_pull_secrets=resources["image_pull_secrets"],
                     service_account=resources["service_account"],
                     secrets=(
                         [
@@ -1968,6 +2696,7 @@ class ArgoWorkflows(object):
                     port=port,
                     qos=resources["qos"],
                     extended_resources=extended_resources,
+                    security_context=security_context,
                 )
 
                 for k, v in env.items():
@@ -1981,6 +2710,8 @@ class ArgoWorkflows(object):
                 kubernetes_labels = {
                     "task_id_entropy": "{{inputs.parameters.task-id-entropy}}",
                     "num_parallel": "{{inputs.parameters.num-parallel}}",
+                    "metaflow/argo-workflows-name": "{{workflow.name}}",
+                    "workflows.argoproj.io/workflow": "{{workflow.name}}",
                 }
                 jobset.labels(
                     {
@@ -2072,8 +2803,13 @@ class ArgoWorkflows(object):
                     )
                 )
             else:
+                template_name = self._sanitize(node.name)
+                if self._is_recursive_node(node):
+                    # The recursive template has the original step name,
+                    # this becomes a template within the recursive ones 'steps'
+                    template_name = self._sanitize("recursive-%s" % node.name)
                 yield (
-                    Template(self._sanitize(node.name))
+                    Template(template_name)
                     # Set @timeout values
                     .active_deadline_seconds(run_time_limit)
                     # Set service account
@@ -2115,6 +2851,17 @@ class ArgoWorkflows(object):
                     .node_selectors(resources.get("node_selector"))
                     # Set tolerations
                     .tolerations(resources.get("tolerations"))
+                    # Set image pull secrets if present. We need to use pod_spec_patch due to Argo not supporting this on a template level.
+                    .pod_spec_patch(
+                        {
+                            "imagePullSecrets": [
+                                {"name": secret}
+                                for secret in resources["image_pull_secrets"]
+                            ]
+                        }
+                        if resources["image_pull_secrets"]
+                        else None
+                    )
                     # Set container
                     .container(
                         # TODO: Unify the logic with kubernetes.py
@@ -2242,6 +2989,7 @@ class ArgoWorkflows(object):
                                     is not None
                                     else []
                                 ),
+                                **_security_context,
                             ).to_dict()
                         )
                     )
@@ -2254,40 +3002,188 @@ class ArgoWorkflows(object):
             templates.append(self._heartbeat_daemon_template())
         return templates
 
-    # Return exit hook templates for workflow execution notifications.
-    def _exit_hook_templates(self):
-        templates = []
+    # Return lifecycle hooks for workflow execution notifications.
+    def _lifecycle_hooks(self):
+        hooks = []
         if self.notify_on_error:
-            templates.append(self._slack_error_template())
-            templates.append(self._pager_duty_alert_template())
+            hooks.append(self._slack_error_template())
+            hooks.append(self._pager_duty_alert_template())
+            hooks.append(self._incident_io_alert_template())
         if self.notify_on_success:
-            templates.append(self._slack_success_template())
-            templates.append(self._pager_duty_change_template())
-        if self.notify_on_error or self.notify_on_success:
-            # Warning: terrible hack to workaround a bug in Argo Workflow where the
-            #          templates listed above do not execute unless there is an
-            #          explicit exit hook. as and when this bug is patched, we should
-            #          remove this effectively no-op template.
-            # Note: We use the Http template because changing this to an actual no-op container had the side-effect of
-            # leaving LifecycleHooks in a pending state even when they have finished execution.
-            templates.append(
-                Template("exit-hook-hack").http(
-                    Http("GET")
-                    .url(
+            hooks.append(self._slack_success_template())
+            hooks.append(self._pager_duty_change_template())
+            hooks.append(self._incident_io_change_template())
+
+        exit_hook_decos = self.flow._flow_decorators.get("exit_hook", [])
+
+        for deco in exit_hook_decos:
+            hooks.extend(self._lifecycle_hook_from_deco(deco))
+
+        # Clean up None values from templates.
+        hooks = list(filter(None, hooks))
+
+        if hooks:
+            hooks.append(
+                ExitHookHack(
+                    url=(
                         self.notify_slack_webhook_url
                         or "https://events.pagerduty.com/v2/enqueue"
                     )
-                    .success_condition("true == true")
                 )
             )
+        return hooks
+
+    def _lifecycle_hook_from_deco(self, deco):
+        from kubernetes import client as kubernetes_sdk
+
+        start_step = self.graph[self.graph.start_step]
+        # We want to grab the base image used by the start step, as this is known to be pullable from within the cluster,
+        # and it might contain the required libraries, allowing us to start up faster.
+        start_kube_deco = [
+            deco for deco in start_step.decorators if deco.name == "kubernetes"
+        ][0]
+        resources = dict(start_kube_deco.attributes)
+        kube_defaults = dict(start_kube_deco.defaults)
+
+        run_id_template = "argo-{{workflow.name}}"
+        metaflow_version = self.environment.get_environment_info()
+        metaflow_version["flow_name"] = self.graph.name
+        metaflow_version["production_token"] = self.production_token
+        env = {
+            # These values are needed by Metaflow to set it's internal
+            # state appropriately.
+            "METAFLOW_CODE_URL": self.code_package_url,
+            "METAFLOW_CODE_SHA": self.code_package_sha,
+            "METAFLOW_CODE_DS": self.flow_datastore.TYPE,
+            "METAFLOW_SERVICE_URL": SERVICE_INTERNAL_URL,
+            "METAFLOW_SERVICE_HEADERS": json.dumps(SERVICE_HEADERS),
+            "METAFLOW_USER": "argo-workflows",
+            "METAFLOW_S3_ENDPOINT_URL": S3_ENDPOINT_URL,
+            "METAFLOW_DEFAULT_DATASTORE": self.flow_datastore.TYPE,
+            "METAFLOW_DEFAULT_METADATA": DEFAULT_METADATA,
+            "METAFLOW_OWNER": self.username,
+        }
+        # pass on the Run pathspec for script
+        env["RUN_PATHSPEC"] = f"{self.graph.name}/{run_id_template}"
+
+        # support Metaflow sandboxes
+        env["METAFLOW_INIT_SCRIPT"] = KUBERNETES_SANDBOX_INIT_SCRIPT
+
+        env["METAFLOW_WORKFLOW_NAME"] = "{{workflow.name}}"
+        env["METAFLOW_WORKFLOW_NAMESPACE"] = "{{workflow.namespace}}"
+        env = {
+            k: v
+            for k, v in env.items()
+            if v is not None
+            and k not in set(ARGO_WORKFLOWS_ENV_VARS_TO_SKIP.split(","))
+        }
+
+        def _cmd(fn_name):
+            mflog_expr = export_mflog_env_vars(
+                datastore_type=self.flow_datastore.TYPE,
+                stdout_path="$PWD/.logs/mflog_stdout",
+                stderr_path="$PWD/.logs/mflog_stderr",
+                flow_name=self.flow.name,
+                run_id=run_id_template,
+                step_name=f"_hook_{fn_name}",
+                task_id="1",
+                retry_count="0",
+            )
+            cmds = " && ".join(
+                [
+                    # For supporting sandboxes, ensure that a custom script is executed
+                    # before anything else is executed. The script is passed in as an
+                    # env var.
+                    '${METAFLOW_INIT_SCRIPT:+eval \\"${METAFLOW_INIT_SCRIPT}\\"}',
+                    "mkdir -p $PWD/.logs",
+                    mflog_expr,
+                ]
+                + self.environment.get_package_commands(
+                    self.code_package_url, self.flow_datastore.TYPE
+                )[:-1]
+                # Replace the line 'Task in starting'
+                + [f"mflog 'Lifecycle hook {fn_name} is starting.'"]
+                + [
+                    f"python -m metaflow.plugins.exit_hook.exit_hook_script {metaflow_version['script']} {fn_name} $RUN_PATHSPEC"
+                ]
+            )
+
+            cmds = shlex.split('bash -c "%s"' % cmds)
+            return cmds
+
+        def _container(cmds):
+            return to_camelcase(
+                kubernetes_sdk.V1Container(
+                    name="main",
+                    command=cmds,
+                    image=deco.attributes["options"].get("image", None)
+                    or resources["image"],
+                    env=[
+                        kubernetes_sdk.V1EnvVar(name=k, value=str(v))
+                        for k, v in env.items()
+                    ],
+                    env_from=[
+                        kubernetes_sdk.V1EnvFromSource(
+                            secret_ref=kubernetes_sdk.V1SecretEnvSource(
+                                name=str(k),
+                                # optional=True
+                            )
+                        )
+                        for k in list(
+                            []
+                            if not resources.get("secrets")
+                            else (
+                                [resources.get("secrets")]
+                                if isinstance(resources.get("secrets"), str)
+                                else resources.get("secrets")
+                            )
+                        )
+                        + KUBERNETES_SECRETS.split(",")
+                        + ARGO_WORKFLOWS_KUBERNETES_SECRETS.split(",")
+                        if k
+                    ],
+                    resources=kubernetes_sdk.V1ResourceRequirements(
+                        requests={
+                            "cpu": str(kube_defaults["cpu"]),
+                            "memory": "%sM" % str(kube_defaults["memory"]),
+                        }
+                    ),
+                ).to_dict()
+            )
+
+        # create lifecycle hooks from deco
+        hooks = []
+        for success_fn_name in deco.success_hooks:
+            hook = ContainerHook(
+                name=f"success-{success_fn_name.replace('_', '-')}",
+                container=_container(cmds=_cmd(success_fn_name)),
+                service_account_name=resources["service_account"],
+                on_success=True,
+            )
+            hooks.append(hook)
+
+        for error_fn_name in deco.error_hooks:
+            hook = ContainerHook(
+                name=f"error-{error_fn_name.replace('_', '-')}",
+                service_account_name=resources["service_account"],
+                container=_container(cmds=_cmd(error_fn_name)),
+                on_error=True,
+            )
+            hooks.append(hook)
+
+        return hooks
+
+    def _exit_hook_templates(self):
+        templates = []
         if self.enable_error_msg_capture:
             templates.extend(self._error_msg_capture_hook_templates())
+
         return templates
 
     def _error_msg_capture_hook_templates(self):
         from kubernetes import client as kubernetes_sdk
 
-        start_step = [step for step in self.graph if step.name == "start"][0]
+        start_step = self.graph[self.graph.start_step]
         # We want to grab the base image used by the start step, as this is known to be pullable from within the cluster,
         # and it might contain the required libraries, allowing us to start up faster.
         resources = dict(
@@ -2322,7 +3218,9 @@ class ArgoWorkflows(object):
                 mflog_expr,
             ]
             + self.environment.get_package_commands(
-                self.code_package_url, self.flow_datastore.TYPE
+                self.code_package_url,
+                self.flow_datastore.TYPE,
+                self.code_package_metadata,
             )[:-1]
             # Replace the line 'Task in starting'
             # FIXME: this can be brittle.
@@ -2342,12 +3240,14 @@ class ArgoWorkflows(object):
         env = {
             # These values are needed by Metaflow to set it's internal
             # state appropriately.
+            "METAFLOW_CODE_METADATA": self.code_package_metadata,
             "METAFLOW_CODE_URL": self.code_package_url,
             "METAFLOW_CODE_SHA": self.code_package_sha,
             "METAFLOW_CODE_DS": self.flow_datastore.TYPE,
             "METAFLOW_SERVICE_URL": SERVICE_INTERNAL_URL,
             "METAFLOW_SERVICE_HEADERS": json.dumps(SERVICE_HEADERS),
             "METAFLOW_USER": "argo-workflows",
+            "METAFLOW_S3_ENDPOINT_URL": S3_ENDPOINT_URL,
             "METAFLOW_DEFAULT_DATASTORE": self.flow_datastore.TYPE,
             "METAFLOW_DEFAULT_METADATA": DEFAULT_METADATA,
             "METAFLOW_OWNER": self.username,
@@ -2430,57 +3330,187 @@ class ArgoWorkflows(object):
         # https://developer.pagerduty.com/docs/ZG9jOjExMDI5NTgx-send-an-alert-event
         if self.notify_pager_duty_integration_key is None:
             return None
-        return Template("notify-pager-duty-on-error").http(
-            Http("POST")
-            .url("https://events.pagerduty.com/v2/enqueue")
-            .header("Content-Type", "application/json")
-            .body(
-                json.dumps(
-                    {
-                        "event_action": "trigger",
-                        "routing_key": self.notify_pager_duty_integration_key,
-                        # "dedup_key": self.flow.name,  # TODO: Do we need deduplication?
-                        "payload": {
-                            "source": "{{workflow.name}}",
-                            "severity": "info",
-                            "summary": "Metaflow run %s/argo-{{workflow.name}} failed!"
-                            % self.flow.name,
-                            "custom_details": {
-                                "Flow": self.flow.name,
-                                "Run ID": "argo-{{workflow.name}}",
-                            },
+        return HttpExitHook(
+            name="notify-pager-duty-on-error",
+            method="POST",
+            url="https://events.pagerduty.com/v2/enqueue",
+            headers={"Content-Type": "application/json"},
+            body=json.dumps(
+                {
+                    "event_action": "trigger",
+                    "routing_key": self.notify_pager_duty_integration_key,
+                    # "dedup_key": self.flow.name,  # TODO: Do we need deduplication?
+                    "payload": {
+                        "source": "{{workflow.name}}",
+                        "severity": "info",
+                        "summary": "Metaflow run %s/argo-{{workflow.name}} failed!"
+                        % self.flow.name,
+                        "custom_details": {
+                            "Flow": self.flow.name,
+                            "Run ID": "argo-{{workflow.name}}",
                         },
-                        "links": self._pager_duty_notification_links(),
-                    }
-                )
-            )
+                    },
+                    "links": self._pager_duty_notification_links(),
+                }
+            ),
+            on_error=True,
         )
+
+    def _incident_io_alert_template(self):
+        if self.notify_incident_io_api_key is None:
+            return None
+        if self.incident_io_alert_source_config_id is None:
+            raise MetaflowException(
+                "Creating alerts for errors requires a alert source config ID."
+            )
+        ui_links = self._incident_io_ui_urls_for_run()
+        return HttpExitHook(
+            name="notify-incident-io-on-error",
+            method="POST",
+            url=(
+                "https://api.incident.io/v2/alert_events/http/%s"
+                % self.incident_io_alert_source_config_id
+            ),
+            headers={
+                "Content-Type": "application/json",
+                "Authorization": "Bearer %s" % self.notify_incident_io_api_key,
+            },
+            body=json.dumps(
+                {
+                    "idempotency_key": "argo-{{workflow.name}}",  # use run id to deduplicate alerts.
+                    "status": "firing",
+                    "title": "Flow %s has failed." % self.flow.name,
+                    "description": "Metaflow run {run_pathspec} failed!{urls}".format(
+                        run_pathspec="%s/argo-{{workflow.name}}" % self.flow.name,
+                        urls=(
+                            "\n\nSee details for the run at:\n\n"
+                            + "\n\n".join(ui_links)
+                            if ui_links
+                            else ""
+                        ),
+                    ),
+                    "source_url": (
+                        "%s/%s/%s"
+                        % (
+                            UI_URL.rstrip("/"),
+                            self.flow.name,
+                            "argo-{{workflow.name}}",
+                        )
+                        if UI_URL
+                        else None
+                    ),
+                    "metadata": {
+                        **(self.incident_io_metadata or {}),
+                        **{
+                            "run_status": "failed",
+                            "flow_name": self.flow.name,
+                            "run_id": "argo-{{workflow.name}}",
+                        },
+                    },
+                }
+            ),
+            on_error=True,
+        )
+
+    def _incident_io_change_template(self):
+        if self.notify_incident_io_api_key is None:
+            return None
+        if self.incident_io_alert_source_config_id is None:
+            raise MetaflowException(
+                "Creating alerts for successes requires an alert source config ID."
+            )
+        ui_links = self._incident_io_ui_urls_for_run()
+        return HttpExitHook(
+            name="notify-incident-io-on-success",
+            method="POST",
+            url=(
+                "https://api.incident.io/v2/alert_events/http/%s"
+                % self.incident_io_alert_source_config_id
+            ),
+            headers={
+                "Content-Type": "application/json",
+                "Authorization": "Bearer %s" % self.notify_incident_io_api_key,
+            },
+            body=json.dumps(
+                {
+                    "idempotency_key": "argo-{{workflow.name}}",  # use run id to deduplicate alerts.
+                    "status": "firing",
+                    "title": "Flow %s has succeeded." % self.flow.name,
+                    "description": "Metaflow run {run_pathspec} succeeded!{urls}".format(
+                        run_pathspec="%s/argo-{{workflow.name}}" % self.flow.name,
+                        urls=(
+                            "\n\nSee details for the run at:\n\n"
+                            + "\n\n".join(ui_links)
+                            if ui_links
+                            else ""
+                        ),
+                    ),
+                    "source_url": (
+                        "%s/%s/%s"
+                        % (
+                            UI_URL.rstrip("/"),
+                            self.flow.name,
+                            "argo-{{workflow.name}}",
+                        )
+                        if UI_URL
+                        else None
+                    ),
+                    "metadata": {
+                        **(self.incident_io_metadata or {}),
+                        **{
+                            "run_status": "succeeded",
+                            "flow_name": self.flow.name,
+                            "run_id": "argo-{{workflow.name}}",
+                        },
+                    },
+                }
+            ),
+            on_success=True,
+        )
+
+    def _incident_io_ui_urls_for_run(self):
+        links = []
+        if UI_URL:
+            url = "[Metaflow UI](%s/%s/%s)" % (
+                UI_URL.rstrip("/"),
+                self.flow.name,
+                "argo-{{workflow.name}}",
+            )
+            links.append(url)
+        if ARGO_WORKFLOWS_UI_URL:
+            url = "[Argo UI](%s/workflows/%s/%s)" % (
+                ARGO_WORKFLOWS_UI_URL.rstrip("/"),
+                "{{workflow.namespace}}",
+                "{{workflow.name}}",
+            )
+            links.append(url)
+        return links
 
     def _pager_duty_change_template(self):
         # https://developer.pagerduty.com/docs/ZG9jOjExMDI5NTgy-send-a-change-event
         if self.notify_pager_duty_integration_key is None:
             return None
-        return Template("notify-pager-duty-on-success").http(
-            Http("POST")
-            .url("https://events.pagerduty.com/v2/change/enqueue")
-            .header("Content-Type", "application/json")
-            .body(
-                json.dumps(
-                    {
-                        "routing_key": self.notify_pager_duty_integration_key,
-                        "payload": {
-                            "summary": "Metaflow run %s/argo-{{workflow.name}} Succeeded"
-                            % self.flow.name,
-                            "source": "{{workflow.name}}",
-                            "custom_details": {
-                                "Flow": self.flow.name,
-                                "Run ID": "argo-{{workflow.name}}",
-                            },
+        return HttpExitHook(
+            name="notify-pager-duty-on-success",
+            method="POST",
+            url="https://events.pagerduty.com/v2/change/enqueue",
+            headers={"Content-Type": "application/json"},
+            body=json.dumps(
+                {
+                    "routing_key": self.notify_pager_duty_integration_key,
+                    "payload": {
+                        "summary": "Metaflow run %s/argo-{{workflow.name}} Succeeded"
+                        % self.flow.name,
+                        "source": "{{workflow.name}}",
+                        "custom_details": {
+                            "Flow": self.flow.name,
+                            "Run ID": "argo-{{workflow.name}}",
                         },
-                        "links": self._pager_duty_notification_links(),
-                    }
-                )
-            )
+                    },
+                    "links": self._pager_duty_notification_links(),
+                }
+            ),
+            on_success=True,
         )
 
     def _pager_duty_notification_links(self):
@@ -2521,7 +3551,7 @@ class ArgoWorkflows(object):
                 "type": "section",
                 "text": {
                     "type": "mrkdwn",
-                    "text": ":metaflow: Environment details"
+                    "text": "Environment details"
                 },
                 "fields": [
                     {
@@ -2539,7 +3569,7 @@ class ArgoWorkflows(object):
                 "type": "section",
                 "text": {
                     "type": "mrkdwn",
-                    "text": ":metaflow: Environment details"
+                    "text": "Environment details"
                 }
             }
 
@@ -2584,8 +3614,12 @@ class ArgoWorkflows(object):
             blocks = self._get_slack_blocks(message)
             payload = {"text": message, "blocks": blocks}
 
-        return Template("notify-slack-on-error").http(
-            Http("POST").url(self.notify_slack_webhook_url).body(json.dumps(payload))
+        return HttpExitHook(
+            name="notify-slack-on-error",
+            method="POST",
+            url=self.notify_slack_webhook_url,
+            body=json.dumps(payload),
+            on_error=True,
         )
 
     def _slack_success_template(self):
@@ -2600,8 +3634,12 @@ class ArgoWorkflows(object):
             blocks = self._get_slack_blocks(message)
             payload = {"text": message, "blocks": blocks}
 
-        return Template("notify-slack-on-success").http(
-            Http("POST").url(self.notify_slack_webhook_url).body(json.dumps(payload))
+        return HttpExitHook(
+            name="notify-slack-on-success",
+            method="POST",
+            url=self.notify_slack_webhook_url,
+            body=json.dumps(payload),
+            on_success=True,
         )
 
     def _heartbeat_daemon_template(self):
@@ -2660,7 +3698,8 @@ class ArgoWorkflows(object):
                 mflog_expr,
             ]
             + self.environment.get_package_commands(
-                self.code_package_url, self.flow_datastore.TYPE
+                self.code_package_url,
+                self.flow_datastore.TYPE,
             )[:-1]
             # Replace the line 'Task in starting'
             # FIXME: this can be brittle.
@@ -2675,12 +3714,14 @@ class ArgoWorkflows(object):
         env = {
             # These values are needed by Metaflow to set it's internal
             # state appropriately.
+            "METAFLOW_CODE_METADATA": self.code_package_metadata,
             "METAFLOW_CODE_URL": self.code_package_url,
             "METAFLOW_CODE_SHA": self.code_package_sha,
             "METAFLOW_CODE_DS": self.flow_datastore.TYPE,
             "METAFLOW_SERVICE_URL": SERVICE_INTERNAL_URL,
             "METAFLOW_SERVICE_HEADERS": json.dumps(SERVICE_HEADERS),
             "METAFLOW_USER": "argo-workflows",
+            "METAFLOW_S3_ENDPOINT_URL": S3_ENDPOINT_URL,
             "METAFLOW_DATASTORE_SYSROOT_S3": DATASTORE_SYSROOT_S3,
             "METAFLOW_DATATOOLS_S3ROOT": DATATOOLS_S3ROOT,
             "METAFLOW_DEFAULT_DATASTORE": self.flow_datastore.TYPE,
@@ -2705,7 +3746,7 @@ class ArgoWorkflows(object):
 
         # We want to grab the base image used by the start step, as this is known to be pullable from within the cluster,
         # and it might contain the required libraries, allowing us to start up faster.
-        start_step = next(step for step in self.flow if step.name == "start")
+        start_step = self.graph[self.graph.start_step]
         resources = dict(
             [deco for deco in start_step.decorators if deco.name == "kubernetes"][
                 0
@@ -2873,7 +3914,7 @@ class ArgoWorkflows(object):
                 # Sensor metadata.
                 ObjectMeta()
                 .name(ArgoWorkflows._sensor_name(self.name))
-                .namespace(KUBERNETES_NAMESPACE)
+                .namespace(ARGO_EVENTS_SENSOR_NAMESPACE)
                 .labels(self._base_labels)
                 .label("app.kubernetes.io/name", "metaflow-sensor")
                 .annotations(self._base_annotations)
@@ -2923,8 +3964,8 @@ class ArgoWorkflows(object):
                     Trigger().template(
                         TriggerTemplate(self.name)
                         # Trigger a deployed workflow template
-                        .argo_workflow_trigger(
-                            ArgoWorkflowTrigger()
+                        .k8s_trigger(
+                            StandardK8STrigger()
                             .source(
                                 {
                                     "resource": {
@@ -2983,8 +4024,20 @@ class ArgoWorkflows(object):
                                                 # NOTE: We need the conditional logic in order to successfully fall back to the default value
                                                 # when the event payload does not contain a key for a parameter.
                                                 # NOTE: Keys might contain dashes, so use the safer 'get' for fetching the value
-                                                data_template='{{ if (hasKey $.Input.body.payload "%s") }}{{- (get $.Input.body.payload "%s" | toRawJson) -}}{{- else -}}{{ (fail "use-default-instead") }}{{- end -}}'
-                                                % (v, v),
+                                                data_template='{{ if (hasKey $.Input.body.payload "%s") }}%s{{- else -}}{{ (fail "use-default-instead") }}{{- end -}}'
+                                                % (
+                                                    v,
+                                                    (
+                                                        '{{- $pv:=(get $.Input.body.payload "%s") -}}{{ if kindIs "string" $pv }}{{- $pv | toRawJson -}}{{- else -}}{{ $pv | toRawJson | toRawJson }}{{- end -}}'
+                                                        % v
+                                                        if self.parameters[
+                                                            parameter_name
+                                                        ]["type"]
+                                                        == "JSON"
+                                                        else '{{- (get $.Input.body.payload "%s" | toRawJson) -}}'
+                                                        % v
+                                                    ),
+                                                ),
                                                 # Unfortunately the sensor needs to
                                                 # record the default values for
                                                 # the parameters - there doesn't seem
@@ -3206,6 +4259,10 @@ class WorkflowStep(object):
 
     def template(self, template):
         self.payload["template"] = str(template)
+        return self
+
+    def arguments(self, arguments):
+        self.payload["arguments"] = arguments.to_json()
         return self
 
     def when(self, condition):
@@ -3500,6 +4557,14 @@ class Template(object):
             )
         return self
 
+    def pod_spec_patch(self, pod_spec_patch=None):
+        if pod_spec_patch is None:
+            return self
+
+        self.payload["podSpecPatch"] = json.dumps(pod_spec_patch)
+
+        return self
+
     def node_selectors(self, node_selectors):
         if "nodeSelector" not in self.payload:
             self.payload["nodeSelector"] = {}
@@ -3517,7 +4582,7 @@ class Template(object):
     def resource(self, action, manifest, success_criteria, failure_criteria):
         self.payload["resource"] = {}
         self.payload["resource"]["action"] = action
-        self.payload["setOwnerReference"] = True
+        self.payload["resource"]["setOwnerReference"] = True
         self.payload["resource"]["successCondition"] = success_criteria
         self.payload["resource"]["failureCondition"] = failure_criteria
         self.payload["resource"]["manifest"] = manifest
@@ -3642,6 +4707,10 @@ class DAGTask(object):
         self.payload["dependencies"] = dependencies
         return self
 
+    def depends(self, depends: str):
+        self.payload["depends"] = depends
+        return self
+
     def template(self, template):
         # Template reference
         self.payload["template"] = template
@@ -3651,6 +4720,10 @@ class DAGTask(object):
         # We could have inlined the template here but
         # https://github.com/argoproj/argo-workflows/issues/7432 prevents us for now.
         self.payload["inline"] = template.to_json()
+        return self
+
+    def when(self, when: str):
+        self.payload["when"] = when
         return self
 
     def with_param(self, with_param):
@@ -3872,6 +4945,10 @@ class TriggerTemplate(object):
         self.payload = tree()
         self.payload["name"] = name
 
+    def k8s_trigger(self, k8s_trigger):
+        self.payload["k8s"] = k8s_trigger.to_json()
+        return self
+
     def argo_workflow_trigger(self, argo_workflow_trigger):
         self.payload["argoWorkflow"] = argo_workflow_trigger.to_json()
         return self
@@ -3948,51 +5025,51 @@ class TriggerParameter(object):
         return json.dumps(self.payload, indent=4)
 
 
-class Http(object):
-    # https://argoproj.github.io/argo-workflows/fields/#http
-
-    def __init__(self, method):
-        tree = lambda: defaultdict(tree)
-        self.payload = tree()
-        self.payload["method"] = method
-        self.payload["headers"] = []
-
-    def header(self, header, value):
-        self.payload["headers"].append({"name": header, "value": value})
-        return self
-
-    def body(self, body):
-        self.payload["body"] = str(body)
-        return self
-
-    def url(self, url):
-        self.payload["url"] = url
-        return self
-
-    def success_condition(self, success_condition):
-        self.payload["successCondition"] = success_condition
-        return self
-
-    def to_json(self):
-        return self.payload
-
-    def __str__(self):
-        return json.dumps(self.payload, indent=4)
-
-
-class LifecycleHook(object):
-    # https://argoproj.github.io/argo-workflows/fields/#lifecyclehook
+class StandardK8STrigger(object):
+    # https://pkg.go.dev/github.com/argoproj/argo-events/pkg/apis/sensor/v1alpha1#StandardK8STrigger
 
     def __init__(self):
         tree = lambda: defaultdict(tree)
         self.payload = tree()
+        self.payload["operation"] = "create"
 
-    def expression(self, expression):
-        self.payload["expression"] = str(expression)
+    def operation(self, operation):
+        self.payload["operation"] = operation
         return self
 
-    def template(self, template):
-        self.payload["template"] = template
+    def group(self, group):
+        self.payload["group"] = group
+        return self
+
+    def version(self, version):
+        self.payload["version"] = version
+        return self
+
+    def resource(self, resource):
+        self.payload["resource"] = resource
+        return self
+
+    def namespace(self, namespace):
+        self.payload["namespace"] = namespace
+        return self
+
+    def source(self, source):
+        self.payload["source"] = source
+        return self
+
+    def parameters(self, trigger_parameters):
+        if "parameters" not in self.payload:
+            self.payload["parameters"] = []
+        for trigger_parameter in trigger_parameters:
+            self.payload["parameters"].append(trigger_parameter.to_json())
+        return self
+
+    def live_object(self, live_object=True):
+        self.payload["liveObject"] = live_object
+        return self
+
+    def patch_strategy(self, patch_strategy):
+        self.payload["patchStrategy"] = patch_strategy
         return self
 
     def to_json(self):

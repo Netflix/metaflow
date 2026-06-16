@@ -7,12 +7,12 @@ See the documentation of get_version for more information
 
 # This file is adapted from https://github.com/aebrahim/python-git-version
 
+import re
 import subprocess
 from os import path, name, environ, listdir
 
 from metaflow.extension_support import update_package_info
-from metaflow.info_file import CURRENT_DIRECTORY, read_info_file
-
+from metaflow.meta_files import read_info_file
 
 # True/False correspond to the value `public`` in get_version
 _version_cache = {True: None, False: None}
@@ -27,11 +27,11 @@ if name == "nt":
         """find the path to the git executable on Windows"""
         # first see if git is in the path
         try:
-            check_output(["where", "/Q", "git"])
+            subprocess.check_output(["where", "/Q", "git"])
             # if this command succeeded, git is in the path
             return "git"
         # catch the exception thrown if git was not found
-        except CalledProcessError:
+        except subprocess.CalledProcessError:
             pass
         # There are several locations where git.exe may be hiding
         possible_locations = []
@@ -106,13 +106,23 @@ def format_git_describe(git_str, public=False):
     if git_str is None:
         return None
     splits = git_str.split("-")
-    if len(splits) == 4:
-        # Formatted as <tag>-<post>-<hash>-dirty
-        tag, post, h = splits[:3]
-        dirty = "-" + splits[3]
+    if len(splits) < 3:
+        # Unparseable; caller falls back to __version__ on None.
+        return None
+    # The rightmost tokens are always <post>-<hash>, optionally followed by
+    # "dirty". Everything before is the tag, which may itself contain dashes
+    # (e.g. v1.0-rc.1). Parsing from the right lets dashed tags round-trip
+    # instead of overflowing the unpack.
+    if splits[-1] == "dirty":
+        if len(splits) < 4:
+            # Dirty suffix adds one token, so we need at least 4 total.
+            return None
+        tag = "-".join(splits[:-3])
+        post, h = splits[-3:-1]
+        dirty = "-dirty"
     else:
-        # Formatted as <tag>-<post>-<hash>
-        tag, post, h = splits
+        tag = "-".join(splits[:-2])
+        post, h = splits[-2:]
         dirty = ""
     if post == "0":
         if public:
@@ -131,6 +141,22 @@ def read_info_version():
     if info_file:
         return info_file.get("metaflow_version")
     return None
+
+
+def make_public_version(version_string):
+    """
+    Takes a complex Metaflow version string and returns its public portion.
+    Strips Metaflow's private suffixes -- ``-git<hash>`` produced by
+    ``format_git_describe`` and the optional ``-dirty`` marker -- plus any
+    PEP 440 local-version segment (``+...``).
+
+    The result is a canonical PEP 440 public version iff the source tag
+    itself was canonical. A non-canonical tag such as ``v1.0-rc.1`` will
+    survive intact rather than being silently truncated; downstream
+    consumers that require strict PEP 440 will reject it at their layer.
+    """
+    base_version = version_string.split("+", 1)[0]
+    return re.sub(r"(?:-git[0-9a-f]+)?(?:-dirty)?$", "", base_version)
 
 
 def get_version(public=False):
@@ -170,6 +196,11 @@ def get_version(public=False):
     )  # Version info is cached in INFO file; includes extension info
 
     if version:
+        # If we have a version from the INFO file, use it directly.
+        # However, if we are asked for a public version, we parse it to make sure
+        # that no local information is included.
+        if public:
+            version = make_public_version(version)
         _version_cache[public] = version
         return version
 

@@ -37,6 +37,7 @@ from ast import (
     Module,
     Mult,
     Name,
+    NamedExpr,
     NodeTransformer,
     NodeVisitor,
     Pass,
@@ -45,7 +46,6 @@ from ast import (
     RShift,
     Starred,
     Store,
-    Str,
     Sub,
     Subscript,
     Tuple,
@@ -64,9 +64,6 @@ from contextlib import contextmanager
 from copy import deepcopy
 from dataclasses import dataclass, field
 from typing import Any, ClassVar, cast, overload
-
-if sys.version_info >= (3, 8):
-    from ast import NamedExpr
 
 generator_names = (
     "typing.Generator",
@@ -159,13 +156,12 @@ class TransformMemo:
                 if isinstance(child, ImportFrom) and child.module == "__future__":
                     # (module only) __future__ imports must come first
                     continue
-                elif isinstance(child, Expr):
-                    if isinstance(child.value, Constant) and isinstance(
-                        child.value.value, str
-                    ):
-                        continue  # docstring
-                    elif sys.version_info < (3, 8) and isinstance(child.value, Str):
-                        continue  # docstring
+                elif (
+                    isinstance(child, Expr)
+                    and isinstance(child.value, Constant)
+                    and isinstance(child.value.value, str)
+                ):
+                    continue  # docstring
 
                 self.code_inject_index = index
                 break
@@ -349,15 +345,25 @@ class AnnotationTransformer(NodeTransformer):
     def __init__(self, transformer: TypeguardTransformer):
         self.transformer = transformer
         self._memo = transformer._memo
+        self._level = 0
 
     def visit(self, node: AST) -> Any:
+        # Don't process Literals
+        if isinstance(node, expr) and self._memo.name_matches(node, *literal_names):
+            return node
+
+        self._level += 1
         new_node = super().visit(node)
+        self._level -= 1
+
         if isinstance(new_node, Expression) and not hasattr(new_node, "body"):
             return None
 
         # Return None if this new node matches a variation of typing.Any
-        if isinstance(new_node, expr) and self._memo.name_matches(
-            new_node, *anytype_names
+        if (
+            self._level == 0
+            and isinstance(new_node, expr)
+            and self._memo.name_matches(new_node, *anytype_names)
         ):
             return None
 
@@ -367,9 +373,17 @@ class AnnotationTransformer(NodeTransformer):
         self.generic_visit(node)
 
         if isinstance(node.op, BitOr):
-            # If either side of the operation resolved to None, return None
+            # If either branch of the BinOp has been transformed to `None`, it means
+            # that a type in the union was ignored, so the entire annotation should e
+            # ignored
             if not hasattr(node, "left") or not hasattr(node, "right"):
                 return None
+
+            # Return Any if either side is Any
+            if self._memo.name_matches(node.left, *anytype_names):
+                return node.left
+            elif self._memo.name_matches(node.right, *anytype_names):
+                return node.right
 
             if sys.version_info < (3, 10):
                 union_name = self.transformer._get_import("typing", "Union")
@@ -395,9 +409,9 @@ class AnnotationTransformer(NodeTransformer):
 
         # The subscript of typing(_extensions).Literal can be any arbitrary string, so
         # don't try to evaluate it as code
-        if not self._memo.name_matches(node.value, *literal_names) and node.slice:
+        if node.slice:
             if isinstance(node.slice, Index):
-                # Python 3.7 and 3.8
+                # Python 3.8
                 slice_value = node.slice.value  # type: ignore[attr-defined]
             else:
                 slice_value = node.slice
@@ -408,20 +422,22 @@ class AnnotationTransformer(NodeTransformer):
                     # forward reference
                     items = cast(
                         typing.List[expr],
-                        [self.generic_visit(slice_value.elts[0])]
-                        + slice_value.elts[1:],
+                        [self.visit(slice_value.elts[0])] + slice_value.elts[1:],
                     )
                 else:
                     items = cast(
                         typing.List[expr],
-                        [self.generic_visit(item) for item in slice_value.elts],
+                        [self.visit(item) for item in slice_value.elts],
                     )
 
                 # If this is a Union and any of the items is Any, erase the entire
                 # annotation
                 if self._memo.name_matches(node.value, "typing.Union") and any(
-                    isinstance(item, expr)
-                    and self._memo.name_matches(item, *anytype_names)
+                    item is None
+                    or (
+                        isinstance(item, expr)
+                        and self._memo.name_matches(item, *anytype_names)
+                    )
                     for item in items
                 ):
                     return None
@@ -441,9 +457,11 @@ class AnnotationTransformer(NodeTransformer):
                 # If the transformer erased the slice entirely, just return the node
                 # value without the subscript (unless it's Optional, in which case erase
                 # the node entirely
-                if self._memo.name_matches(node.value, "typing.Optional"):
+                if self._memo.name_matches(
+                    node.value, "typing.Optional"
+                ) and not hasattr(node, "slice"):
                     return None
-                elif sys.version_info >= (3, 9) and not hasattr(node, "slice"):
+                if sys.version_info >= (3, 9) and not hasattr(node, "slice"):
                     return node.value
                 elif sys.version_info < (3, 9) and not hasattr(node.slice, "value"):
                     return node.value
@@ -477,15 +495,6 @@ class AnnotationTransformer(NodeTransformer):
 
         return node
 
-    def visit_Str(self, node: Str) -> Any:
-        # Only used on Python 3.7
-        expression = ast.parse(node.s, mode="eval")
-        new_node = self.visit(expression)
-        if new_node:
-            return copy_location(new_node.body, node)
-        else:
-            return None
-
 
 class TypeguardTransformer(NodeTransformer):
     def __init__(
@@ -497,11 +506,32 @@ class TypeguardTransformer(NodeTransformer):
         self.target_node: FunctionDef | AsyncFunctionDef | None = None
         self.target_lineno = target_lineno
 
+    def generic_visit(self, node: AST) -> AST:
+        has_non_empty_body_initially = bool(getattr(node, "body", None))
+        initial_type = type(node)
+
+        node = super().generic_visit(node)
+
+        if (
+            type(node) is initial_type
+            and has_non_empty_body_initially
+            and hasattr(node, "body")
+            and not node.body
+        ):
+            # If we have still the same node type after transformation
+            # but we've optimised it's body away, we add a `pass` statement.
+            node.body = [Pass()]
+
+        return node
+
     @contextmanager
     def _use_memo(
         self, node: ClassDef | FunctionDef | AsyncFunctionDef
     ) -> Generator[None, Any, None]:
         new_memo = TransformMemo(node, self._memo, self._memo.path + (node.name,))
+        old_memo = self._memo
+        self._memo = new_memo
+
         if isinstance(node, (FunctionDef, AsyncFunctionDef)):
             new_memo.should_instrument = (
                 self._target_path is None or new_memo.path == self._target_path
@@ -553,8 +583,6 @@ class TypeguardTransformer(NodeTransformer):
         if isinstance(node, AsyncFunctionDef):
             new_memo.is_async = True
 
-        old_memo = self._memo
-        self._memo = new_memo
         yield
         self._memo = old_memo
 
@@ -563,12 +591,10 @@ class TypeguardTransformer(NodeTransformer):
         return memo.get_import(module, name)
 
     @overload
-    def _convert_annotation(self, annotation: None) -> None:
-        ...
+    def _convert_annotation(self, annotation: None) -> None: ...
 
     @overload
-    def _convert_annotation(self, annotation: expr) -> expr:
-        ...
+    def _convert_annotation(self, annotation: expr) -> expr: ...
 
     def _convert_annotation(self, annotation: expr | None) -> expr | None:
         if annotation is None:
@@ -591,8 +617,9 @@ class TypeguardTransformer(NodeTransformer):
         return node
 
     def visit_Module(self, node: Module) -> Module:
+        self._module_memo = self._memo = TransformMemo(node, None, ())
         self.generic_visit(node)
-        self._memo.insert_imports(node)
+        self._module_memo.insert_imports(node)
 
         fix_missing_locations(node)
         return node
@@ -691,14 +718,12 @@ class TypeguardTransformer(NodeTransformer):
                 if self.target_lineno == first_lineno:
                     assert self.target_node is None
                     self.target_node = node
-                    if node.decorator_list and sys.version_info >= (3, 8):
+                    if node.decorator_list:
                         self.target_lineno = node.decorator_list[0].lineno
                     else:
                         self.target_lineno = node.lineno
 
-                all_args = node.args.args + node.args.kwonlyargs
-                if sys.version_info >= (3, 8):
-                    all_args.extend(node.args.posonlyargs)
+                all_args = node.args.args + node.args.kwonlyargs + node.args.posonlyargs
 
                 # Ensure that any type shadowed by the positional or keyword-only
                 # argument names are ignored in this function
@@ -894,6 +919,22 @@ class TypeguardTransformer(NodeTransformer):
                 )
 
                 self._memo.insert_imports(node)
+
+                # Special case the __new__() method to create a local alias from the
+                # class name to the first argument (usually "cls")
+                if (
+                    isinstance(node, FunctionDef)
+                    and node.args
+                    and self._memo.parent is not None
+                    and isinstance(self._memo.parent.node, ClassDef)
+                    and node.name == "__new__"
+                ):
+                    first_args_expr = Name(node.args.args[0].arg, ctx=Load())
+                    cls_name = Name(self._memo.parent.node.name, ctx=Store())
+                    node.body.insert(
+                        self._memo.code_inject_index,
+                        Assign([cls_name], first_args_expr),
+                    )
 
                 # Rmove any placeholder "pass" at the end
                 if isinstance(node.body[-1], Pass):
@@ -1175,11 +1216,6 @@ class TypeguardTransformer(NodeTransformer):
 
         """
         self.generic_visit(node)
-
-        # Fix empty node body (caused by removal of classes/functions not on the target
-        # path)
-        if not node.body:
-            node.body.append(Pass())
 
         if (
             self._memo is self._module_memo

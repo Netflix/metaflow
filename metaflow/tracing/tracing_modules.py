@@ -13,45 +13,51 @@ from typing import Dict, List, Optional
 from opentelemetry import trace as trace_api, context
 from .span_exporter import get_span_exporter
 
-tracer_provider = None
+tracer_provider: Optional[TracerProvider] = None
 
 
 def init_tracing():
     global tracer_provider
     if tracer_provider is not None:
-        print("Tracing already initialized", file=sys.stderr)
         return
 
     from .propagator import EnvPropagator
 
     set_global_textmap(EnvPropagator(None))
-    span_exporter = get_span_exporter()
 
-    if "METAFLOW_KUBERNETES_POD_NAMESPACE" in os.environ:
-        service_name = "metaflow-kubernetes"
-    elif "AWS_BATCH_JOB_ID" in os.environ:
-        service_name = "metaflow-awsbatch"
-    else:
-        service_name = "metaflow-local"
+    span_exporter = get_span_exporter()
+    if span_exporter is None:
+        return
 
     tracer_provider = TracerProvider(
-        resource=Resource.create({SERVICE_NAME: service_name})
+        resource=Resource.create(
+            {
+                SERVICE_NAME: "metaflow",
+            }
+        )
     )
     trace_api.set_tracer_provider(tracer_provider)
 
     span_processor = BatchSpanProcessor(span_exporter)
     tracer_provider.add_span_processor(span_processor)
 
-    from opentelemetry.instrumentation.requests import RequestsInstrumentor
+    try:
+        from opentelemetry.instrumentation.requests import RequestsInstrumentor
 
-    RequestsInstrumentor().instrument()
+        RequestsInstrumentor().instrument(
+            tracer_provider=tracer_provider,
+        )
+    except ImportError:
+        pass
 
 
 @contextlib.contextmanager
 def post_fork():
     global tracer_provider
+
     tracer_provider = None
     init_tracing()
+
     token = context.attach(extract(os.environ))
     try:
         tracer = trace_api.get_tracer_provider().get_tracer(__name__)
@@ -59,47 +65,27 @@ def post_fork():
             "fork", kind=trace_api.SpanKind.SERVER
         ) as span:
             span.set_attribute("cmd", " ".join(sys.argv))
+            span.set_attribute("pid", str(os.getpid()))
             yield
     finally:
         context.detach(token)
 
 
-def _extract_token_after(tokens: List[str], before_token: str) -> Optional[str]:
-    for i, tok in enumerate(tokens):
-        if i > 0 and tokens[i - 1] == before_token:
-            return tok
-
-
-def cli_entrypoint(name: str):
-    def cli_entrypoint_wrap(func):
+def cli(name: str):
+    def cli_wrap(func):
         @wraps(func)
         def wrapper_func(*args, **kwargs):
             global tracer_provider
-
             init_tracing()
 
-            assert tracer_provider is not None  # make type checker happy
+            if tracer_provider is None:
+                return func(*args, **kwargs)
 
             token = context.attach(extract(os.environ))
             try:
                 tracer = trace_api.get_tracer_provider().get_tracer(__name__)
-
-                card_subcommand = _extract_token_after(sys.argv, "card")
-
-                step_name = _extract_token_after(sys.argv, "step")
-                task_id = _extract_token_after(sys.argv, "--task-id")
-                run_id = _extract_token_after(sys.argv, "--run-id")
-                if step_name and task_id and run_id:
-                    better_name = "/".join([run_id, step_name, task_id])
-                elif card_subcommand:
-                    better_name = "card/" + card_subcommand
-                elif "run" in sys.argv:
-                    better_name = "run"
-                else:
-                    better_name = None
-
                 with tracer.start_as_current_span(
-                    better_name or name, kind=trace_api.SpanKind.SERVER
+                    name, kind=trace_api.SpanKind.SERVER
                 ) as span:
                     span.set_attribute("cmd", " ".join(sys.argv))
                     span.set_attribute("pid", str(os.getpid()))
@@ -113,7 +99,7 @@ def cli_entrypoint(name: str):
 
         return wrapper_func
 
-    return cli_entrypoint_wrap
+    return cli_wrap
 
 
 def inject_tracing_vars(env_dict: Dict[str, str]) -> Dict[str, str]:
@@ -122,23 +108,32 @@ def inject_tracing_vars(env_dict: Dict[str, str]) -> Dict[str, str]:
 
 
 def get_trace_id() -> str:
-    return format_trace_id(trace_api.get_current_span().get_span_context().trace_id)
+    try:
+        return format_trace_id(trace_api.get_current_span().get_span_context().trace_id)
+    except Exception:
+        return ""
 
 
 @contextlib.contextmanager
-def traced(name, attrs={}):
+def traced(name: str, attrs: Optional[Dict] = None):
+    if tracer_provider is None:
+        yield
+        return
     tracer = trace_api.get_tracer_provider().get_tracer(__name__)
     with tracer.start_as_current_span(name) as span:
-        for k, v in attrs.items():
-            span.set_attribute(k, v)
+        if attrs:
+            for k, v in attrs.items():
+                span.set_attribute(k, v)
         yield
 
 
 def tracing(func):
     @wraps(func)
     def wrapper_func(*args, **kwargs):
-        tracer = trace_api.get_tracer_provider().get_tracer(func.__module__.__name__)
+        if tracer_provider is None:
+            return func(*args, **kwargs)
 
+        tracer = trace_api.get_tracer_provider().get_tracer(func.__module__)
         with tracer.start_as_current_span(func.__name__):
             return func(*args, **kwargs)
 

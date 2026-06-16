@@ -1,5 +1,6 @@
 import functools
 import inspect
+import os
 import sys
 import traceback
 from datetime import datetime
@@ -8,16 +9,17 @@ import metaflow.tracing as tracing
 from metaflow._vendor import click
 
 from . import decorators, lint, metaflow_version, parameters, plugins
+from .system_context import _phase_from_cli_args, system_context
 from .cli_args import cli_args
 from .cli_components.utils import LazyGroup, LazyPluginCommandCollection
 from .datastore import FlowDataStore, TaskDataStoreSet
 from .debug import debug
 from .exception import CommandException, MetaflowException
-from .flowspec import _FlowState
+from .flowspec import FlowStateItems
 from .graph import FlowGraph
 from .metaflow_config import (
-    DECOSPECS,
     DEFAULT_DATASTORE,
+    DEFAULT_DECOSPECS,
     DEFAULT_ENVIRONMENT,
     DEFAULT_EVENT_LOGGER,
     DEFAULT_METADATA,
@@ -25,8 +27,10 @@ from .metaflow_config import (
     DEFAULT_PACKAGE_SUFFIXES,
 )
 from .metaflow_current import current
+from .metaflow_profile import from_start
 from metaflow.system import _system_monitor, _system_logger
 from .metaflow_environment import MetaflowEnvironment
+from .packaging_sys import MetaflowCodeContent
 from .plugins import (
     DATASTORES,
     ENVIRONMENTS,
@@ -36,7 +40,7 @@ from .plugins import (
 )
 from .pylint_wrapper import PyLint
 from .R import metaflow_r_version, use_r
-from .util import get_latest_run_id, resolve_identity
+from .util import get_latest_run_id, resolve_identity, decompress_list
 from .user_configs.config_options import LocalFileInput, config_options
 from .user_configs.config_parameters import ConfigValue
 
@@ -54,6 +58,15 @@ def echo_dev_null(*args, **kwargs):
 
 
 def echo_always(line, **kwargs):
+    if kwargs.pop("wrap", False):
+        import textwrap
+
+        indent_str = INDENT if kwargs.get("indent", None) else ""
+        effective_width = 80 - len(indent_str)
+        wrapped = textwrap.wrap(line, width=effective_width, break_long_words=False)
+        line = "\n".join(indent_str + l for l in wrapped)
+        kwargs["indent"] = False
+
     kwargs["err"] = kwargs.get("err", True)
     if kwargs.pop("indent", None):
         line = "\n".join(INDENT + x for x in line.splitlines())
@@ -106,26 +119,6 @@ def logger(body="", system_msg=False, head="", bad=False, timestamp=True, nl=Tru
     click.secho(body, bold=system_msg, fg=LOGGER_BAD_COLOR if bad else None, nl=nl)
 
 
-def config_merge_cb(ctx, param, value):
-    # Callback to:
-    #  - read  the Click auto_envvar variable from both the
-    #    environment AND the configuration
-    #  - merge that value with the value passed in the command line (value)
-    #  - return the value as a tuple
-    # Note that this function gets called even if there is no option passed on the
-    # command line.
-    # NOTE: Assumes that ctx.auto_envvar_prefix is set to METAFLOW (same as in
-    # from_conf)
-
-    # Special case where DECOSPECS and value are the same. This happens
-    # when there is no --with option at the TL and DECOSPECS is read from
-    # the env var. In this case, click also passes it as value
-    splits = DECOSPECS.split()
-    if len(splits) == len(value) and all([a == b for (a, b) in zip(splits, value)]):
-        return value
-    return tuple(list(value) + DECOSPECS.split())
-
-
 @click.group(
     cls=LazyGroup,
     lazy_subcommands={
@@ -134,6 +127,8 @@ def config_merge_cb(ctx, param, value):
         "step": "metaflow.cli_components.step_cmd.step",
         "run": "metaflow.cli_components.run_cmds.run",
         "resume": "metaflow.cli_components.run_cmds.resume",
+        "spin": "metaflow.cli_components.run_cmds.spin",
+        "spin-step": "metaflow.cli_components.step_cmd.spin_step",
     },
 )
 def cli(ctx):
@@ -171,8 +166,13 @@ def check(obj, warnings=False):
 def show(obj):
     echo_always("\n%s" % obj.graph.doc)
     for node_name in obj.graph.sorted_nodes:
+        echo_always("")
         node = obj.graph[node_name]
-        echo_always("\nStep *%s*" % node.name, err=False)
+        for deco in node.decorators:
+            echo_always("@%s" % deco.name, err=False)
+        for deco in node.wrappers:
+            echo_always("@%s" % deco.decorator_name, err=False)
+        echo_always("Step *%s*" % node.name, err=False)
         echo_always(node.doc if node.doc else "?", indent=True, err=False)
         if node.type != "end":
             echo_always(
@@ -206,15 +206,15 @@ def output_raw(obj, json):
     else:
         _graph = str(obj.graph)
         _msg = "Internal representation of the flow:"
-    echo(_msg, fg="magenta", bold=False)
+    echo_always(_msg, fg="magenta", bold=False)
     echo_always(_graph, err=False)
 
 
 @cli.command(help="Visualize the flow with Graphviz.")
 @click.pass_obj
 def output_dot(obj):
-    echo("Visualizing the flow as a GraphViz graph", fg="magenta", bold=False)
-    echo(
+    echo_always("Visualizing the flow as a GraphViz graph", fg="magenta", bold=False)
+    echo_always(
         "Try piping the output to 'dot -Tpng -o graph.png' to produce "
         "an actual image.",
         indent=True,
@@ -238,7 +238,6 @@ def version(obj):
     lazy_sources=plugins.get_plugin_cli_path(),
     invoke_without_command=True,
 )
-@tracing.cli_entrypoint("cli/start")
 # Quiet is eager to make sure it is available when processing --config options since
 # we need it to construct a context to pass to any DeployTimeField for the default
 # value.
@@ -263,6 +262,14 @@ def version(obj):
     type=click.Choice(["local"] + [m.TYPE for m in ENVIRONMENTS]),
     help="Execution environment type",
 )
+@click.option(
+    "--force-rebuild-environments/--no-force-rebuild-environments",
+    is_flag=True,
+    default=False,
+    hidden=True,
+    type=bool,
+    help="Explicitly rebuild the execution environments",
+)
 # See comment for --quiet
 @click.option(
     "--datastore",
@@ -285,7 +292,6 @@ def version(obj):
     multiple=True,
     help="Add a decorator to all steps. You can specify this option "
     "multiple times to attach multiple decorators in steps.",
-    callback=config_merge_cb,
 )
 @click.option(
     "--pylint/--no-pylint",
@@ -316,12 +322,20 @@ def version(obj):
     hidden=True,
     is_eager=True,
 )
+@click.option(
+    "--mode",
+    type=click.Choice(["spin"]),
+    default=None,
+    help="Execution mode for metaflow CLI commands. Use 'spin' to enable "
+    "spin metadata and spin datastore for executions",
+)
 @click.pass_context
 def start(
     ctx,
     quiet=False,
     metadata=None,
     environment=None,
+    force_rebuild_environments=False,
     datastore=None,
     datastore_root=None,
     decospecs=None,
@@ -330,8 +344,9 @@ def start(
     event_logger=None,
     monitor=None,
     local_config_file=None,
-    config_file=None,
+    config=None,
     config_value=None,
+    mode=None,
     **deco_options
 ):
     if quiet:
@@ -344,9 +359,15 @@ def start(
     if use_r():
         version = metaflow_r_version()
 
+    from_start("MetaflowCLI: Starting")
     echo("Metaflow %s" % version, fg="magenta", bold=True, nl=False)
     echo(" executing *%s*" % ctx.obj.flow.name, fg="magenta", nl=False)
     echo(" for *%s*" % resolve_identity(), fg="magenta")
+
+    # Check if we need to setup the distribution finder (if running )
+    dist_info = MetaflowCodeContent.get_distribution_finder()
+    if dist_info:
+        sys.meta_path.append(dist_info)
 
     # Setup the context
     cli_args._set_top_kwargs(ctx.params)
@@ -358,6 +379,7 @@ def start(
     ctx.obj.check = functools.partial(_check, echo)
     ctx.obj.top_cli = cli
     ctx.obj.package_suffixes = package_suffixes.split(",")
+    ctx.obj.spin_mode = mode == "spin"
 
     ctx.obj.datastore_impl = [d for d in DATASTORES if d.TYPE == datastore][0]
 
@@ -383,7 +405,7 @@ def start(
     # When we process the options, the first one processed will return None and the
     # second one processed will return the actual options. The order of processing
     # depends on what (and in what order) the user specifies on the command line.
-    config_options = config_file or config_value
+    config_options = config or config_value
 
     if (
         hasattr(ctx, "saved_args")
@@ -396,7 +418,7 @@ def start(
         # if we need to in the first place
         if getattr(ctx.obj, "has_cl_config_options", False):
             raise click.UsageError(
-                "Cannot specify --config-file or --config-value with 'resume'"
+                "Cannot specify --config or --config-value with 'resume'"
             )
         # We now load the config artifacts from the original run id
         run_id = None
@@ -436,17 +458,33 @@ def start(
         # We can now set the the CONFIGS value in the flow properly. This will overwrite
         # anything that may have been passed in by default and we will use exactly what
         # the original flow had. Note that these are accessed through the parameter name
-        ctx.obj.flow._flow_state[_FlowState.CONFIGS].clear()
-        d = ctx.obj.flow._flow_state[_FlowState.CONFIGS]
+        # We need to save the "plain-ness" flag to carry it over
+        config_plain_flags = {
+            k: v[1] for k, v in ctx.obj.flow._flow_state[FlowStateItems.CONFIGS].items()
+        }
+        ctx.obj.flow._flow_state[FlowStateItems.CONFIGS].clear()
+        d = ctx.obj.flow._flow_state[FlowStateItems.CONFIGS]
         for param_name, var_name in zip(config_param_names, config_var_names):
             val = param_ds[var_name]
             debug.userconf_exec("Loaded config %s as: %s" % (param_name, val))
-            d[param_name] = val
+            d[param_name] = (val, config_plain_flags[param_name])
 
     elif getattr(ctx.obj, "delayed_config_exception", None):
         # If we are not doing a resume, any exception we had parsing configs needs to
         # be raised. For resume, since we ignore those options, we ignore the error.
         raise ctx.obj.delayed_config_exception
+
+    # Initialize the phase early so it can be used in the mutators
+    # The phase is determined by which CLI subcommand is being invoked (e.g. "run" → LAUNCH,
+    # "step" → TASK, "batch" → TRAMPOLINE).
+    system_context._update(phase=_phase_from_cli_args(getattr(ctx, "saved_args", None)))
+
+    # Process config decorators (this is the pre_mutate phase for both flow mutators and
+    # step mutators -- the mutate is called in init_step_decorators)
+
+    # Init all values in the flow mutators and then process them
+    for decorator in ctx.obj.flow._flow_mutators:
+        decorator.external_init()
 
     new_cls = ctx.obj.flow._process_config_decorators(config_options)
     if new_cls:
@@ -457,20 +495,15 @@ def start(
     ctx.obj.environment = [
         e for e in ENVIRONMENTS + [MetaflowEnvironment] if e.TYPE == environment
     ][0](ctx.obj.flow)
+    # set force rebuild flag for environments that support it.
+    ctx.obj.environment._force_rebuild = force_rebuild_environments
     ctx.obj.environment.validate_environment(ctx.obj.logger, datastore)
-
     ctx.obj.event_logger = LOGGING_SIDECARS[event_logger](
         flow=ctx.obj.flow, env=ctx.obj.environment
     )
-    ctx.obj.event_logger.start()
-    _system_logger.init_system_logger(ctx.obj.flow.name, ctx.obj.event_logger)
-
     ctx.obj.monitor = MONITOR_SIDECARS[monitor](
         flow=ctx.obj.flow, env=ctx.obj.environment
     )
-    ctx.obj.monitor.start()
-    _system_monitor.init_system_monitor(ctx.obj.flow.name, ctx.obj.monitor)
-
     ctx.obj.metadata = [m for m in METADATA_PROVIDERS if m.TYPE == metadata][0](
         ctx.obj.environment, ctx.obj.flow, ctx.obj.event_logger, ctx.obj.monitor
     )
@@ -484,8 +517,66 @@ def start(
     )
 
     ctx.obj.config_options = config_options
+    ctx.obj.is_spin = False
+    ctx.obj.skip_decorators = False
 
-    decorators._init(ctx.obj.flow)
+    # Override values for spin steps, or if we are in spin mode
+    if (
+        hasattr(ctx, "saved_args")
+        and ctx.saved_args
+        and "spin" in ctx.saved_args[0]
+        or ctx.obj.spin_mode
+    ):
+        # To minimize side effects for spin, we will only use the following:
+        # - local metadata provider,
+        # - local datastore,
+        # - local environment,
+        # - null event logger,
+        # - null monitor
+        ctx.obj.is_spin = True
+        if "--skip-decorators" in ctx.saved_args:
+            ctx.obj.skip_decorators = True
+
+        ctx.obj.event_logger = LOGGING_SIDECARS["nullSidecarLogger"](
+            flow=ctx.obj.flow, env=ctx.obj.environment
+        )
+        ctx.obj.monitor = MONITOR_SIDECARS["nullSidecarMonitor"](
+            flow=ctx.obj.flow, env=ctx.obj.environment
+        )
+        # Use spin metadata, spin datastore, and spin datastore root
+        ctx.obj.metadata = [m for m in METADATA_PROVIDERS if m.TYPE == "spin"][0](
+            ctx.obj.environment, ctx.obj.flow, ctx.obj.event_logger, ctx.obj.monitor
+        )
+        ctx.obj.datastore_impl = [d for d in DATASTORES if d.TYPE == "spin"][0]
+        datastore_root = ctx.obj.datastore_impl.get_datastore_root_from_config(
+            ctx.obj.echo, create_on_absent=True
+        )
+        ctx.obj.datastore_impl.datastore_root = datastore_root
+
+        ctx.obj.flow_datastore = FlowDataStore(
+            ctx.obj.flow.name,
+            ctx.obj.environment,  # Same environment as run/resume
+            ctx.obj.metadata,  # local metadata
+            ctx.obj.event_logger,  # null event logger
+            ctx.obj.monitor,  # null monitor
+            storage_impl=ctx.obj.datastore_impl,
+        )
+
+    # Start event logger and monitor
+    ctx.obj.event_logger.start()
+    _system_logger.init_system_logger(ctx.obj.flow.name, ctx.obj.event_logger)
+
+    ctx.obj.monitor.start()
+    _system_monitor.init_system_monitor(ctx.obj.flow.name, ctx.obj.monitor)
+
+    system_context._update(
+        flow=ctx.obj.flow,
+        graph=ctx.obj.graph,
+        environment=ctx.obj.environment,
+        flow_datastore=ctx.obj.flow_datastore,
+        metadata=ctx.obj.metadata,
+        logger=ctx.obj.logger,
+    )
 
     # It is important to initialize flow decorators early as some of the
     # things they provide may be used by some of the objects initialized after.
@@ -498,12 +589,19 @@ def start(
         ctx.obj.logger,
         echo,
         deco_options,
+        ctx.obj.is_spin,
+        ctx.obj.skip_decorators,
     )
 
-    # In the case of run/resume, we will want to apply the TL decospecs
+    # In the case of run/resume/spin, we will want to apply the TL decospecs
     # *after* the run decospecs so that they don't take precedence. In other
     # words, for the same decorator, we want `myflow.py run --with foo` to
     # take precedence over any other `foo` decospec
+
+    # Note that top-level decospecs are used primarily with non run/resume
+    # options as well as with the airflow/argo/sfn integrations which pass
+    # all the decospecs (the ones from top-level but also the ones from the
+    # run/resume level) through the tl decospecs.
     ctx.obj.tl_decospecs = list(decospecs or [])
 
     # initialize current and parameter context for deploy-time parameters
@@ -513,28 +611,34 @@ def start(
         ctx.obj.echo,
         ctx.obj.flow_datastore,
         {
-            k: ConfigValue(v)
-            for k, v in ctx.obj.flow.__class__._flow_state.get(
-                _FlowState.CONFIGS, {}
-            ).items()
+            k: v if plain_flag or v is None else ConfigValue(v)
+            for k, (v, plain_flag) in ctx.obj.flow.__class__._flow_state[
+                FlowStateItems.CONFIGS
+            ].items()
         },
     )
 
     if (
         hasattr(ctx, "saved_args")
         and ctx.saved_args
-        and ctx.saved_args[0] not in ("run", "resume")
+        and ctx.saved_args[0] not in ("run", "resume", "spin")
     ):
-        # run/resume are special cases because they can add more decorators with --with,
+        # run/resume/spin are special cases because they can add more decorators with --with,
         # so they have to take care of themselves.
         all_decospecs = ctx.obj.tl_decospecs + list(
             ctx.obj.environment.decospecs() or []
         )
+
+        # We add the default decospecs for everything except init, step, and
+        # spin-step since those decospecs are handled by run/resume/scheduler
+        # setup or are explicitly forwarded by SpinRuntime.
+        if ctx.saved_args[0] not in ("step", "init", "spin-step"):
+            all_decospecs += DEFAULT_DECOSPECS.split()
+
         if all_decospecs:
             decorators._attach_decorators(ctx.obj.flow, all_decospecs)
-            decorators._init(ctx.obj.flow)
             # Regenerate graph if we attached more decorators
-            ctx.obj.flow.__class__._init_attrs()
+            ctx.obj.flow.__class__._init_graph()
             ctx.obj.graph = ctx.obj.flow._graph
 
         decorators._init_step_decorators(
@@ -543,7 +647,13 @@ def start(
             ctx.obj.environment,
             ctx.obj.flow_datastore,
             ctx.obj.logger,
+            # The last two arguments are only used for spin steps
+            ctx.obj.is_spin,
+            ctx.obj.skip_decorators,
         )
+
+        # Check the graph again (mutators may have changed it)
+        ctx.obj.graph = ctx.obj.flow._graph
 
         # TODO (savin): Enable lazy instantiation of package
         ctx.obj.package = None

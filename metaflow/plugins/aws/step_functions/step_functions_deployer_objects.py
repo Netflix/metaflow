@@ -57,6 +57,20 @@ class StepFunctionsDeployedFlow(DeployedFlow):
     TYPE: ClassVar[Optional[str]] = "step-functions"
 
     @classmethod
+    def list_deployed_flows(cls, flow_name: Optional[str] = None):
+        """
+        This method is not currently implemented for Step Functions.
+
+        Raises
+        ------
+        NotImplementedError
+            This method is not implemented for Step Functions.
+        """
+        raise NotImplementedError(
+            "list_deployed_flows is not implemented for StepFunctions"
+        )
+
+    @classmethod
     def from_deployment(cls, identifier: str, metadata: Optional[str] = None):
         """
         This method is not currently implemented for Step Functions.
@@ -68,6 +82,22 @@ class StepFunctionsDeployedFlow(DeployedFlow):
         """
         raise NotImplementedError(
             "from_deployment is not implemented for StepFunctions"
+        )
+
+    @classmethod
+    def get_triggered_run(
+        cls, identifier: str, run_id: str, metadata: Optional[str] = None
+    ):
+        """
+        This method is not currently implemented for Step Functions.
+
+        Raises
+        ------
+        NotImplementedError
+            This method is not implemented for Step Functions.
+        """
+        raise NotImplementedError(
+            "get_triggered_run is not implemented for StepFunctions"
         )
 
     @property

@@ -1,5 +1,18 @@
 import functools
+from enum import Enum, IntEnum
 from html.parser import HTMLParser
+
+
+class TestIntEnum(IntEnum):
+    ZERO = 0
+    ONE = 1
+    TWO = 2
+
+
+class TestStrEnum(str, Enum):
+    EMPTY = ""
+    FOO = "foo"
+    BAR = "bar"
 
 
 class MyBaseException(Exception):
@@ -105,6 +118,9 @@ class TestClass1(object):
 
     def returnChild(self):
         return ChildClass()
+
+    def get_bound_method(self):
+        return self.print_value
 
     def raiseOrReturnValueError(self, doRaise=False):
         if doRaise:

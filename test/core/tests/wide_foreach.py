@@ -3,6 +3,16 @@ from metaflow_test import MetaflowTest, ExpectationFailed, steps
 
 class WideForeachTest(MetaflowTest):
     PRIORITY = 3
+    SKIP_GRAPHS = [
+        "simple_switch",
+        "nested_switch",
+        "branch_in_switch",
+        "foreach_in_switch",
+        "switch_in_branch",
+        "switch_in_foreach",
+        "recursive_switch",
+        "recursive_switch_inside_foreach",
+    ]
 
     @steps(0, ["foreach-split-small"], required=True)
     def split(self):
@@ -15,7 +25,7 @@ class WideForeachTest(MetaflowTest):
 
     @steps(0, ["foreach-join-small"], required=True)
     def join(self, inputs):
-        got = sorted([inp.my_input for inp in inputs])
+        got = [inp.my_input for inp in inputs]
         assert_equals(list(range(1200)), got)
 
     @steps(1, ["all"])

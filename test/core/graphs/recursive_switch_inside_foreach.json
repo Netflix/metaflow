@@ -1,0 +1,32 @@
+{
+    "name": "recursive_switch_inside_foreach",
+    "graph": {
+        "start": {
+            "foreach": "start_loop_for_item",
+            "foreach_var": "items",
+            "foreach_var_default": "[]",
+            "quals": ["start"]
+        },
+        "start_loop_for_item": {
+            "linear": "loop_body",
+            "quals": ["loop_start"]
+        },
+        "loop_body": {
+            "switch": { "True": "loop_body", "False": "exit_item_loop" },
+            "condition": "should_continue",
+            "quals": ["loop_body"]
+        },
+        "exit_item_loop": {
+            "linear": "join",
+            "quals": ["loop_exit"]
+        },
+        "join": {
+            "linear": "end",
+            "join": true,
+            "quals": ["join-foreach"]
+        },
+        "end": {
+            "quals": ["end"]
+        }
+    }
+}

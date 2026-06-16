@@ -104,7 +104,13 @@ from .flowspec import FlowSpec
 from .parameters import Parameter, JSONTypeClass, JSONType
 
 from .user_configs.config_parameters import Config, ConfigValue, config_expr
-from .user_configs.config_decorators import CustomFlowDecorator, CustomStepDecorator
+from .user_decorators.user_step_decorator import (
+    UserStepDecorator,
+    StepMutator,
+    user_step_decorator,
+    USER_SKIP_STEP,
+)
+from .user_decorators.user_flow_decorator import FlowMutator
 
 # data layer
 # For historical reasons, we make metaflow.plugins.datatools accessible as
@@ -119,11 +125,17 @@ from .includefile import IncludeFile
 # Decorators
 from .decorators import step, _import_plugin_decorators
 
+
+# Parsers (for configs) for now
+from .plugins import _import_tl_plugins
+
+_import_tl_plugins(globals())
+
 # this auto-generates decorator functions from Decorator objects
 # in the top-level metaflow namespace
 _import_plugin_decorators(globals())
-# Setting card import for only python 3.4
-if sys.version_info[0] >= 3 and sys.version_info[1] >= 4:
+# Setting card import for only python 3.6
+if sys.version_info[0] >= 3 and sys.version_info[1] >= 6:
     from . import cards
 
 # Client
@@ -134,6 +146,7 @@ from .client import (
     metadata,
     get_metadata,
     default_metadata,
+    inspect_spin,
     Metaflow,
     Flow,
     Run,

@@ -1,36 +1,34 @@
-from functools import partial
+import importlib
 import json
 import re
 
-from typing import Any, Callable, NewType, TypeVar, Union, overload
+from functools import partial
+from typing import Any, Callable, Dict, List, NewType, Tuple, TypeVar, Union, overload
 
-from .flowspec import FlowSpec
+from .flowspec import FlowSpec, FlowStateItems
 from .exception import (
     MetaflowInternalError,
     MetaflowException,
     InvalidDecoratorAttribute,
 )
 
+from .debug import debug
 from .parameters import current_flow
-from .user_configs.config_decorators import CustomStepDecorator
 from .user_configs.config_parameters import (
     UNPACK_KEY,
     resolve_delayed_evaluator,
     unpack_delayed_evaluator,
 )
-
+from .user_decorators.mutable_flow import MutableFlow
+from .user_decorators.mutable_step import MutableStep
+from .user_decorators.user_flow_decorator import FlowMutator, FlowMutatorMeta
+from .user_decorators.user_step_decorator import (
+    StepMutator,
+    UserStepDecoratorBase,
+    UserStepDecoratorMeta,
+)
+from .metaflow_config import SPIN_ALLOWED_DECORATORS
 from metaflow._vendor import click
-
-try:
-    unicode
-except NameError:
-    unicode = str
-    basestring = str
-
-# Contains the decorators on which _init was called. We want to ensure it is called
-# only once on each decorator and, as the _init() function below can be called in
-# several places, we need to track which decorator had their init function called
-_inited_decorators = set()
 
 
 class BadStepDecoratorException(MetaflowException):
@@ -42,7 +40,7 @@ class BadStepDecoratorException(MetaflowException):
             "not declared as a @step. Make sure you apply this decorator "
             "on a function which has @step on the line just before the "
             "function name and @{deco} is above @step.".format(
-                deco=deco, func=func.__name__
+                deco=deco, func=getattr(func, "__name__", str(func))
             )
         )
         super(BadStepDecoratorException, self).__init__(msg)
@@ -63,11 +61,14 @@ class UnknownStepDecoratorException(MetaflowException):
     headline = "Unknown step decorator"
 
     def __init__(self, deconame):
-        from .plugins import STEP_DECORATORS
-
         decos = ", ".join(
-            t.name for t in STEP_DECORATORS if not t.name.endswith("_internal")
+            [
+                x
+                for x in UserStepDecoratorMeta.all_decorators().keys()
+                if not x.endswith("_internal")
+            ]
         )
+
         msg = (
             "Unknown step decorator *{deconame}*. The following decorators are "
             "supported: *{decos}*".format(deconame=deconame, decos=decos)
@@ -92,9 +93,7 @@ class UnknownFlowDecoratorException(MetaflowException):
     headline = "Unknown flow decorator"
 
     def __init__(self, deconame):
-        from .plugins import FLOW_DECORATORS
-
-        decos = ", ".join(t.name for t in FLOW_DECORATORS)
+        decos = ", ".join(FlowMutatorMeta.all_decorators().keys())
         msg = (
             "Unknown flow decorator *{deconame}*. The following decorators are "
             "supported: *{decos}*".format(deconame=deconame, decos=decos)
@@ -123,9 +122,10 @@ class Decorator(object):
     # `allow_multiple` allows setting many decorators of the same type to a step/flow.
     allow_multiple = False
 
-    def __init__(self, attributes=None, statically_defined=False):
+    def __init__(self, attributes=None, statically_defined=False, inserted_by=None):
         self.attributes = self.defaults.copy()
         self.statically_defined = statically_defined
+        self.inserted_by = inserted_by
         self._user_defined_attributes = set()
         self._ran_init = False
 
@@ -143,23 +143,27 @@ class Decorator(object):
         Initializes the decorator. In general, any operation you would do in __init__
         should be done here.
         """
+        pass
 
+    def external_init(self):
         # In some cases (specifically when using remove_decorator), we may need to call
         # init multiple times. Short-circuit re-evaluating.
         if self._ran_init:
             return
 
         # Note that by design, later values override previous ones.
-        self.attributes = unpack_delayed_evaluator(self.attributes)
-        self._user_defined_attributes.update(self.attributes.keys())
-        self.attributes = resolve_delayed_evaluator(self.attributes)
+        self.attributes, new_user_attributes = unpack_delayed_evaluator(self.attributes)
+        self._user_defined_attributes.update(new_user_attributes)
+        self.attributes = resolve_delayed_evaluator(self.attributes, to_dict=True)
 
+        if "init" in self.__class__.__dict__:
+            self.init()
         self._ran_init = True
 
     @classmethod
-    def _parse_decorator_spec(cls, deco_spec):
+    def extract_args_kwargs_from_decorator_spec(cls, deco_spec):
         if len(deco_spec) == 0:
-            return cls()
+            return [], {}
 
         attrs = {}
         # TODO: Do we really want to allow spaces in the names of attributes?!?
@@ -179,9 +183,20 @@ class Decorator(object):
                         val_parsed = val.strip()
 
             attrs[name.strip()] = val_parsed
-        return cls(attributes=attrs)
+
+        return [], attrs
+
+    @classmethod
+    def parse_decorator_spec(cls, deco_spec):
+        if len(deco_spec) == 0:
+            return cls()
+
+        _, kwargs = cls.extract_args_kwargs_from_decorator_spec(deco_spec)
+        return cls(attributes=kwargs)
 
     def make_decorator_spec(self):
+        # Make sure all attributes are evaluated
+        self.external_init()
         attrs = {k: v for k, v in self.attributes.items() if v is not None}
         if attrs:
             attr_list = []
@@ -189,7 +204,7 @@ class Decorator(object):
             # escaping but for more complex types (typically dictionaries or lists),
             # we dump using JSON.
             for k, v in attrs.items():
-                if isinstance(v, (int, float, unicode, basestring)):
+                if isinstance(v, (int, float, str)):
                     attr_list.append("%s=%s" % (k, str(v)))
                 else:
                     attr_list.append("%s=%s" % (k, json.dumps(v).replace('"', '\\"')))
@@ -199,17 +214,41 @@ class Decorator(object):
         else:
             return self.name
 
+    def get_args_kwargs(self) -> Tuple[List[Any], Dict[str, Any]]:
+        """
+        Get the arguments and keyword arguments of the decorator.
+
+        Returns
+        -------
+        Tuple[List[Any], Dict[str, Any]]
+            A tuple containing a list of arguments and a dictionary of keyword arguments.
+        """
+        return [], dict(self.attributes)
+
     def __str__(self):
         mode = "static" if self.statically_defined else "dynamic"
+        if self.inserted_by:
+            mode += " (inserted by %s)" % " from ".join(self.inserted_by)
         attrs = " ".join("%s=%s" % x for x in self.attributes.items())
         if attrs:
             attrs = " " + attrs
         fmt = "%s<%s%s>" % (self.name, mode, attrs)
         return fmt
 
+    @property
+    def system_ctx(self):
+        from .system_context import system_context
+
+        return system_context
+
 
 class FlowDecorator(Decorator):
     options = {}
+
+    # Simplified hook variant — override in subclasses to use self.system_ctx.
+    # When not None, takes precedence over flow_init.
+    # Signature: flow_init_ctx(self, options)
+    flow_init_ctx = None
 
     def __init__(self, *args, **kwargs):
         super(FlowDecorator, self).__init__(*args, **kwargs)
@@ -230,6 +269,41 @@ class FlowDecorator(Decorator):
 
         If the decorator has a non-empty set of options in `self.options`, you
         probably want to return the assigned values in this method.
+        """
+        return []
+
+    def add_to_package(self):
+        """
+        Called to add custom files needed by this flow decorator. This hook will be
+        called in the `MetaflowPackage` class where metaflow compiles the code package
+        tarball. This hook can return one of two things (the first is for backwards
+        compatibility -- move to the second):
+          - a generator yielding a tuple of `(file_path, arcname)` to add files to
+            the code package. `file_path` is the path to the file on the local filesystem
+            and `arcname` is the path relative to the packaged code.
+          - a generator yielding a tuple of `(content, arcname, type)` where:
+            - type is one of
+            ContentType.{USER_CONTENT, CODE_CONTENT, MODULE_CONTENT, OTHER_CONTENT}
+            - for USER_CONTENT:
+              - the file will be included relative to the directory containing the
+                user's flow file.
+              - content: path to the file to include
+              - arcname: path relative to the directory containing the user's flow file
+            - for CODE_CONTENT:
+              - the file will be included relative to the code directory in the package.
+                This will be the directory containing `metaflow`.
+              - content: path to the file to include
+              - arcname: path relative to the code directory in the package
+            - for MODULE_CONTENT:
+              - the module will be added to the code package as a python module. It will
+                be accessible as usual (import <module_name>)
+              - content: name of the module
+              - arcname: None (ignored)
+            - for OTHER_CONTENT:
+              - the file will be included relative to any other configuration/metadata
+                files for the flow
+              - content: path to the file to include
+              - arcname: path relative to the config directory in the package
         """
         return []
 
@@ -266,7 +340,11 @@ def add_decorator_options(cmd):
 
 
 def flow_decorators(flow_cls):
-    return [d for deco_list in flow_cls._flow_decorators.values() for d in deco_list]
+    return [
+        d
+        for deco_list in flow_cls._flow_state[FlowStateItems.FLOW_DECORATORS].values()
+        for d in deco_list
+    ]
 
 
 class StepDecorator(Decorator):
@@ -299,6 +377,36 @@ class StepDecorator(Decorator):
                   pass them around with every lifecycle call.
     """
 
+    # ------------------------------------------------------------------
+    # Simplified hook variants — override in subclasses to use self.system_ctx.
+    # When not None, each takes precedence over the corresponding legacy hook.
+    # All context (flow, graph, run_id, task_id, etc.) is available
+    # via self.system_ctx instead of positional args. Only step_name remains
+    # as a positional argument.
+    #
+    # Signatures:
+    #   step_init_ctx(self, step_name)
+    #   package_init_ctx(self, step_name)
+    #   runtime_init_ctx(self, step_name)
+    #   runtime_task_created_ctx(self, step_name)
+    #   runtime_step_cli_ctx(self, step_name, cli_args)
+    #   runtime_finished_ctx(self, step_name, exception)
+    #   task_pre_step_ctx(self, step_name)
+    #   task_decorate_ctx(self, step_name, step_func) -> step_func
+    #   task_step_completed_ctx(self, step_name, exception=None) -> bool or None
+    #   task_finished_ctx(self, step_name, is_task_ok)
+    # ------------------------------------------------------------------
+    step_init_ctx = None
+    package_init_ctx = None
+    runtime_init_ctx = None
+    runtime_task_created_ctx = None
+    runtime_step_cli_ctx = None
+    runtime_finished_ctx = None
+    task_pre_step_ctx = None
+    task_decorate_ctx = None
+    task_step_completed_ctx = None  # coalesces task_post_step + task_exception
+    task_finished_ctx = None
+
     def step_init(
         self, flow, graph, step_name, decorators, environment, flow_datastore, logger
     ):
@@ -309,21 +417,42 @@ class StepDecorator(Decorator):
 
     def package_init(self, flow, step_name, environment):
         """
-        Called to determine package components
+        Called when a package is being created for this flow.
         """
         pass
 
     def add_to_package(self):
         """
-        Called to add custom packages needed for a decorator. This hook will be
+        Called to add custom files needed for this environment. This hook will be
         called in the `MetaflowPackage` class where metaflow compiles the code package
-        tarball. This hook is invoked in the `MetaflowPackage`'s `path_tuples`
-        function. The `path_tuples` function is a generator that yields a tuple of
-        `(file_path, arcname)`.`file_path` is the path of the file in the local file system;
-        the `arcname` is the path of the file in the constructed tarball or the path of the file
-        after decompressing the tarball.
-
-        Returns a list of tuples where each tuple represents (file_path, arcname)
+        tarball. This hook can return one of two things (the first is for backwards
+        compatibility -- move to the second):
+          - a generator yielding a tuple of `(file_path, arcname)` to add files to
+            the code package. `file_path` is the path to the file on the local filesystem
+            and `arcname` is the path relative to the packaged code.
+          - a generator yielding a tuple of `(content, arcname, type)` where:
+            - type is one of
+            ContentType.{USER_CONTENT, CODE_CONTENT, MODULE_CONTENT, OTHER_CONTENT}
+            - for USER_CONTENT:
+              - the file will be included relative to the directory containing the
+                user's flow file.
+              - content: path to the file to include
+              - arcname: path relative to the directory containing the user's flow file
+            - for CODE_CONTENT:
+              - the file will be included relative to the code directory in the package.
+                This will be the directory containing `metaflow`.
+              - content: path to the file to include
+              - arcname: path relative to the code directory in the package
+            - for MODULE_CONTENT:
+              - the module will be added to the code package as a python module. It will
+                be accessible as usual (import <module_name>)
+              - content: name of the module
+              - arcname: None (ignored)
+            - for OTHER_CONTENT:
+              - the file will be included relative to any other configuration/metadata
+                files for the flow
+              - content: path to the file to include
+              - arcname: path relative to the config directory in the package
         """
         return []
 
@@ -441,14 +570,34 @@ def _base_flow_decorator(decofunc, *args, **kwargs):
         # No keyword arguments specified for the decorator, e.g. @foobar.
         # The first argument is the class to be decorated.
         cls = args[0]
+
+        """
+        When stacking decorators, cls may be another FlowMutator, for example
+
+        @flow_decorator
+        @flow_mutator
+        class MyFlow(FlowSpec):
+            ...
+        """
+        if isinstance(cls, (FlowMutator,)):
+            cls = cls._flow_cls
+
         if isinstance(cls, type) and issubclass(cls, FlowSpec):
             # flow decorators add attributes in the class dictionary,
-            # _flow_decorators. _flow_decorators is of type `{key:[decos]}`
-            if decofunc.name in cls._flow_decorators and not decofunc.allow_multiple:
+            # cls._flow_state[FlowStateItems.FLOW_DECORATORS]. This is of type `{key:[decos]}`
+            self_flow_decos = cls._flow_state.self_data[FlowStateItems.FLOW_DECORATORS]
+            inherited_flow_decos = cls._flow_state.inherited_data.get(
+                FlowStateItems.FLOW_DECORATORS, {}
+            )
+
+            if (
+                decofunc.name in self_flow_decos
+                or decofunc.name in inherited_flow_decos
+            ) and not decofunc.allow_multiple:
                 raise DuplicateFlowDecoratorException(decofunc.name)
             else:
                 deco_instance = decofunc(attributes=kwargs, statically_defined=True)
-                cls._flow_decorators.setdefault(decofunc.name, []).append(deco_instance)
+                self_flow_decos.setdefault(decofunc.name, []).append(deco_instance)
         else:
             raise BadFlowDecoratorException(decofunc.name)
         return cls
@@ -472,8 +621,29 @@ def _base_step_decorator(decotype, *args, **kwargs):
         # No keyword arguments specified for the decorator, e.g. @foobar.
         # The first argument is the function to be decorated.
         func = args[0]
-        if isinstance(func, CustomStepDecorator):
+        if isinstance(func, (StepMutator, UserStepDecoratorBase)):
             func = func._my_step
+
+        # Step decorator applied to a class with a synthesized step method.
+        # This branch exists to support an upcoming FunctionSpec feature
+        # (currently shipped as an out-of-tree extension): its metaclass
+        # (FunctionSpecMeta) creates a single `@step(start=True, end=True)`
+        # method on the class and sets `_function_spec_step_name` to its
+        # attribute name. That lets class-level step decorators like
+        # ``@retry``/``@resources`` forward to the synthetic step.
+        #
+        # The `_function_spec_step_name` attribute is not set anywhere else
+        # in this repo — it is deliberately an extension contract. See the
+        # DAGNode module comment in graph.py for the wider context. This
+        # hook may be removed once FunctionSpec is folded into core.
+        if isinstance(func, type) and hasattr(func, "_function_spec_step_name"):
+            step_func = getattr(func, func._function_spec_step_name)
+            if hasattr(step_func, "is_step"):
+                step_func.decorators.append(
+                    decotype(attributes=kwargs, statically_defined=True)
+                )
+            return func
+
         if not hasattr(func, "is_step"):
             raise BadStepDecoratorException(decotype.name, func)
 
@@ -498,15 +668,77 @@ def _base_step_decorator(decotype, *args, **kwargs):
 
 
 _all_step_decos = None
+_all_flow_decos = None
 
 
-def _get_all_step_decos():
+def get_all_step_decos():
     global _all_step_decos
     if _all_step_decos is None:
         from .plugins import STEP_DECORATORS
 
         _all_step_decos = {decotype.name: decotype for decotype in STEP_DECORATORS}
     return _all_step_decos
+
+
+def get_all_flow_decos():
+    global _all_flow_decos
+    if _all_flow_decos is None:
+        from .plugins import FLOW_DECORATORS
+
+        _all_flow_decos = {decotype.name: decotype for decotype in FLOW_DECORATORS}
+    return _all_flow_decos
+
+
+def extract_step_decorator_from_decospec(decospec: str):
+    splits = decospec.split(":", 1)
+    deconame = splits[0]
+
+    # Check if it is a user-defined decorator or metaflow decorator
+    deco_cls = UserStepDecoratorMeta.get_decorator_by_name(deconame)
+    if deco_cls is not None:
+        return (
+            deco_cls.parse_decorator_spec(splits[1] if len(splits) > 1 else ""),
+            len(splits) > 1,
+        )
+
+    # Check if this is a decorator we can import
+    if "." in deconame:
+        # We consider this to be a import path to a user decorator so
+        # something like "my_package.my_decorator"
+        module_name, class_name = deconame.rsplit(".", 1)
+        try:
+            module = importlib.import_module(module_name)
+        except ImportError as e:
+            raise MetaflowException(
+                "Could not import user decorator %s" % deconame
+            ) from e
+        deco_cls = getattr(module, class_name, None)
+        if (
+            deco_cls is None
+            or not isinstance(deco_cls, type)
+            or not issubclass(deco_cls, UserStepDecoratorBase)
+        ):
+            raise UnknownStepDecoratorException(deconame)
+        return (
+            deco_cls.parse_decorator_spec(splits[1] if len(splits) > 1 else ""),
+            len(splits) > 1,
+        )
+
+    raise UnknownStepDecoratorException(deconame)
+
+
+def extract_flow_decorator_from_decospec(decospec: str):
+    splits = decospec.split(":", 1)
+    deconame = splits[0]
+    # Check if it is a user-defined decorator or metaflow decorator
+    deco_cls = FlowMutatorMeta.get_decorator_by_name(deconame)
+    if deco_cls is not None:
+        return (
+            deco_cls.parse_decorator_spec(splits[1] if len(splits) > 1 else ""),
+            len(splits) > 1,
+        )
+    else:
+        raise UnknownFlowDecoratorException(deconame)
 
 
 def _attach_decorators(flow, decospecs):
@@ -532,49 +764,86 @@ def _attach_decorators_to_step(step, decospecs):
     effect as if you defined the decorators statically in the source for
     the step.
     """
-
-    decos = _get_all_step_decos()
-
     for decospec in decospecs:
-        splits = decospec.split(":", 1)
-        deconame = splits[0]
-        if deconame not in decos:
-            raise UnknownStepDecoratorException(deconame)
-        # Attach the decorator to step if it doesn't have the decorator
-        # already. This means that statically defined decorators are always
-        # preferred over runtime decorators.
-        if (
-            deconame not in [deco.name for deco in step.decorators]
-            or decos[deconame].allow_multiple
-        ):
-            # if the decorator is present in a step and is of type allow_multiple
-            # then add the decorator to the step
-            deco = decos[deconame]._parse_decorator_spec(
-                splits[1] if len(splits) > 1 else ""
-            )
-            step.decorators.append(deco)
+        step_deco, _ = extract_step_decorator_from_decospec(decospec)
+        if isinstance(step_deco, StepDecorator):
+            # Check multiple
+            if (
+                step_deco.name not in [deco.name for deco in step.decorators]
+                or step_deco.allow_multiple
+            ):
+                step.decorators.append(step_deco)
+            # Else it is ignored -- this is a non-static decorator
+
+        else:
+            step_deco.add_or_raise(step, False, 1, None)
 
 
-def _init(flow, only_non_static=False):
-    for decorators in flow._flow_decorators.values():
-        for deco in decorators:
-            if deco in _inited_decorators:
-                continue
-            deco.init()
-            _inited_decorators.add(deco)
-    for flowstep in flow:
-        for deco in flowstep.decorators:
-            if deco in _inited_decorators:
-                continue
-            deco.init()
-            _inited_decorators.add(deco)
+def _should_skip_decorator_for_spin(
+    deco, is_spin, skip_decorators, logger, decorator_type="decorator"
+):
+    """
+    Determine if a decorator should be skipped for spin steps.
+
+    Parameters:
+    -----------
+    deco : Decorator
+        The decorator instance to check
+    is_spin : bool
+        Whether this is a spin step
+    skip_decorators : bool
+        Whether to skip all decorators
+    logger : callable
+        Logger function for warnings
+    decorator_type : str
+        Type of decorator ("Flow decorator" or "Step decorator") for logging
+
+    Returns:
+    --------
+    bool
+        True if the decorator should be skipped, False otherwise
+    """
+    if not is_spin:
+        return False
+
+    # Skip all decorator hooks if skip_decorators is True
+    if skip_decorators:
+        return True
+
+    # Run decorator hooks for spin steps only if they are in the whitelist
+    if deco.name not in SPIN_ALLOWED_DECORATORS:
+        logger(
+            f"[Warning] Ignoring {decorator_type} '{deco.name}' as it is not supported in spin steps.",
+            system_msg=True,
+            timestamp=False,
+            bad=True,
+        )
+        return True
+
+    return False
 
 
 def _init_flow_decorators(
-    flow, graph, environment, flow_datastore, metadata, logger, echo, deco_options
+    flow,
+    graph,
+    environment,
+    flow_datastore,
+    metadata,
+    logger,
+    echo,
+    deco_options,
+    is_spin=False,
+    skip_decorators=False,
 ):
     # Since all flow decorators are stored as `{key:[deco]}` we iterate through each of them.
-    for decorators in flow._flow_decorators.values():
+    flow_decos = flow._flow_state[FlowStateItems.FLOW_DECORATORS]
+
+    # Run external_init on all decorators first
+    for decorators in flow_decos.values():
+        for deco in decorators:
+            deco.external_init()
+
+    for decorators in flow_decos.values():
         # First resolve the `options` for the flow decorator.
         # Options are passed from cli.
         # For example `@project` can take a `--name` / `--branch` from the cli as options.
@@ -591,35 +860,237 @@ def _init_flow_decorators(
                 )
         else:
             # Each "non-multiple" flow decorator is only allowed to have one set of options
+            # Note that there may be no deco_options if a MutableFlow config injected
+            # the decorator.
             deco_flow_init_options = {
-                option: deco_options[option.replace("-", "_")]
-                for option in deco.options
+                option: deco_options.get(
+                    option.replace("-", "_"), option_info["default"]
+                )
+                for option, option_info in deco.options.items()
             }
         for deco in decorators:
-            deco.flow_init(
-                flow,
-                graph,
-                environment,
-                flow_datastore,
-                metadata,
-                logger,
-                echo,
-                deco_flow_init_options,
+            if _should_skip_decorator_for_spin(
+                deco, is_spin, skip_decorators, logger, "Flow decorator"
+            ):
+                continue
+            if deco.flow_init_ctx is not None:
+                deco.flow_init_ctx(deco_flow_init_options)
+            else:
+                deco.flow_init(
+                    flow,
+                    graph,
+                    environment,
+                    flow_datastore,
+                    metadata,
+                    logger,
+                    echo,
+                    deco_flow_init_options,
+                )
+
+
+def _init_step_decorators(
+    flow,
+    graph,
+    environment,
+    flow_datastore,
+    logger,
+    is_spin=False,
+    skip_decorators=False,
+):
+    # NOTE: We don't need the graph but keeping it for backwards compatibility with
+    # extensions that use it directly. We will remove it at some point.
+
+    # We call the mutate method for both the flow and step mutators.
+    cls = flow.__class__
+    # Run all the decorators. We first run the flow-level decorators
+    # and then the step level ones to maintain a consistent order with how
+    # other decorators are run.
+
+    for deco in cls._flow_state[FlowStateItems.FLOW_MUTATORS]:
+        if isinstance(deco, FlowMutator):
+            inserted_by_value = [deco.decorator_name] + (deco.inserted_by or [])
+            mutable_flow = MutableFlow(
+                cls,
+                pre_mutate=False,
+                statically_defined=deco.statically_defined,
+                inserted_by=inserted_by_value,
+            )
+            # Sanity check to make sure we are applying the decorator to the right
+            # class
+            if not deco._flow_cls == cls and not issubclass(cls, deco._flow_cls):
+                raise MetaflowInternalError(
+                    "FlowMutator registered on the wrong flow -- "
+                    "expected %s but got %s" % (deco._flow_cls.__name__, cls.__name__)
+                )
+            debug.userconf_exec(
+                "Evaluating flow level decorator %s (mutate)" % deco.__class__.__name__
+            )
+            deco.mutate(mutable_flow)
+            # We reset cached_parameters on the very off chance that the user added
+            # more configurations based on the configuration
+            cls._flow_state[FlowStateItems.CACHED_PARAMETERS] = None
+        else:
+            raise MetaflowInternalError(
+                "A non FlowMutator found in flow custom decorators"
             )
 
+    for step in cls._steps:
+        for deco in step.config_decorators:
+            inserted_by_value = [deco.decorator_name] + (deco.inserted_by or [])
 
-def _init_step_decorators(flow, graph, environment, flow_datastore, logger):
+            if isinstance(deco, StepMutator):
+                debug.userconf_exec(
+                    "Evaluating step level decorator %s for %s (mutate)"
+                    % (deco.__class__.__name__, step.name)
+                )
+                deco.mutate(
+                    MutableStep(
+                        cls,
+                        step,
+                        pre_mutate=False,
+                        statically_defined=deco.statically_defined,
+                        inserted_by=inserted_by_value,
+                    )
+                )
+            else:
+                raise MetaflowInternalError(
+                    "A non StepMutator found in step custom decorators"
+                )
+
+        if step.config_decorators:
+            # We remove all mention of the custom step decorator
+            setattr(cls, step.name, step)
+
+    cls._init_graph()
+    graph = flow._graph
+
+    from .system_context import system_context
+
+    # Call the external_init on all step decorators. At this point, we have all the ones
+    # the user wants to add through mutators
+    for step in flow:
+        system_context.register_step_decorators(step.__name__, list(step.decorators))
+        for deco in step.decorators:
+            if _should_skip_decorator_for_spin(
+                deco, is_spin, skip_decorators, logger, "Step decorator"
+            ):
+                continue
+            deco.external_init()
+        # Also call external_init on UserStepDecorator wrappers. The _ran_init
+        # guard in external_init handles dual-inherit decorators that already
+        # had external_init called via config_decorators in _process_config_decorators.
+        for deco in step.wrappers or []:
+            deco.external_init()
     for step in flow:
         for deco in step.decorators:
-            deco.step_init(
-                flow,
-                graph,
-                step.__name__,
-                step.decorators,
-                environment,
-                flow_datastore,
-                logger,
-            )
+            if _should_skip_decorator_for_spin(
+                deco, is_spin, skip_decorators, logger, "Step decorator"
+            ):
+                continue
+            if deco.step_init_ctx is not None:
+                deco.step_init_ctx(step.__name__)
+            else:
+                deco.step_init(
+                    flow,
+                    graph,
+                    step.__name__,
+                    step.decorators,
+                    environment,
+                    flow_datastore,
+                    logger,
+                )
+
+
+def _process_late_attached_decorator(
+    deco_names,
+    flow,
+    graph,
+    environment,
+    flow_datastore,
+    logger,
+    is_spin=False,
+    skip_decorators=False,
+):
+
+    from .system_context import system_context
+
+    # Track which steps received a *genuinely new* late-attached decorator so we
+    # only re-run mutators on those steps (re-running mutators on unaffected
+    # steps could break non-idempotent mutators). A freshly attached decorator
+    # has not been external_init'd yet (_ran_init is False); a statically
+    # defined decorator that _init_step_decorators already initialized has
+    # _ran_init True and must NOT trigger a mutator re-run. The _ran_init check
+    # therefore has to happen BEFORE external_init() flips the flag, so
+    # enrollment is recorded separately from initialization.
+    late_attached_step_names = set()
+    for s in flow:
+        for deco in s.decorators:
+            if deco.name in deco_names and not deco._ran_init:
+                late_attached_step_names.add(s.__name__)
+
+    # Re-run step mutators on the affected steps so they can see the
+    # late-attached decorators. _init_step_decorators (the usual mutator pass)
+    # runs in cli.py start() *before* platform decorators such as @kubernetes
+    # are late-attached (e.g. on Argo Workflows deploys, see PR #2719), so a
+    # StepMutator that inspects decorator_specs for "kubernetes" would otherwise
+    # find nothing and its add_decorator(..., OVERRIDE) would silently no-op.
+    # This mirrors the StepMutator handling in _init_step_decorators.
+    cls = flow.__class__
+    mutators_ran = False
+    for s in cls._steps:
+        if s.name not in late_attached_step_names:
+            continue
+        for deco in s.config_decorators:
+            if isinstance(deco, StepMutator):
+                inserted_by_value = [deco.decorator_name] + (deco.inserted_by or [])
+                debug.userconf_exec(
+                    "Re-evaluating step level decorator %s for %s (mutate) after "
+                    "late attachment" % (deco.__class__.__name__, s.name)
+                )
+                deco.mutate(
+                    MutableStep(
+                        cls,
+                        s,
+                        pre_mutate=False,
+                        statically_defined=deco.statically_defined,
+                        inserted_by=inserted_by_value,
+                    )
+                )
+                mutators_ran = True
+
+    # Rebuild the graph so node.decorators reflects mutator changes (OVERRIDE).
+    if mutators_ran:
+        cls._init_graph()
+        graph = flow._graph
+
+    # Init late-attached decorators only now, after mutators ran, so a decorator
+    # replaced via OVERRIDE is never external_init'd. external_init is idempotent.
+    for s in flow:
+        for deco in s.decorators:
+            if deco.name in deco_names:
+                deco.external_init()
+
+    for s in flow:
+        system_context.register_step_decorators(s.__name__, list(s.decorators))
+
+        for deco in s.decorators:
+            if deco.name in deco_names:
+                if _should_skip_decorator_for_spin(
+                    deco, is_spin, skip_decorators, logger, "Step decorator"
+                ):
+                    continue
+                if deco.step_init_ctx is not None:
+                    deco.step_init_ctx(s.__name__)
+                else:
+                    deco.step_init(
+                        flow,
+                        graph,
+                        s.__name__,
+                        s.decorators,
+                        environment,
+                        flow_datastore,
+                        logger,
+                    )
 
 
 FlowSpecDerived = TypeVar("FlowSpecDerived", bound=FlowSpec)
@@ -634,7 +1105,7 @@ StepFlag = NewType("StepFlag", bool)
 
 @overload
 def step(
-    f: Callable[[FlowSpecDerived], None]
+    f: Callable[[FlowSpecDerived], None],
 ) -> Callable[[FlowSpecDerived, StepFlag], None]: ...
 
 
@@ -645,7 +1116,11 @@ def step(
 
 
 def step(
-    f: Union[Callable[[FlowSpecDerived], None], Callable[[FlowSpecDerived, Any], None]]
+    f=None,
+    *,
+    start=False,
+    end=False,
+    node_info=None,
 ):
     """
     Marks a method in a FlowSpec as a Metaflow Step. Note that this
@@ -670,24 +1145,41 @@ def step(
 
     Parameters
     ----------
-    f : Union[Callable[[FlowSpecDerived], None], Callable[[FlowSpecDerived, Any], None]]
-        Function to make into a Metaflow Step
+    f : callable, optional
+        Function to make into a Metaflow Step. When using keyword arguments
+        (e.g. ``@step(start=True)``), this is ``None`` and a decorator
+        function is returned instead.
+    start : bool, default False
+        Mark this step as the start (entry) step of the flow.
+    end : bool, default False
+        Mark this step as the end (terminal) step of the flow.
+    node_info : dict, optional
+        Extra metadata to attach to this step's DAGNode. Extensions can use
+        this to store arbitrary information accessible via ``flow._graph``
+        (live references) and ``_graph_info`` (serialized via ``to_pod``).
 
     Returns
     -------
-    Union[Callable[[FlowSpecDerived, StepFlag], None], Callable[[FlowSpecDerived, Any, StepFlag], None]]
-        Function that is a Metaflow Step
+    callable
+        The decorated function, or a decorator if keyword arguments were used.
     """
-    f.is_step = True
-    f.decorators = []
-    f.config_decorators = []
-    try:
-        # python 3
-        f.name = f.__name__
-    except:
-        # python 2
-        f.name = f.__func__.func_name
-    return f
+
+    def _apply(func):
+        func.is_step = True
+        func.decorators = []
+        func.config_decorators = []
+        func.wrappers = []
+        func.name = func.__name__
+        func.is_start_step = start
+        func.is_end_step = end
+        func.node_info = node_info or {}
+        return func
+
+    if f is not None:
+        # Called as @step (no parens)
+        return _apply(f)
+    # Called as @step(start=True) etc.
+    return _apply
 
 
 def _import_plugin_decorators(globals_dict):

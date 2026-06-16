@@ -2,6 +2,8 @@ __pycache__/
 *.py[cod]
 *$py.class
 *.metaflow
+*.metaflow_spin
+metaflow_card_cache/
 
 build/
 dist/
@@ -30,3 +32,9 @@ main.js.map
 .idea
 
 stubs/version.py
+
+# devtools
+.devtools
+
+# claude code
+.claude/

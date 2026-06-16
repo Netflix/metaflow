@@ -39,8 +39,9 @@ def kubernetes():
     "command inside a Kubernetes pod with the given options. Typically you do not call "
     "this command directly; it is used internally by Metaflow."
 )
-@tracing.cli_entrypoint("kubernetes/step")
+@tracing.cli("kubernetes/step")
 @click.argument("step-name")
+@click.argument("code-package-metadata")
 @click.argument("code-package-sha")
 @click.argument("code-package-url")
 @click.option(
@@ -52,6 +53,12 @@ def kubernetes():
     "--image-pull-policy",
     default=None,
     help="Optional Docker Image Pull Policy for Kubernetes pod.",
+)
+@click.option(
+    "--image-pull-secrets",
+    default=None,
+    type=JSONTypeClass(),
+    multiple=False,
 )
 @click.option(
     "--service-account",
@@ -147,6 +154,12 @@ def kubernetes():
 )
 @click.option(
     "--extended-resources",
+   default=None,
+    type=JSONTypeClass(),
+    multiple=False,
+)
+@click.option(
+    "--security-context",
     default=None,
     type=JSONTypeClass(),
     multiple=False,
@@ -155,11 +168,13 @@ def kubernetes():
 def step(
     ctx,
     step_name,
+    code_package_metadata,
     code_package_sha,
     code_package_url,
     executable=None,
     image=None,
     image_pull_policy=None,
+    image_pull_secrets=None,
     service_account=None,
     secrets=None,
     node_selector=None,
@@ -183,6 +198,7 @@ def step(
     labels=None,
     annotations=None,
     extended_resources=None,
+    security_context=None,
     **kwargs
 ):
     def echo(msg, stream="stderr", job_id=None, **kwargs):
@@ -197,7 +213,7 @@ def step(
     executable = ctx.obj.environment.executable(step_name, executable)
 
     # Set environment
-    env = {}
+    env = {"METAFLOW_FLOW_FILENAME": os.path.basename(sys.argv[0])}
     env_deco = [deco for deco in node.decorators if deco.name == "environment"]
     if env_deco:
         env = env_deco[0].attributes["vars"]
@@ -297,12 +313,14 @@ def step(
                 task_id=task_id,
                 attempt=str(retry_count),
                 user=util.get_username(),
+                code_package_metadata=code_package_metadata,
                 code_package_sha=code_package_sha,
                 code_package_url=code_package_url,
                 code_package_ds=ctx.obj.flow_datastore.TYPE,
                 step_cli=step_cli,
                 docker_image=image,
                 docker_image_pull_policy=image_pull_policy,
+                image_pull_secrets=image_pull_secrets,
                 service_account=service_account,
                 secrets=secrets,
                 node_selector=node_selector,
@@ -327,6 +345,7 @@ def step(
                 labels=labels,
                 annotations=annotations,
                 extended_resources=extended_resources,
+                security_context=security_context,
             )
     except Exception:
         traceback.print_exc(chain=False)

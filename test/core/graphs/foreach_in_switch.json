@@ -1,0 +1,20 @@
+{
+    "name": "foreach_in_switch",
+    "graph": {
+        "start": {
+            "switch": {"process": "process_items", "skip": "skip_processing"},
+            "condition": "mode",
+            "quals": ["start-foreach-in-switch"]
+        },
+        "process_items": {
+            "foreach": "do_work",
+            "foreach_var": "items_to_process",
+            "foreach_var_default": "['item_1', 'item_2']",
+            "quals": ["process-items"]
+        },
+        "do_work": {"linear": "join_work", "quals": ["do-work"]},
+        "join_work": {"linear": "end", "join": true, "quals": ["join-work"]},
+        "skip_processing": {"linear": "end", "quals": ["skip-processing"]},
+        "end": {"quals": ["end-foreach-in-switch"]}
+    }
+}

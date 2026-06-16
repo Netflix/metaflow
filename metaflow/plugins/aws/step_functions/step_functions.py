@@ -40,6 +40,7 @@ class StepFunctions(object):
         name,
         graph,
         flow,
+        code_package_metadata,
         code_package_sha,
         code_package_url,
         production_token,
@@ -49,16 +50,19 @@ class StepFunctions(object):
         event_logger,
         monitor,
         tags=None,
+        aws_batch_tags=None,
         namespace=None,
         username=None,
         max_workers=None,
         workflow_timeout=None,
         is_project=False,
         use_distributed_map=False,
+        compress_state_machine=False,
     ):
         self.name = name
         self.graph = graph
         self.flow = flow
+        self.code_package_metadata = code_package_metadata
         self.code_package_sha = code_package_sha
         self.code_package_url = code_package_url
         self.production_token = production_token
@@ -68,6 +72,7 @@ class StepFunctions(object):
         self.event_logger = event_logger
         self.monitor = monitor
         self.tags = tags
+        self.aws_batch_tags = aws_batch_tags or {}
         self.namespace = namespace
         self.username = username
         self.max_workers = max_workers
@@ -76,6 +81,9 @@ class StepFunctions(object):
 
         # https://aws.amazon.com/blogs/aws/step-functions-distributed-map-a-serverless-solution-for-large-scale-parallel-data-processing/
         self.use_distributed_map = use_distributed_map
+
+        # S3 command upload configuration
+        self.compress_state_machine = compress_state_machine
 
         self._client = StepFunctionsClient()
         self._workflow = self._compile()
@@ -104,9 +112,9 @@ class StepFunctions(object):
                 "No IAM role found for AWS Step "
                 "Functions. You can create one "
                 "following the instructions listed at "
-                "*https://admin-docs.metaflow.org/meta"
-                "flow-on-aws/deployment-guide/manual-d"
-                "eployment#scheduling* and "
+                "*https://docs.outerbounds.com/enginee"
+                "ring/deployment/aws-managed/cloudform"
+                "ation/* and "
                 "re-configure Metaflow using "
                 "*metaflow configure aws* on your "
                 "terminal."
@@ -140,10 +148,10 @@ class StepFunctions(object):
                 "Events Bridge. You can "
                 "create one following the "
                 "instructions listed at "
-                "*https://admin-docs.metaflo"
-                "w.org/metaflow-on-aws/deplo"
-                "yment-guide/manual-deployme"
-                "nt#scheduling* and "
+                "*https://docs.outerboun"
+                "ds.com/engineering/depl"
+                "oyment/aws-managed/clou"
+                "dformation/* and "
                 "re-configure Metaflow "
                 "using *metaflow configure "
                 "aws* on your terminal."
@@ -192,6 +200,7 @@ class StepFunctions(object):
                 "on AWS Step Functions. Please "
                 "deploy your flow first." % name
             )
+
         # Dump parameters into `Parameters` input field.
         input = json.dumps({"Parameters": json.dumps(parameters)})
         # AWS Step Functions limits input to be 32KiB, but AWS Batch
@@ -231,7 +240,9 @@ class StepFunctions(object):
         workflow = StepFunctionsClient().get(name)
         if workflow is not None:
             try:
-                start = json.loads(workflow["definition"])["States"]["start"]
+                definition = json.loads(workflow["definition"])
+                start_state_name = definition.get("StartAt", "start")
+                start = definition["States"][start_state_name]
                 parameters = start["Parameters"]["Parameters"]
                 return parameters.get("metaflow.owner"), parameters.get(
                     "metaflow.production_token"
@@ -262,13 +273,22 @@ class StepFunctions(object):
             )
         try:
             state_machine_arn = state_machine.get("stateMachineArn")
+            definition = json.loads(state_machine.get("definition"))
+            start_state_name = definition.get("StartAt", "start")
+            # Explicit guards rather than chained .get() so we produce
+            # readable errors if the state machine has an unexpected shape
+            # (e.g., deployed by something other than Metaflow).
+            states = definition.get("States") or {}
+            start_state = states.get(start_state_name)
+            if start_state is None:
+                raise StepFunctionsException(
+                    "State machine *%s* has no state named *%s* in its "
+                    "States block." % (state_machine_name, start_state_name)
+                )
             environment_vars = (
-                json.loads(state_machine.get("definition"))
-                .get("States")
-                .get("start")
-                .get("Parameters")
-                .get("ContainerOverrides")
-                .get("Environment")
+                start_state.get("Parameters", {})
+                .get("ContainerOverrides", {})
+                .get("Environment", [])
             )
             parameters = {
                 item.get("Name"): item.get("Value") for item in environment_vars
@@ -301,11 +321,23 @@ class StepFunctions(object):
                 "to AWS Step Functions is not supported currently."
             )
 
+        if self.flow._flow_decorators.get("exit_hook"):
+            raise StepFunctionsException(
+                "Deploying flows with the @exit_hook decorator "
+                "to AWS Step Functions is not currently supported."
+            )
+
         # Visit every node of the flow and recursively build the state machine.
         def _visit(node, workflow, exit_node=None):
             if node.parallel_foreach:
                 raise StepFunctionsException(
                     "Deploying flows with @parallel decorator(s) "
+                    "to AWS Step Functions is not supported currently."
+                )
+
+            if node.type == "split-switch":
+                raise StepFunctionsException(
+                    "Deploying flows with switch statement "
                     "to AWS Step Functions is not supported currently."
                 )
 
@@ -457,10 +489,10 @@ class StepFunctions(object):
                 )
             return workflow
 
-        workflow = Workflow(self.name).start_at("start")
+        workflow = Workflow(self.name).start_at(self.graph.start_step)
         if self.workflow_timeout:
             workflow.timeout_seconds(self.workflow_timeout)
-        return _visit(self.graph["start"], workflow)
+        return _visit(self.graph[self.graph.start_step], workflow)
 
     def _cron(self):
         schedule = self.flow._flow_decorators.get("schedule")
@@ -576,7 +608,7 @@ class StepFunctions(object):
         # Store production token within the `start` step, so that subsequent
         # `step-functions create` calls can perform a rudimentary authorization
         # check.
-        if node.name == "start":
+        if node.name == self.graph.start_step:
             attrs["metaflow.production_token"] = self.production_token
 
         # Add env vars from the optional @environment decorator.
@@ -589,7 +621,7 @@ class StepFunctions(object):
         if S3_ENDPOINT_URL is not None:
             env["METAFLOW_S3_ENDPOINT_URL"] = S3_ENDPOINT_URL
 
-        if node.name == "start":
+        if node.name == self.graph.start_step:
             # metaflow.run_id maps to AWS Step Functions State Machine Execution in all
             # cases except for when within a for-each construct that relies on
             # Distributed Map. To work around this issue, we pass the run id from the
@@ -838,15 +870,17 @@ class StepFunctions(object):
             # AWS_BATCH_JOB_ATTEMPT as the job counter.
             "retry_count": "$((AWS_BATCH_JOB_ATTEMPT-1))",
         }
-
+        # merge batch tags supplied through step-fuctions CLI and ones defined in decorator
+        batch_tags = {**self.aws_batch_tags, **resources["aws_batch_tags"]}
         return (
-            Batch(self.metadata, self.environment)
+            Batch(self.metadata, self.environment, self.flow_datastore)
             .create_job(
                 step_name=node.name,
                 step_cli=self._step_cli(
                     node, input_paths, self.code_package_url, user_code_retries
                 ),
                 task_spec=task_spec,
+                code_package_metadata=self.code_package_metadata,
                 code_package_sha=self.code_package_sha,
                 code_package_url=self.code_package_url,
                 code_package_ds=self.flow_datastore.TYPE,
@@ -863,6 +897,7 @@ class StepFunctions(object):
                 swappiness=resources["swappiness"],
                 efa=resources["efa"],
                 use_tmpfs=resources["use_tmpfs"],
+                aws_batch_tags=batch_tags,
                 tmpfs_tempdir=resources["tmpfs_tempdir"],
                 tmpfs_size=resources["tmpfs_size"],
                 tmpfs_path=resources["tmpfs_path"],
@@ -874,6 +909,8 @@ class StepFunctions(object):
                 ephemeral_storage=resources["ephemeral_storage"],
                 log_driver=resources["log_driver"],
                 log_options=resources["log_options"],
+                offload_command_to_s3=self.compress_state_machine,
+                privileged=resources["privileged"],
             )
             .attempts(total_retries + 1)
         )
@@ -907,7 +944,7 @@ class StepFunctions(object):
             "with": [
                 decorator.make_decorator_spec()
                 for decorator in node.decorators
-                if not decorator.statically_defined
+                if not decorator.statically_defined and decorator.inserted_by is None
             ]
         }
         # FlowDecorators can define their own top-level options. They are
@@ -930,7 +967,7 @@ class StepFunctions(object):
             "--with=step_functions_internal",
         ]
 
-        if node.name == "start":
+        if node.name == self.graph.start_step:
             # We need a separate unique ID for the special _parameters task
             task_id_params = "%s-params" % task_id
             # Export user-defined parameters into runtime environment

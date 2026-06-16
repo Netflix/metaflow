@@ -4,6 +4,16 @@ from metaflow import current
 
 class CatchRetryTest(MetaflowTest):
     PRIORITY = 2
+    SKIP_GRAPHS = [
+        "simple_switch",
+        "nested_switch",
+        "branch_in_switch",
+        "foreach_in_switch",
+        "switch_in_branch",
+        "switch_in_foreach",
+        "recursive_switch",
+        "recursive_switch_inside_foreach",
+    ]
 
     @tag("retry(times=3,minutes_between_retries=0)")
     @steps(0, ["start"])

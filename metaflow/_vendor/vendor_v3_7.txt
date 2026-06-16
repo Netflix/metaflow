@@ -1,0 +1,4 @@
+importlib_metadata==4.8.3
+typeguard==4.1.2
+typing_extensions==4.7.1
+zipp==3.6.0

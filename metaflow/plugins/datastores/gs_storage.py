@@ -119,7 +119,9 @@ class _GSRootClient(object):
                 blob.metadata = {"metaflow-user-attributes": json.dumps(metadata)}
             from google.cloud.storage.retry import DEFAULT_RETRY
 
-            blob.upload_from_filename(tmpfile, retry=DEFAULT_RETRY)
+            blob.upload_from_filename(
+                tmpfile, retry=DEFAULT_RETRY, timeout=(14400, 60)
+            )  # generous timeout for massive uploads. Use the same values as for Azure (connection_timeout, read_timeout)
         except Exception as e:
             process_gs_exception(e)
 
@@ -225,7 +227,9 @@ class GSStorage(DataStoreStorage):
                     byte_stream, metadata = byte_stream
                 tmp_filename = os.path.join(tmpdir, str(uuid.uuid4()))
                 with open(tmp_filename, "wb") as f:
-                    f.write(byte_stream.read())
+                    # make sure to close the file handle after reading.
+                    with byte_stream as bytes:
+                        f.write(bytes.read())
                 # Fully finish writing the file, before submitting work. Careful with indentation.
 
                 futures.append(

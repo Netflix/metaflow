@@ -52,6 +52,15 @@ class CatchDecorator(StepDecorator):
                 "split steps." % step
             )
 
+        # Do not support catch on switch steps for now.
+        # When applying @catch to a switch step, we can not guarantee that the flow attribute used for the switching condition gets properly recorded.
+        if graph[step].type == "split-switch":
+            raise MetaflowException(
+                "@catch is defined for the step *%s* "
+                "but @catch is not supported in conditional "
+                "switch steps." % step
+            )
+
     def _print_exception(self, step, flow):
         self.logger(head="@catch caught an exception from %s" % flow, timestamp=False)
         for line in traceback.format_exc().splitlines():

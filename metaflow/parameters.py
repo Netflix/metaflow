@@ -316,7 +316,7 @@ class Parameter(object):
     help : str, optional, default None
         Help text to show in `run --help`.
     required : bool, optional, default None
-        Require that the user specified a value for the parameter. Note that if
+        Require that the user specifies a value for the parameter. Note that if
         a default is provide, the required flag is ignored.
         A value of None is equivalent to False.
     show_default : bool, optional, default None
@@ -347,7 +347,7 @@ class Parameter(object):
         help: Optional[str] = None,
         required: Optional[bool] = None,
         show_default: Optional[bool] = None,
-        **kwargs: Dict[str, Any]
+        **kwargs: Dict[str, Any],
     ):
         self.name = name
         self.kwargs = kwargs
@@ -367,11 +367,13 @@ class Parameter(object):
         )
 
         # Resolve any value from configurations
-        self.kwargs = unpack_delayed_evaluator(self.kwargs, ignore_errors=ignore_errors)
+        self.kwargs, _ = unpack_delayed_evaluator(
+            self.kwargs, ignore_errors=ignore_errors
+        )
         # Do it one item at a time so errors are ignored at that level (as opposed to
         # at the entire kwargs level)
         self.kwargs = {
-            k: resolve_delayed_evaluator(v, ignore_errors=ignore_errors)
+            k: resolve_delayed_evaluator(v, ignore_errors=ignore_errors, to_dict=True)
             for k, v in self.kwargs.items()
         }
 
@@ -380,7 +382,7 @@ class Parameter(object):
         for key, value in self._override_kwargs.items():
             if value is not None:
                 self.kwargs[key] = resolve_delayed_evaluator(
-                    value, ignore_errors=ignore_errors
+                    value, ignore_errors=ignore_errors, to_dict=True
                 )
         # Set two default values if no-one specified them
         self.kwargs.setdefault("required", False)
@@ -404,6 +406,9 @@ class Parameter(object):
             "max-workers",
             "max-log-size",
             "user-namespace",
+            "run-id",
+            "task-id",
+            "runner-attribute-file",
         ]
         reserved = set(reserved_params)
         # due to the way Click maps cli args to function args we also want to add underscored params to the set
@@ -493,6 +498,10 @@ def add_custom_parameters(deploy_mode=False):
     # deploy_mode determines whether deploy-time functions should or should
     # not be evaluated for this command
     def wrapper(cmd):
+        # Save the original params once, if they haven't been saved before.
+        if not hasattr(cmd, "original_params"):
+            cmd.original_params = list(cmd.params)
+
         cmd.has_flow_params = True
         # Iterate over parameters in reverse order so cmd.params lists options
         # in the order they are defined in the FlowSpec subclass

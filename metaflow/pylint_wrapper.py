@@ -28,7 +28,11 @@ class PyLint(object):
         return self._run is not None
 
     def run(self, logger=None, warnings=False, pylint_config=[]):
-        args = [self._fname]
+        args = [
+            self._fname,
+            "--signature-mutators",
+            "metaflow.user_decorators.user_step_decorator.user_step_decorator",
+        ]
         if not warnings:
             args.append("--errors-only")
         if pylint_config:

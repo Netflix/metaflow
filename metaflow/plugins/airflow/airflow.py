@@ -66,6 +66,7 @@ class Airflow(object):
         name,
         graph,
         flow,
+        code_package_metadata,
         code_package_sha,
         code_package_url,
         metadata,
@@ -87,6 +88,7 @@ class Airflow(object):
         self.name = name
         self.graph = graph
         self.flow = flow
+        self.code_package_metadata = code_package_metadata
         self.code_package_sha = code_package_sha
         self.code_package_url = code_package_url
         self.metadata = metadata
@@ -287,7 +289,7 @@ class Airflow(object):
 
         # The below if/else block handles "input paths".
         # Input Paths help manage dataflow across the graph.
-        if node.name == "start":
+        if node.name == self.graph.start_step:
             # POSSIBLE_FUTURE_IMPROVEMENT:
             # We can extract metadata about the possible upstream sensor triggers.
             # There is a previous commit (7bdf6) in the `airflow` branch that has `SensorMetaExtractor` class and
@@ -372,6 +374,7 @@ class Airflow(object):
             # Technically the "user" is the stakeholder but should these labels be present.
         }
         additional_mf_variables = {
+            "METAFLOW_CODE_METADATA": self.code_package_metadata,
             "METAFLOW_CODE_SHA": self.code_package_sha,
             "METAFLOW_CODE_URL": self.code_package_url,
             "METAFLOW_CODE_DS": self.flow_datastore.TYPE,
@@ -476,6 +479,7 @@ class Airflow(object):
                 node.name,
                 AIRFLOW_MACROS.create_task_id(self.contains_foreach),
                 AIRFLOW_MACROS.ATTEMPT,
+                code_package_metadata=self.code_package_metadata,
                 code_package_url=self.code_package_url,
                 step_cmds=self._step_cli(
                     node, input_paths, self.code_package_url, user_code_retries
@@ -534,7 +538,7 @@ class Airflow(object):
             "with": [
                 decorator.make_decorator_spec()
                 for decorator in node.decorators
-                if not decorator.statically_defined
+                if not decorator.statically_defined and decorator.inserted_by is None
             ]
         }
         # FlowDecorators can define their own top-level options. They are
@@ -557,7 +561,7 @@ class Airflow(object):
             "--with=airflow_internal",
         ]
 
-        if node.name == "start":
+        if node.name == self.graph.start_step:
             # We need a separate unique ID for the special _parameters task
             task_id_params = "%s-params" % AIRFLOW_MACROS.create_task_id(
                 self.contains_foreach
@@ -654,6 +658,12 @@ class Airflow(object):
                 "to Airflow is not supported currently."
             )
 
+        if self.flow._flow_decorators.get("exit_hook"):
+            raise AirflowException(
+                "Deploying flows with the @exit_hook decorator "
+                "to Airflow is not currently supported."
+            )
+
         # Visit every node of the flow and recursively build the state machine.
         def _visit(node, workflow, exit_node=None):
             kube_deco = dict(
@@ -739,7 +749,7 @@ class Airflow(object):
             ),
             **airflow_dag_args
         )
-        workflow = _visit(self.graph["start"], workflow)
+        workflow = _visit(self.graph[self.graph.start_step], workflow)
 
         workflow.set_parameters(self.parameters)
         if len(appending_sensors) > 0:

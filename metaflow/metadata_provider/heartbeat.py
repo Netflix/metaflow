@@ -52,6 +52,7 @@ class MetadataHeartBeat(object):
                 time.sleep(frequency_secs)
                 retry_counter = 0
             except HeartBeatException as e:
+                print(e)
                 retry_counter = retry_counter + 1
                 time.sleep(1.5**retry_counter)
 

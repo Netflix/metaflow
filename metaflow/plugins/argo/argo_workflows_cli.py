@@ -15,6 +15,7 @@ from metaflow.exception import (
 )
 from metaflow.metaflow_config import (
     ARGO_WORKFLOWS_UI_URL,
+    FEAT_ALWAYS_UPLOAD_CODE_PACKAGE,
     KUBERNETES_NAMESPACE,
     SERVICE_VERSION_CHECK,
     UI_URL,
@@ -32,15 +33,32 @@ from metaflow.plugins.kubernetes.kubernetes_decorator import KubernetesDecorator
 from metaflow.tagging_util import validate_tags
 from metaflow.util import get_username, to_bytes, to_unicode, version_parse
 
-from .argo_workflows import ArgoWorkflows
+from .argo_workflows import ArgoWorkflows, ArgoWorkflowsException
 
-VALID_NAME = re.compile(r"^[a-z0-9]([a-z0-9\.\-]*[a-z0-9])?$")
+NEW_ARGO_NAMELENGTH_METAFLOW_VERSION = "2.17"
+
+VALID_NAME = re.compile(r"^[a-z]([a-z0-9\.\-]*[a-z0-9])?$")
 
 unsupported_decorators = {
     "snowpark": "Step *%s* is marked for execution on Snowpark with Argo Workflows which isn't currently supported.",
     "slurm": "Step *%s* is marked for execution on Slurm with Argo Workflows which isn't currently supported.",
     "nvidia": "Step *%s* is marked for execution on Nvidia with Argo Workflows which isn't currently supported.",
+    "nvct": "Step *%s* is marked for execution on Nvct with Argo Workflows which isn't currently supported.",
+    "skypilot_step": "Step *%s* is marked for execution on Skypilot with Argo Workflows which isn't currently supported.",
 }
+
+
+def _write_deployer_attributes(obj, deployer_attribute_file, additional_info=None):
+    if deployer_attribute_file:
+        payload = {
+            "name": obj.workflow_name,
+            "flow_name": obj.flow.name,
+            "metadata": obj.metadata.metadata_str(),
+        }
+        if additional_info is not None:
+            payload["additional_info"] = additional_info
+        with open(deployer_attribute_file, "w", encoding="utf-8") as f:
+            json.dump(payload, f)
 
 
 class IncorrectProductionToken(MetaflowException):
@@ -84,7 +102,16 @@ def argo_workflows(obj, name=None):
         obj.workflow_name,
         obj.token_prefix,
         obj.is_project,
-    ) = resolve_workflow_name(obj, name)
+        obj._is_workflow_name_modified,
+        obj._exception_on_create,  # exception_on_create is used to prevent deploying new flows with too long names via --name
+    ) = resolve_workflow_name_v2(obj, name)
+    # Backward compatibility for Metaflow versions <=2.16 because of
+    # change in name length restrictions in Argo Workflows from 253 to 52
+    # characters.
+    (
+        obj._v1_workflow_name,
+        obj._v1_is_workflow_name_modified,
+    ) = resolve_workflow_name_v1(obj, name)
 
 
 @argo_workflows.command(help="Deploy a new version of this workflow to Argo Workflows.")
@@ -130,6 +157,7 @@ def argo_workflows(obj, name=None):
     is_flag=True,
     default=False,
     help="Only print out JSON sent to Argo Workflows. Do not deploy anything.",
+    hidden=True,
 )
 @click.option(
     "--max-workers",
@@ -168,13 +196,30 @@ def argo_workflows(obj, name=None):
 )
 @click.option(
     "--notify-slack-webhook-url",
-    default="",
+    default=None,
     help="Slack incoming webhook url for workflow success/failure notifications.",
 )
 @click.option(
     "--notify-pager-duty-integration-key",
-    default="",
+    default=None,
     help="PagerDuty Events API V2 Integration key for workflow success/failure notifications.",
+)
+@click.option(
+    "--notify-incident-io-api-key",
+    default=None,
+    help="Incident.io API V2 key for workflow success/failure notifications.",
+)
+@click.option(
+    "--incident-io-alert-source-config-id",
+    default=None,
+    help="Incident.io Alert source config ID. Example '01GW2G3V0S59R238FAHPDS1R66'",
+)
+@click.option(
+    "--incident-io-metadata",
+    default=None,
+    type=str,
+    multiple=True,
+    help="Incident.io Alert Custom Metadata field in the form of Key=Value",
 )
 @click.option(
     "--enable-heartbeat-daemon/--no-enable-heartbeat-daemon",
@@ -196,6 +241,18 @@ def argo_workflows(obj, name=None):
     show_default=True,
     help="Capture stack trace of first failed task in exit hook.",
 )
+@click.option(
+    "--workflow-title",
+    default=None,
+    type=str,
+    help="Custom title for the workflow displayed in Argo Workflows UI. Defaults to `project_flow_name`. Supports markdown formatting.",
+)
+@click.option(
+    "--workflow-description",
+    default=None,
+    type=str,
+    help="Custom description for the workflow displayed in Argo Workflows UI. Defaults to the flow's docstring if available. Supports markdown formatting and multi-line text.",
+)
 @click.pass_obj
 def create(
     obj,
@@ -213,10 +270,20 @@ def create(
     notify_on_success=False,
     notify_slack_webhook_url=None,
     notify_pager_duty_integration_key=None,
+    notify_incident_io_api_key=None,
+    incident_io_alert_source_config_id=None,
+    incident_io_metadata=None,
     enable_heartbeat_daemon=True,
+    workflow_title=None,
+    workflow_description=None,
     deployer_attribute_file=None,
     enable_error_msg_capture=False,
 ):
+    # check if we are supposed to block deploying the flow due to name length constraints.
+    if obj._exception_on_create is not None:
+        raise obj._exception_on_create
+
+    # TODO: Remove this once we have a proper validator system in place
     for node in obj.graph:
         for decorator, error_message in unsupported_decorators.items():
             if any([d.name == decorator for d in node.decorators]):
@@ -224,35 +291,59 @@ def create(
 
     validate_tags(tags)
 
-    if deployer_attribute_file:
-        with open(deployer_attribute_file, "w", encoding="utf-8") as f:
-            json.dump(
-                {
-                    "name": obj.workflow_name,
-                    "flow_name": obj.flow.name,
-                    "metadata": obj.metadata.metadata_str(),
-                },
-                f,
-            )
+    if not only_json:
+        _write_deployer_attributes(obj, deployer_attribute_file)
 
-    obj.echo("Deploying *%s* to Argo Workflows..." % obj.workflow_name, bold=True)
+    obj.echo("Deploying *%s* to Argo Workflows..." % obj.flow.name, bold=True)
 
-    if SERVICE_VERSION_CHECK:
-        # TODO: Consider dispelling with this check since it's been 2 years since the
-        #       needed metadata service changes have been available in open-source. It's
-        #       likely that Metaflow users may not have access to metadata service from
-        #       within their workstations.
-        check_metadata_service_version(obj)
+    if only_json:
+        # When only generating JSON, we skip cluster access operations:
+        # - Metadata service version check (requires service access)
+        # - Token resolution (requires Kubernetes cluster access to check existing deployments)
+        # Instead, we use a placeholder token since the JSON is just for inspection.
+        token = "__PLACEHOLDER_PRODUCTION_TOKEN__"
 
-    token = resolve_token(
-        obj.workflow_name,
-        obj.token_prefix,
-        obj,
-        authorize,
-        given_token,
-        generate_new_token,
-        obj.is_project,
-    )
+        if given_token:
+            if obj.is_project:
+                # we rely on a known prefix for @project tokens, so we can't
+                # allow the user to specify a custom token with an arbitrary prefix
+                raise MetaflowException(
+                    "--new-token is not supported for @projects. Use --generate-new-token "
+                    "to create a new token."
+                )
+            if given_token.startswith("production:"):
+                given_token = given_token[11:]
+            token = given_token
+            obj.echo("")
+            obj.echo("Using the given token, *%s*." % token)
+
+        if generate_new_token:
+            token = new_token(obj.token_prefix, None)
+            if token is None:
+                raise MetaflowException(
+                    "--generate-new-token option is not supported after using "
+                    "--new-token. Use --new-token to make a new namespace."
+                )
+            obj.echo("")
+            obj.echo("A new production token generated.")
+
+    else:
+        if SERVICE_VERSION_CHECK:
+            # TODO: Consider dispelling with this check since it's been 2 years since the
+            #       needed metadata service changes have been available in open-source. It's
+            #       likely that Metaflow users may not have access to metadata service from
+            #       within their workstations.
+            check_metadata_service_version(obj)
+
+        token = resolve_token(
+            obj.workflow_name,
+            obj.token_prefix,
+            obj,
+            authorize,
+            given_token,
+            generate_new_token,
+            obj.is_project,
+        )
 
     flow = make_flow(
         obj,
@@ -268,18 +359,28 @@ def create(
         notify_on_success,
         notify_slack_webhook_url,
         notify_pager_duty_integration_key,
+        notify_incident_io_api_key,
+        incident_io_alert_source_config_id,
+        incident_io_metadata,
         enable_heartbeat_daemon,
         enable_error_msg_capture,
+        workflow_title,
+        workflow_description,
     )
 
     if only_json:
+        _write_deployer_attributes(
+            obj,
+            deployer_attribute_file,
+            additional_info={"workflow_template": flow._workflow_template.to_json()},
+        )
         obj.echo_always(str(flow), err=False, no_bold=True)
         # TODO: Support echo-ing Argo Events Sensor template
     else:
         flow.deploy()
         obj.echo(
             "Workflow *{workflow_name}* "
-            "for flow *{name}* pushed to "
+            "for flow *{name}* deployed to "
             "Argo Workflows successfully.\n".format(
                 workflow_name=obj.workflow_name, name=current.flow_name
             ),
@@ -288,8 +389,40 @@ def create(
         if obj._is_workflow_name_modified:
             obj.echo(
                 "Note that the flow was deployed with a modified name "
-                "due to Kubernetes naming conventions\non Argo Workflows. The "
-                "original flow name is stored in the workflow annotation.\n"
+                "due to Kubernetes naming conventions on Argo Workflows. The "
+                "original flow name is stored in the workflow annotations.\n",
+                wrap=True,
+            )
+
+        if obj.workflow_name != obj._v1_workflow_name:
+            # Delete the old workflow if it exists
+            try:
+                ArgoWorkflows.delete(obj._v1_workflow_name)
+                obj.echo("Important!", bold=True, nl=False)
+                obj.echo(
+                    " To comply with new naming restrictions on Argo "
+                    "Workflows, this deployment replaced the previously "
+                    "deployed workflow {v1_workflow_name}.\n".format(
+                        v1_workflow_name=obj._v1_workflow_name
+                    ),
+                    wrap=True,
+                )
+            except ArgoWorkflowsException as e:
+                # TODO: Catch a more specific exception
+                pass
+
+            obj.echo("Warning! ", bold=True, nl=False)
+            obj.echo(
+                "Due to new naming restrictions on Argo Workflows, "
+                "re-deploying this flow with older versions of Metaflow (<{version}) "
+                "will result in the flow being deployed with a different name -\n"
+                "*{v1_workflow_name}* without replacing the version you just deployed. "
+                "This may result in duplicate executions of this flow. To avoid this issue, "
+                "always deploy this flow using Metaflow ≥{version} or specify the flow name with --name.".format(
+                    v1_workflow_name=obj._v1_workflow_name,
+                    version=NEW_ARGO_NAMELENGTH_METAFLOW_VERSION,
+                ),
+                wrap=True,
             )
 
         if ARGO_WORKFLOWS_UI_URL:
@@ -319,20 +452,20 @@ def create(
 
 
 def check_python_version(obj):
-    # argo-workflows integration for Metaflow isn't supported for Py versions below 3.5.
+    # argo-workflows integration for Metaflow isn't supported for Py versions below 3.6.
     # This constraint can very well be lifted if desired.
-    if sys.version_info < (3, 5):
+    if sys.version_info < (3, 6):
         obj.echo("")
         obj.echo(
             "Metaflow doesn't support Argo Workflows for Python %s right now."
             % platform.python_version()
         )
         obj.echo(
-            "Please upgrade your Python interpreter to version 3.5 (or higher) or "
+            "Please upgrade your Python interpreter to version 3.6 (or higher) or "
             "reach out to us at slack.outerbounds.co for more help."
         )
         raise UnsupportedPythonVersion(
-            "Try again with a more recent version of Python (>=3.5)."
+            "Try again with a more recent version of Python (>=3.6)."
         )
 
 
@@ -356,8 +489,7 @@ def check_metadata_service_version(obj):
             "version (>= 2.0.2), visit:"
         )
         obj.echo(
-            "    https://admin-docs.metaflow.org/metaflow-on-aws/operation"
-            "s-guide/metaflow-service-migration-guide",
+            "    https://docs.outerbounds.com/engineering/operations/migration/",
             fg="green",
         )
         obj.echo(
@@ -369,9 +501,108 @@ def check_metadata_service_version(obj):
         )
 
 
-def resolve_workflow_name(obj, name):
+# Argo Workflows has a few restrictions on workflow names:
+# - Argo Workflow Template names can't be longer than 253 characters since
+#   they follow DNS Subdomain name restrictions.
+# - Argo Workflows stores workflow template names as a label in the workflow
+#   template metadata - workflows.argoproj.io/workflow-template, which follows
+#   RFC 1123, which is a strict subset of DNS Subdomain names and allows for
+#   63 characters.
+# - Argo Workflows appends a unix timestamp to the workflow name when the workflow
+#   is created (-1243856725) from a workflow template deployed as a cron workflow template
+#   reducing the number of characters available to 52.
+# - TODO: Check naming restrictions for Argo Events.
+
+# In summary -
+# - We truncate the workflow name to 45 characters to leave enough room for future
+#   enhancements to the Argo Workflows integration.
+# - We remove any underscores since Argo Workflows doesn't allow them.
+# - We convert the name to lower case.
+# - We remove + and @ as not allowed characters, which can be part of the
+#   project branch due to using email addresses as user names.
+# - We append a hash of the workflow name to the end to make it unique.
+
+# A complication here is that in previous versions of Metaflow (=<2.16), the limit was a
+# rather lax 253 characters - so we have two issues to contend with:
+# 1. Replacing any equivalent flows deployed using previous versions of Metaflow which
+#    adds a bit of complexity to the business logic.
+# 2. Breaking Metaflow users who have multiple versions of Metaflow floating in their
+#    organization. Imagine a scenario, where metaflow-v1 (253 chars) deploys the same
+#    flow which was previously deployed using the new metaflow-v2 (45 chars) - the user
+#    will end up with two workflows templates instead of one since metaflow-v1 has no
+#    awareness of the new name truncation logic introduced by metaflow-v2. Unfortunately,
+#    there is no way to avoid this scenario - so we will do our best to message to the
+#    user to not use an older version of Metaflow to redeploy affected flows.
+#    ------------------------------------------------------------------------------------------
+#    |  metaflow-v1 (253 chars)        |  metaflow-v2 (45 chars)          |  Result            |
+#    ------------------------------------------------------------------------------------------
+#    |  workflow_name_modified = True  |  workflow_name_modified = False  |  Not possible      |
+#    ------------------------------------------------------------------------------------------
+#    |  workflow_name_modified = False |  workflow_name_modified = True   |  Messaging needed  |
+#    ------------------------------------------------------------------------------------------
+#    |  workflow_name_modified = False |  workflow_name_modified = False  |  No message needed |
+#    ------------------------------------------------------------------------------------------
+#    |  workflow_name_modified = True  |  workflow_name_modified = True   |  Messaging needed  |
+#    ------------------------------------------------------------------------------------------
+
+
+def resolve_workflow_name_v1(obj, name):
+    # models the workflow_name calculation logic in Metaflow versions =<2.16
+    # important!! - should stay static including any future bugs
     project = current.get("project_name")
-    obj._is_workflow_name_modified = False
+    is_workflow_name_modified = False
+    if project:
+        if name:
+            return None, False  # not possible in versions =<2.16
+        workflow_name = current.project_flow_name
+        if len(workflow_name) > 253:
+            name_hash = to_unicode(
+                base64.b32encode(sha1(to_bytes(workflow_name)).digest())
+            )[:8].lower()
+            workflow_name = "%s-%s" % (workflow_name[:242], name_hash)
+            is_workflow_name_modified = True
+        if not VALID_NAME.search(workflow_name):
+            workflow_name = (
+                re.compile(r"^[^A-Za-z0-9]+")
+                .sub("", workflow_name)
+                .replace("_", "")
+                .replace("@", "")
+                .replace("+", "")
+                .lower()
+            )
+            is_workflow_name_modified = True
+    else:
+        if name and not VALID_NAME.search(name):
+            return None, False  # not possible in versions =<2.16
+        workflow_name = name if name else current.flow_name
+        if len(workflow_name) > 253:
+            return None, False  # not possible in versions =<2.16
+        if not VALID_NAME.search(workflow_name):
+            # Note - since the original name sanitization was a surjective
+            #        mapping, using it here is a bug, but we leave this in
+            #        place since the usage of v1_workflow_name is to generate
+            #        historical workflow names, so we need to replicate all
+            #        the bugs too :'(
+
+            workflow_name = (
+                re.compile(r"^[^A-Za-z0-9]+")
+                .sub("", workflow_name)
+                .replace("_", "")
+                .replace("@", "")
+                .replace("+", "")
+                .lower()
+            )
+            is_workflow_name_modified = True
+    return workflow_name, is_workflow_name_modified
+
+
+def resolve_workflow_name_v2(obj, name):
+    # current logic for imputing workflow_name
+    limit = 45
+    project = current.get("project_name")
+    is_workflow_name_modified = False
+    exception_on_create = None
+
     if project:
         if name:
             raise MetaflowException(
@@ -384,48 +615,86 @@ def resolve_workflow_name(obj, name):
             % to_unicode(base64.b32encode(sha1(project_branch).digest()))[:16]
         )
         is_project = True
-        # Argo Workflow names can't be longer than 253 characters, so we truncate
-        # by default. Also, while project and branch allow for underscores, Argo
-        # Workflows doesn't (DNS Subdomain names as defined in RFC 1123) - so we will
-        # remove any underscores as well as convert the name to lower case.
-        # Also remove + and @ as not allowed characters, which can be part of the
-        # project branch due to using email addresses as user names.
-        if len(workflow_name) > 253:
+
+        if len(workflow_name) > limit:
             name_hash = to_unicode(
                 base64.b32encode(sha1(to_bytes(workflow_name)).digest())
-            )[:8].lower()
-            workflow_name = "%s-%s" % (workflow_name[:242], name_hash)
-            obj._is_workflow_name_modified = True
-        if not VALID_NAME.search(workflow_name):
-            workflow_name = sanitize_for_argo(workflow_name)
-            obj._is_workflow_name_modified = True
+            )[:5].lower()
+
+            # Generate a meaningful short name
+            project_name = project
+            branch_name = current.branch_name
+            flow_name = current.flow_name
+            parts = [project_name, branch_name, flow_name]
+            max_name_len = limit - 6
+            min_each = 7
+            total_len = sum(len(p) for p in parts)
+            remaining = max_name_len - 3 * min_each
+            extras = [int(remaining * len(p) / total_len) for p in parts]
+            while sum(extras) < remaining:
+                extras[extras.index(min(extras))] += 1
+            budgets = [min_each + e for e in extras]
+            proj_budget = budgets[0]
+            if len(project_name) <= proj_budget:
+                proj_str = project_name
+            else:
+                h = proj_budget // 2
+                t = proj_budget - h
+                proj_str = project_name[:h] + project_name[-t:]
+            branch_budget = budgets[1]
+            branch_str = branch_name[:branch_budget]
+            flow_budget = budgets[2]
+            if len(flow_name) <= flow_budget:
+                flow_str = flow_name
+            else:
+                h = flow_budget // 2
+                t = flow_budget - h
+                flow_str = flow_name[:h] + flow_name[-t:]
+            descriptive_name = sanitize_for_argo(
+                "%s.%s.%s" % (proj_str, branch_str, flow_str)
+            )
+            workflow_name = "%s-%s" % (descriptive_name, name_hash)
+            is_workflow_name_modified = True
     else:
         if name and not VALID_NAME.search(name):
             raise MetaflowException(
                 "Name '%s' contains invalid characters. The "
                 "name must consist of lower case alphanumeric characters, '-' or '.'"
-                ", and must start and end with an alphanumeric character." % name
+                ", and must start with an alphabetic character, "
+                "and end with an alphanumeric character." % name
             )
-
         workflow_name = name if name else current.flow_name
         token_prefix = workflow_name
         is_project = False
 
-        if len(workflow_name) > 253:
-            msg = (
-                "The full name of the workflow:\n*%s*\nis longer than 253 "
+        if len(workflow_name) > limit:
+            # NOTE: We could have opted for truncating names specified by --name and flow_name
+            #       as well, but chose to error instead due to the expectation that users would
+            #       be intentionally explicit in their naming, and truncating these would lose
+            #       information they intended to encode in the deployment.
+            exception_on_create = ArgoWorkflowsNameTooLong(
+                "The full name of the workflow:\n*%s*\nis longer than %s "
                 "characters.\n\n"
                 "To deploy this workflow to Argo Workflows, please "
                 "assign a shorter name\nusing the option\n"
-                "*argo-workflows --name <name> create*." % workflow_name
+                "*argo-workflows --name <name> create*." % (name, limit)
             )
-            raise ArgoWorkflowsNameTooLong(msg)
 
-        if not VALID_NAME.search(workflow_name):
-            workflow_name = sanitize_for_argo(workflow_name)
-            obj._is_workflow_name_modified = True
+    if not VALID_NAME.search(workflow_name):
+        # NOTE: Even though sanitize_for_argo is surjective which can result in collisions,
+        #       we still use it here since production tokens guard against name collisions
+        #       and if we made it injective, metaflow 2.17 will result in every deployed
+        #       flow's name changing, significantly increasing the blast radius of the change.
+        workflow_name = sanitize_for_argo(workflow_name)
+        is_workflow_name_modified = True
 
-    return workflow_name, token_prefix.lower(), is_project
+    return (
+        workflow_name,
+        token_prefix.lower(),
+        is_project,
+        is_workflow_name_modified,
+        exception_on_create,
+    )
 
 
 def make_flow(
@@ -442,8 +711,13 @@ def make_flow(
     notify_on_success,
     notify_slack_webhook_url,
     notify_pager_duty_integration_key,
+    notify_incident_io_api_key,
+    incident_io_alert_source_config_id,
+    incident_io_metadata,
     enable_heartbeat_daemon,
     enable_error_msg_capture,
+    workflow_title,
+    workflow_description,
 ):
     # TODO: Make this check less specific to Amazon S3 as we introduce
     #       support for more cloud object stores.
@@ -453,15 +727,27 @@ def make_flow(
         )
 
     if (notify_on_error or notify_on_success) and not (
-        notify_slack_webhook_url or notify_pager_duty_integration_key
+        notify_slack_webhook_url
+        or notify_pager_duty_integration_key
+        or notify_incident_io_api_key
     ):
         raise MetaflowException(
-            "Notifications require specifying an incoming Slack webhook url via --notify-slack-webhook-url or "
-            "PagerDuty events v2 integration key via --notify-pager-duty-integration-key.\n If you would like to set up "
-            "notifications for your Slack workspace, follow the instructions at "
-            "https://api.slack.com/messaging/webhooks to generate a webhook url.\n For notifications through PagerDuty, "
-            "generate an integration key by following the instructions at "
-            "https://support.pagerduty.com/docs/services-and-integrations#create-a-generic-events-api-integration"
+            "Notifications require specifying an incoming Slack webhook url via --notify-slack-webhook-url, PagerDuty events v2 integration key via --notify-pager-duty-integration-key or\n"
+            "Incident.io integration API key via --notify-incident-io-api-key.\n"
+            " If you would like to set up notifications for your Slack workspace, follow the instructions at "
+            "https://api.slack.com/messaging/webhooks to generate a webhook url.\n"
+            " For notifications through PagerDuty, generate an integration key by following the instructions at "
+            "https://support.pagerduty.com/docs/services-and-integrations#create-a-generic-events-api-integration\n"
+            " For notifications through Incident.io, generate an alert source config."
+        )
+
+    if (
+        (notify_on_error or notify_on_success)
+        and notify_incident_io_api_key
+        and incident_io_alert_source_config_id is None
+    ):
+        raise MetaflowException(
+            "Incident.io alerts require an alert source configuration ID. Please set one with --incident-io-alert-source-config-id"
         )
 
     # Attach @kubernetes and @environment decorator to the flow to
@@ -469,25 +755,40 @@ def make_flow(
     decorators._attach_decorators(
         obj.flow, [KubernetesDecorator.name, EnvironmentDecorator.name]
     )
-    decorators._init(obj.flow)
-
-    decorators._init_step_decorators(
-        obj.flow, obj.graph, obj.environment, obj.flow_datastore, obj.logger
+    decorators._process_late_attached_decorator(
+        [KubernetesDecorator.name, EnvironmentDecorator.name],
+        obj.flow,
+        obj.graph,
+        obj.environment,
+        obj.flow_datastore,
+        obj.logger,
     )
+    obj.graph = obj.flow._graph
 
     # Save the code package in the flow datastore so that both user code and
     # metaflow package can be retrieved during workflow execution.
     obj.package = MetaflowPackage(
-        obj.flow, obj.environment, obj.echo, obj.package_suffixes
+        obj.flow,
+        obj.environment,
+        obj.echo,
+        suffixes=obj.package_suffixes,
+        flow_datastore=obj.flow_datastore if FEAT_ALWAYS_UPLOAD_CODE_PACKAGE else None,
     )
-    package_url, package_sha = obj.flow_datastore.save_data(
-        [obj.package.blob], len_hint=1
-    )[0]
+
+    # This blocks until the package is created
+    if FEAT_ALWAYS_UPLOAD_CODE_PACKAGE:
+        package_url = obj.package.package_url()
+        package_sha = obj.package.package_sha()
+    else:
+        package_url, package_sha = obj.flow_datastore.save_data(
+            [obj.package.blob], len_hint=1
+        )[0]
 
     return ArgoWorkflows(
         name,
         obj.graph,
         obj.flow,
+        obj.package.package_metadata,
         package_sha,
         package_url,
         token,
@@ -507,8 +808,13 @@ def make_flow(
         notify_on_success=notify_on_success,
         notify_slack_webhook_url=notify_slack_webhook_url,
         notify_pager_duty_integration_key=notify_pager_duty_integration_key,
+        notify_incident_io_api_key=notify_incident_io_api_key,
+        incident_io_alert_source_config_id=incident_io_alert_source_config_id,
+        incident_io_metadata=incident_io_metadata,
         enable_heartbeat_daemon=enable_heartbeat_daemon,
         enable_error_msg_capture=enable_error_msg_capture,
+        workflow_title=workflow_title,
+        workflow_description=workflow_description,
     )
 
 
@@ -645,8 +951,30 @@ def trigger(obj, run_id_file=None, deployer_attribute_file=None, **kwargs):
         if kwargs.get(param.name.replace("-", "_").lower()) is not None
     }
 
-    response = ArgoWorkflows.trigger(obj.workflow_name, params)
-    run_id = "argo-" + response["metadata"]["name"]
+    workflow_name_to_deploy = obj.workflow_name
+    # For users that upgraded the client but did not redeploy their flow,
+    # we fallback to old workflow names in case of a conflict.
+    if obj.workflow_name != obj._v1_workflow_name:
+        # use the old name only if there exists a deployment.
+        if ArgoWorkflows.get_existing_deployment(obj._v1_workflow_name):
+            obj.echo("Warning! ", bold=True, nl=False)
+            obj.echo(
+                "Found a deployment of this flow with an old style name, defaulted to triggering *%s*."
+                % obj._v1_workflow_name,
+                wrap=True,
+            )
+            obj.echo(
+                "Due to new naming restrictions on Argo Workflows, "
+                "this flow will have a shorter name with newer versions of Metaflow (>=%s) "
+                "which will allow it to be triggered through Argo UI as well. "
+                % NEW_ARGO_NAMELENGTH_METAFLOW_VERSION,
+                wrap=True,
+            )
+            obj.echo("re-deploy your flow in order to get rid of this message.")
+            workflow_name_to_deploy = obj._v1_workflow_name
+    response = ArgoWorkflows.trigger(workflow_name_to_deploy, params)
+    argo_workflow_id = response["metadata"]["name"]
+    run_id = f"argo-{argo_workflow_id}"
 
     if run_id_file:
         with open(run_id_file, "w") as f:
@@ -656,7 +984,7 @@ def trigger(obj, run_id_file=None, deployer_attribute_file=None, **kwargs):
         with open(deployer_attribute_file, "w") as f:
             json.dump(
                 {
-                    "name": obj.workflow_name,
+                    "name": workflow_name_to_deploy,
                     "metadata": obj.metadata.metadata_str(),
                     "pathspec": "/".join((obj.flow.name, run_id)),
                 },
@@ -665,15 +993,37 @@ def trigger(obj, run_id_file=None, deployer_attribute_file=None, **kwargs):
 
     obj.echo(
         "Workflow *{name}* triggered on Argo Workflows "
-        "(run-id *{run_id}*).".format(name=obj.workflow_name, run_id=run_id),
+        "(run-id *{run_id}*).".format(name=workflow_name_to_deploy, run_id=run_id),
         bold=True,
+    )
+
+    workflow_url = (
+        "%s/workflows/%s/%s"
+        % (
+            ARGO_WORKFLOWS_UI_URL.rstrip("/"),
+            KUBERNETES_NAMESPACE,
+            argo_workflow_id,
+        )
+        if ARGO_WORKFLOWS_UI_URL
+        else None
     )
 
     run_url = (
         "%s/%s/%s" % (UI_URL.rstrip("/"), obj.flow.name, run_id) if UI_URL else None
     )
 
-    if run_url:
+    if workflow_url and run_url:
+        obj.echo(
+            "See the run in the UI at %s\nand in the Argo Workflows UI at %s"
+            % (run_url, workflow_url),
+            bold=True,
+        )
+    elif workflow_url:
+        obj.echo(
+            "See the run in the Argo Workflows UI at %s" % workflow_url,
+            bold=True,
+        )
+    elif run_url:
         obj.echo(
             "See the run in the UI at %s" % run_url,
             bold=True,
@@ -707,26 +1057,57 @@ def delete(obj, authorize=None):
             "about production tokens."
         )
 
-    validate_token(obj.workflow_name, obj.token_prefix, authorize, _token_instructions)
-    obj.echo("Deleting workflow *{name}*...".format(name=obj.workflow_name), bold=True)
+    # Cases and expected behaviours:
+    # old name exists, new name does not exist -> delete old and do not fail on missing new
+    # old name exists, new name exists -> delete both
+    # old name does not exist, new name exists -> only try to delete new
+    # old name does not exist, new name does not exist -> keep previous behaviour where missing deployment raises error for the new name.
+    def _delete(workflow_name):
+        validate_token(workflow_name, obj.token_prefix, authorize, _token_instructions)
+        obj.echo("Deleting workflow *{name}*...".format(name=workflow_name), bold=True)
 
-    schedule_deleted, sensor_deleted, workflow_deleted = ArgoWorkflows.delete(
-        obj.workflow_name
-    )
-
-    if schedule_deleted:
-        obj.echo(
-            "Deleting cronworkflow *{name}*...".format(name=obj.workflow_name),
-            bold=True,
+        schedule_deleted, sensor_deleted, workflow_deleted = ArgoWorkflows.delete(
+            workflow_name
         )
 
-    if sensor_deleted:
-        obj.echo(
-            "Deleting sensor *{name}*...".format(name=obj.workflow_name),
-            bold=True,
-        )
+        if schedule_deleted:
+            obj.echo(
+                "Deleting cronworkflow *{name}*...".format(name=workflow_name),
+                bold=True,
+            )
 
-    if workflow_deleted:
+        if sensor_deleted:
+            obj.echo(
+                "Deleting sensor *{name}*...".format(name=workflow_name),
+                bold=True,
+            )
+        return workflow_deleted
+
+    workflows_deleted = False
+    cleanup_old_name = False
+    if obj.workflow_name != obj._v1_workflow_name:
+        # Only add the old name if there exists a deployment with such name.
+        # This is due to the way validate_token is tied to an existing deployment.
+        if ArgoWorkflows.get_existing_deployment(obj._v1_workflow_name) is not None:
+            cleanup_old_name = True
+            obj.echo(
+                "This flow has been deployed with another name in the past due to a limitation with Argo Workflows. "
+                "Will also delete the older deployment.",
+                wrap=True,
+            )
+            _delete(obj._v1_workflow_name)
+            workflows_deleted = True
+
+    # Always try to delete the current name.
+    # Do not raise exception if we deleted old name before this.
+    try:
+        _delete(obj.workflow_name)
+        workflows_deleted = True
+    except ArgoWorkflowsException:
+        if not cleanup_old_name:
+            raise
+
+    if workflows_deleted:
         obj.echo(
             "Deleting Kubernetes resources may take a while. "
             "Deploying the flow again to Argo Workflows while the delete is in-flight will fail."
@@ -765,17 +1146,21 @@ def suspend(obj, run_id, authorize=None):
             "about production tokens."
         )
 
-    validate_run_id(
-        obj.workflow_name, obj.token_prefix, authorize, run_id, _token_instructions
-    )
+    workflows = _get_existing_workflow_names(obj)
 
-    # Trim prefix from run_id
-    name = run_id[5:]
+    for workflow_name in workflows:
+        validate_run_id(
+            workflow_name, obj.token_prefix, authorize, run_id, _token_instructions
+        )
 
-    workflow_suspended = ArgoWorkflows.suspend(name)
+        # Trim prefix from run_id
+        name = run_id[5:]
 
-    if workflow_suspended:
-        obj.echo("Suspended execution of *%s*" % run_id)
+        workflow_suspended = ArgoWorkflows.suspend(name)
+
+        if workflow_suspended:
+            obj.echo("Suspended execution of *%s*" % run_id)
+            break  # no need to try out all workflow_names if we found the running one.
 
 
 @argo_workflows.command(help="Unsuspend flow execution on Argo Workflows.")
@@ -809,17 +1194,21 @@ def unsuspend(obj, run_id, authorize=None):
             "about production tokens."
         )
 
-    validate_run_id(
-        obj.workflow_name, obj.token_prefix, authorize, run_id, _token_instructions
-    )
+    workflows = _get_existing_workflow_names(obj)
 
-    # Trim prefix from run_id
-    name = run_id[5:]
+    for workflow_name in workflows:
+        validate_run_id(
+            workflow_name, obj.token_prefix, authorize, run_id, _token_instructions
+        )
 
-    workflow_suspended = ArgoWorkflows.unsuspend(name)
+        # Trim prefix from run_id
+        name = run_id[5:]
 
-    if workflow_suspended:
-        obj.echo("Unsuspended execution of *%s*" % run_id)
+        workflow_suspended = ArgoWorkflows.unsuspend(name)
+
+        if workflow_suspended:
+            obj.echo("Unsuspended execution of *%s*" % run_id)
+            break  # no need to try all workflow_names if we found one.
 
 
 def validate_token(name, token_prefix, authorize, instructions_fn=None):
@@ -927,22 +1316,26 @@ def terminate(obj, run_id, authorize=None):
             "about production tokens."
         )
 
-    validate_run_id(
-        obj.workflow_name, obj.token_prefix, authorize, run_id, _token_instructions
-    )
+    workflows = _get_existing_workflow_names(obj)
 
-    # Trim prefix from run_id
-    name = run_id[5:]
-    obj.echo(
-        "Terminating run *{run_id}* for {flow_name} ...".format(
-            run_id=run_id, flow_name=obj.flow.name
-        ),
-        bold=True,
-    )
+    for workflow_name in workflows:
+        validate_run_id(
+            workflow_name, obj.token_prefix, authorize, run_id, _token_instructions
+        )
 
-    terminated = ArgoWorkflows.terminate(obj.flow.name, name)
-    if terminated:
-        obj.echo("\nRun terminated.")
+        # Trim prefix from run_id
+        name = run_id[5:]
+        obj.echo(
+            "Terminating run *{run_id}* for {flow_name} ...".format(
+                run_id=run_id, flow_name=obj.flow.name
+            ),
+            bold=True,
+        )
+
+        terminated = ArgoWorkflows.terminate(obj.flow.name, name)
+        if terminated:
+            obj.echo("\nRun terminated.")
+            break  # no need to try all workflow_names if we found the running one.
 
 
 @argo_workflows.command(help="List Argo Workflow templates for the flow.")
@@ -955,8 +1348,7 @@ def terminate(obj, run_id, authorize=None):
 )
 @click.pass_obj
 def list_workflow_templates(obj, all=None):
-    templates = ArgoWorkflows.list_templates(obj.flow.name, all)
-    for template_name in templates:
+    for template_name in ArgoWorkflows.list_templates(obj.flow.name, all):
         obj.echo_always(template_name)
 
 
@@ -1046,11 +1438,26 @@ def validate_run_id(
     return True
 
 
+def _get_existing_workflow_names(obj):
+    """
+    Construct a list of the current workflow name and possible existing deployments of old workflow names
+    """
+    workflows = [obj.workflow_name]
+    if obj.workflow_name != obj._v1_workflow_name:
+        # Only add the old name if there exists a deployment with such name.
+        # This is due to the way validate_token is tied to an existing deployment.
+        if ArgoWorkflows.get_existing_deployment(obj._v1_workflow_name) is not None:
+            workflows.append(obj._v1_workflow_name)
+
+    return workflows
+
+
 def sanitize_for_argo(text):
     """
-    Sanitizes a string so it does not contain characters that are not permitted in Argo Workflow resource names.
+    Sanitizes a string so it does not contain characters that are not permitted in
+    Argo Workflow resource names.
     """
-    return (
+    sanitized = (
         re.compile(r"^[^A-Za-z0-9]+")
         .sub("", text)
         .replace("_", "")
@@ -1058,6 +1465,12 @@ def sanitize_for_argo(text):
         .replace("+", "")
         .lower()
     )
+    # This is added in order to get sanitized and truncated project branch names to adhere to RFC 1123 subdomain requirements
+    # f.ex. after truncation a project flow name might be project.branch-cut-short-.flowname
+    # sanitize around the . separators by removing any non-alphanumeric characters
+    sanitized = re.compile(r"[^a-z0-9]*\.[^a-z0-9]*").sub(".", sanitized)
+
+    return sanitized
 
 
 def remap_status(status):

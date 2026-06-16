@@ -30,7 +30,7 @@ from .exception import (
 )
 import traceback
 from collections import namedtuple
-
+from .metadata import _save_metadata
 from .card_resolver import resolve_paths_from_task, resumed_info
 
 id_func = id
@@ -221,7 +221,7 @@ def list_available_cards(
         cpr = """
         Card Id: %s
         Card Type: %s
-        Card Hash: %s 
+        Card Hash: %s
         Card Path: %s
         """ % (
             path_tuple.id,
@@ -613,6 +613,14 @@ def update_card(mf_card, mode, task, data, timeout_value=None):
     hidden=True,
     help="Delete data-file and component-file after reading. (internal)",
 )
+@click.option(
+    "--save-metadata",
+    default=None,
+    show_default=True,
+    type=JSONTypeClass(),
+    hidden=True,
+    help="JSON string containing metadata to be saved. (internal)",
+)
 @click.pass_context
 def create(
     ctx,
@@ -627,6 +635,7 @@ def create(
     card_uuid=None,
     delete_input_files=None,
     id=None,
+    save_metadata=None,
 ):
     card_id = id
     rendered_info = None  # Variable holding all the information which will be rendered
@@ -640,6 +649,15 @@ def create(
     full_pathspec = "/".join([flowname, pathspec])
 
     graph_dict, _ = ctx.obj.graph.output_steps()
+    # Backward-compat: `graph` keeps the old shape (dict of step_name -> info)
+    # so third-party card modules that expect the pre-annotation format continue
+    # to work. New cards should use `graph_info` which carries start/end
+    # metadata needed for flows with custom-named entry/terminal steps.
+    graph_info = {
+        "steps": graph_dict,
+        "start_step": ctx.obj.graph.start_step,
+        "end_step": ctx.obj.graph.end_step,
+    }
 
     if card_uuid is None:
         card_uuid = str(uuid.uuid4()).replace("-", "")
@@ -689,16 +707,33 @@ def create(
         # then check for render_error_card and accordingly
         # store the exception as a string or raise the exception
         try:
+            # Probe for `graph_info` support so we can stay backward compatible
+            # with third-party card modules whose __init__ only accepts `graph`.
+            import inspect as _inspect
+
+            try:
+                accepts_graph_info = (
+                    "graph_info" in _inspect.signature(filtered_card).parameters
+                )
+            except (TypeError, ValueError):
+                accepts_graph_info = False
+
+            extra_kwargs = {"graph_info": graph_info} if accepts_graph_info else {}
+
             if options is not None:
                 mf_card = filtered_card(
                     options=options,
                     components=component_arr,
                     graph=graph_dict,
                     flow=ctx.obj.flow,
+                    **extra_kwargs,
                 )
             else:
                 mf_card = filtered_card(
-                    components=component_arr, graph=graph_dict, flow=ctx.obj.flow
+                    components=component_arr,
+                    graph=graph_dict,
+                    flow=ctx.obj.flow,
+                    **extra_kwargs,
                 )
         except TypeError as e:
             if render_error_card:
@@ -824,6 +859,16 @@ def create(
                 % (card_info.type, card_info.hash[:NUM_SHORT_HASH_CHARS]),
                 fg="green",
             )
+            if save_metadata:
+                _save_metadata(
+                    ctx.obj.metadata,
+                    task.parent.parent.id,
+                    task.parent.id,
+                    task.id,
+                    task.current_attempt,
+                    card_uuid,
+                    save_metadata,
+                )
 
 
 @card.command()

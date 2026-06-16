@@ -58,22 +58,96 @@ def check_reserved_words(graph):
 @linter.ensure_fundamentals
 @linter.check
 def check_basic_steps(graph):
-    msg = "Add %s *%s* step in your flow."
-    for prefix, node in (("a", "start"), ("an", "end")):
-        if node not in graph:
-            raise LintWarn(msg % (prefix, node))
+    if graph.start_step is None:
+        annotated = [name for name, node in graph.nodes.items() if node.is_start_step]
+        if len(annotated) > 1:
+            raise LintWarn(
+                "Multiple steps annotated with @step(start=True): %s. "
+                "Exactly one is allowed." % ", ".join(sorted(annotated))
+            )
+        raise LintWarn(
+            "Your flow must have exactly one start step. Either name a step "
+            "'start' or use @step(start=True)."
+        )
+    if graph.end_step is None:
+        annotated = [name for name, node in graph.nodes.items() if node.is_end_step]
+        if len(annotated) > 1:
+            raise LintWarn(
+                "Multiple steps annotated with @step(end=True): %s. "
+                "Exactly one is allowed." % ", ".join(sorted(annotated))
+            )
+        raise LintWarn(
+            "Your flow must have exactly one end step. Either name a step "
+            "'end' or use @step(end=True)."
+        )
+
+
+@linter.ensure_fundamentals
+@linter.check
+def check_annotation_name_conflict(graph):
+    """Detect conflict between @step(start/end=True) and legacy step names."""
+    if (
+        graph.start_step is not None
+        and graph.start_step != "start"
+        and "start" in graph.nodes
+    ):
+        raise LintWarn(
+            "Ambiguous start step: step '%s' is annotated with @step(start=True) "
+            "but a step named 'start' also exists. Remove the 'start' name or "
+            "the @step(start=True) annotation." % graph.start_step
+        )
+
+    if graph.end_step is not None and graph.end_step != "end" and "end" in graph.nodes:
+        raise LintWarn(
+            "Ambiguous end step: step '%s' is annotated with @step(end=True) "
+            "but a step named 'end' also exists. Remove the 'end' name or "
+            "the @step(end=True) annotation." % graph.end_step
+        )
+
+
+@linter.ensure_static_graph
+@linter.check
+def check_start_end_degree(graph):
+    """Validate that the start step has no incoming and the end step has no outgoing."""
+    if graph.start_step is None or graph.end_step is None:
+        return
+
+    start_node = graph[graph.start_step]
+    if start_node.in_funcs:
+        raise LintWarn(
+            "The start step *%s* has incoming transitions from %s. "
+            "A start step must have no incoming transitions."
+            % (graph.start_step, ", ".join(start_node.in_funcs)),
+            start_node.func_lineno,
+            start_node.source_file,
+        )
+
+    end_node = graph[graph.end_step]
+    if end_node.out_funcs:
+        raise LintWarn(
+            "The end step *%s* has outgoing transitions. "
+            "An end step must have no outgoing transitions (no self.next())."
+            % graph.end_step,
+            end_node.func_lineno,
+            end_node.source_file,
+        )
 
 
 @linter.ensure_static_graph
 @linter.check
 def check_that_end_is_end(graph):
-    msg0 = "The *end* step should not have a step.next() transition. " "Just remove it."
-    msg1 = (
-        "The *end* step should not be a join step (it gets an extra "
-        "argument). Add a join step before it."
-    )
+    if graph.end_step is None:
+        return
 
-    node = graph["end"]
+    node = graph[graph.end_step]
+    msg0 = (
+        "The terminal step *%s* should not have a self.next() transition. "
+        "Just remove it." % graph.end_step
+    )
+    msg1 = (
+        "The terminal step *%s* should not be a join step (it gets an extra "
+        "argument). Add a join step before it." % graph.end_step
+    )
 
     if node.has_tail_next or node.invalid_tail_next:
         raise LintWarn(msg0, node.tail_next_lineno, node.source_file)
@@ -134,7 +208,13 @@ def check_valid_transitions(graph):
     msg = (
         "Step *{0.name}* specifies an invalid self.next() transition. "
         "Make sure the self.next() expression matches with one of the "
-        "supported transition types."
+        "supported transition types:\n"
+        "  • Linear: self.next(self.step_name)\n"
+        "  • Fan-out: self.next(self.step1, self.step2, ...)\n"
+        "  • Foreach: self.next(self.step, foreach='variable')\n"
+        "  • Switch: self.next({{\"key\": self.step, ...}}, condition='variable')\n\n"
+        "For switch statements, keys must be string literals, numbers or config expressions "
+        "(self.config.key_name), not variables."
     )
     for node in graph:
         if node.type != "end" and node.has_tail_next and node.invalid_tail_next:
@@ -169,6 +249,8 @@ def check_for_acyclicity(graph):
 
     def check_path(node, seen):
         for n in node.out_funcs:
+            if node.type == "split-switch" and n == node.name:
+                continue
             if n in seen:
                 path = "->".join(seen + [n])
                 raise LintWarn(
@@ -184,11 +266,14 @@ def check_for_acyclicity(graph):
 @linter.ensure_static_graph
 @linter.check
 def check_for_orphans(graph):
+    if graph.start_step is None:
+        return
+
     msg = (
-        "Step *{0.name}* is unreachable from the start step. Add "
-        "self.next({0.name}) in another step or remove *{0.name}*."
+        "Step *{0.name}* is unreachable from the entry step *%s*. Add "
+        "self.next({0.name}) in another step or remove *{0.name}*." % graph.start_step
     )
-    seen = set(["start"])
+    seen = set([graph.start_step])
 
     def traverse(node):
         for n in node.out_funcs:
@@ -196,7 +281,7 @@ def check_for_orphans(graph):
                 seen.add(n)
                 traverse(graph[n])
 
-    traverse(graph["start"])
+    traverse(graph[graph.start_step])
     nodeset = frozenset(n.name for n in graph)
     orphans = nodeset - seen
     if orphans:
@@ -207,9 +292,12 @@ def check_for_orphans(graph):
 @linter.ensure_static_graph
 @linter.check
 def check_split_join_balance(graph):
+    if graph.start_step is None or graph.end_step is None:
+        return
+
     msg0 = (
-        "Step *end* reached before a split started at step(s) *{roots}* "
-        "were joined. Add a join step before *end*."
+        "The terminal step *{end}* was reached before a split started at step(s) "
+        "*{roots}* were joined. Add a join step before *{end}*."
     )
     msg1 = (
         "Step *{0.name}* seems like a join step (it takes an extra input "
@@ -232,19 +320,40 @@ def check_split_join_balance(graph):
             new_stack = split_stack
         elif node.type in ("split", "foreach"):
             new_stack = split_stack + [("split", node.out_funcs)]
+        elif node.type == "split-switch":
+            # For a switch, continue traversal down each path with the same stack
+            for n in node.out_funcs:
+                if node.type == "split-switch" and n == node.name:
+                    continue
+                traverse(graph[n], split_stack)
+            return
         elif node.type == "end":
+            new_stack = split_stack
             if split_stack:
                 _, split_roots = split_stack.pop()
                 roots = ", ".join(split_roots)
                 raise LintWarn(
-                    msg0.format(roots=roots), node.func_lineno, node.source_file
+                    msg0.format(roots=roots, end=graph.end_step),
+                    node.func_lineno,
+                    node.source_file,
                 )
         elif node.type == "join":
+            new_stack = split_stack
             if split_stack:
                 _, split_roots = split_stack[-1]
                 new_stack = split_stack[:-1]
-                if len(node.in_funcs) != len(split_roots):
-                    paths = ", ".join(node.in_funcs)
+
+                # Resolve each incoming function to its root branch from the split.
+                resolved_branches = set(
+                    graph[n].split_branches[-1] for n in node.in_funcs
+                )
+
+                # compares the set of resolved branches against the expected branches
+                # from the split.
+                if len(resolved_branches) != len(
+                    split_roots
+                ) or resolved_branches ^ set(split_roots):
+                    paths = ", ".join(resolved_branches)
                     roots = ", ".join(split_roots)
                     raise LintWarn(
                         msg1.format(
@@ -266,11 +375,53 @@ def check_split_join_balance(graph):
 
             if not all_equal(map(parents, node.in_funcs)):
                 raise LintWarn(msg3.format(node), node.func_lineno, node.source_file)
+        else:
+            new_stack = split_stack
 
         for n in node.out_funcs:
+            if node.type == "split-switch" and n == node.name:
+                continue
             traverse(graph[n], new_stack)
 
-    traverse(graph["start"], [])
+    traverse(graph[graph.start_step], [])
+
+
+@linter.ensure_static_graph
+@linter.check
+def check_switch_splits(graph):
+    """Check conditional split constraints"""
+    msg0 = (
+        "Step *{0.name}* is a switch split but defines {num} transitions. "
+        "Switch splits must define at least 2 transitions."
+    )
+    msg1 = "Step *{0.name}* is a switch split but has no condition variable."
+    msg2 = "Step *{0.name}* is a switch split but has no switch cases defined."
+
+    for node in graph:
+        if node.type == "split-switch":
+            # Check at least 2 outputs
+            if len(node.out_funcs) < 2:
+                raise LintWarn(
+                    msg0.format(node, num=len(node.out_funcs)),
+                    node.func_lineno,
+                    node.source_file,
+                )
+
+            # Check condition exists
+            if not node.condition:
+                raise LintWarn(
+                    msg1.format(node),
+                    node.func_lineno,
+                    node.source_file,
+                )
+
+            # Check switch cases exist
+            if not node.switch_cases:
+                raise LintWarn(
+                    msg2.format(node),
+                    node.func_lineno,
+                    node.source_file,
+                )
 
 
 @linter.ensure_static_graph
@@ -347,3 +498,25 @@ def check_nested_foreach(graph):
         if node.type == "foreach":
             if any(graph[p].type == "foreach" for p in node.split_parents):
                 raise LintWarn(msg.format(node), node.func_lineno, node.source_file)
+
+
+@linter.ensure_static_graph
+@linter.check
+def check_ambiguous_joins(graph):
+    for node in graph:
+        if node.type == "join":
+            problematic_parents = [
+                p_name
+                for p_name in node.in_funcs
+                if graph[p_name].type == "split-switch"
+            ]
+            if problematic_parents:
+                msg = (
+                    "A conditional path cannot lead directly to a join step.\n"
+                    "In your conditional step(s) {parents}, one or more of the possible paths transition directly to the join step {join_name}.\n"
+                    "As a workaround, please introduce an intermediate, unconditional step on that specific path before joining."
+                ).format(
+                    parents=", ".join("*%s*" % p for p in problematic_parents),
+                    join_name="*%s*" % node.name,
+                )
+                raise LintWarn(msg, node.func_lineno, node.source_file)

@@ -13,9 +13,11 @@ from hashlib import sha256
 from io import BufferedIOBase, BytesIO
 from urllib.parse import unquote, urlparse
 
+from metaflow.debug import debug
 from metaflow.exception import MetaflowException
 from metaflow.metaflow_config import get_pinned_conda_libs
 from metaflow.metaflow_environment import MetaflowEnvironment
+from metaflow.packaging_sys import ContentType
 
 from . import MAGIC_FILE, _datastore_packageroot
 from .utils import conda_platform
@@ -31,8 +33,10 @@ class CondaEnvironmentException(MetaflowException):
 class CondaEnvironment(MetaflowEnvironment):
     TYPE = "conda"
     _filecache = None
+    _force_rebuild = False
 
     def __init__(self, flow):
+        super().__init__(flow)
         self.flow = flow
 
     def set_local_root(self, local_root):
@@ -70,7 +74,7 @@ class CondaEnvironment(MetaflowEnvironment):
         self.logger = make_thread_safe(logger)
 
         # TODO: Wire up logging
-        micromamba = Micromamba(self.logger)
+        micromamba = Micromamba(self.logger, self._force_rebuild)
         self.solvers = {"conda": micromamba, "pypi": Pip(micromamba, self.logger)}
 
     def init_environment(self, echo, only_steps=None):
@@ -106,7 +110,10 @@ class CondaEnvironment(MetaflowEnvironment):
             return (
                 id_,
                 (
-                    self.read_from_environment_manifest([id_, platform, type_])
+                    (
+                        not self._force_rebuild
+                        and self.read_from_environment_manifest([id_, platform, type_])
+                    )
                     or self.write_to_environment_manifest(
                         [id_, platform, type_],
                         self.solvers[type_].solve(id_, **environment),
@@ -117,6 +124,11 @@ class CondaEnvironment(MetaflowEnvironment):
             )
 
         def cache(storage, results, type_):
+            debug.conda_exec(
+                "Caching packages for %s environments %s"
+                % (type_, [result[0] for result in results])
+            )
+
             def _path(url, local_path):
                 # Special handling for VCS packages
                 if url.startswith("git+"):
@@ -147,7 +159,7 @@ class CondaEnvironment(MetaflowEnvironment):
             _meta = copy.deepcopy(local_packages)
             for id_, packages, _, _ in results:
                 for package in packages:
-                    if package.get("path"):
+                    if package.get("path") and not self._force_rebuild:
                         # Cache only those packages that manifest is unaware of
                         local_packages.pop(package["url"], None)
                     else:
@@ -169,13 +181,24 @@ class CondaEnvironment(MetaflowEnvironment):
                 )
                 for url, package in local_packages.items()
             ]
+            debug.conda_exec(
+                "Caching %s new packages to the datastore for %s environment %s"
+                % (
+                    len(list_of_path_and_filehandle),
+                    type_,
+                    [result[0] for result in results],
+                )
+            )
             storage.save_bytes(
                 list_of_path_and_filehandle,
                 len_hint=len(list_of_path_and_filehandle),
+                overwrite=self._force_rebuild,
             )
             for id_, packages, _, platform in results:
                 if id_ in dirty:
                     self.write_to_environment_manifest([id_, platform, type_], packages)
+
+            debug.conda_exec("Finished caching packages.")
 
         storage = None
         if self.datastore_type not in ["local"]:
@@ -190,47 +213,94 @@ class CondaEnvironment(MetaflowEnvironment):
         #  4. Start PyPI solves in parallel after each conda environment is created
         #  5. Download PyPI packages sequentially
         #  6. Create and cache PyPI environments in parallel
-
         with ThreadPoolExecutor() as executor:
             # Start all conda solves in parallel
-            conda_futures = [
+            debug.conda_exec("Solving packages for Conda environments..")
+            conda_solve_futures = [
                 executor.submit(lambda x: solve(*x, "conda"), env)
                 for env in environments("conda")
             ]
+            conda_create_futures = []
 
             pypi_envs = {env[0]: env for env in environments("pypi")}
-            pypi_futures = []
+            pypi_solve_futures = []
+            pypi_create_futures = []
 
+            cache_futures = []
+            local_platform = self.solvers["conda"].platform()
             # Process conda results sequentially for downloads
-            for future in as_completed(conda_futures):
+            for future in as_completed(conda_solve_futures):
                 result = future.result()
+                env_id, _, _, result_platform = result
                 # Sequential conda download
+                debug.conda_exec(
+                    "Downloading packages for Conda environment %s" % env_id
+                )
                 self.solvers["conda"].download(*result)
                 # Parallel conda create and cache
-                create_future = executor.submit(self.solvers["conda"].create, *result)
+                conda_create_future = executor.submit(
+                    self.solvers["conda"].create, *result
+                )
                 if storage:
-                    executor.submit(cache, storage, [result], "conda")
-
-                # Queue PyPI solve to start after conda create
-                if result[0] in pypi_envs:
-
-                    def pypi_solve(env):
-                        create_future.result()  # Wait for conda create
-                        return solve(*env, "pypi")
-
-                    pypi_futures.append(
-                        executor.submit(pypi_solve, pypi_envs[result[0]])
+                    cache_futures.append(
+                        executor.submit(cache, storage, [result], "conda")
                     )
 
+                # Queue PyPI solve to start only after the local platform conda create.
+                # Pip.solve() needs the local conda env (path_to_environment defaults
+                # to the local platform), so we must wait for the local platform's
+                # conda create — not a cross-platform one, which is a no-op.
+                if env_id in pypi_envs and result_platform == local_platform:
+                    debug.conda_exec(
+                        "Solving packages for PyPI environment %s" % env_id
+                    )
+                    # solve pypi envs uniquely
+                    pypi_env = pypi_envs.pop(env_id)
+
+                    def pypi_solve(env, conda_env_future):
+                        conda_env_future.result()  # Wait for conda create
+                        return solve(*env, "pypi")
+
+                    pypi_solve_futures.append(
+                        executor.submit(pypi_solve, pypi_env, conda_create_future)
+                    )
+                else:
+                    # add conda create future to the generic list
+                    conda_create_futures.append(conda_create_future)
+
             # Process PyPI results sequentially for downloads
-            for solve_future in pypi_futures:
+            for solve_future in as_completed(pypi_solve_futures):
                 result = solve_future.result()
                 # Sequential PyPI download
+                debug.conda_exec(
+                    "Downloading packages for PyPI environment %s" % result[0]
+                )
                 self.solvers["pypi"].download(*result)
                 # Parallel PyPI create and cache
-                executor.submit(self.solvers["pypi"].create, *result)
+                pypi_create_futures.append(
+                    executor.submit(self.solvers["pypi"].create, *result)
+                )
                 if storage:
-                    executor.submit(cache, storage, [result], "pypi")
+                    cache_futures.append(
+                        executor.submit(cache, storage, [result], "pypi")
+                    )
+
+            # Raise exceptions for conda create
+            debug.conda_exec("Checking results for Conda create..")
+            for future in as_completed(conda_create_futures):
+                future.result()
+
+            # Raise exceptions for pypi create
+            debug.conda_exec("Checking results for PyPI create..")
+            for future in as_completed(pypi_create_futures):
+                future.result()
+
+            # Raise exceptions for caching
+            debug.conda_exec("Checking results for caching..")
+            for future in as_completed(cache_futures):
+                # check for result in order to raise any exceptions.
+                future.result()
+
         self.logger("Virtual environment(s) bootstrapped!")
 
     def executable(self, step_name, default=None):
@@ -242,7 +312,7 @@ class CondaEnvironment(MetaflowEnvironment):
         if id_:
             # bootstrap.py is responsible for ensuring the validity of this executable.
             # -s is important! Can otherwise leak packages to other environments.
-            return os.path.join("linux-64", id_, "bin/python -s")
+            return os.path.join("$MF_ARCH", id_, "bin/python -s")
         else:
             # for @conda/@pypi(disabled=True).
             return super().executable(step_name, default)
@@ -274,7 +344,7 @@ class CondaEnvironment(MetaflowEnvironment):
                     environment[decorator.name] = {
                         k: copy.deepcopy(decorator.attributes[k])
                         for k in decorator.attributes
-                        if k != "disabled"
+                        if k not in ("disabled", "libraries")
                     }
                 else:
                     return {}
@@ -315,7 +385,6 @@ class CondaEnvironment(MetaflowEnvironment):
         # 5. All resolved packages (Conda or PyPI) are cached
         # 6. PyPI packages are only installed for local platform
 
-        # Resolve `linux-64` Conda environments if @batch or @kubernetes are in play
         target_platform = conda_platform()
         for decorator in step.decorators:
             # NOTE: Keep the list of supported decorator names for backward compatibility purposes.
@@ -328,8 +397,9 @@ class CondaEnvironment(MetaflowEnvironment):
                 "nvidia",
                 "snowpark",
                 "slurm",
+                "nvct",
+                "skypilot_step",
             ]:
-                # TODO: Support arm architectures
                 target_platform = getattr(decorator, "target_platform", "linux-64")
                 break
 
@@ -414,7 +484,9 @@ class CondaEnvironment(MetaflowEnvironment):
         files = []
         manifest = self.get_environment_manifest_path()
         if os.path.exists(manifest):
-            files.append((manifest, os.path.basename(manifest)))
+            files.append(
+                (manifest, os.path.basename(manifest), ContentType.OTHER_CONTENT)
+            )
         return files
 
     def bootstrap_commands(self, step_name, datastore_type):
@@ -424,15 +496,18 @@ class CondaEnvironment(MetaflowEnvironment):
         if id_:
             return [
                 "echo 'Bootstrapping virtual environment...'",
+                "flush_mflogs",
                 # We have to prevent the tracing module from loading,
                 # as the bootstrapping process uses the internal S3 client which would fail to import tracing
                 # due to the required dependencies being bundled into the conda environment,
                 # which is yet to be initialized at this point.
-                'DISABLE_TRACING=True python -m metaflow.plugins.pypi.bootstrap "%s" %s "%s" linux-64'
+                'DISABLE_TRACING=True python -m metaflow.plugins.pypi.bootstrap "%s" %s "%s"'
                 % (self.flow.name, id_, self.datastore_type),
                 "echo 'Environment bootstrapped.'",
+                "flush_mflogs",
                 # To avoid having to install micromamba in the PATH in micromamba.py, we add it to the PATH here.
                 "export PATH=$PATH:$(pwd)/micromamba/bin",
+                "export MF_ARCH=$(case $(uname)/$(uname -m) in Darwin/arm64)echo osx-arm64;;Darwin/*)echo osx-64;;Linux/aarch64)echo linux-aarch64;;*)echo linux-64;;esac)",
             ]
         else:
             # for @conda/@pypi(disabled=True).

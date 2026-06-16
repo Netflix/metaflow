@@ -1,0 +1,19 @@
+{
+    "name": "nested_switch",
+    "graph": {
+        "start": {
+            "switch": { "case1": "switch2", "case2": "b" },
+            "condition": "condition1",
+            "quals": ["start-nested"]
+        },
+        "switch2": {
+            "switch": { "case2_1": "c", "case2_2": "d" },
+            "condition": "condition2",
+            "quals": ["switch-nested"]
+        },
+        "b": { "linear": "end", "quals": ["path-b"] },
+        "c": { "linear": "end", "quals": ["path-c-nested"] },
+        "d": { "linear": "end", "quals": ["path-d-nested"] },
+        "end": { "quals": ["end-nested"] }
+    }
+}

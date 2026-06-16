@@ -5,6 +5,7 @@ import os
 import tarfile
 from collections import namedtuple
 from datetime import datetime
+from tempfile import TemporaryDirectory
 from io import BytesIO
 from itertools import chain
 from typing import (
@@ -31,11 +32,12 @@ from metaflow.exception import (
 from metaflow.includefile import IncludedFile
 from metaflow.metaflow_config import DEFAULT_METADATA, MAX_ATTEMPTS
 from metaflow.metaflow_environment import MetaflowEnvironment
+from metaflow.package import MetaflowPackage
+from metaflow.packaging_sys import ContentType
 from metaflow.plugins import ENVIRONMENTS, METADATA_PROVIDERS
 from metaflow.unbounded_foreach import CONTROL_TASK_TAG
 from metaflow.util import cached_property, is_stringish, resolve_identity, to_unicode
 
-from ..info_file import INFO_FILE
 from .filecache import FileCache
 
 if TYPE_CHECKING:
@@ -205,6 +207,20 @@ def default_namespace() -> str:
     return get_namespace()
 
 
+def inspect_spin(datastore_root: str = "."):
+    """
+    Set metadata provider to spin metadata so that users can inspect spin
+    steps, tasks, and artifacts.
+
+    Parameters
+    ----------
+    datastore_root : str, default "."
+        The root path to the spin datastore.
+    """
+    metadata_str = f"spin@{datastore_root}"
+    metadata(metadata_str)
+
+
 MetaflowArtifacts = NamedTuple
 
 
@@ -275,6 +291,7 @@ class MetaflowObject(object):
         self._attempt = attempt
         self._current_namespace = _current_namespace or get_namespace()
         self._namespace_check = _namespace_check
+
         # If the current namespace is False, we disable checking for namespace for this
         # and all children objects. Not setting namespace_check to False has the consequence
         # of preventing access to children objects after the namespace changes
@@ -301,7 +318,7 @@ class MetaflowObject(object):
             # distinguish between "attempt will happen" and "no such
             # attempt exists".
 
-        if pathspec:
+        if pathspec and _object is None:
             ids = pathspec.split("/")
 
             if self._NAME == "flow" and len(ids) != 1:
@@ -379,7 +396,7 @@ class MetaflowObject(object):
             _CLASSES[self._CHILD_CLASS]._NAME,
             query_filter,
             self._attempt,
-            *self.path_components
+            *self.path_components,
         )
         unfiltered_children = unfiltered_children if unfiltered_children else []
         children = filter(
@@ -815,20 +832,29 @@ class MetaflowCode(object):
         self._path = info["location"]
         self._ds_type = info["ds_type"]
         self._sha = info["sha"]
+        self._code_metadata = info.get(
+            "metadata",
+            '{"version": 0, "archive_format": "tgz", "mfcontent_version": 0}',
+        )
+
+        self._backend = MetaflowPackage.get_backend(self._code_metadata)
 
         if filecache is None:
             filecache = FileCache()
         _, blobdata = filecache.get_data(
             self._ds_type, self._flow_name, self._path, self._sha
         )
-        code_obj = BytesIO(blobdata)
-        self._tar = tarfile.open(fileobj=code_obj, mode="r:gz")
-        # The JSON module in Python3 deals with Unicode. Tar gives bytes.
-        info_str = (
-            self._tar.extractfile(os.path.basename(INFO_FILE)).read().decode("utf-8")
-        )
-        self._info = json.loads(info_str)
-        self._flowspec = self._tar.extractfile(self._info["script"]).read()
+        self._code_obj = BytesIO(blobdata)
+        self._info = MetaflowPackage.cls_get_info(self._code_metadata, self._code_obj)
+        self._code_obj.seek(0)
+        if self._info:
+            self._flowspec = MetaflowPackage.cls_get_content(
+                self._code_metadata, self._code_obj, self._info["script"]
+            )
+            self._code_obj.seek(0)
+        else:
+            raise MetaflowInternalError("Code package metadata is invalid.")
+        self._tarball = None
 
     @property
     def path(self) -> str:
@@ -876,7 +902,69 @@ class MetaflowCode(object):
         TarFile
             TarFile for everything in this code package
         """
-        return self._tar
+        # We only return one tarball because the different TarFile objects share
+        # a common bytes buffer (self._code_obj).
+        if self._tarball is not None:
+            return self._tarball
+        if self._backend.type == "tgz":
+            self._tarball = self._backend.cls_open(self._code_obj)
+            return self._tarball
+        raise RuntimeError("Archive is not a tarball")
+
+    def extract(self) -> TemporaryDirectory:
+        """
+        Extracts the code package to a temporary directory.
+
+        This creates a temporary directory containing all user code
+        files from the code package. The temporary directory is
+        automatically deleted when the returned TemporaryDirectory
+        object is garbage collected or when its cleanup() is called.
+
+        To preserve the contents to a permanent location, use
+        os.replace() which performs a zero-copy move on the same
+        filesystem:
+
+        ```python
+        with task.code.extract() as tmp_dir:
+            # Move contents to permanent location
+            for item in os.listdir(tmp_dir):
+                src = os.path.join(tmp_dir, item)
+                dst = os.path.join('/path/to/permanent/dir', item)
+                os.makedirs(os.path.dirname(dst), exist_ok=True)
+                os.replace(src, dst)  # Atomic move operation
+        ```
+        Returns
+        -------
+        TemporaryDirectory
+            A temporary directory containing the extracted code files.
+            The directory and its contents are automatically deleted when
+            this object is garbage collected.
+        """
+        tmp = TemporaryDirectory()
+        # We save the position we are in _code_obj -- in case tarball is using it at
+        # the same time -- so we can reset it to not perturb tarball.
+        pos = self._code_obj.tell()
+        self._code_obj.seek(0)
+        MetaflowPackage.cls_extract_into(
+            self._code_metadata, self._code_obj, tmp.name, ContentType.USER_CONTENT
+        )
+        self._code_obj.seek(pos)
+        return tmp
+
+    @property
+    def script_name(self) -> str:
+        """
+        Returns the filename of the Python script containing the FlowSpec.
+
+        This is the main Python file that was used to execute the flow. For example,
+        if your flow is defined in 'myflow.py', this property will return 'myflow.py'.
+
+        Returns
+        -------
+        str
+            Name of the Python file containing the FlowSpec
+        """
+        return self._info["script"]
 
     def __str__(self):
         return "<MetaflowCode: %s>" % self._info["script"]
@@ -1054,6 +1142,9 @@ class MetaflowData(object):
     def __contains__(self, var):
         return var in self._artifacts
 
+    def __dir__(self):
+        return list(self._artifacts.keys()) + object.__dir__(self)
+
     def __str__(self):
         return "<MetaflowData: %s>" % ", ".join(self._artifacts)
 
@@ -1116,12 +1207,197 @@ class Task(MetaflowObject):
     _PARENT_CLASS = "step"
     _CHILD_CLASS = "artifact"
 
-    def __init__(self, *args, **kwargs):
-        super(Task, self).__init__(*args, **kwargs)
-
     def _iter_filter(self, x):
         # exclude private data artifacts
         return x.id[0] != "_"
+
+    def _get_matching_pathspecs(self, steps, metadata_key, metadata_pattern):
+        """
+        Yield pathspecs of tasks from specified steps that match a given metadata pattern.
+
+        Parameters
+        ----------
+        steps : List[str]
+            List of Step objects to search for tasks.
+        metadata_key : str
+            Metadata key to filter tasks on (e.g., 'foreach-execution-path').
+        metadata_pattern : str
+            Regular expression pattern to match against the metadata value.
+
+        Yields
+        ------
+        str
+            Pathspec of each task whose metadata value for the specified key matches the pattern.
+        """
+        flow_id, run_id, _, _ = self.path_components
+        for step in steps:
+            task_pathspecs = self._metaflow.metadata.filter_tasks_by_metadata(
+                flow_id, run_id, step, metadata_key, metadata_pattern
+            )
+            for task_pathspec in task_pathspecs:
+                yield task_pathspec
+
+    @staticmethod
+    def _get_previous_steps(graph_info, step_name):
+        # Get the parent steps
+        steps = []
+        for node_name, attributes in graph_info["steps"].items():
+            if step_name in attributes["next"]:
+                steps.append(node_name)
+        return steps
+
+    @property
+    def parent_task_pathspecs(self) -> Iterator[str]:
+        """
+        Yields pathspecs of all parent tasks of the current task.
+
+        Yields
+        ------
+        str
+            Pathspec of the parent task of the current task
+        """
+        _, _, step_name, _ = self.path_components
+        metadata_dict = self.metadata_dict
+        graph_info = self["_graph_info"].data
+
+        # Get the parent steps
+        steps = self._get_previous_steps(graph_info, step_name)
+        node_type = graph_info["steps"][step_name]["type"]
+        metadata_key = "foreach-execution-path"
+        current_path = metadata_dict.get(metadata_key)
+
+        if len(steps) > 1:
+            # Static join - use exact path matching
+            pattern = current_path or ".*"
+        else:
+            if not steps:
+                return  # No parent steps, yield nothing
+
+            if not current_path:
+                # Current task is not part of a foreach
+                # Pattern: ".*"
+                pattern = ".*"
+            else:
+                current_depth = len(current_path.split(","))
+                if node_type == "join":
+                    # Foreach join
+                    # (Current task, "A:10,B:13") and (Parent task, "A:10,B:13,C:21")
+                    # Pattern: "A:10,B:13,.*"
+                    pattern = f"{current_path},.*"
+                else:
+                    # Foreach split or linear step
+                    # Pattern: "A:10,B:13"
+                    parent_step_type = graph_info["steps"][steps[0]]["type"]
+                    target_depth = current_depth
+                    if (
+                        parent_step_type == "split-foreach"
+                        or parent_step_type == "split-parallel"
+                    ) and current_depth == 1:
+                        # (Current task, "A:10") and (Parent task, "")
+                        pattern = ".*"
+                    else:
+                        # (Current task, "A:10,B:13,C:21") and (Parent task, "A:10,B:13")
+                        # (Current task, "A:10,B:13") and (Parent task, "A:10,B:13")
+                        if (
+                            parent_step_type == "split-foreach"
+                            or parent_step_type == "split-parallel"
+                        ):
+                            target_depth = current_depth - 1
+                        pattern = ",".join(current_path.split(",")[:target_depth])
+
+        for pathspec in self._get_matching_pathspecs(steps, metadata_key, pattern):
+            yield pathspec
+
+    @property
+    def child_task_pathspecs(self) -> Iterator[str]:
+        """
+        Yields pathspecs of all child tasks of the current task.
+
+        Yields
+        ------
+        str
+            Pathspec of the child task of the current task
+        """
+        flow_id, run_id, step_name, _ = self.path_components
+        metadata_dict = self.metadata_dict
+        graph_info = self["_graph_info"].data
+
+        # Get the child steps
+        steps = graph_info["steps"][step_name]["next"]
+
+        node_type = graph_info["steps"][step_name]["type"]
+        metadata_key = "foreach-execution-path"
+        current_path = metadata_dict.get(metadata_key)
+
+        if len(steps) > 1:
+            # Static split - use exact path matching
+            pattern = current_path or ".*"
+        else:
+            if not steps:
+                return  # No child steps, yield nothing
+
+            if not current_path:
+                # Current task is not part of a foreach
+                # Pattern: ".*"
+                pattern = ".*"
+            else:
+                current_depth = len(current_path.split(","))
+                if node_type == "split-foreach" or node_type == "split-parallel":
+                    # Foreach split
+                    # (Current task, "A:10,B:13") and (Child task, "A:10,B:13,C:21")
+                    # Pattern: "A:10,B:13,.*"
+                    pattern = f"{current_path},.*"
+                else:
+                    # Foreach join or linear step
+                    # Pattern: "A:10,B:13"
+                    child_step_type = graph_info["steps"][steps[0]]["type"]
+
+                    # We need to know if the child step is a foreach join or a static join
+                    child_step_prev_steps = self._get_previous_steps(
+                        graph_info, steps[0]
+                    )
+                    if len(child_step_prev_steps) > 1:
+                        child_step_type = "static-join"
+                    target_depth = current_depth
+                    if child_step_type == "join" and current_depth == 1:
+                        # (Current task, "A:10") and (Child task, "")
+                        pattern = ".*"
+                    else:
+                        # (Current task, "A:10,B:13,C:21") and (Child task, "A:10,B:13")
+                        # (Current task, "A:10,B:13") and (Child task, "A:10,B:13")
+                        if child_step_type == "join":
+                            target_depth = current_depth - 1
+                        pattern = ",".join(current_path.split(",")[:target_depth])
+
+        for pathspec in self._get_matching_pathspecs(steps, metadata_key, pattern):
+            yield pathspec
+
+    @property
+    def parent_tasks(self) -> Iterator["Task"]:
+        """
+        Yields all parent tasks of the current task if one exists.
+
+        Yields
+        ------
+        Task
+            Parent task of the current task
+        """
+        parent_task_pathspecs = self.parent_task_pathspecs
+        for pathspec in parent_task_pathspecs:
+            yield Task(pathspec=pathspec, _namespace_check=False)
+
+    @property
+    def child_tasks(self) -> Iterator["Task"]:
+        """
+        Yields all child tasks of the current task if one exists.
+
+        Yields
+        ------
+        Task
+            Child task of the current task
+        """
+        for pathspec in self.child_task_pathspecs:
+            yield Task(pathspec=pathspec, _namespace_check=False)
 
     @property
     def metadata(self) -> List[Metadata]:
@@ -1458,6 +1734,16 @@ class Task(MetaflowObject):
             attempt = int(self.metadata_dict.get("attempt", 0))
         return attempt
 
+    def _resolve_log_attempt(self, meta_dict: Optional[Dict[str, Any]] = None) -> int:
+        """
+        Resolve the log attempt without re-fetching metadata when meta_dict is known.
+        """
+        if self._attempt is not None:
+            return self._attempt
+        if meta_dict is not None:
+            return int(meta_dict.get("attempt", 0))
+        return self.current_attempt
+
     @cached_property
     def code(self) -> Optional[MetaflowCode]:
         """
@@ -1553,7 +1839,7 @@ class Task(MetaflowObject):
         if filecache is None:
             filecache = FileCache()
 
-        attempt = self.current_attempt
+        attempt = self._resolve_log_attempt(meta_dict)
         logs = filecache.get_logs_stream(
             ds_type, ds_root, stream, attempt, *self.path_components
         )
@@ -1602,7 +1888,7 @@ class Task(MetaflowObject):
             return 0
         if filecache is None:
             filecache = FileCache()
-        attempt = self.current_attempt
+        attempt = self._resolve_log_attempt(meta_dict)
 
         return filecache.get_log_size(
             ds_type, ds_root, stream, attempt, *self.path_components
@@ -1837,6 +2123,43 @@ class Step(MetaflowObject):
         for t in self:
             return t.environment_info
 
+    @property
+    def parent_steps(self) -> Iterator["Step"]:
+        """
+        Yields parent steps for the current step.
+
+        Yields
+        ------
+        Step
+            Parent step
+        """
+        graph_info = self.task["_graph_info"].data
+        start_step = graph_info.get("start_step", "start")
+
+        if self.id != start_step:
+            flow, run, _ = self.path_components
+            for node_name, attributes in graph_info["steps"].items():
+                if self.id in attributes["next"]:
+                    yield Step(f"{flow}/{run}/{node_name}", _namespace_check=False)
+
+    @property
+    def child_steps(self) -> Iterator["Step"]:
+        """
+        Yields child steps for the current step.
+
+        Yields
+        ------
+        Step
+            Child step
+        """
+        graph_info = self.task["_graph_info"].data
+        end_step = graph_info.get("end_step", "end")
+
+        if self.id != end_step:
+            flow, run, _ = self.path_components
+            for next_step in graph_info["steps"][self.id]["next"]:
+                yield Step(f"{flow}/{run}/{next_step}", _namespace_check=False)
+
 
 class Run(MetaflowObject):
     """
@@ -1845,7 +2168,7 @@ class Run(MetaflowObject):
     Attributes
     ----------
     data : MetaflowData
-        a shortcut to run['end'].task.data, i.e. data produced by this run.
+        A shortcut to the terminal step's task data produced by this run.
     successful : bool
         True if the run completed successfully.
     finished : bool
@@ -1857,7 +2180,7 @@ class Run(MetaflowObject):
     trigger : MetaflowTrigger
         Information about event(s) that triggered this run (if present). See `MetaflowTrigger`.
     end_task : Task
-        `Task` for the end step (if it is present already).
+        `Task` for the terminal step (if it is present already).
     """
 
     _NAME = "run"
@@ -1867,6 +2190,36 @@ class Run(MetaflowObject):
     def _iter_filter(self, x):
         # exclude _parameters step
         return x.id[0] != "_"
+
+    @property
+    def _graph_endpoints(self):
+        """
+        Returns (start_step_name, end_step_name) from ``_parameters`` task
+        metadata.
+
+        The metadata is written by ``persist_constants``, which every
+        runtime path calls before any step executes — the native runtime
+        directly, and orchestrators (Argo Workflows, Airflow, Step
+        Functions) through the ``init`` command they insert into their
+        generated command line. Falls back to the literal
+        ``("start", "end")`` for old runs that predate custom endpoint
+        support.
+        """
+        if not hasattr(self, "_cached_endpoints"):
+            start, end = "start", "end"
+            try:
+                params_meta = self["_parameters"].task.metadata_dict
+                start = params_meta.get("start_step", "start")
+                end = params_meta.get("end_step", "end")
+            except (KeyError, MetaflowNotFound):
+                # Expected for old runs without _parameters or metadata.
+                pass
+            except Exception:
+                # Transient error (network, metadata service) -- do NOT cache
+                # the fallback so a subsequent access can retry.
+                return (start, end)
+            self._cached_endpoints = (start, end)
+        return self._cached_endpoints
 
     def steps(self, *tags: str) -> Iterator[Step]:
         """
@@ -1990,17 +2343,18 @@ class Run(MetaflowObject):
     @property
     def end_task(self) -> Optional[Task]:
         """
-        Returns the Task corresponding to the 'end' step.
+        Returns the Task corresponding to the terminal step.
 
-        This returns None if the end step does not yet exist.
+        This returns None if the terminal step does not yet exist.
 
         Returns
         -------
         Task, optional
-            The 'end' task
+            The terminal step's task
         """
         try:
-            end_step = self["end"]
+            _, end_step_name = self._graph_endpoints
+            end_step = self[end_step_name]
         except KeyError:
             return None
 
@@ -2173,8 +2527,9 @@ class Run(MetaflowObject):
         Trigger, optional
             Container of triggering events
         """
-        if "start" in self and self["start"].task:
-            meta = self["start"].task.metadata_dict.get("execution-triggers")
+        start_step, _ = self._graph_endpoints
+        if start_step in self and self[start_step].task:
+            meta = self[start_step].task.metadata_dict.get("execution-triggers")
             if meta:
                 return Trigger(json.loads(meta))
         return None
@@ -2379,6 +2734,9 @@ class Metaflow(object):
             Flow with the given name.
         """
         return Flow(name, _metaflow=self)
+
+    def _ipython_key_completions_(self):
+        return [flow.id for flow in self]
 
 
 def _metadata(ms: str) -> Tuple[Optional["MetadataProvider"], Optional[str]]:

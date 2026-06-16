@@ -1,0 +1,38 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ddb-local
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: ddb-local
+  template:
+    metadata:
+      labels:
+        app: ddb-local
+    spec:
+      containers:
+        - name: ddb-local
+          image: amazon/dynamodb-local:latest
+          args: ["-jar", "DynamoDBLocal.jar", "-sharedDb", "-inMemory"]
+          ports:
+            - containerPort: 8000
+          resources:
+            requests:
+              cpu: 50m
+              memory: 128Mi
+            limits:
+              cpu: 200m
+              memory: 256Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: ddb-local
+spec:
+  selector:
+    app: ddb-local
+  ports:
+    - port: 8000
+      targetPort: 8000

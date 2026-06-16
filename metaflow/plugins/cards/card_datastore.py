@@ -1,7 +1,3 @@
-""" 
-
-"""
-
 from collections import namedtuple
 from io import BytesIO
 import os
@@ -13,10 +9,10 @@ from metaflow.metaflow_config import (
     CARD_S3ROOT,
     CARD_LOCALROOT,
     DATASTORE_LOCAL_DIR,
+    DATASTORE_SPIN_LOCAL_DIR,
     CARD_SUFFIX,
     CARD_AZUREROOT,
     CARD_GSROOT,
-    SKIP_CARD_DUALWRITE,
 )
 import metaflow.metaflow_config as metaflow_config
 
@@ -63,25 +59,28 @@ class CardDatastore(object):
             return CARD_AZUREROOT
         elif storage_type == "gs":
             return CARD_GSROOT
-        elif storage_type == "local":
+        elif storage_type == "local" or storage_type == "spin":
             # Borrowing some of the logic from LocalStorage.get_storage_root
             result = CARD_LOCALROOT
+            local_dir = (
+                DATASTORE_SPIN_LOCAL_DIR
+                if storage_type == "spin"
+                else DATASTORE_LOCAL_DIR
+            )
             if result is None:
                 current_path = os.getcwd()
-                check_dir = os.path.join(current_path, DATASTORE_LOCAL_DIR, CARD_SUFFIX)
+                check_dir = os.path.join(current_path, local_dir)
                 check_dir = os.path.realpath(check_dir)
                 orig_path = check_dir
                 while not os.path.isdir(check_dir):
                     new_path = os.path.dirname(current_path)
                     if new_path == current_path:
-                        break  # We are no longer making upward progress
+                        # No longer making upward progress so we
+                        # return the top level path
+                        return os.path.join(orig_path, CARD_SUFFIX)
                     current_path = new_path
-                    check_dir = os.path.join(
-                        current_path, DATASTORE_LOCAL_DIR, CARD_SUFFIX
-                    )
-                result = orig_path
-
-            return result
+                    check_dir = os.path.join(current_path, local_dir)
+                return os.path.join(check_dir, CARD_SUFFIX)
         else:
             # Let's make it obvious we need to update this block for each new datastore backend...
             raise NotImplementedError(
@@ -231,23 +230,6 @@ class CardDatastore(object):
 
     def save_card(self, uuid, card_type, card_html, card_id=None, overwrite=True):
         card_file_name = card_type
-        # TEMPORARY_WORKAROUND: FIXME (LATER) : Fix the duplication of below block in a few months.
-        # Check file blame to understand the age of this temporary workaround.
-
-        # This function will end up saving cards at two locations.
-        # Thereby doubling the number of cards. (Which is a temporary fix)
-        # Why do this ? :
-        # When cards were introduced there was an assumption made about task-ids being unique.
-        # This assumption was incorrect.
-        # Only the pathspec needs to be unique but there is no such guarantees about task-ids.
-        # When task-ids are non-unique, card read would result in finding incorrect cards.
-        # This happens because cards were stored based on task-ids.
-        # If we immediately switch from storing based on task-ids to a step-name abstraction folder,
-        # then card reading will crash for many users.
-        # It would especially happen for users who are accessing cards created by a newer
-        # MF client from an older version of MF client.
-        # It will also easily end up breaking the metaflow-ui (which maybe using a client from an older version).
-        # Hence, we are writing cards to both paths so that we can introduce breaking changes later in the future.
         card_path_with_steps = self.get_card_location(
             self._get_card_write_path(),
             card_file_name,
@@ -255,24 +237,10 @@ class CardDatastore(object):
             card_id=card_id,
             suffix=CardNameSuffix.CARD,
         )
-        if SKIP_CARD_DUALWRITE:
-            self._backend.save_bytes(
-                [(card_path_with_steps, BytesIO(bytes(card_html, "utf-8")))],
-                overwrite=overwrite,
-            )
-        else:
-            card_path_without_steps = self.get_card_location(
-                self._get_card_read_path(with_steps=False),
-                card_file_name,
-                uuid,
-                card_id=card_id,
-                suffix=CardNameSuffix.CARD,
-            )
-            for cp in [card_path_with_steps, card_path_without_steps]:
-                self._backend.save_bytes(
-                    [(cp, BytesIO(bytes(card_html, "utf-8")))], overwrite=overwrite
-                )
-
+        self._backend.save_bytes(
+            [(card_path_with_steps, BytesIO(bytes(card_html, "utf-8")))],
+            overwrite=overwrite,
+        )
         return self.info_from_path(card_path_with_steps, suffix=CardNameSuffix.CARD)
 
     def _list_card_paths(self, card_type=None, card_hash=None, card_id=None):
@@ -283,6 +251,10 @@ class CardDatastore(object):
         )
 
         if len(card_paths_with_steps) == 0:
+            # The listing logic is reading the cards with steps and without steps
+            # because earlier versions of clients (ones that wrote cards before June 2022),
+            # would have written cards without steps. So as a fallback we will try to check for the
+            # cards without steps.
             card_paths_without_steps = self._backend.list_content(
                 [self._get_card_read_path(with_steps=False)]
             )

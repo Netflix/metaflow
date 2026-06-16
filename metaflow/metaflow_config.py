@@ -1,9 +1,15 @@
 import os
 import sys
 import types
+import uuid
+import datetime
 
+from typing import Dict, List, Union, Tuple as TTuple
 from metaflow.exception import MetaflowException
 from metaflow.metaflow_config_funcs import from_conf, get_validate_choice_fn
+
+# Recursive type alias for JSON, used by Runner API type mappings
+JSON = Union[Dict[str, "JSON"], List["JSON"], str, int, float, bool, None]
 
 # Disable multithreading security on MacOS
 if sys.platform == "darwin":
@@ -21,6 +27,7 @@ if sys.platform == "darwin":
 
 # Path to the local directory to store artifacts for 'local' datastore.
 DATASTORE_LOCAL_DIR = ".metaflow"
+DATASTORE_SPIN_LOCAL_DIR = ".metaflow_spin"
 
 # Local configuration file (in .metaflow) containing overrides per-project
 LOCAL_CONFIG_FILE = "config.json"
@@ -48,6 +55,38 @@ DEFAULT_FROM_DEPLOYMENT_IMPL = from_conf(
 )
 
 ###
+# Spin configuration
+###
+# Essentially a whitelist of decorators that are allowed in Spin steps
+SPIN_ALLOWED_DECORATORS = from_conf(
+    "SPIN_ALLOWED_DECORATORS",
+    [
+        "conda",
+        "pypi",
+        "conda_base",
+        "pypi_base",
+        "environment",
+        "project",
+        "timeout",
+        "conda_env_internal",
+        "card",
+    ],
+)
+
+# Essentially a blacklist of decorators that are not allowed in Spin steps
+# Note: decorators not in either SPIN_ALLOWED_DECORATORS or SPIN_DISALLOWED_DECORATORS
+# are simply ignored in Spin steps
+SPIN_DISALLOWED_DECORATORS = from_conf(
+    "SPIN_DISALLOWED_DECORATORS",
+    [
+        "parallel",
+    ],
+)
+
+# Default value for persist option in spin command
+SPIN_PERSIST = from_conf("SPIN_PERSIST", False)
+
+###
 # User configuration
 ###
 USER = from_conf("USER")
@@ -57,6 +96,7 @@ USER = from_conf("USER")
 # Datastore configuration
 ###
 DATASTORE_SYSROOT_LOCAL = from_conf("DATASTORE_SYSROOT_LOCAL")
+DATASTORE_SYSROOT_SPIN = from_conf("DATASTORE_SYSROOT_SPIN")
 # S3 bucket and prefix to store artifacts for 's3' datastore.
 DATASTORE_SYSROOT_S3 = from_conf("DATASTORE_SYSROOT_S3")
 # Azure Blob Storage container and blob prefix
@@ -109,6 +149,15 @@ S3_WORKER_COUNT = from_conf("S3_WORKER_COUNT", 64)
 # top-level retries)
 S3_TRANSIENT_RETRY_COUNT = from_conf("S3_TRANSIENT_RETRY_COUNT", 20)
 
+# Whether to log transient retry messages to stdout
+S3_LOG_TRANSIENT_RETRIES = from_conf("S3_LOG_TRANSIENT_RETRIES", False)
+
+# S3 retry configuration used in the aws client
+# Use the adaptive retry strategy by default
+S3_CLIENT_RETRY_CONFIG = from_conf(
+    "S3_CLIENT_RETRY_CONFIG", {"max_attempts": 10, "mode": "adaptive"}
+)
+
 # Threshold to start printing warnings for an AWS retry
 RETRY_WARNING_THRESHOLD = 3
 
@@ -127,7 +176,10 @@ TEMPDIR = from_conf("TEMPDIR", ".")
 
 DATATOOLS_CLIENT_PARAMS = from_conf("DATATOOLS_CLIENT_PARAMS", {})
 if S3_ENDPOINT_URL:
-    DATATOOLS_CLIENT_PARAMS["endpoint_url"] = S3_ENDPOINT_URL
+    # Use setdefault so that an explicit endpoint_url in METAFLOW_DATATOOLS_CLIENT_PARAMS
+    # takes precedence over S3_ENDPOINT_URL (e.g. when the datatools bucket lives on a
+    # different endpoint than the general S3 datastore).
+    DATATOOLS_CLIENT_PARAMS.setdefault("endpoint_url", S3_ENDPOINT_URL)
 if S3_VERIFY_CERTIFICATE:
     DATATOOLS_CLIENT_PARAMS["verify"] = S3_VERIFY_CERTIFICATE
 
@@ -167,6 +219,7 @@ DATATOOLS_LOCALROOT = from_conf(
 
 # Secrets Backend - AWS Secrets Manager configuration
 AWS_SECRETS_MANAGER_DEFAULT_REGION = from_conf("AWS_SECRETS_MANAGER_DEFAULT_REGION")
+AWS_SECRETS_MANAGER_DEFAULT_ROLE = from_conf("AWS_SECRETS_MANAGER_DEFAULT_ROLE")
 
 # Secrets Backend - GCP Secrets name prefix. With this, users don't have
 # to specify the full secret name in the @secret decorator.
@@ -208,8 +261,6 @@ CARD_GSROOT = from_conf(
 )
 CARD_NO_WARNING = from_conf("CARD_NO_WARNING", False)
 
-SKIP_CARD_DUALWRITE = from_conf("SKIP_CARD_DUALWRITE", False)
-
 RUNTIME_CARD_RENDER_INTERVAL = from_conf("RUNTIME_CARD_RENDER_INTERVAL", 60)
 
 # Azure storage account URL
@@ -248,8 +299,7 @@ DEFAULT_CONTAINER_IMAGE = from_conf("DEFAULT_CONTAINER_IMAGE")
 # Default container registry
 DEFAULT_CONTAINER_REGISTRY = from_conf("DEFAULT_CONTAINER_REGISTRY")
 # Controls whether to include foreach stack information in metadata.
-# TODO(Darin, 05/01/24): Remove this flag once we are confident with this feature.
-INCLUDE_FOREACH_STACK = from_conf("INCLUDE_FOREACH_STACK", False)
+INCLUDE_FOREACH_STACK = from_conf("INCLUDE_FOREACH_STACK", True)
 # Maximum length of the foreach value string to be stored in each ForeachFrame.
 MAXIMUM_FOREACH_VALUE_CHARS = from_conf("MAXIMUM_FOREACH_VALUE_CHARS", 30)
 # The default runtime limit (In seconds) of jobs launched by any compute provider. Default of 5 days.
@@ -285,7 +335,7 @@ CONTACT_INFO = from_conf(
 ###
 # Format is a space separated string of decospecs (what is passed
 # using --with)
-DECOSPECS = from_conf("DECOSPECS", "")
+DEFAULT_DECOSPECS = from_conf("DEFAULT_DECOSPECS", "")
 
 ###
 # AWS Batch configuration
@@ -311,6 +361,8 @@ SERVICE_INTERNAL_URL = from_conf("SERVICE_INTERNAL_URL", SERVICE_URL)
 # in all Metaflow deployments. Hopefully, some day we can flip the
 # default to True.
 BATCH_EMIT_TAGS = from_conf("BATCH_EMIT_TAGS", False)
+# Default tags to add to AWS Batch jobs. These are in addition to the defaults set when BATCH_EMIT_TAGS is true.
+BATCH_DEFAULT_TAGS = from_conf("BATCH_DEFAULT_TAGS", {})
 
 ###
 # AWS Step Functions configuration
@@ -339,6 +391,8 @@ SFN_S3_DISTRIBUTED_MAP_OUTPUT_PATH = from_conf(
         else None
     ),
 )
+# Toggle for step command being part of the Step Function payload, or if it should be offloaded to S3
+SFN_COMPRESS_STATE_MACHINE = from_conf("SFN_COMPRESS_STATE_MACHINE", False)
 ###
 # Kubernetes configuration
 ###
@@ -365,6 +419,8 @@ KUBERNETES_CONTAINER_IMAGE = from_conf(
 )
 # Image pull policy for container images
 KUBERNETES_IMAGE_PULL_POLICY = from_conf("KUBERNETES_IMAGE_PULL_POLICY", None)
+# Image pull secrets for container images
+KUBERNETES_IMAGE_PULL_SECRETS = from_conf("KUBERNETES_IMAGE_PULL_SECRETS", "")
 # Default container registry for K8S
 KUBERNETES_CONTAINER_REGISTRY = from_conf(
     "KUBERNETES_CONTAINER_REGISTRY", DEFAULT_CONTAINER_REGISTRY
@@ -382,11 +438,22 @@ KUBERNETES_DISK = from_conf("KUBERNETES_DISK", None)
 # Default kubernetes QoS class
 KUBERNETES_QOS = from_conf("KUBERNETES_QOS", "burstable")
 
+# Architecture of kubernetes nodes - used for @conda/@pypi in metaflow-dev
+KUBERNETES_CONDA_ARCH = from_conf("KUBERNETES_CONDA_ARCH")
 ARGO_WORKFLOWS_KUBERNETES_SECRETS = from_conf("ARGO_WORKFLOWS_KUBERNETES_SECRETS", "")
 ARGO_WORKFLOWS_ENV_VARS_TO_SKIP = from_conf("ARGO_WORKFLOWS_ENV_VARS_TO_SKIP", "")
 
 KUBERNETES_JOBSET_GROUP = from_conf("KUBERNETES_JOBSET_GROUP", "jobset.x-k8s.io")
 KUBERNETES_JOBSET_VERSION = from_conf("KUBERNETES_JOBSET_VERSION", "v1alpha2")
+
+KUBERNETES_JOB_TERMINATE_MODE = from_conf("KUBERNETES_JOB_TERMINATE_MODE", "stop")
+
+# How long (in seconds) to keep completed k8s Jobs before auto-deletion.
+# Default: 7 days. Set lower in dev/test environments to prevent pod
+# accumulation that can exhaust cluster resources.
+KUBERNETES_JOB_TTL_SECONDS_AFTER_FINISHED = from_conf(
+    "KUBERNETES_JOB_TTL_SECONDS_AFTER_FINISHED", 7 * 24 * 60 * 60
+)
 
 ##
 # Argo Events Configuration
@@ -400,8 +467,19 @@ ARGO_EVENTS_INTERNAL_WEBHOOK_URL = from_conf(
     "ARGO_EVENTS_INTERNAL_WEBHOOK_URL", ARGO_EVENTS_WEBHOOK_URL
 )
 ARGO_EVENTS_WEBHOOK_AUTH = from_conf("ARGO_EVENTS_WEBHOOK_AUTH", "none")
+ARGO_EVENTS_SENSOR_NAMESPACE = from_conf(
+    "ARGO_EVENTS_SENSOR_NAMESPACE", KUBERNETES_NAMESPACE
+)
 
+# Prefix for namespaced events (used by @trigger with namespaced=True)
+NAMESPACED_EVENTS_PREFIX = from_conf("NAMESPACED_EVENTS_PREFIX", "mfns")
+
+# Additional argo workflows options
 ARGO_WORKFLOWS_UI_URL = from_conf("ARGO_WORKFLOWS_UI_URL")
+# `schedules` (list) requires Argo Workflows >= 3.6. Default to the legacy
+# singular `schedule` so existing deployments on older Argo are unaffected;
+# opt in by setting METAFLOW_ARGO_WORKFLOWS_USE_SCHEDULES=true.
+ARGO_WORKFLOWS_USE_SCHEDULES = from_conf("ARGO_WORKFLOWS_USE_SCHEDULES", False)
 
 ##
 # Airflow Configuration
@@ -433,6 +511,9 @@ CONDA_PACKAGE_GSROOT = from_conf("CONDA_PACKAGE_GSROOT")
 # should result in an appreciable speedup in flow environment initialization.
 CONDA_DEPENDENCY_RESOLVER = from_conf("CONDA_DEPENDENCY_RESOLVER", "conda")
 
+# Default to not using fast init binary.
+CONDA_USE_FAST_INIT = from_conf("CONDA_USE_FAST_INIT", False)
+
 ###
 # Escape hatch configuration
 ###
@@ -440,9 +521,26 @@ CONDA_DEPENDENCY_RESOLVER = from_conf("CONDA_DEPENDENCY_RESOLVER", "conda")
 ESCAPE_HATCH_WARNING = from_conf("ESCAPE_HATCH_WARNING", True)
 
 ###
+# Features
+###
+FEAT_ALWAYS_UPLOAD_CODE_PACKAGE = from_conf("FEAT_ALWAYS_UPLOAD_CODE_PACKAGE", False)
+###
+# Profile
+###
+PROFILE_FROM_START = from_conf("PROFILE_FROM_START", False)
+###
 # Debug configuration
 ###
-DEBUG_OPTIONS = ["subcommand", "sidecar", "s3client", "tracing", "stubgen", "userconf"]
+DEBUG_OPTIONS = [
+    "subcommand",
+    "sidecar",
+    "s3client",
+    "tracing",
+    "stubgen",
+    "userconf",
+    "conda",
+    "package",
+]
 
 for typ in DEBUG_OPTIONS:
     vars()["DEBUG_%s" % typ.upper()] = from_conf("DEBUG_%s" % typ.upper(), False)
@@ -513,7 +611,7 @@ MAX_ATTEMPTS = 6
 # Feature flag (experimental features that are *explicitly* unsupported)
 
 # Process configs even when using the click_api for Runner/Deployer
-CLICK_API_PROCESS_CONFIG = from_conf("CLICK_API_PROCESS_CONFIG", False)
+CLICK_API_PROCESS_CONFIG = from_conf("CLICK_API_PROCESS_CONFIG", True)
 
 
 # PINNED_CONDA_LIBS are the libraries that metaflow depends on for execution
@@ -528,10 +626,13 @@ def get_pinned_conda_libs(python_version, datastore_type):
         pins["azure-identity"] = ">=1.10.0"
         pins["azure-storage-blob"] = ">=12.12.0"
         pins["azure-keyvault-secrets"] = ">=4.7.0"
+        pins["simple-azure-blob-downloader"] = ">=0.1.0"
     elif datastore_type == "gs":
         pins["google-cloud-storage"] = ">=2.5.0"
         pins["google-auth"] = ">=2.11.0"
         pins["google-cloud-secret-manager"] = ">=2.10.0"
+        pins["simple-gcp-object-downloader"] = ">=0.1.0"
+        pins["packaging"] = ">=24.0"
     elif datastore_type == "local":
         pass
     else:
@@ -539,6 +640,55 @@ def get_pinned_conda_libs(python_version, datastore_type):
             msg="conda lib pins for datastore %s are undefined" % (datastore_type,)
         )
     return pins
+
+
+###
+# Runner API type mappings
+# Extensions can add custom Click parameter types via get_click_to_python_types
+###
+def get_click_to_python_types():
+    """
+    Returns the mapping from Click parameter types to Python types for Runner API.
+    Extensions can override this function to add custom type mappings.
+    """
+    # Imports are local to avoid circular dependencies:
+    # metaflow_config -> includefile -> plugins -> ... -> config_options -> debug -> metaflow_config
+    from metaflow._vendor.click.types import (
+        BoolParamType,
+        Choice,
+        DateTime,
+        File,
+        FloatParamType,
+        IntParamType,
+        Path,
+        StringParamType,
+        Tuple,
+        UUIDParameterType,
+    )
+    from metaflow.parameters import JSONTypeClass
+    from metaflow.includefile import FilePathClass
+    from metaflow.user_configs.config_options import (
+        LocalFileInput,
+        MultipleTuple,
+        ConfigValue,
+    )
+
+    return {
+        StringParamType: str,
+        IntParamType: int,
+        FloatParamType: float,
+        BoolParamType: bool,
+        UUIDParameterType: uuid.UUID,
+        Path: str,
+        DateTime: datetime.datetime,
+        Tuple: tuple,
+        Choice: str,
+        File: str,
+        JSONTypeClass: JSON,
+        FilePathClass: str,
+        LocalFileInput: str,
+        MultipleTuple: TTuple[str, Union[JSON, ConfigValue]],
+    }
 
 
 # Check if there are extensions to Metaflow to load and override everything
@@ -566,7 +716,18 @@ try:
                     d1 = f1(python_version, datastore_type)
                     d2 = f2(python_version, datastore_type)
                     for k, v in d2.items():
-                        d1[k] = v if k not in d1 else ",".join([d1[k], v])
+                        # An empty string means "any version" — treat it as a
+                        # no-op on either side of the merge instead of joining
+                        # with a comma. Joining "" with ">=X" produced ",>=X"
+                        # (or ">=X,") which downstream formatters turn into
+                        # malformed specs like `pkg==,>=X` that the conda
+                        # solver rejects with "Empty version".
+                        existing = d1.get(k, "")
+                        if not existing:
+                            d1[k] = v
+                        elif v:
+                            d1[k] = ",".join([existing, v])
+                        # else: v is empty — keep existing specifier
                     return d1
 
                 globals()[n] = _new_get_pinned_conda_libs
@@ -576,11 +737,21 @@ try:
                 if any(" " in x for x in o):
                     raise ValueError("Decospecs cannot contain spaces")
                 _TOGGLE_DECOSPECS.extend(o)
+            elif n == "get_click_to_python_types":
+                # Extension provides additional Click type mappings for Runner API
+                # Merge extension's types with base types
+                def _new_get_click_to_python_types(f1=globals()[n], f2=o):
+                    d1 = f1()
+                    d2 = f2()
+                    d1.update(d2)
+                    return d1
+
+                globals()[n] = _new_get_click_to_python_types
             elif not n.startswith("__") and not isinstance(o, types.ModuleType):
                 globals()[n] = o
-    # If DECOSPECS is set, use that, else extrapolate from extensions
-    if not DECOSPECS:
-        DECOSPECS = " ".join(_TOGGLE_DECOSPECS)
+    # If DEFAULT_DECOSPECS is set, use that, else extrapolate from extensions
+    if not DEFAULT_DECOSPECS:
+        DEFAULT_DECOSPECS = " ".join(_TOGGLE_DECOSPECS)
 
 finally:
     # Erase all temporary names to avoid leaking things

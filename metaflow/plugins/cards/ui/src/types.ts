@@ -34,8 +34,10 @@ export type TableDataCell =
   | MarkdownComponent
   | ProgressBarComponent
   | TextComponent
+  | ValueBoxComponent
   | VegaChartComponent
-  | PythonCodeComponent;
+  | PythonCodeComponent
+  | EventsTimelineComponent;
 
 export type TableColumns = string[];
 export type TableData = TableDataCell[][];
@@ -52,10 +54,18 @@ export type PathSpecObject = {
 
 export type Dag = Record<string, DagStep>;
 
+export interface DagData {
+  steps: Dag;
+  start_step: string | null;
+  end_step: string | null;
+}
+
+// TODO: add support for switch-split
 export type StepType =
   | "linear"
   | "foreach"
   | "split-and"
+  | "switch"
   | "join"
   | "start"
   | "end";
@@ -72,7 +82,20 @@ export interface DagStep {
   successful_tasks?: number;
   failed?: boolean;
   num_failed?: number;
+  condition?: string;
+  switch_cases?: Record<string, string>;
+  pathToStep?: string;
+  connections?: string[];
 }
+
+export type DagStructure = {
+  [key: string]: {
+    stepName: string;
+    pathToStep: string;
+    connections: string[];
+    node: HTMLElement;
+  };
+};
 
 /* -------------------------------- RESPONSE -------------------------------- */
 
@@ -170,7 +193,7 @@ export interface ArtifactsComponent {
 export interface DagComponent {
   type: "dag";
   id?: string;
-  data: Dag;
+  data: DagData;
 }
 
 // handle stderr stdout strings
@@ -186,6 +209,16 @@ export interface PythonCodeComponent {
   data: string;
 }
 
+export interface ValueBoxComponent {
+  type: "valueBox";
+  id?: string;
+  title?: string;
+  value: string | number;
+  subtitle?: string;
+  theme?: string; // CSS class for styling
+  change_indicator?: string; // e.g., "Up 30% VS PREVIOUS 30 DAYS"
+}
+
 export interface MarkdownComponent {
   type: "markdown";
   id?: string;
@@ -198,6 +231,58 @@ export interface VegaChartComponent {
   spec: VisualizationSpec;
   data: Record<string, unknown>;
   options?: EmbedOptions;
+}
+
+export interface EventsTimelineComponent {
+  type: "eventsTimeline";
+  id?: string;
+  title?: string;
+  events: EventsTimelineEvent[];
+  config: {
+    show_stats: boolean;
+    show_relative_time: boolean;
+    max_events: number;
+  };
+  stats?: EventsTimelineStats;
+}
+
+export interface EventsTimelineEvent {
+  metadata: Record<string, any>;
+  payloads: Record<string, CardComponent>;
+  event_id: string;
+  received_at: number;
+  style_theme?: string;
+  priority?: string;
+}
+
+export interface EventsTimelineStats {
+  total_events: number;
+  displayed_events: number;
+  last_update?: number;
+  first_event?: number;
+  events_per_minute?: number;
+  total_runtime_seconds?: number;
+  finished: boolean;
+}
+
+export interface JSONViewerComponent {
+  type: "jsonViewer";
+  id?: string;
+  json_string: string;
+  collapsible: boolean;
+  show_copy_button: boolean;
+  max_height?: string;
+  title: string;
+}
+
+export interface YAMLViewerComponent {
+  type: "yamlViewer";
+  id?: string;
+  yaml_string: string;
+  collapsible: boolean;
+  show_copy_button: boolean;
+  max_height?: string;
+  title: string;
 }
 // wrap all component options into a Component type
 export type CardComponent =
@@ -214,5 +299,9 @@ export type CardComponent =
   | TableComponent
   | TextComponent
   | TitleComponent
+  | ValueBoxComponent
   | VegaChartComponent
-  | PythonCodeComponent;
+  | PythonCodeComponent
+  | EventsTimelineComponent
+  | JSONViewerComponent
+  | YAMLViewerComponent;

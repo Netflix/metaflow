@@ -5,17 +5,27 @@ import sys
 from importlib import import_module
 from inspect import currentframe
 from types import CodeType, FrameType, FunctionType
-from typing import TYPE_CHECKING, Any, Callable, ForwardRef, Union, cast
+from typing import TYPE_CHECKING, Any, Callable, ForwardRef, Union, cast, final
 from weakref import WeakValueDictionary
 
 if TYPE_CHECKING:
     from ._memo import TypeCheckMemo
 
-if sys.version_info >= (3, 10):
+if sys.version_info >= (3, 13):
     from typing import get_args, get_origin
 
     def evaluate_forwardref(forwardref: ForwardRef, memo: TypeCheckMemo) -> Any:
-        return forwardref._evaluate(memo.globals, memo.locals, frozenset())
+        return forwardref._evaluate(
+            memo.globals, memo.locals, type_params=(), recursive_guard=frozenset()
+        )
+
+elif sys.version_info >= (3, 10):
+    from typing import get_args, get_origin
+
+    def evaluate_forwardref(forwardref: ForwardRef, memo: TypeCheckMemo) -> Any:
+        return forwardref._evaluate(
+            memo.globals, memo.locals, recursive_guard=frozenset()
+        )
 
 else:
     from metaflow._vendor.typing_extensions import get_args, get_origin
@@ -45,12 +55,6 @@ else:
                 )
 
             raise
-
-
-if sys.version_info >= (3, 8):
-    from typing import final
-else:
-    from metaflow._vendor.typing_extensions import final
 
 
 _functions_map: WeakValueDictionary[CodeType, FunctionType] = WeakValueDictionary()

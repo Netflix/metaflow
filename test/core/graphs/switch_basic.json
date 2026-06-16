@@ -1,0 +1,15 @@
+{
+    "name": "simple_switch",
+    "graph": {
+        "start": { "linear": "switch_step", "quals": ["start"] },
+        "switch_step": {
+            "switch": { "case1": "a", "case2": "b", "case3": "c" },
+            "condition": "condition",
+            "quals": ["switch-simple"]
+        },
+        "a": { "linear": "end", "quals": ["path-a"] },
+        "b": { "linear": "end", "quals": ["path-b"] },
+        "c": { "linear": "end", "quals": ["path-c"] },
+        "end": { "quals": ["end"] }
+    }
+}

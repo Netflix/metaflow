@@ -15,33 +15,45 @@ import tempfile
 import time
 import subprocess
 from datetime import datetime
+from enum import Enum
 from io import BytesIO
+from itertools import chain
 from functools import partial
 from concurrent import futures
 
+from typing import Dict, Tuple
 from metaflow.datastore.exceptions import DataException
 from contextlib import contextmanager
 
 from . import get_namespace
+from .client.filecache import FileCache, FileBlobCache, TaskMetadataCache
 from .metadata_provider import MetaDatum
-from .metaflow_config import MAX_ATTEMPTS, UI_URL
+from .metaflow_config import (
+    FEAT_ALWAYS_UPLOAD_CODE_PACKAGE,
+    MAX_ATTEMPTS,
+    UI_URL,
+    SPIN_ALLOWED_DECORATORS,
+    SPIN_DISALLOWED_DECORATORS,
+)
+from .metaflow_profile import from_start
+from .plugins import DATASTORES
 from .exception import (
     MetaflowException,
     MetaflowInternalError,
     METAFLOW_EXIT_DISALLOW_RETRY,
 )
 from . import procpoll
-from .datastore import TaskDataStoreSet
+from .datastore import FlowDataStore, TaskDataStoreSet
 from .debug import debug
 from .decorators import flow_decorators
-from .flowspec import _FlowState
+from .flowspec import FlowStateItems
 from .mflog import mflog, RUNTIME_LOG_SOURCE
-from .util import to_unicode, compress_list, unicode_type
+from .util import to_unicode, compress_list, unicode_type, get_latest_task_pathspec
 from .clone_util import clone_task_helper
+from .system_context import system_context
 from .unbounded_foreach import (
     CONTROL_TASK_TAG,
     UBF_CONTROL,
-    UBF_TASK,
 )
 
 from .user_configs.config_options import ConfigInput
@@ -59,6 +71,7 @@ PROGRESS_INTERVAL = 300  # s
 # leveraging the TaskDataStoreSet.
 PREFETCH_DATA_ARTIFACTS = [
     "_foreach_stack",
+    "_iteration_stack",
     "_task_ok",
     "_transition",
     "_control_mapper_tasks",
@@ -66,11 +79,274 @@ PREFETCH_DATA_ARTIFACTS = [
 ]
 RESUME_POLL_SECONDS = 60
 
+
+class LoopBehavior(Enum):
+    NONE = "none"
+    ENTERING = "entering"
+    EXITING = "exiting"
+    LOOPING = "looping"
+
+
 # Runtime must use logsource=RUNTIME_LOG_SOURCE for all loglines that it
 # formats according to mflog. See a comment in mflog.__init__
 mflog_msg = partial(mflog.decorate, RUNTIME_LOG_SOURCE)
 
 # TODO option: output dot graph periodically about execution
+
+
+class SpinRuntime(object):
+    def __init__(
+        self,
+        flow,
+        graph,
+        flow_datastore,
+        metadata,
+        environment,
+        package,
+        logger,
+        entrypoint,
+        event_logger,
+        monitor,
+        step_func,
+        step_name,
+        spin_pathspec,
+        skip_decorators=False,
+        artifacts_module=None,
+        persist=True,
+        max_log_size=MAX_LOG_SIZE,
+    ):
+        from metaflow import Task
+
+        self._flow = flow
+        self._graph = graph
+        self._flow_datastore = flow_datastore
+        self._metadata = metadata
+        self._environment = environment
+        self._package = package
+        self._logger = logger
+        self._entrypoint = entrypoint
+        self._event_logger = event_logger
+        self._monitor = monitor
+
+        self._step_func = step_func
+
+        # Determine if we have a complete pathspec or need to get the task
+        if spin_pathspec:
+            parts = spin_pathspec.split("/")
+            if len(parts) == 4:
+                # Complete pathspec: flow/run/step/task_id
+                try:
+                    # If user provides whole pathspec, we do not need to check namespace
+                    task = Task(spin_pathspec, _namespace_check=False)
+                except Exception:
+                    raise MetaflowException(
+                        f"Invalid pathspec: {spin_pathspec} for step: {step_name}"
+                    )
+            elif len(parts) == 3:
+                # Partial pathspec: flow/run/step - need to get the task
+                _, run_id, _ = parts
+                task = get_latest_task_pathspec(flow.name, step_name, run_id=run_id)
+                logger(
+                    f"To make spin even faster, provide complete pathspec with task_id: {task.pathspec}",
+                    system_msg=True,
+                )
+            else:
+                raise MetaflowException(
+                    f"Invalid pathspec format: {spin_pathspec}. Expected flow/run/step or flow/run/step/task_id"
+                )
+        else:
+            # No pathspec provided, get latest task for this step
+            task = get_latest_task_pathspec(flow.name, step_name)
+            logger(
+                f"To make spin even faster, provide complete pathspec {task.pathspec}",
+                system_msg=True,
+            )
+        from_start("SpinRuntime: after getting task")
+
+        # Get the original FlowDatastore so we can use it to access artifacts from the
+        # spun task
+        meta_dict = task.metadata_dict
+        ds_type = meta_dict["ds-type"]
+        ds_root = meta_dict["ds-root"]
+        orig_datastore_impl = [d for d in DATASTORES if d.TYPE == ds_type][0]
+        orig_datastore_impl.datastore_root = ds_root
+        spin_pathspec = task.pathspec
+        orig_flow_datastore = FlowDataStore(
+            flow.name,
+            environment=None,
+            storage_impl=orig_datastore_impl,
+            ds_root=ds_root,
+        )
+
+        self._filecache = FileCache()
+        orig_flow_datastore.set_metadata_cache(
+            TaskMetadataCache(self._filecache, ds_type, ds_root, flow.name)
+        )
+        orig_flow_datastore.ca_store.set_blob_cache(
+            FileBlobCache(
+                self._filecache, FileCache.flow_ds_id(ds_type, ds_root, flow.name)
+            )
+        )
+
+        self._orig_flow_datastore = orig_flow_datastore
+        self._spin_pathspec = spin_pathspec
+        self._persist = persist
+        self._spin_task = task
+        self._input_paths = None
+        self._split_index = None
+        self._whitelist_decorators = None
+        self._config_file_name = None
+        self._skip_decorators = skip_decorators
+        self._artifacts_module = artifacts_module
+        self._max_log_size = max_log_size
+        self._encoding = sys.stdout.encoding or "UTF-8"
+
+        # Create a new run_id for the spin task
+        self.run_id = self._metadata.new_run_id()
+        system_context._update(run_id=self.run_id)
+
+        # Raise exception if we have a black listed decorator
+        for deco in self._step_func.decorators:
+            if deco.name in SPIN_DISALLOWED_DECORATORS:
+                raise MetaflowException(
+                    f"Spinning steps with @{deco.name} decorator is not supported."
+                )
+
+        for deco in self.whitelist_decorators:
+            if deco.runtime_init_ctx is not None:
+                deco.runtime_init_ctx(self._step_func.name)
+            else:
+                deco.runtime_init(flow, graph, package, self.run_id)
+        from_start("SpinRuntime: after init decorators")
+
+    @property
+    def split_index(self):
+        """
+        Returns the split index, caching the result after the first access.
+        """
+        if self._split_index is None:
+            self._split_index = getattr(self._spin_task, "index", None)
+
+        return self._split_index
+
+    @property
+    def input_paths(self):
+        def _format_input_paths(task_pathspec, attempt):
+            _, run_id, step_name, task_id = task_pathspec.split("/")
+            return f"{run_id}/{step_name}/{task_id}/{attempt}"
+
+        if self._input_paths:
+            return self._input_paths
+
+        if self._step_func.name == self._flow._graph.start_step:
+            from metaflow import Step
+
+            flow_name, run_id, _, _ = self._spin_pathspec.split("/")
+            task = Step(
+                f"{flow_name}/{run_id}/_parameters", _namespace_check=False
+            ).task
+            self._input_paths = [
+                _format_input_paths(task.pathspec, task.current_attempt)
+            ]
+        else:
+            parent_tasks = self._spin_task.parent_tasks
+            self._input_paths = [
+                _format_input_paths(t.pathspec, t.current_attempt) for t in parent_tasks
+            ]
+        return self._input_paths
+
+    @property
+    def whitelist_decorators(self):
+        if self._skip_decorators:
+            self._whitelist_decorators = []
+            return self._whitelist_decorators
+        if self._whitelist_decorators:
+            return self._whitelist_decorators
+        self._whitelist_decorators = [
+            deco
+            for deco in self._step_func.decorators
+            if any(deco.name.startswith(prefix) for prefix in SPIN_ALLOWED_DECORATORS)
+        ]
+        return self._whitelist_decorators
+
+    def _new_task(self, step, input_paths=None, **kwargs):
+        return Task(
+            flow_datastore=self._flow_datastore,
+            flow=self._flow,
+            step=step,
+            run_id=self.run_id,
+            metadata=self._metadata,
+            environment=self._environment,
+            entrypoint=self._entrypoint,
+            event_logger=self._event_logger,
+            monitor=self._monitor,
+            input_paths=input_paths,
+            decos=self.whitelist_decorators,
+            logger=self._logger,
+            split_index=self.split_index,
+            **kwargs,
+        )
+
+    def execute(self):
+        exception = None
+        with tempfile.NamedTemporaryFile(mode="w", encoding="utf-8") as config_file:
+            config_value = dump_config_values(self._flow)
+            if config_value:
+                json.dump(config_value, config_file)
+                config_file.flush()
+                self._config_file_name = config_file.name
+            else:
+                self._config_file_name = None
+            from_start("SpinRuntime: config values processed")
+            self.task = self._new_task(self._step_func.name, self.input_paths)
+            try:
+                self._launch_and_monitor_task()
+            except Exception as ex:
+                self._logger("Task failed.", system_msg=True, bad=True)
+                exception = ex
+                raise
+            finally:
+                for deco in self.whitelist_decorators:
+                    if deco.runtime_finished_ctx is not None:
+                        deco.runtime_finished_ctx(self._step_func.name, exception)
+                    else:
+                        deco.runtime_finished(exception)
+
+    def _launch_and_monitor_task(self):
+        worker = Worker(
+            self.task,
+            self._max_log_size,
+            self._config_file_name,
+            orig_flow_datastore=self._orig_flow_datastore,
+            spin_pathspec=self._spin_pathspec,
+            artifacts_module=self._artifacts_module,
+            persist=self._persist,
+            skip_decorators=self._skip_decorators,
+        )
+        from_start("SpinRuntime: created worker")
+
+        poll = procpoll.make_poll()
+        fds = worker.fds()
+        for fd in fds:
+            poll.add(fd)
+
+        active_fds = set(fds)
+
+        while active_fds:
+            events = poll.poll(POLL_TIMEOUT)
+            for event in events:
+                if event.can_read:
+                    worker.read_logline(event.fd)
+                if event.is_terminated:
+                    poll.remove(event.fd)
+                    active_fds.remove(event.fd)
+        from_start("SpinRuntime: read loglines")
+        returncode = worker.terminate()
+        from_start("SpinRuntime: worker terminated")
+        if returncode != 0:
+            raise TaskFailed(self.task, f"Task failed with return code {returncode}")
+        else:
+            self._logger("Task finished successfully.", system_msg=True)
 
 
 class NativeRuntime(object):
@@ -95,6 +371,7 @@ class NativeRuntime(object):
         max_num_splits=MAX_NUM_SPLITS,
         max_log_size=MAX_LOG_SIZE,
         resume_identifier=None,
+        skip_decorator_hooks=False,
     ):
         if run_id is None:
             self._run_id = metadata.new_run_id()
@@ -107,6 +384,7 @@ class NativeRuntime(object):
         self._flow_datastore = flow_datastore
         self._metadata = metadata
         self._environment = environment
+        self._package = package
         self._logger = logger
         self._max_workers = max_workers
         self._active_tasks = dict()  # Key: step name;
@@ -128,6 +406,7 @@ class NativeRuntime(object):
         self._ran_or_scheduled_task_index = set()
         self._reentrant = reentrant
         self._run_url = None
+        self._skip_decorator_hooks = skip_decorator_hooks
 
         # If steps_to_rerun is specified, we will not clone them in resume mode.
         self._steps_to_rerun = steps_to_rerun or {}
@@ -179,9 +458,16 @@ class NativeRuntime(object):
         # finished.
         self._control_num_splits = {}  # control_task -> num_splits mapping
 
-        for step in flow:
-            for deco in step.decorators:
-                deco.runtime_init(flow, graph, package, self._run_id)
+        # Update the context
+        system_context._update(run_id=self._run_id)
+
+        if not self._skip_decorator_hooks:
+            for step in flow:
+                for deco in step.decorators:
+                    if deco.runtime_init_ctx is not None:
+                        deco.runtime_init_ctx(step.__name__)
+                    else:
+                        deco.runtime_init(flow, graph, package, self._run_id)
 
     def _new_task(self, step, input_paths=None, **kwargs):
         if input_paths is None:
@@ -192,7 +478,7 @@ class NativeRuntime(object):
         if step in self._steps_to_rerun:
             may_clone = False
 
-        if step == "_parameters":
+        if step == "_parameters" or self._skip_decorator_hooks:
             decos = []
         else:
             decos = getattr(self._flow, step).decorators
@@ -227,6 +513,37 @@ class NativeRuntime(object):
         self._params_task = self._new_task("_parameters", task_id=task_id)
         if not self._params_task.is_cloned:
             self._params_task.persist(self._flow)
+
+            # Register start/end step metadata on _parameters task so the
+            # client can determine graph endpoints without loading _graph_info.
+            # Only write for fresh runs -- cloned tasks carry the original's metadata.
+            try:
+                self._metadata.register_metadata(
+                    self._run_id,
+                    "_parameters",
+                    self._params_task.task_id,
+                    [
+                        MetaDatum(
+                            field="start_step",
+                            value=self._graph.start_step,
+                            type="graph_structure",
+                            tags=[],
+                        ),
+                        MetaDatum(
+                            field="end_step",
+                            value=self._graph.end_step,
+                            type="graph_structure",
+                            tags=[],
+                        ),
+                    ],
+                )
+            except Exception:
+                self._logger(
+                    "Warning: failed to register graph endpoint metadata. "
+                    "The client will fall back to default step names.",
+                    system_msg=True,
+                    bad=True,
+                )
 
         self._is_cloned[self._params_task.path] = self._params_task.is_cloned
 
@@ -285,6 +602,7 @@ class NativeRuntime(object):
         pathspec_index,
         cloned_task_pathspec_index,
         finished_tuple,
+        iteration_tuple,
         ubf_context,
         generate_task_obj,
         verbose=False,
@@ -329,7 +647,7 @@ class NativeRuntime(object):
                 self._metadata,
                 origin_ds_set=self._origin_ds_set,
             )
-            self._finished[(step_name, finished_tuple)] = task_pathspec
+            self._finished[(step_name, finished_tuple, iteration_tuple)] = task_pathspec
             self._is_cloned[task_pathspec] = True
         except Exception as e:
             self._logger(
@@ -410,6 +728,7 @@ class NativeRuntime(object):
                 finished_tuple = tuple(
                     [s._replace(value=0) for s in task_ds.get("_foreach_stack", ())]
                 )
+                iteration_tuple = tuple(task_ds.get("_iteration_stack", ()))
                 cloned_task_pathspec_index = pathspec_index.split("/")[1]
                 if task_ds.get("_control_task_is_mapper_zero", False):
                     # Replace None with index 0 for control task as it is part of the
@@ -435,6 +754,7 @@ class NativeRuntime(object):
                         pathspec_index,
                         cloned_task_pathspec_index,
                         finished_tuple,
+                        iteration_tuple,
                         is_ubf_mapper_task,
                         ubf_context,
                     )
@@ -449,6 +769,7 @@ class NativeRuntime(object):
                     pathspec_index,
                     cloned_task_pathspec_index,
                     finished_tuple,
+                    iteration_tuple,
                     ubf_context=ubf_context,
                     generate_task_obj=generate_task_obj and (not is_ubf_mapper_task),
                     verbose=verbose,
@@ -459,6 +780,7 @@ class NativeRuntime(object):
                     pathspec_index,
                     cloned_task_pathspec_index,
                     finished_tuple,
+                    iteration_tuple,
                     is_ubf_mapper_task,
                     ubf_context,
                 ) in inputs
@@ -476,9 +798,13 @@ class NativeRuntime(object):
             self._active_tasks[0] = 0
         else:
             if self._params_task:
-                self._queue_push("start", {"input_paths": [self._params_task.path]})
+                self._queue_push(
+                    self._graph.start_step,
+                    {"input_paths": [self._params_task.path]},
+                )
             else:
-                self._queue_push("start", {})
+                self._queue_push(self._graph.start_step, {})
+
         progress_tstamp = time.time()
         with tempfile.NamedTemporaryFile(mode="w", encoding="utf-8") as config_file:
             # Configurations are passed through a file to avoid overloading the
@@ -499,7 +825,74 @@ class NativeRuntime(object):
                 ):
                     # 1. are any of the current workers finished?
                     if self._cloned_tasks:
-                        finished_tasks = self._cloned_tasks
+                        finished_tasks = []
+
+                        # For loops (right now just recursive steps), we need to find
+                        # the exact frontier because if we queue all "successors" to all
+                        # the finished iterations, we would incorrectly launch multiple
+                        # successors. We therefore have to strip out all non-last
+                        # iterations *per* foreach branch.
+                        idx_per_finished_id = (
+                            {}
+                        )  # type: Dict[Tuple[str, Tuple[int, ...], Tuple[int, Tuple[int, ...]]]]
+                        for task in self._cloned_tasks:
+                            step_name, foreach_stack, iteration_stack = task.finished_id
+                            existing_task_idx = idx_per_finished_id.get(
+                                (step_name, foreach_stack), None
+                            )
+                            if existing_task_idx is not None:
+                                len_diff = len(iteration_stack) - len(
+                                    existing_task_idx[1]
+                                )
+                                # In this case, we need to keep only the latest iteration
+                                if (
+                                    len_diff == 0
+                                    and iteration_stack > existing_task_idx[1]
+                                ) or len_diff == -1:
+                                    # We remove the one we currently have and replace
+                                    # by this one. The second option means that we are
+                                    # adding the finished iteration marker.
+                                    existing_task = finished_tasks[existing_task_idx[0]]
+                                    # These are the first two lines of _queue_tasks
+                                    # We still consider the tasks finished so we need
+                                    # to update state to be clean.
+                                    self._finished[existing_task.finished_id] = (
+                                        existing_task.path
+                                    )
+                                    self._is_cloned[existing_task.path] = (
+                                        existing_task.is_cloned
+                                    )
+
+                                    finished_tasks[existing_task_idx[0]] = task
+                                    idx_per_finished_id[(step_name, foreach_stack)] = (
+                                        existing_task_idx[0],
+                                        iteration_stack,
+                                    )
+                                elif (
+                                    len_diff == 0
+                                    and iteration_stack < existing_task_idx[1]
+                                ) or len_diff == 1:
+                                    # The second option is when we have already marked
+                                    # the end of the iteration in self._finished and
+                                    # are now seeing a previous iteration.
+                                    # We just mark the task as finished but we don't
+                                    # put it in the finished_tasks list to pass to
+                                    # the _queue_tasks function
+                                    self._finished[task.finished_id] = task.path
+                                    self._is_cloned[task.path] = task.is_cloned
+                                else:
+                                    raise MetaflowInternalError(
+                                        "Unexpected recursive cloned tasks -- "
+                                        "this is a bug, please report it."
+                                    )
+                            else:
+                                # New entry
+                                finished_tasks.append(task)
+                                idx_per_finished_id[(step_name, foreach_stack)] = (
+                                    len(finished_tasks) - 1,
+                                    iteration_stack,
+                                )
+
                         # reset the list of cloned tasks and let poll_workers handle
                         # the remaining transition
                         self._cloned_tasks = []
@@ -555,7 +948,11 @@ class NativeRuntime(object):
                             self._logger(msg, system_msg=True)
 
             except KeyboardInterrupt as ex:
-                self._logger("Workflow interrupted.", system_msg=True, bad=True)
+                self._logger(
+                    "Workflow interrupted. Please avoid pressing Ctrl+C again to let the workflow clean up process finish.",
+                    system_msg=True,
+                    bad=True,
+                )
                 self._killall()
                 exception = ex
                 raise
@@ -566,12 +963,17 @@ class NativeRuntime(object):
                 raise
             finally:
                 # on finish clean tasks
-                for step in self._flow:
-                    for deco in step.decorators:
-                        deco.runtime_finished(exception)
+                if not self._skip_decorator_hooks:
+                    for step in self._flow:
+                        for deco in step.decorators:
+                            if deco.runtime_finished_ctx is not None:
+                                deco.runtime_finished_ctx(step.__name__, exception)
+                            else:
+                                deco.runtime_finished(exception)
+                self._run_exit_hooks()
 
-        # assert that end was executed and it was successful
-        if ("end", ()) in self._finished:
+        # assert that the terminal step was executed and it was successful
+        if (self._graph.end_step, (), ()) in self._finished:
             if self._run_url:
                 self._logger(
                     "Done! See the run in the UI at %s" % self._run_url,
@@ -588,8 +990,58 @@ class NativeRuntime(object):
             self._params_task.mark_resume_done()
         else:
             raise MetaflowInternalError(
-                "The *end* step was not successful by the end of flow."
+                "The terminal step *%s* was not successful by the end of flow."
+                % self._graph.end_step
             )
+
+    def _run_exit_hooks(self):
+        try:
+            flow_decos = self._flow._flow_state[FlowStateItems.FLOW_DECORATORS]
+            exit_hook_decos = flow_decos.get("exit_hook", [])
+            if not exit_hook_decos:
+                return
+
+            successful = (
+                self._graph.end_step,
+                (),
+                (),
+            ) in self._finished or self._clone_only
+            pathspec = f"{self._graph.name}/{self._run_id}"
+            flow_file = self._environment.get_environment_info()["script"]
+
+            def _call(fn_name):
+                try:
+                    result = (
+                        subprocess.check_output(
+                            args=[
+                                sys.executable,
+                                "-m",
+                                "metaflow.plugins.exit_hook.exit_hook_script",
+                                flow_file,
+                                fn_name,
+                                pathspec,
+                            ],
+                            env=os.environ,
+                        )
+                        .decode()
+                        .strip()
+                    )
+                    print(result)
+                except subprocess.CalledProcessError as e:
+                    print(f"[exit_hook] Hook '{fn_name}' failed with error: {e}")
+                except Exception as e:
+                    print(f"[exit_hook] Unexpected error in hook '{fn_name}': {e}")
+
+            # Call all exit hook functions regardless of individual failures
+            for fn_name in [
+                name
+                for deco in exit_hook_decos
+                for name in (deco.success_hooks if successful else deco.error_hooks)
+            ]:
+                _call(fn_name)
+
+        except Exception as ex:
+            pass  # do not fail due to exit hooks for whatever reason.
 
     def _killall(self):
         # If we are here, all children have received a signal and are shutting down.
@@ -621,30 +1073,70 @@ class NativeRuntime(object):
 
     # Given the current task information (task_index), the type of transition,
     # and the split index, return the new task index.
-    def _translate_index(self, task, next_step, type, split_index=None):
-
-        match = re.match(r"^(.+)\[(.*)\]$", task.task_index)
+    def _translate_index(
+        self, task, next_step, type, split_index=None, loop_mode=LoopBehavior.NONE
+    ):
+        match = re.match(r"^(.+)\[(.*)\]\[(.*)\]$", task.task_index)
+        old_match = re.match(r"^(.+)\[(.*)\]$", task.task_index)
         if match:
-            _, foreach_index = match.groups()
+            _, foreach_index, iteration_index = match.groups()
             # Convert foreach_index to a list of integers
             if len(foreach_index) > 0:
                 foreach_index = foreach_index.split(",")
             else:
                 foreach_index = []
+            # Ditto for iteration_index
+            if len(iteration_index) > 0:
+                iteration_index = iteration_index.split(",")
+            else:
+                iteration_index = []
+        elif old_match:
+            _, foreach_index = old_match.groups()
+            # Convert foreach_index to a list of integers
+            if len(foreach_index) > 0:
+                foreach_index = foreach_index.split(",")
+            else:
+                foreach_index = []
+            # Legacy case fallback. No iteration index exists for these runs.
+            iteration_index = []
         else:
             raise ValueError(
-                "Index not in the format of {run_id}/{step_name}[{foreach_index}]"
+                "Index not in the format of {run_id}/{step_name}[{foreach_index}][{iteration_index}]"
             )
+        if loop_mode == LoopBehavior.NONE:
+            # Check if we are entering a looping construct. Right now, only recursive
+            # steps are looping constructs
+            next_step_node = self._graph[next_step]
+            if (
+                next_step_node.type == "split-switch"
+                and next_step in next_step_node.out_funcs
+            ):
+                loop_mode = LoopBehavior.ENTERING
+
+        # Update iteration_index
+        if loop_mode == LoopBehavior.ENTERING:
+            # We are entering a loop, so we add a new iteration level
+            iteration_index.append("0")
+        elif loop_mode == LoopBehavior.EXITING:
+            iteration_index = iteration_index[:-1]
+        elif loop_mode == LoopBehavior.LOOPING:
+            if len(iteration_index) == 0:
+                raise MetaflowInternalError(
+                    "In looping mode but there is no iteration index"
+                )
+            iteration_index[-1] = str(int(iteration_index[-1]) + 1)
+        iteration_index = ",".join(iteration_index)
+
         if type == "linear":
-            return "%s[%s]" % (next_step, ",".join(foreach_index))
+            return "%s[%s][%s]" % (next_step, ",".join(foreach_index), iteration_index)
         elif type == "join":
             indices = []
             if len(foreach_index) > 0:
                 indices = foreach_index[:-1]
-            return "%s[%s]" % (next_step, ",".join(indices))
+            return "%s[%s][%s]" % (next_step, ",".join(indices), iteration_index)
         elif type == "split":
             foreach_index.append(str(split_index))
-            return "%s[%s]" % (next_step, ",".join(foreach_index))
+            return "%s[%s][%s]" % (next_step, ",".join(foreach_index), iteration_index)
 
     # Store the parameters needed for task creation, so that pushing on items
     # onto the run_queue is an inexpensive operation.
@@ -728,17 +1220,19 @@ class NativeRuntime(object):
                 # tasks is incorrect and contains the pathspec of the *cloned* run
                 # but we don't use it for anything. We could look to clean it up though
                 if not task.is_cloned:
-                    _, foreach_stack = task.finished_id
+                    _, foreach_stack, iteration_stack = task.finished_id
                     top = foreach_stack[-1]
                     bottom = list(foreach_stack[:-1])
                     for i in range(num_splits):
                         s = tuple(bottom + [top._replace(index=i)])
-                        self._finished[(task.step, s)] = mapper_tasks[i]
+                        self._finished[(task.step, s, iteration_stack)] = mapper_tasks[
+                            i
+                        ]
                         self._is_cloned[mapper_tasks[i]] = False
 
             # Find and check status of control task and retrieve its pathspec
             # for retrieving unbounded foreach cardinality.
-            _, foreach_stack = task.finished_id
+            _, foreach_stack, iteration_stack = task.finished_id
             top = foreach_stack[-1]
             bottom = list(foreach_stack[:-1])
             s = tuple(bottom + [top._replace(index=None)])
@@ -747,7 +1241,7 @@ class NativeRuntime(object):
             # it will have index=0 instead of index=None.
             if task.results.get("_control_task_is_mapper_zero", False):
                 s = tuple(bottom + [top._replace(index=0)])
-            control_path = self._finished.get((task.step, s))
+            control_path = self._finished.get((task.step, s, iteration_stack))
             if control_path:
                 # Control task was successful.
                 # Additionally check the state of (sibling) mapper tasks as well
@@ -756,7 +1250,9 @@ class NativeRuntime(object):
                 required_tasks = []
                 for i in range(num_splits):
                     s = tuple(bottom + [top._replace(index=i)])
-                    required_tasks.append(self._finished.get((task.step, s)))
+                    required_tasks.append(
+                        self._finished.get((task.step, s, iteration_stack))
+                    )
 
                 if all(required_tasks):
                     index = self._translate_index(task, next_step, "join")
@@ -769,10 +1265,12 @@ class NativeRuntime(object):
         else:
             # matching_split is the split-parent of the finished task
             matching_split = self._graph[self._graph[next_step].split_parents[-1]]
-            _, foreach_stack = task.finished_id
-            index = ""
+            _, foreach_stack, iteration_stack = task.finished_id
+
+            direct_parents = set(self._graph[next_step].in_funcs)
+
+            # next step is a foreach join
             if matching_split.type == "foreach":
-                # next step is a foreach join
 
                 def siblings(foreach_stack):
                     top = foreach_stack[-1]
@@ -781,28 +1279,55 @@ class NativeRuntime(object):
                         yield tuple(bottom + [top._replace(index=index)])
 
                 # required tasks are all split-siblings of the finished task
-                required_tasks = [
-                    self._finished.get((task.step, s)) for s in siblings(foreach_stack)
-                ]
+                required_tasks = list(
+                    filter(
+                        lambda x: x is not None,
+                        [
+                            self._finished.get((p, s, iteration_stack))
+                            for p in direct_parents
+                            for s in siblings(foreach_stack)
+                        ],
+                    )
+                )
+                required_count = task.finished_id[1][-1].num_splits
                 join_type = "foreach"
                 index = self._translate_index(task, next_step, "join")
             else:
                 # next step is a split
-                # required tasks are all branches joined by the next step
-                required_tasks = [
-                    self._finished.get((step, foreach_stack))
-                    for step in self._graph[next_step].in_funcs
-                ]
+                required_tasks = list(
+                    filter(
+                        lambda x: x is not None,
+                        [
+                            self._finished.get((p, foreach_stack, iteration_stack))
+                            for p in direct_parents
+                        ],
+                    )
+                )
+
+                required_count = len(matching_split.out_funcs)
                 join_type = "linear"
                 index = self._translate_index(task, next_step, "linear")
-
-            if all(required_tasks):
-                # all tasks to be joined are ready. Schedule the next join step.
+            if len(required_tasks) == required_count:
+                # We have all the required previous tasks to schedule a join
                 self._queue_push(
                     next_step,
                     {"input_paths": required_tasks, "join_type": join_type},
                     index,
                 )
+
+    def _queue_task_switch(self, task, next_steps, is_recursive):
+        chosen_step = next_steps[0]
+
+        loop_mode = LoopBehavior.NONE
+        if is_recursive:
+            if chosen_step != task.step:
+                # We are exiting a loop
+                loop_mode = LoopBehavior.EXITING
+            else:
+                # We are staying in the loop
+                loop_mode = LoopBehavior.LOOPING
+        index = self._translate_index(task, chosen_step, "linear", None, loop_mode)
+        self._queue_push(chosen_step, {"input_paths": [task.path]}, index)
 
     def _queue_task_foreach(self, task, next_steps):
         # CHECK: this condition should be enforced by the linter but
@@ -880,7 +1405,39 @@ class NativeRuntime(object):
                 next_steps = []
                 foreach = None
             expected = self._graph[task.step].out_funcs
-            if next_steps != expected:
+
+            if self._graph[task.step].type == "split-switch":
+                is_recursive = task.step in self._graph[task.step].out_funcs
+                if len(next_steps) != 1:
+                    msg = (
+                        "Switch step *{step}* should transition to exactly "
+                        "one step at runtime, but got: {actual}"
+                    )
+                    raise MetaflowInternalError(
+                        msg.format(step=task.step, actual=", ".join(next_steps))
+                    )
+                if next_steps[0] not in expected:
+                    msg = (
+                        "Switch step *{step}* transitioned to unexpected "
+                        "step *{actual}*. Expected one of: {expected}"
+                    )
+                    raise MetaflowInternalError(
+                        msg.format(
+                            step=task.step,
+                            actual=next_steps[0],
+                            expected=", ".join(expected),
+                        )
+                    )
+                # When exiting a recursive loop, we mark that the loop itself has
+                # finished by adding a special entry in self._finished which has
+                # an iteration stack that is shorter (ie: we are out of the loop) so
+                # that we can then find it when looking at successor tasks to launch.
+                if is_recursive and next_steps[0] != task.step:
+                    step_name, finished_tuple, iteration_tuple = task.finished_id
+                    self._finished[
+                        (step_name, finished_tuple, iteration_tuple[:-1])
+                    ] = task.path
+            elif next_steps != expected:
                 msg = (
                     "Based on static analysis of the code, step *{step}* "
                     "was expected to transition to step(s) *{expected}*. "
@@ -904,6 +1461,9 @@ class NativeRuntime(object):
             elif foreach:
                 # Next step is a foreach child
                 self._queue_task_foreach(task, next_steps)
+            elif self._graph[task.step].type == "split-switch":
+                # Current step is switch - queue the chosen step
+                self._queue_task_switch(task, next_steps, is_recursive)
             else:
                 # Next steps are normal linear steps
                 for step in next_steps:
@@ -960,6 +1520,22 @@ class NativeRuntime(object):
             # Initialize the task (which can be expensive using remote datastores)
             # before launching the worker so that cost is amortized over time, instead
             # of doing it during _queue_push.
+            if (
+                FEAT_ALWAYS_UPLOAD_CODE_PACKAGE
+                and "METAFLOW_CODE_SHA" not in os.environ
+            ):
+                # We check if the code package is uploaded and, if so, we set the
+                # environment variables that will cause the metadata service to
+                # register the code package with the task created in _new_task below
+                code_sha = self._package.package_sha(timeout=0.01)
+                if code_sha:
+                    os.environ["METAFLOW_CODE_SHA"] = code_sha
+                    os.environ["METAFLOW_CODE_URL"] = self._package.package_url()
+                    os.environ["METAFLOW_CODE_DS"] = self._flow_datastore.TYPE
+                    os.environ["METAFLOW_CODE_METADATA"] = (
+                        self._package.package_metadata
+                    )
+
             task = self._new_task(step, **task_kwargs)
             self._launch_worker(task)
 
@@ -1267,15 +1843,26 @@ class Task(object):
         # Open the output datastore only if the task is not being cloned.
         if not self._is_cloned:
             self.new_attempt()
+            system_context._update(
+                task_id=self.task_id,
+                split_index=split_index,
+                is_cloned=self._is_cloned,
+                ubf_context=ubf_context,
+                task_datastore=self._ds,
+                input_paths=input_paths,
+            )
             for deco in decos:
-                deco.runtime_task_created(
-                    self._ds,
-                    task_id,
-                    split_index,
-                    input_paths,
-                    self._is_cloned,
-                    ubf_context,
-                )
+                if deco.runtime_task_created_ctx is not None:
+                    deco.runtime_task_created_ctx(self.step)
+                else:
+                    deco.runtime_task_created(
+                        self._ds,
+                        task_id,
+                        split_index,
+                        input_paths,
+                        self._is_cloned,
+                        ubf_context,
+                    )
 
                 # determine the number of retries of this task
                 user_code_retries, error_retries = deco.step_task_retry_count()
@@ -1428,13 +2015,15 @@ class Task(object):
     @property
     def finished_id(self):
         # note: id is not available before the task has finished.
-        # Index already identifies the task within the foreach,
-        # we will remove foreach value so that it is easier to
+        # Index already identifies the task within the foreach and loop.
+        # We will remove foreach value so that it is easier to
         # identify siblings within a foreach.
         foreach_stack_tuple = tuple(
             [s._replace(value=0) for s in self.results["_foreach_stack"]]
         )
-        return (self.step, foreach_stack_tuple)
+        # _iteration_stack requires a fallback, as it does not exist for runs before v2.17.4
+        iteration_stack_tuple = tuple(self.results.get("_iteration_stack", []))
+        return (self.step, foreach_stack_tuple, iteration_stack_tuple)
 
     @property
     def is_cloned(self):
@@ -1508,9 +2097,29 @@ class CLIArgs(object):
     for step execution in StepDecorator.runtime_step_cli().
     """
 
-    def __init__(self, task):
+    def __init__(
+        self,
+        task,
+        orig_flow_datastore=None,
+        spin_pathspec=None,
+        artifacts_module=None,
+        persist=True,
+        skip_decorators=False,
+    ):
         self.task = task
+        if orig_flow_datastore is not None:
+            self.orig_flow_datastore = "%s@%s" % (
+                orig_flow_datastore.TYPE,
+                orig_flow_datastore.datastore_root,
+            )
+        else:
+            self.orig_flow_datastore = None
+        self.spin_pathspec = spin_pathspec
+        self.artifacts_module = artifacts_module
+        self.persist = persist
+        self.skip_decorators = skip_decorators
         self.entrypoint = list(task.entrypoint)
+        step_obj = getattr(self.task.flow, self.task.step)
         self.top_level_options = {
             "quiet": True,
             "metadata": self.task.metadata_type,
@@ -1522,8 +2131,12 @@ class CLIArgs(object):
             "datastore-root": self.task.datastore_sysroot,
             "with": [
                 deco.make_decorator_spec()
-                for deco in self.task.decos
-                if not deco.statically_defined
+                for deco in chain(
+                    self.task.decos,
+                    step_obj.wrappers,
+                    step_obj.config_decorators,
+                )
+                if not deco.statically_defined and deco.inserted_by is None
             ],
         }
 
@@ -1536,25 +2149,53 @@ class CLIArgs(object):
         # We also pass configuration options using the kv.<name> syntax which will cause
         # the configuration options to be loaded from the CONFIG file (or local-config-file
         # in the case of the local runtime)
-        configs = self.task.flow._flow_state.get(_FlowState.CONFIGS)
+        configs = self.task.flow._flow_state[FlowStateItems.CONFIGS]
         if configs:
             self.top_level_options["config-value"] = [
                 (k, ConfigInput.make_key_name(k)) for k in configs
             ]
 
+        if spin_pathspec:
+            self.spin_args()
+        else:
+            self.default_args()
+
+    def default_args(self):
         self.commands = ["step"]
         self.command_args = [self.task.step]
         self.command_options = {
-            "run-id": task.run_id,
-            "task-id": task.task_id,
-            "input-paths": compress_list(task.input_paths),
-            "split-index": task.split_index,
-            "retry-count": task.retries,
-            "max-user-code-retries": task.user_code_retries,
-            "tag": task.tags,
+            "run-id": self.task.run_id,
+            "task-id": self.task.task_id,
+            "input-paths": compress_list(self.task.input_paths),
+            "split-index": self.task.split_index,
+            "retry-count": self.task.retries,
+            "max-user-code-retries": self.task.user_code_retries,
+            "tag": self.task.tags,
             "namespace": get_namespace() or "",
-            "ubf-context": task.ubf_context,
+            "ubf-context": self.task.ubf_context,
         }
+        self.env = {}
+
+    def spin_args(self):
+        self.commands = ["spin-step"]
+        self.command_args = [self.task.step]
+
+        self.command_options = {
+            "run-id": self.task.run_id,
+            "task-id": self.task.task_id,
+            "input-paths": compress_list(self.task.input_paths),
+            "split-index": self.task.split_index,
+            "retry-count": self.task.retries,
+            "max-user-code-retries": self.task.user_code_retries,
+            "namespace": get_namespace() or "",
+            "orig-flow-datastore": self.orig_flow_datastore,
+            "artifacts-module": self.artifacts_module,
+            "skip-decorators": self.skip_decorators,
+        }
+        if self.persist:
+            self.command_options["persist"] = True
+        else:
+            self.command_options["no-persist"] = True
         self.env = {}
 
     def get_args(self):
@@ -1595,9 +2236,24 @@ class CLIArgs(object):
 
 
 class Worker(object):
-    def __init__(self, task, max_logs_size, config_file_name):
+    def __init__(
+        self,
+        task,
+        max_logs_size,
+        config_file_name,
+        orig_flow_datastore=None,
+        spin_pathspec=None,
+        artifacts_module=None,
+        persist=True,
+        skip_decorators=False,
+    ):
         self.task = task
         self._config_file_name = config_file_name
+        self._orig_flow_datastore = orig_flow_datastore
+        self._spin_pathspec = spin_pathspec
+        self._artifacts_module = artifacts_module
+        self._skip_decorators = skip_decorators
+        self._persist = persist
         self._proc = self._launch()
 
         if task.retries > task.user_code_retries:
@@ -1629,7 +2285,14 @@ class Worker(object):
         # not it is properly shut down)
 
     def _launch(self):
-        args = CLIArgs(self.task)
+        args = CLIArgs(
+            self.task,
+            orig_flow_datastore=self._orig_flow_datastore,
+            spin_pathspec=self._spin_pathspec,
+            artifacts_module=self._artifacts_module,
+            persist=self._persist,
+            skip_decorators=self._skip_decorators,
+        )
         env = dict(os.environ)
 
         if self.task.clone_run_id:
@@ -1642,13 +2305,26 @@ class Worker(object):
             args.top_level_options["monitor"] = "nullSidecarMonitor"
         else:
             # decorators may modify the CLIArgs object in-place
+            from .system_context import system_context
+
+            system_context._update(
+                task_id=self.task.task_id,
+                split_index=self.task.split_index,
+                input_paths=self.task.input_paths,
+                ubf_context=self.task.ubf_context,
+                retry_count=self.task.retries,
+                max_user_code_retries=self.task.user_code_retries,
+            )
             for deco in self.task.decos:
-                deco.runtime_step_cli(
-                    args,
-                    self.task.retries,
-                    self.task.user_code_retries,
-                    self.task.ubf_context,
-                )
+                if deco.runtime_step_cli_ctx is not None:
+                    deco.runtime_step_cli_ctx(self.task.step, args)
+                else:
+                    deco.runtime_step_cli(
+                        args,
+                        self.task.retries,
+                        self.task.user_code_retries,
+                        self.task.ubf_context,
+                    )
 
         # Add user configurations using a file to avoid using up too much space on the
         # command line
@@ -1662,6 +2338,7 @@ class Worker(object):
         # by read_logline() below that relies on readline() not blocking
         # print('running', args)
         cmdline = args.get_args()
+        from_start(f"Command line: {' '.join(cmdline)}")
         debug.subcommand_exec(cmdline)
         return subprocess.Popen(
             cmdline,
@@ -1784,13 +2461,14 @@ class Worker(object):
                     else:
                         self.emit_log(b"Task failed.", self._stderr, system_msg=True)
             else:
-                num = self.task.results["_foreach_num_splits"]
-                if num:
-                    self.task.log(
-                        "Foreach yields %d child steps." % num,
-                        system_msg=True,
-                        pid=self._proc.pid,
-                    )
+                if not self._spin_pathspec:
+                    num = self.task.results["_foreach_num_splits"]
+                    if num:
+                        self.task.log(
+                            "Foreach yields %d child steps." % num,
+                            system_msg=True,
+                            pid=self._proc.pid,
+                        )
                 self.task.log(
                     "Task finished successfully.", system_msg=True, pid=self._proc.pid
                 )

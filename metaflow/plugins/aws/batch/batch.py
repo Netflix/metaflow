@@ -53,20 +53,32 @@ class BatchKilledException(MetaflowException):
 
 
 class Batch(object):
-    def __init__(self, metadata, environment):
+    def __init__(self, metadata, environment, flow_datastore=None):
         self.metadata = metadata
         self.environment = environment
+        self.flow_datastore = flow_datastore
         self._client = BatchClient()
         atexit.register(lambda: self.job.kill() if hasattr(self, "job") else None)
 
-    def _command(self, environment, code_package_url, step_name, step_cmds, task_spec):
+    def _command(
+        self,
+        environment,
+        code_package_metadata,
+        code_package_url,
+        step_name,
+        step_cmds,
+        task_spec,
+        offload_command_to_s3,
+    ):
         mflog_expr = export_mflog_env_vars(
             datastore_type="s3",
             stdout_path=STDOUT_PATH,
             stderr_path=STDERR_PATH,
             **task_spec
         )
-        init_cmds = environment.get_package_commands(code_package_url, "s3")
+        init_cmds = environment.get_package_commands(
+            code_package_url, "s3", code_package_metadata
+        )
         init_expr = " && ".join(init_cmds)
         step_expr = bash_capture_logs(
             " && ".join(environment.bootstrap_commands(step_name, "s3") + step_cmds)
@@ -94,7 +106,53 @@ class Batch(object):
         # We lose the last logs in this scenario (although they are visible
         # still through AWS CloudWatch console).
         cmd_str += "c=$?; %s; exit $c" % BASH_SAVE_LOGS
-        return shlex.split('bash -c "%s"' % cmd_str)
+        command = shlex.split('bash -c "%s"' % cmd_str)
+
+        if not offload_command_to_s3:
+            return command
+
+        # If S3 upload is enabled, we need to modify the command after it's created
+        if self.flow_datastore is None:
+            raise MetaflowException(
+                "Can not offload Batch command to S3 without a datastore configured."
+            )
+
+        from metaflow.plugins.aws.aws_utils import parse_s3_full_path
+
+        # Get the command that was created
+        # Upload the command to S3 during deployment
+        try:
+            # IMPORTANT: Save the shlex-processed command (command[-1]), NOT the raw cmd_str.
+            # The escaping in _get_download_code_package_cmd uses \" which is designed to be
+            # processed by shlex.split('bash -c "%s"' % cmd_str). When we save to a file and
+            # execute with 'bash /tmp/step_command.sh', there's no shlex processing, so we
+            # must save the already-processed command where \" has been converted to ".
+
+            # This is the bash -c argument after shlex processing
+            processed_cmd = command[-1]
+            command_bytes = processed_cmd.encode("utf-8")
+            result_paths = self.flow_datastore.save_data([command_bytes], len_hint=1)
+            s3_path, _key = result_paths[0]
+
+            bucket, s3_object = parse_s3_full_path(s3_path)
+            # NOTE: the script quoting is extremely sensitive due to the way shlex.split operates
+            # and this being inserted into a quoted command elsewhere. Use escaped quotes.
+            download_script = "{python} -c '{script}'".format(
+                python=self.environment._python(),
+                script='import boto3, os; ep=os.getenv(\\"METAFLOW_S3_ENDPOINT_URL\\"); boto3.client(\\"s3\\", **({\\"endpoint_url\\":ep} if ep else {})).download_file(\\"%s\\", \\"%s\\", \\"/tmp/step_command.sh\\")'
+                % (bucket, s3_object),
+            )
+            download_cmd = (
+                f"{self.environment._get_install_dependencies_cmd('s3')} && "  # required for boto3 due to the original dependencies cmd getting packaged, and not being downloaded in time.
+                f"{download_script} && "
+                f"chmod +x /tmp/step_command.sh && "
+                f"bash /tmp/step_command.sh"
+            )
+            new_cmd = shlex.split('bash -c "%s"' % download_cmd)
+            return new_cmd
+        except Exception as e:
+            print(f"Warning: Failed to upload command to S3: {e}")
+            print("Falling back to inline command")
 
     def _search_jobs(self, flow_name, run_id, user):
         if user is None:
@@ -167,6 +225,7 @@ class Batch(object):
         step_name,
         step_cli,
         task_spec,
+        code_package_metadata,
         code_package_sha,
         code_package_url,
         code_package_ds,
@@ -188,6 +247,7 @@ class Batch(object):
         host_volumes=None,
         efs_volumes=None,
         use_tmpfs=None,
+        aws_batch_tags=None,
         tmpfs_tempdir=None,
         tmpfs_size=None,
         tmpfs_path=None,
@@ -195,6 +255,8 @@ class Batch(object):
         ephemeral_storage=None,
         log_driver=None,
         log_options=None,
+        offload_command_to_s3=False,
+        privileged=False,
     ):
         job_name = self._job_name(
             attrs.get("metaflow.user"),
@@ -210,7 +272,13 @@ class Batch(object):
             .job_queue(queue)
             .command(
                 self._command(
-                    self.environment, code_package_url, step_name, [step_cli], task_spec
+                    self.environment,
+                    code_package_metadata,
+                    code_package_url,
+                    step_name,
+                    [step_cli],
+                    task_spec,
+                    offload_command_to_s3,
                 )
             )
             .image(image)
@@ -246,9 +314,11 @@ class Batch(object):
                 ephemeral_storage=ephemeral_storage,
                 log_driver=log_driver,
                 log_options=log_options,
+                privileged=privileged,
             )
             .task_id(attrs.get("metaflow.task_id"))
             .environment_variable("AWS_DEFAULT_REGION", self._client.region())
+            .environment_variable("METAFLOW_CODE_METADATA", code_package_metadata)
             .environment_variable("METAFLOW_CODE_SHA", code_package_sha)
             .environment_variable("METAFLOW_CODE_URL", code_package_url)
             .environment_variable("METAFLOW_CODE_DS", code_package_ds)
@@ -327,6 +397,11 @@ class Batch(object):
                 if key in attrs:
                     k, v = sanitize_batch_tag(key, attrs.get(key))
                     job.tag(k, v)
+
+            if aws_batch_tags is not None:
+                for key, value in aws_batch_tags.items():
+                    job.tag(key, value)
+
         return job
 
     def launch_job(
@@ -334,6 +409,7 @@ class Batch(object):
         step_name,
         step_cli,
         task_spec,
+        code_package_metadata,
         code_package_sha,
         code_package_url,
         code_package_ds,
@@ -353,6 +429,7 @@ class Batch(object):
         host_volumes=None,
         efs_volumes=None,
         use_tmpfs=None,
+        aws_batch_tags=None,
         tmpfs_tempdir=None,
         tmpfs_size=None,
         tmpfs_path=None,
@@ -362,6 +439,7 @@ class Batch(object):
         ephemeral_storage=None,
         log_driver=None,
         log_options=None,
+        privileged=None,
     ):
         if queue is None:
             queue = next(self._client.active_job_queues(), None)
@@ -374,6 +452,7 @@ class Batch(object):
             step_name,
             step_cli,
             task_spec,
+            code_package_metadata,
             code_package_sha,
             code_package_url,
             code_package_ds,
@@ -395,6 +474,7 @@ class Batch(object):
             host_volumes=host_volumes,
             efs_volumes=efs_volumes,
             use_tmpfs=use_tmpfs,
+            aws_batch_tags=aws_batch_tags,
             tmpfs_tempdir=tmpfs_tempdir,
             tmpfs_size=tmpfs_size,
             tmpfs_path=tmpfs_path,
@@ -402,6 +482,7 @@ class Batch(object):
             ephemeral_storage=ephemeral_storage,
             log_driver=log_driver,
             log_options=log_options,
+            privileged=privileged,
         )
         self.num_parallel = num_parallel
         self.job = job.execute()

@@ -1,24 +1,30 @@
 import json
 import os
+import tempfile
 
-from metaflow.metaflow_config import DATASTORE_LOCAL_DIR, DATASTORE_SYSROOT_LOCAL
+from metaflow.metaflow_config import (
+    DATASTORE_LOCAL_DIR,
+    DATASTORE_SYSROOT_LOCAL,
+)
 from metaflow.datastore.datastore_storage import CloseAfterUse, DataStoreStorage
 
 
 class LocalStorage(DataStoreStorage):
     TYPE = "local"
     METADATA_DIR = "_meta"
+    DATASTORE_DIR = DATASTORE_LOCAL_DIR  # ".metaflow"
+    SYSROOT_VAR = DATASTORE_SYSROOT_LOCAL
 
     @classmethod
     def get_datastore_root_from_config(cls, echo, create_on_absent=True):
-        result = DATASTORE_SYSROOT_LOCAL
+        result = cls.SYSROOT_VAR
         if result is None:
             try:
                 # Python2
                 current_path = os.getcwdu()
             except:  # noqa E722
                 current_path = os.getcwd()
-            check_dir = os.path.join(current_path, DATASTORE_LOCAL_DIR)
+            check_dir = os.path.join(current_path, cls.DATASTORE_DIR)
             check_dir = os.path.realpath(check_dir)
             orig_path = check_dir
             top_level_reached = False
@@ -28,12 +34,13 @@ class LocalStorage(DataStoreStorage):
                     top_level_reached = True
                     break  # We are no longer making upward progress
                 current_path = new_path
-                check_dir = os.path.join(current_path, DATASTORE_LOCAL_DIR)
+                check_dir = os.path.join(current_path, cls.DATASTORE_DIR)
             if top_level_reached:
                 if create_on_absent:
                     # Could not find any directory to use so create a new one
                     echo(
-                        "Creating local datastore in current directory (%s)" % orig_path
+                        "Creating %s datastore in current directory (%s)"
+                        % (cls.TYPE, orig_path)
                     )
                     os.mkdir(orig_path)
                     result = orig_path
@@ -42,7 +49,7 @@ class LocalStorage(DataStoreStorage):
             else:
                 result = check_dir
         else:
-            result = os.path.join(result, DATASTORE_LOCAL_DIR)
+            result = os.path.join(result, cls.DATASTORE_DIR)
         return result
 
     @staticmethod
@@ -103,6 +110,24 @@ class LocalStorage(DataStoreStorage):
                 pass
         return results
 
+    @staticmethod
+    def _atomic_write(full_path, data, mode="wb"):
+        """Write data to full_path atomically using a temp file + rename."""
+        dir_name = os.path.dirname(full_path)
+        fd, tmp_path = tempfile.mkstemp(dir=dir_name)
+        success = False
+        try:
+            with os.fdopen(fd, mode) as f:
+                f.write(data)
+            os.rename(tmp_path, full_path)
+            success = True
+        finally:
+            if not success:
+                try:
+                    os.unlink(tmp_path)
+                except OSError:
+                    pass
+
     def save_bytes(self, path_and_bytes_iter, overwrite=False, len_hint=0):
         for path, obj in path_and_bytes_iter:
             if isinstance(obj, tuple):
@@ -113,11 +138,13 @@ class LocalStorage(DataStoreStorage):
             if not overwrite and os.path.exists(full_path):
                 continue
             LocalStorage._makedirs(os.path.dirname(full_path))
-            with open(full_path, mode="wb") as f:
-                f.write(byte_obj.read())
+            self._atomic_write(full_path, byte_obj.read(), mode="wb")
             if metadata:
-                with open("%s_meta" % full_path, mode="w") as f:
-                    json.dump(metadata, f)
+                self._atomic_write(
+                    "%s_meta" % full_path,
+                    json.dumps(metadata).encode("utf-8"),
+                    mode="wb",
+                )
 
     def load_bytes(self, paths):
         def iter_results():

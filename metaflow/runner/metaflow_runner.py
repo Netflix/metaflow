@@ -1,11 +1,14 @@
 import importlib
+import inspect
 import os
 import sys
 import json
 
 from typing import Dict, Iterator, Optional, Tuple
 
-from metaflow import Run
+from metaflow import Run, Task
+
+from metaflow.metaflow_config import CLICK_API_PROCESS_CONFIG
 
 from metaflow.plugins import get_runner_cli
 
@@ -13,34 +16,41 @@ from .utils import (
     temporary_fifo,
     handle_timeout,
     async_handle_timeout,
+    with_dir,
 )
 from .subprocess_manager import CommandManager, SubprocessManager
 
 
-class ExecutingRun(object):
+class ExecutingProcess(object):
     """
-    This class contains a reference to a `metaflow.Run` object representing
-    the currently executing or finished run, as well as metadata related
-    to the process.
+    This is a base class for `ExecutingRun` and `ExecutingTask` classes.
+    The `ExecutingRun` and `ExecutingTask` classes are returned by methods
+    in `Runner` and `NBRunner`, and they are subclasses of this class.
 
-    `ExecutingRun` is returned by methods in `Runner` and `NBRunner`. It is not
-    meant to be instantiated directly.
+    The `ExecutingRun` class for instance contains a reference to a `metaflow.Run`
+    object representing the currently executing or finished run, as well as the metadata
+    related to the process.
 
-    This class works as a context manager, allowing you to use a pattern like
+    Similarly, the `ExecutingTask` class contains a reference to a `metaflow.Task`
+    object representing the currently executing or finished task, as well as the metadata
+    related to the process.
+
+    This class or its subclasses are not meant to be instantiated directly. The class
+    works as a context manager, allowing you to use a pattern like:
+
     ```python
     with Runner(...).run() as running:
         ...
     ```
-    Note that you should use either this object as the context manager or
-    `Runner`, not both in a nested manner.
+
+    Note that you should use either this object as the context manager or `Runner`, not both
+    in a nested manner.
     """
 
-    def __init__(
-        self, runner: "Runner", command_obj: CommandManager, run_obj: Run
-    ) -> None:
+    def __init__(self, runner: "Runner", command_obj: CommandManager) -> None:
         """
         Create a new ExecutingRun -- this should not be done by the user directly but
-        instead user Runner.run()
+        instead use Runner.run()
 
         Parameters
         ----------
@@ -53,9 +63,8 @@ class ExecutingRun(object):
         """
         self.runner = runner
         self.command_obj = command_obj
-        self.run = run_obj
 
-    def __enter__(self) -> "ExecutingRun":
+    def __enter__(self) -> "ExecutingProcess":
         return self
 
     def __exit__(self, exc_type, exc_value, traceback):
@@ -63,7 +72,7 @@ class ExecutingRun(object):
 
     async def wait(
         self, timeout: Optional[float] = None, stream: Optional[str] = None
-    ) -> "ExecutingRun":
+    ) -> "ExecutingProcess":
         """
         Wait for this run to finish, optionally with a timeout
         and optionally streaming its output.
@@ -82,7 +91,7 @@ class ExecutingRun(object):
 
         Returns
         -------
-        ExecutingRun
+        ExecutingProcess
             This object, allowing you to chain calls.
         """
         await self.command_obj.wait(timeout, stream)
@@ -189,6 +198,76 @@ class ExecutingRun(object):
             yield position, line
 
 
+class ExecutingTask(ExecutingProcess):
+    """
+    This class contains a reference to a `metaflow.Task` object representing
+    the currently executing or finished task, as well as metadata related
+    to the process.
+    `ExecutingTask` is returned by methods in `Runner` and `NBRunner`. It is not
+    meant to be instantiated directly.
+    This class works as a context manager, allowing you to use a pattern like
+    ```python
+    with Runner(...).spin() as running:
+        ...
+    ```
+    Note that you should use either this object as the context manager or
+    `Runner`, not both in a nested manner.
+    """
+
+    def __init__(
+        self, runner: "Runner", command_obj: CommandManager, task_obj: Task
+    ) -> None:
+        """
+        Create a new ExecutingTask -- this should not be done by the user directly but
+        instead use Runner.spin()
+        Parameters
+        ----------
+        runner : Runner
+            Parent runner for this task.
+        command_obj : CommandManager
+            CommandManager containing the subprocess executing this task.
+        task_obj : Task
+            Task object corresponding to this task.
+        """
+        super().__init__(runner, command_obj)
+        self.task = task_obj
+
+
+class ExecutingRun(ExecutingProcess):
+    """
+    This class contains a reference to a `metaflow.Run` object representing
+    the currently executing or finished run, as well as metadata related
+    to the process.
+    `ExecutingRun` is returned by methods in `Runner` and `NBRunner`. It is not
+    meant to be instantiated directly.
+    This class works as a context manager, allowing you to use a pattern like
+    ```python
+    with Runner(...).run() as running:
+        ...
+    ```
+    Note that you should use either this object as the context manager or
+    `Runner`, not both in a nested manner.
+    """
+
+    def __init__(
+        self, runner: "Runner", command_obj: CommandManager, run_obj: Run
+    ) -> None:
+        """
+        Create a new ExecutingRun -- this should not be done by the user directly but
+        instead use Runner.run()
+        Parameters
+        ----------
+        runner : Runner
+            Parent runner for this run.
+        command_obj : CommandManager
+            CommandManager containing the subprocess executing this run.
+        run_obj : Run
+            Run object corresponding to this run.
+        """
+        super().__init__(runner, command_obj)
+        self.run = run_obj
+
+
 class RunnerMeta(type):
     def __new__(mcs, name, bases, dct):
         cls = super().__new__(mcs, name, bases, dct)
@@ -197,8 +276,22 @@ class RunnerMeta(type):
             def f(self, *args, **kwargs):
                 return runner_subcommand(self, *args, **kwargs)
 
-            f.__doc__ = runner_subcommand.__doc__ or ""
+            f.__doc__ = runner_subcommand.__init__.__doc__ or ""
             f.__name__ = subcommand_name
+            sig = inspect.signature(runner_subcommand)
+            # We take all the same parameters except replace the first with
+            # simple "self"
+            new_parameters = {}
+            for name, param in sig.parameters.items():
+                if new_parameters:
+                    new_parameters[name] = param
+                else:
+                    new_parameters["self"] = inspect.Parameter(
+                        "self", inspect.Parameter.POSITIONAL_OR_KEYWORD
+                    )
+            f.__signature__ = inspect.Signature(
+                list(new_parameters.values()), return_annotation=runner_subcommand
+            )
 
             return f
 
@@ -229,7 +322,7 @@ class Runner(metaclass=RunnerMeta):
     Parameters
     ----------
     flow_file : str
-        Path to the flow file to run
+        Path to the flow file to run, relative to current directory.
     show_output : bool, default True
         Show the 'stdout' and 'stderr' to the console by default,
         Only applicable for synchronous 'run' and 'resume' functions.
@@ -257,7 +350,7 @@ class Runner(metaclass=RunnerMeta):
         env: Optional[Dict[str, str]] = None,
         cwd: Optional[str] = None,
         file_read_timeout: int = 3600,
-        **kwargs
+        **kwargs,
     ):
         # these imports are required here and not at the top
         # since they interfere with the user defined Parameters
@@ -269,15 +362,29 @@ class Runner(metaclass=RunnerMeta):
 
         from metaflow.parameters import flow_context
 
-        if "metaflow.cli" in sys.modules:
-            # Reload the CLI with an "empty" flow -- this will remove any configuration
-            # options. They are re-added in from_cli (called below).
-            with flow_context(None) as _:
-                importlib.reload(sys.modules["metaflow.cli"])
+        # Reload the CLI with an "empty" flow -- this will remove any configuration
+        # and parameter options. They are re-added in from_cli (called below).
+        to_reload = [
+            "metaflow.cli",
+            "metaflow.cli_components.run_cmds",
+            "metaflow.cli_components.init_cmd",
+        ]
+        with flow_context(None):
+            [
+                importlib.reload(sys.modules[module])
+                for module in to_reload
+                if module in sys.modules
+            ]
+
         from metaflow.cli import start
         from metaflow.runner.click_api import MetaflowAPI
 
-        self.flow_file = flow_file
+        # Convert flow_file to absolute path if it's relative
+        if not os.path.isabs(flow_file):
+            self.flow_file = os.path.abspath(flow_file)
+        else:
+            self.flow_file = flow_file
+
         self.show_output = show_output
 
         self.env_vars = os.environ.copy()
@@ -285,7 +392,7 @@ class Runner(metaclass=RunnerMeta):
         if profile:
             self.env_vars["METAFLOW_PROFILE"] = profile
 
-        self.cwd = cwd
+        self.cwd = cwd or os.getcwd()
         self.file_read_timeout = file_read_timeout
         self.spm = SubprocessManager()
         self.top_level_kwargs = kwargs
@@ -345,9 +452,15 @@ class Runner(metaclass=RunnerMeta):
             ExecutingRun containing the results of the run.
         """
         with temporary_fifo() as (attribute_file_path, attribute_file_fd):
-            command = self.api(**self.top_level_kwargs).run(
-                runner_attribute_file=attribute_file_path, **kwargs
-            )
+            if CLICK_API_PROCESS_CONFIG:
+                with with_dir(self.cwd):
+                    command = self.api(**self.top_level_kwargs).run(
+                        runner_attribute_file=attribute_file_path, **kwargs
+                    )
+            else:
+                command = self.api(**self.top_level_kwargs).run(
+                    runner_attribute_file=attribute_file_path, **kwargs
+                )
 
             pid = self.spm.run_command(
                 [sys.executable, *command],
@@ -358,6 +471,78 @@ class Runner(metaclass=RunnerMeta):
             command_obj = self.spm.get(pid)
 
             return self.__get_executing_run(attribute_file_fd, command_obj)
+
+    def __get_executing_task(self, attribute_file_fd, command_obj):
+        content = handle_timeout(attribute_file_fd, command_obj, self.file_read_timeout)
+
+        command_obj.sync_wait()
+
+        content = json.loads(content)
+        pathspec = f"{content.get('flow_name')}/{content.get('run_id')}/{content.get('step_name')}/{content.get('task_id')}"
+
+        # Set the correct metadata from the runner_attribute file corresponding to this run.
+        metadata_for_flow = content.get("metadata")
+
+        task_object = Task(
+            pathspec, _namespace_check=False, _current_metadata=metadata_for_flow
+        )
+        return ExecutingTask(self, command_obj, task_object)
+
+    async def __async_get_executing_task(self, attribute_file_fd, command_obj):
+        content = await async_handle_timeout(
+            attribute_file_fd, command_obj, self.file_read_timeout
+        )
+        content = json.loads(content)
+        pathspec = f"{content.get('flow_name')}/{content.get('run_id')}/{content.get('step_name')}/{content.get('task_id')}"
+
+        # Set the correct metadata from the runner_attribute file corresponding to this run.
+        metadata_for_flow = content.get("metadata")
+
+        task_object = Task(
+            pathspec, _namespace_check=False, _current_metadata=metadata_for_flow
+        )
+        return ExecutingTask(self, command_obj, task_object)
+
+    def spin(self, pathspec, **kwargs) -> ExecutingTask:
+        """
+        Blocking spin execution of the run.
+        This method will wait until the spun run has completed execution.
+        Parameters
+        ----------
+        pathspec : str
+            The pathspec of the step/task to spin.
+        **kwargs : Any
+            Additional arguments that you would pass to `python ./myflow.py` after
+            the `spin` command.
+        Returns
+        -------
+        ExecutingTask
+            ExecutingTask containing the results of the spun task.
+        """
+        with temporary_fifo() as (attribute_file_path, attribute_file_fd):
+            if CLICK_API_PROCESS_CONFIG:
+                with with_dir(self.cwd):
+                    command = self.api(**self.top_level_kwargs).spin(
+                        pathspec=pathspec,
+                        runner_attribute_file=attribute_file_path,
+                        **kwargs,
+                    )
+            else:
+                command = self.api(**self.top_level_kwargs).spin(
+                    pathspec=pathspec,
+                    runner_attribute_file=attribute_file_path,
+                    **kwargs,
+                )
+
+            pid = self.spm.run_command(
+                [sys.executable, *command],
+                env=self.env_vars,
+                cwd=self.cwd,
+                show_output=self.show_output,
+            )
+            command_obj = self.spm.get(pid)
+
+            return self.__get_executing_task(attribute_file_fd, command_obj)
 
     def resume(self, **kwargs) -> ExecutingRun:
         """
@@ -376,9 +561,15 @@ class Runner(metaclass=RunnerMeta):
             ExecutingRun containing the results of the resumed run.
         """
         with temporary_fifo() as (attribute_file_path, attribute_file_fd):
-            command = self.api(**self.top_level_kwargs).resume(
-                runner_attribute_file=attribute_file_path, **kwargs
-            )
+            if CLICK_API_PROCESS_CONFIG:
+                with with_dir(self.cwd):
+                    command = self.api(**self.top_level_kwargs).resume(
+                        runner_attribute_file=attribute_file_path, **kwargs
+                    )
+            else:
+                command = self.api(**self.top_level_kwargs).resume(
+                    runner_attribute_file=attribute_file_path, **kwargs
+                )
 
             pid = self.spm.run_command(
                 [sys.executable, *command],
@@ -409,9 +600,15 @@ class Runner(metaclass=RunnerMeta):
             ExecutingRun representing the run that was started.
         """
         with temporary_fifo() as (attribute_file_path, attribute_file_fd):
-            command = self.api(**self.top_level_kwargs).run(
-                runner_attribute_file=attribute_file_path, **kwargs
-            )
+            if CLICK_API_PROCESS_CONFIG:
+                with with_dir(self.cwd):
+                    command = self.api(**self.top_level_kwargs).run(
+                        runner_attribute_file=attribute_file_path, **kwargs
+                    )
+            else:
+                command = self.api(**self.top_level_kwargs).run(
+                    runner_attribute_file=attribute_file_path, **kwargs
+                )
 
             pid = await self.spm.async_run_command(
                 [sys.executable, *command],
@@ -441,9 +638,15 @@ class Runner(metaclass=RunnerMeta):
             ExecutingRun representing the resumed run that was started.
         """
         with temporary_fifo() as (attribute_file_path, attribute_file_fd):
-            command = self.api(**self.top_level_kwargs).resume(
-                runner_attribute_file=attribute_file_path, **kwargs
-            )
+            if CLICK_API_PROCESS_CONFIG:
+                with with_dir(self.cwd):
+                    command = self.api(**self.top_level_kwargs).resume(
+                        runner_attribute_file=attribute_file_path, **kwargs
+                    )
+            else:
+                command = self.api(**self.top_level_kwargs).resume(
+                    runner_attribute_file=attribute_file_path, **kwargs
+                )
 
             pid = await self.spm.async_run_command(
                 [sys.executable, *command],
@@ -453,6 +656,50 @@ class Runner(metaclass=RunnerMeta):
             command_obj = self.spm.get(pid)
 
             return await self.__async_get_executing_run(attribute_file_fd, command_obj)
+
+    async def async_spin(self, pathspec, **kwargs) -> ExecutingTask:
+        """
+        Non-blocking spin execution of the run.
+        This method will return as soon as the spun task has launched.
+
+        Note that this method is asynchronous and needs to be `await`ed.
+
+        Parameters
+        ----------
+        pathspec : str
+            The pathspec of the step/task to spin.
+        **kwargs : Any
+            Additional arguments that you would pass to `python ./myflow.py` after
+            the `spin` command.
+
+        Returns
+        -------
+        ExecutingTask
+            ExecutingTask representing the spun task that was started.
+        """
+        with temporary_fifo() as (attribute_file_path, attribute_file_fd):
+            if CLICK_API_PROCESS_CONFIG:
+                with with_dir(self.cwd):
+                    command = self.api(**self.top_level_kwargs).spin(
+                        pathspec=pathspec,
+                        runner_attribute_file=attribute_file_path,
+                        **kwargs,
+                    )
+            else:
+                command = self.api(**self.top_level_kwargs).spin(
+                    pathspec=pathspec,
+                    runner_attribute_file=attribute_file_path,
+                    **kwargs,
+                )
+
+            pid = await self.spm.async_run_command(
+                [sys.executable, *command],
+                env=self.env_vars,
+                cwd=self.cwd,
+            )
+            command_obj = self.spm.get(pid)
+
+            return await self.__async_get_executing_task(attribute_file_fd, command_obj)
 
     def __exit__(self, exc_type, exc_value, traceback):
         self.spm.cleanup()

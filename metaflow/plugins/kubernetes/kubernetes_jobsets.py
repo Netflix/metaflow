@@ -6,6 +6,7 @@ from collections import namedtuple
 from metaflow.exception import MetaflowException
 from metaflow.metaflow_config import KUBERNETES_JOBSET_GROUP, KUBERNETES_JOBSET_VERSION
 from metaflow.tracing import inject_tracing_vars
+from metaflow._vendor import yaml
 
 from .kube_utils import qos_requests_and_limits
 
@@ -319,6 +320,8 @@ class RunningJobSet(object):
     def kill(self):
         plural = "jobsets"
         client = self._client.get()
+        if not (self.is_running or self.is_waiting):
+            return
         try:
             # Killing the control pod will trigger the jobset to mark everything as failed.
             # Since jobsets have a successPolicy set to `All` which ensures that everything has
@@ -565,6 +568,12 @@ class JobSetSpec(object):
         qos_requests = {**qos_requests, **extended_resources}
         qos_limits = {**qos_limits, **extended_resources}
 
+        security_context = self._kwargs.get("security_context", {})
+        _security_context = {}
+        if security_context is not None and len(security_context) > 0:
+            _security_context = {
+                "security_context": client.V1SecurityContext(**security_context)
+            }
         return dict(
             name=self.name,
             template=client.api_client.ApiClient().sanitize_for_serialization(
@@ -711,11 +720,15 @@ class JobSetSpec(object):
                                             is not None
                                             else []
                                         ),
+                                        **_security_context,
                                     )
                                 ],
                                 node_selector=self._kwargs.get("node_selector"),
-                                # TODO (savin): Support image_pull_secrets
-                                # image_pull_secrets=?,
+                                image_pull_secrets=[
+                                    client.V1LocalObjectReference(secret)
+                                    for secret in self._kwargs.get("image_pull_secrets")
+                                    or []
+                                ],
                                 # TODO (savin): Support preemption policies
                                 # preemption_policy=?,
                                 #
@@ -1018,34 +1031,32 @@ class KubernetesArgoJobSet(object):
 
     def dump(self):
         client = self._kubernetes_sdk
-
-        data = json.dumps(
-            client.ApiClient().sanitize_for_serialization(
-                dict(
-                    apiVersion=self._group + "/" + self._version,
-                    kind="JobSet",
-                    metadata=client.api_client.ApiClient().sanitize_for_serialization(
-                        client.V1ObjectMeta(
-                            name=self.name,
-                            labels=self._labels,
-                            annotations=self._annotations,
-                        )
-                    ),
-                    spec=dict(
-                        replicatedJobs=[self.control.dump(), self.worker.dump()],
-                        suspend=False,
-                        startupPolicy=None,
-                        successPolicy=None,
-                        # The Failure Policy helps setting the number of retries for the jobset.
-                        # but we don't rely on it and instead rely on either the local scheduler
-                        # or the Argo Workflows to handle retries.
-                        failurePolicy=None,
-                        network=None,
-                    ),
-                    status=None,
-                )
+        js_dict = client.ApiClient().sanitize_for_serialization(
+            dict(
+                apiVersion=self._group + "/" + self._version,
+                kind="JobSet",
+                metadata=client.api_client.ApiClient().sanitize_for_serialization(
+                    client.V1ObjectMeta(
+                        name=self.name,
+                        labels=self._labels,
+                        annotations=self._annotations,
+                    )
+                ),
+                spec=dict(
+                    replicatedJobs=[self.control.dump(), self.worker.dump()],
+                    suspend=False,
+                    startupPolicy=None,
+                    successPolicy=None,
+                    # The Failure Policy helps setting the number of retries for the jobset.
+                    # but we don't rely on it and instead rely on either the local scheduler
+                    # or the Argo Workflows to handle retries.
+                    failurePolicy=None,
+                    network=None,
+                ),
+                status=None,
             )
         )
+        data = yaml.dump(js_dict, default_flow_style=False, indent=2)
         # The values we populate in the Jobset manifest (for Argo Workflows) piggybacks on the Argo Workflow's templating engine.
         # Even though Argo Workflows's templating helps us constructing all the necessary IDs and populating the fields
         # required by Metaflow, we run into one glitch. When we construct JSON/YAML serializable objects,
@@ -1060,7 +1071,6 @@ class KubernetesArgoJobSet(object):
         # Since the value of `num_parallel` can be dynamic and can change from run to run, we need to ensure that the
         # value can be passed-down dynamically and is **explicitly set as a integer** in the Jobset Manifest submitted as a
         # part of the Argo Workflow
-
-        quoted_substring = '"{{=asInt(inputs.parameters.workerCount)}}"'
+        quoted_substring = "'{{=asInt(inputs.parameters.workerCount)}}'"
         unquoted_substring = "{{=asInt(inputs.parameters.workerCount)}}"
         return data.replace(quoted_substring, unquoted_substring)

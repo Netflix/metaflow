@@ -5,6 +5,7 @@ import time
 from collections import namedtuple
 from itertools import chain
 
+from typing import List
 from metaflow.exception import MetaflowInternalError, MetaflowTaggingError
 from metaflow.tagging_util import validate_tag
 from metaflow.util import get_username, resolve_identity_as_tuple, is_stringish
@@ -629,6 +630,25 @@ class MetadataProvider(object):
             sys_info["r_version"] = env["r_version_code"]
         return sys_info
 
+    def _get_git_info_as_dict(self):
+        git_info = {}
+        # NOTE: For flows executing remotely, we want to read from the INFO file of the code package that contains
+        # information on the original environment that deployed the flow.
+        # Otherwise git related info will be missing, as the repository is not part of the codepackage.
+        from metaflow.packaging_sys import MetaflowCodeContent
+
+        env = MetaflowCodeContent.get_info() or self._environment.get_environment_info()
+        for key in [
+            "repo_url",
+            "branch_name",
+            "commit_sha",
+            "has_uncommitted_changes",
+        ]:
+            if key in env and env[key]:
+                git_info[key] = env[key]
+
+        return git_info
+
     def _get_system_tags(self):
         """Convert system info dictionary into a list of system tags"""
         return [
@@ -659,18 +679,77 @@ class MetadataProvider(object):
         if code_sha:
             code_url = os.environ.get("METAFLOW_CODE_URL")
             code_ds = os.environ.get("METAFLOW_CODE_DS")
+            code_metadata = os.environ.get("METAFLOW_CODE_METADATA")
             metadata.append(
                 MetaDatum(
                     field="code-package",
                     value=json.dumps(
-                        {"ds_type": code_ds, "sha": code_sha, "location": code_url}
+                        {
+                            "ds_type": code_ds,
+                            "sha": code_sha,
+                            "location": code_url,
+                            "metadata": code_metadata,
+                        }
                     ),
                     type="code-package",
                     tags=["attempt_id:{0}".format(attempt)],
                 )
             )
+        # Add script name as metadata
+        script_name = self._environment.get_environment_info()["script"]
+        metadata.append(
+            MetaDatum(
+                field="script-name",
+                value=script_name,
+                type="script-name",
+                tags=["attempt_id:{0}".format(attempt)],
+            )
+        )
+        # And add git metadata
+        git_info = self._get_git_info_as_dict()
+        if git_info:
+            metadata.append(
+                MetaDatum(
+                    field="git-info",
+                    value=json.dumps(git_info),
+                    type="git-info",
+                    tags=["attempt_id:{0}".format(attempt)],
+                )
+            )
         if metadata:
             self.register_metadata(run_id, step_name, task_id, metadata)
+
+    @classmethod
+    def filter_tasks_by_metadata(
+        cls,
+        flow_name: str,
+        run_id: str,
+        step_name: str,
+        field_name: str,
+        pattern: str,
+    ) -> List[str]:
+        """
+        Filter tasks by metadata field and pattern, returning task pathspecs that match criteria.
+
+        Parameters
+        ----------
+        flow_name : str
+            Flow name, that the run belongs to.
+        run_id: str
+            Run id, together with flow_id, that identifies the specific Run whose tasks to query
+        step_name: str
+            Step name to query tasks from
+        field_name: str
+            Metadata field name to query
+        pattern: str
+            Pattern to match in metadata field value
+
+        Returns
+        -------
+        List[str]
+            List of task pathspecs that satisfy the query
+        """
+        raise NotImplementedError()
 
     @staticmethod
     def _apply_filter(elts, filters):

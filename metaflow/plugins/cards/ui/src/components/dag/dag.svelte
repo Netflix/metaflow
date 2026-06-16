@@ -4,16 +4,17 @@
   import Connectors from "./connectors.svelte";
   import StepWrapper from "./step-wrapper.svelte";
   import { setContext } from "svelte";
-  import type { Boxes, DagComponent } from "../../types";
+  import type { DagComponent, DagStructure } from "../../types";
   import { cardData } from "../../store";
   import { getFromPathSpec } from "../../utils";
   import { currentStepContext } from "./constants.svelte";
 
   export let componentData: DagComponent;
 
-  const { data: steps } = componentData;
-  let boxes: Boxes = {};
+  const { steps, start_step: startStep, end_step: endStep } = componentData.data;
   let el: HTMLElement;
+  let dagStructure: DagStructure = {};
+
 
   setContext(
     currentStepContext,
@@ -41,12 +42,18 @@
   style="position: relative; line-height: 1"
   data-component="dag"
 >
-  {#if steps?.start}
-    <StepWrapper {steps} stepName="start" bind:boxes />
+  {#if startStep && steps?.[startStep]}
+    <StepWrapper
+      {steps}
+      stepName={startStep}
+      {startStep}
+      {endStep}
+      bind:dagStructure
+    />
   {:else}
     <p>No start step</p>
   {/if}
-  {#if !resizing && Object.keys(boxes).length}
-    <Connectors {boxes} {steps} container={el} />
+  {#if !resizing}
+    <Connectors {dagStructure} container={el} />
   {/if}
 </div>

@@ -9,6 +9,8 @@ import tempfile
 import threading
 from typing import Callable, Dict, Iterator, List, Optional, Tuple
 
+from metaflow.packaging_sys import MetaflowCodeContent
+from metaflow.util import get_metaflow_root
 from .utils import check_process_exited
 
 
@@ -78,13 +80,19 @@ class SubprocessManager(object):
         self.commands: Dict[int, CommandManager] = {}
 
         try:
-            loop = asyncio.get_running_loop()
-            loop.add_signal_handler(
-                signal.SIGINT,
-                lambda: asyncio.create_task(self._async_handle_sigint()),
+            try:
+                loop = asyncio.get_running_loop()
+                loop.add_signal_handler(
+                    signal.SIGINT,
+                    lambda: asyncio.create_task(self._async_handle_sigint()),
+                )
+            except RuntimeError:
+                signal.signal(signal.SIGINT, self._handle_sigint)
+        except ValueError:
+            sys.stderr.write(
+                "Warning: Unable to set signal handlers in non-main thread. "
+                "Interrupt handling will be limited.\n"
             )
-        except RuntimeError:
-            signal.signal(signal.SIGINT, self._handle_sigint)
 
     async def _async_handle_sigint(self):
         pids = [
@@ -144,6 +152,19 @@ class SubprocessManager(object):
         int
             The process ID of the subprocess.
         """
+        env = env or {}
+        installed_root = os.environ.get("METAFLOW_EXTRACTED_ROOT", get_metaflow_root())
+
+        for k, v in MetaflowCodeContent.get_env_vars_for_packaged_metaflow(
+            installed_root
+        ).items():
+            if k.endswith(":"):
+                # Override
+                env[k[:-1]] = v
+            elif k in env:
+                env[k] = "%s:%s" % (v, env[k])
+            else:
+                env[k] = v
 
         command_obj = CommandManager(command, env, cwd)
         pid = command_obj.run(show_output=show_output)
@@ -175,6 +196,11 @@ class SubprocessManager(object):
         int
             The process ID of the subprocess.
         """
+        env = env or {}
+        if "PYTHONPATH" in env:
+            env["PYTHONPATH"] = "%s:%s" % (get_metaflow_root(), env["PYTHONPATH"])
+        else:
+            env["PYTHONPATH"] = get_metaflow_root()
 
         command_obj = CommandManager(command, env, cwd)
         pid = await command_obj.async_run()
@@ -231,7 +257,7 @@ class CommandManager(object):
         self.command = command
 
         self.env = env if env is not None else os.environ.copy()
-        self.cwd = cwd if cwd is not None else os.getcwd()
+        self.cwd = cwd or os.getcwd()
 
         self.process = None
         self.stdout_thread = None

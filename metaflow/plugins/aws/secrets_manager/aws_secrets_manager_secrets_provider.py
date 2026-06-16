@@ -4,7 +4,10 @@ from json import JSONDecodeError
 
 
 from metaflow.exception import MetaflowException
-from metaflow.metaflow_config import AWS_SECRETS_MANAGER_DEFAULT_REGION
+from metaflow.metaflow_config import (
+    AWS_SECRETS_MANAGER_DEFAULT_REGION,
+    AWS_SECRETS_MANAGER_DEFAULT_ROLE,
+)
 from metaflow.plugins.secrets import SecretsProvider
 import re
 
@@ -88,6 +91,9 @@ class AwsSecretsManagerSecretsProvider(SecretsProvider):
         # This might still be OK, if there is fallback AWS region info in environment like:
         # .aws/config or AWS_REGION env var or AWS_DEFAULT_REGION env var, etc.
         try:
+            if AWS_SECRETS_MANAGER_DEFAULT_ROLE and not role:
+                role = AWS_SECRETS_MANAGER_DEFAULT_ROLE
+
             secrets_manager_client = get_aws_client(
                 "secretsmanager",
                 client_params={"region_name": effective_aws_region},
@@ -114,15 +120,15 @@ class AwsSecretsManagerSecretsProvider(SecretsProvider):
 
         """
         These are the exceptions that can be raised by the AWS SDK:
-        
+
         SecretsManager.Client.exceptions.ResourceNotFoundException
         SecretsManager.Client.exceptions.InvalidParameterException
         SecretsManager.Client.exceptions.InvalidRequestException
         SecretsManager.Client.exceptions.DecryptionFailure
         SecretsManager.Client.exceptions.InternalServiceError
-        
+
         Looks pretty informative already, so we won't catch here directly.
-        
+
         1/27/2023(jackie) - We will evolve this over time as we learn more.
         """
         response = secrets_manager_client.get_secret_value(SecretId=secret_id)

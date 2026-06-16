@@ -7,8 +7,10 @@ from metaflow import JSONType, current, decorators, parameters
 from metaflow._vendor import click
 from metaflow.exception import MetaflowException, MetaflowInternalError
 from metaflow.metaflow_config import (
+    FEAT_ALWAYS_UPLOAD_CODE_PACKAGE,
     SERVICE_VERSION_CHECK,
     SFN_STATE_MACHINE_PREFIX,
+    SFN_COMPRESS_STATE_MACHINE,
     UI_URL,
 )
 from metaflow.package import MetaflowPackage
@@ -18,6 +20,8 @@ from metaflow.util import get_username, to_bytes, to_unicode, version_parse
 
 from .production_token import load_token, new_token, store_token
 from .step_functions import StepFunctions
+from metaflow.tagging_util import validate_tags
+from ..aws_utils import validate_aws_tag
 
 VALID_NAME = re.compile(r"[^a-zA-Z0-9_\-\.]")
 
@@ -97,6 +101,13 @@ def step_functions(obj, name=None):
     "times to attach multiple tags.",
 )
 @click.option(
+    "--aws-batch-tag",
+    "aws_batch_tags",
+    multiple=True,
+    default=None,
+    help="AWS Batch tags.",
+)
+@click.option(
     "--namespace",
     "user_namespace",
     default=None,
@@ -131,6 +142,14 @@ def step_functions(obj, name=None):
     "defining foreach tasks in Amazon State Language.",
 )
 @click.option(
+    "--compress-state-machine/--no-compress-state-machine",
+    is_flag=True,
+    default=SFN_COMPRESS_STATE_MACHINE,
+    help="Offload Batch commands to S3 to keep within AWS service limits "
+    "(e.g. ContainerOverrides length limit or maximum size of state machine definition), "
+    "thereby reducing the size of the state machine.",
+)
+@click.option(
     "--deployer-attribute-file",
     default=None,
     show_default=True,
@@ -142,6 +161,7 @@ def step_functions(obj, name=None):
 def create(
     obj,
     tags=None,
+    aws_batch_tags=None,
     user_namespace=None,
     only_json=False,
     authorize=None,
@@ -151,6 +171,7 @@ def create(
     workflow_timeout=None,
     log_execution_history=False,
     use_distributed_map=False,
+    compress_state_machine=False,
     deployer_attribute_file=None,
 ):
     for node in obj.graph:
@@ -195,11 +216,13 @@ def create(
         token,
         obj.state_machine_name,
         tags,
+        aws_batch_tags,
         user_namespace,
         max_workers,
         workflow_timeout,
         obj.is_project,
         use_distributed_map,
+        compress_state_machine,
     )
 
     if only_json:
@@ -244,8 +267,7 @@ def check_metadata_service_version(obj):
             "service to a compatible version (>= 2.0.2), visit:"
         )
         obj.echo(
-            "    https://admin-docs.metaflow.org/metaflow-on-aws/operation"
-            "s-guide/metaflow-service-migration-guide",
+            "    https://docs.outerbounds.com/engineering/operations/migration/",
             fg="green",
         )
         obj.echo(
@@ -314,33 +336,59 @@ def make_flow(
     token,
     name,
     tags,
+    aws_batch_tags,
     namespace,
     max_workers,
     workflow_timeout,
     is_project,
     use_distributed_map,
+    compress_state_machine=False,
 ):
     if obj.flow_datastore.TYPE != "s3":
         raise MetaflowException("AWS Step Functions requires --datastore=s3.")
 
     # Attach AWS Batch decorator to the flow
     decorators._attach_decorators(obj.flow, [BatchDecorator.name])
-    decorators._init(obj.flow)
-    decorators._init_step_decorators(
-        obj.flow, obj.graph, obj.environment, obj.flow_datastore, obj.logger
+    decorators._process_late_attached_decorator(
+        [BatchDecorator.name],
+        obj.flow,
+        obj.graph,
+        obj.environment,
+        obj.flow_datastore,
+        obj.logger,
     )
+    obj.graph = obj.flow._graph
 
     obj.package = MetaflowPackage(
-        obj.flow, obj.environment, obj.echo, obj.package_suffixes
+        obj.flow,
+        obj.environment,
+        obj.echo,
+        suffixes=obj.package_suffixes,
+        flow_datastore=obj.flow_datastore if FEAT_ALWAYS_UPLOAD_CODE_PACKAGE else None,
     )
-    package_url, package_sha = obj.flow_datastore.save_data(
-        [obj.package.blob], len_hint=1
-    )[0]
+    # This blocks until the package is created
+    if FEAT_ALWAYS_UPLOAD_CODE_PACKAGE:
+        package_url = obj.package.package_url()
+        package_sha = obj.package.package_sha()
+    else:
+        package_url, package_sha = obj.flow_datastore.save_data(
+            [obj.package.blob], len_hint=1
+        )[0]
+
+    if aws_batch_tags is not None:
+        batch_tags = {}
+        for item in list(aws_batch_tags):
+            key, value = item.split("=")
+            # These are fresh AWS tags provided by the user through the CLI,
+            # so we must validate them.
+            validate_aws_tag(key, value)
+            batch_tags[key] = value
 
     return StepFunctions(
         name,
         obj.graph,
         obj.flow,
+        obj.package.package_metadata,
         package_sha,
         package_url,
         token,
@@ -350,12 +398,14 @@ def make_flow(
         obj.event_logger,
         obj.monitor,
         tags=tags,
+        aws_batch_tags=batch_tags,
         namespace=namespace,
         max_workers=max_workers,
         username=get_username(),
         workflow_timeout=workflow_timeout,
         is_project=is_project,
         use_distributed_map=use_distributed_map,
+        compress_state_machine=compress_state_machine,
     )
 
 

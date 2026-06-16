@@ -17,6 +17,8 @@ EXPORTED_CLASSES = {
         "ChildClass": lib.ChildClass,
         "ExceptionAndClass": lib.ExceptionAndClass,
         "ExceptionAndClassChild": lib.ExceptionAndClassChild,
+        "TestIntEnum": lib.TestIntEnum,
+        "TestStrEnum": lib.TestStrEnum,
     }
 }
 

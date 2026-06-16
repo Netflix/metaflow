@@ -1,0 +1,20 @@
+{
+    "name": "switch_in_foreach",
+    "graph": {
+        "start": {
+            "foreach": "process_item",
+            "foreach_var": "items",
+            "foreach_var_default": "[]",
+            "quals": ["start-foreach"]
+        },
+        "process_item": {
+            "switch": {"type_a": "handle_a", "type_b": "handle_b"},
+            "condition": "item_type",
+            "quals": ["process-item"]
+        },
+        "handle_a": {"linear": "join", "quals": ["handle-a"]},
+        "handle_b": {"linear": "join", "quals": ["handle-b"]},
+        "join": {"linear": "end", "join": true, "quals": ["join-foreach"]},
+        "end": {"quals": ["end"]}
+    }
+}

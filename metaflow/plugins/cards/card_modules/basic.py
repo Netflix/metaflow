@@ -2,7 +2,7 @@ import base64
 import json
 import os
 from .card import MetaflowCard, MetaflowCardComponent, with_default_component_id
-from .convert_to_native_type import TaskToDict
+from .convert_to_native_type import TaskToDict, MAX_ARTIFACT_SIZE
 import uuid
 import inspect
 
@@ -12,7 +12,17 @@ JS_PATH = os.path.join(ABS_DIR_PATH, "main.js")
 CSS_PATH = os.path.join(ABS_DIR_PATH, "bundle.css")
 
 
-def transform_flow_graph(step_info):
+def transform_flow_graph(graph):
+    # new graph format
+    if "steps" in graph and "start_step" in graph and "end_step" in graph:
+        step_info = graph["steps"]
+        start_step = graph["start_step"]
+        end_step = graph["end_step"]
+    else:
+        step_info = graph
+        start_step = "start" if "start" in graph else None
+        end_step = "end" if "end" in graph else None
+
     def node_to_type(node_type):
         if node_type in ["linear", "start", "end", "join"]:
             return node_type
@@ -20,12 +30,15 @@ def transform_flow_graph(step_info):
             return "split"
         elif node_type == "split-parallel" or node_type == "split-foreach":
             return "foreach"
+        elif node_type == "split-switch":
+            return "switch"
         return "unknown"  # Should never happen
 
     graph_dict = {}
     for stepname in step_info:
-        graph_dict[stepname] = {
-            "type": node_to_type(step_info[stepname]["type"]),
+        node_type = node_to_type(step_info[stepname]["type"])
+        node_info = {
+            "type": node_type,
             "box_next": step_info[stepname]["type"] not in ("linear", "join"),
             "box_ends": (
                 None
@@ -35,7 +48,20 @@ def transform_flow_graph(step_info):
             "next": step_info[stepname]["next"],
             "doc": step_info[stepname]["doc"],
         }
-    return graph_dict
+
+        if node_type == "switch":
+            if "condition" in step_info[stepname]:
+                node_info["condition"] = step_info[stepname]["condition"]
+            if "switch_cases" in step_info[stepname]:
+                node_info["switch_cases"] = step_info[stepname]["switch_cases"]
+
+        graph_dict[stepname] = node_info
+
+    return {
+        "steps": graph_dict,
+        "start_step": start_step,
+        "end_step": end_step,
+    }
 
 
 def read_file(path):
@@ -364,9 +390,14 @@ class TaskInfoComponent(MetaflowCardComponent):
         components=[],
         runtime=False,
         flow=None,
+        max_artifact_size=None,
     ):
         self._task = task
         self._only_repr = only_repr
+        # Use the global MAX_ARTIFACT_SIZE constant if not specified
+        self._max_artifact_size = (
+            max_artifact_size if max_artifact_size is not None else MAX_ARTIFACT_SIZE
+        )
         self._graph = graph
         self._components = components
         self._page_title = page_title
@@ -382,9 +413,9 @@ class TaskInfoComponent(MetaflowCardComponent):
             a dictionary of form:
                 dict(metadata = {},components= [])
         """
-        task_data_dict = TaskToDict(only_repr=self._only_repr)(
-            self._task, graph=self._graph
-        )
+        task_data_dict = TaskToDict(
+            only_repr=self._only_repr, max_artifact_size=self._max_artifact_size
+        )(self._task, graph=self._graph)
         # ignore the name as an artifact
         if "name" in task_data_dict["data"]:
             del task_data_dict["data"]["name"]
@@ -418,6 +449,7 @@ class TaskInfoComponent(MetaflowCardComponent):
             "Task Finished On": task_data_dict["finished_at"],
             # Remove Microseconds from timedelta
             "Tags": ", ".join(tags),
+            "Attempt": self._task.current_attempt,
         }
         if not self.runtime:
             task_metadata_dict["Task Duration"] = str(
@@ -478,9 +510,15 @@ class TaskInfoComponent(MetaflowCardComponent):
             )
 
         # ignore the name as a parameter
-        param_ids = [
-            p.id for p in self._task.parent.parent["_parameters"].task if p.id != "name"
-        ]
+        if "_parameters" not in self._task.parent.parent:
+            # In case of spin steps, there is no _parameters task
+            param_ids = []
+        else:
+            param_ids = [
+                p.id
+                for p in self._task.parent.parent["_parameters"].task
+                if p.id != "name"
+            ]
         if len(param_ids) > 0:
             # Extract parameter from the Parameter Task. That is less brittle.
             parameter_data = TaskToDict(
@@ -579,9 +617,15 @@ class ErrorCard(MetaflowCard):
 
     RELOAD_POLICY = MetaflowCard.RELOAD_POLICY_ONCHANGE
 
-    def __init__(self, options={}, components=[], graph=None, **kwargs):
+    def __init__(
+        self, options={}, components=[], graph=None, graph_info=None, **kwargs
+    ):
         self._only_repr = True
-        self._graph = None if graph is None else transform_flow_graph(graph)
+        # Prefer graph_info (carries start_step/end_step metadata) when available
+        _graph_source = graph_info if graph_info is not None else graph
+        self._graph = (
+            None if _graph_source is None else transform_flow_graph(_graph_source)
+        )
         self._components = components
 
     def reload_content_token(self, task, data):
@@ -640,11 +684,15 @@ class DefaultCardJSON(MetaflowCard):
         options=dict(only_repr=True),
         components=[],
         graph=None,
+        graph_info=None,
         flow=None,
         **kwargs
     ):
         self._only_repr = True
-        self._graph = None if graph is None else transform_flow_graph(graph)
+        _graph_source = graph_info if graph_info is not None else graph
+        self._graph = (
+            None if _graph_source is None else transform_flow_graph(_graph_source)
+        )
         self._flow = flow
         if "only_repr" in options:
             self._only_repr = options["only_repr"]
@@ -676,14 +724,22 @@ class DefaultCard(MetaflowCard):
         options=dict(only_repr=True),
         components=[],
         graph=None,
+        graph_info=None,
         flow=None,
         **kwargs
     ):
         self._only_repr = True
-        self._graph = None if graph is None else transform_flow_graph(graph)
+        # Default max artifact size uses the global MAX_ARTIFACT_SIZE constant (200MB)
+        self._max_artifact_size = MAX_ARTIFACT_SIZE
+        _graph_source = graph_info if graph_info is not None else graph
+        self._graph = (
+            None if _graph_source is None else transform_flow_graph(_graph_source)
+        )
         self._flow = flow
         if "only_repr" in options:
             self._only_repr = options["only_repr"]
+        if "max_artifact_size" in options:
+            self._max_artifact_size = options["max_artifact_size"]
         self._components = components
 
     def render(self, task, runtime=False):
@@ -697,6 +753,7 @@ class DefaultCard(MetaflowCard):
             components=self._components,
             runtime=runtime,
             flow=self._flow,
+            max_artifact_size=self._max_artifact_size,
         ).render()
         pt = self._get_mustache()
         data_dict = dict(

@@ -12,6 +12,7 @@ from metaflow.metaflow_config import DATASTORE_LOCAL_DIR
 from metaflow.mflog import TASK_LOG_SOURCE
 from metaflow.unbounded_foreach import UBF_CONTROL, UBF_TASK
 from .batch import Batch, BatchKilledException
+from ..aws_utils import validate_aws_tag
 
 
 @click.group()
@@ -47,38 +48,49 @@ def _execute_cmd(func, flow_name, run_id, user, my_runs, echo):
     func(flow_name, run_id, user, echo)
 
 
-@batch.command(help="List unfinished AWS Batch tasks of this flow")
+@batch.command(
+    "list",
+    help="\b\nList unfinished AWS Batch tasks of this flow.\n"
+    "By default, consider the latest run only.",
+)
 @click.option(
     "--my-runs",
     default=False,
     is_flag=True,
-    help="List all my unfinished tasks.",
+    help="List my unfinished tasks, across all runs.",
 )
-@click.option("--user", default=None, help="List unfinished tasks for the given user.")
+@click.option(
+    "--user",
+    default=None,
+    help="List unfinished tasks for the given user, across all runs.",
+)
 @click.option(
     "--run-id",
     default=None,
     help="List unfinished tasks corresponding to the run id.",
 )
 @click.pass_context
-def list(ctx, run_id, user, my_runs):
+def _list(ctx, run_id, user, my_runs):
     batch = Batch(ctx.obj.metadata, ctx.obj.environment)
     _execute_cmd(
         batch.list_jobs, ctx.obj.flow.name, run_id, user, my_runs, ctx.obj.echo
     )
 
 
-@batch.command(help="Terminate unfinished AWS Batch tasks of this flow.")
+@batch.command(
+    help="\b\nTerminate unfinished AWS Batch tasks of this flow.\n"
+    "By default, consider the latest run only.",
+)
 @click.option(
     "--my-runs",
     default=False,
     is_flag=True,
-    help="Kill all my unfinished tasks.",
+    help="Kill my unfinished tasks, across all runs.",
 )
 @click.option(
     "--user",
     default=None,
-    help="Terminate unfinished tasks for the given user.",
+    help="Terminate unfinished tasks for the given user, across all runs.",
 )
 @click.option(
     "--run-id",
@@ -100,6 +112,7 @@ def kill(ctx, run_id, user, my_runs):
     "Metaflow."
 )
 @click.argument("step-name")
+@click.argument("code-package-metadata")
 @click.argument("code-package-sha")
 @click.argument("code-package-url")
 @click.option("--executable", help="Executable requirement for AWS Batch.")
@@ -146,6 +159,13 @@ def kill(ctx, run_id, user, my_runs):
     help="Activate designated number of elastic fabric adapter devices. "
     "EFA driver must be installed and instance type compatible with EFA",
 )
+@click.option(
+    "--aws-batch-tag",
+    "aws_batch_tags",
+    multiple=True,
+    default=None,
+    help="AWS tags. Format: key=value, multiple allowed",
+)
 @click.option("--use-tmpfs", is_flag=True, help="tmpfs requirement for AWS Batch.")
 @click.option("--tmpfs-tempdir", is_flag=True, help="tmpfs requirement for AWS Batch.")
 @click.option("--tmpfs-size", help="tmpfs requirement for AWS Batch.")
@@ -181,10 +201,12 @@ def kill(ctx, run_id, user, my_runs):
     type=int,
     help="Number of parallel nodes to run as a multi-node job.",
 )
+@click.option("--privileged", is_flag=True, help="Run the AWS Batch Job as privileged")
 @click.pass_context
 def step(
     ctx,
     step_name,
+    code_package_metadata,
     code_package_sha,
     code_package_url,
     executable=None,
@@ -201,6 +223,7 @@ def step(
     swappiness=None,
     inferentia=None,
     efa=None,
+    aws_batch_tags=None,
     use_tmpfs=None,
     tmpfs_tempdir=None,
     tmpfs_size=None,
@@ -211,6 +234,7 @@ def step(
     log_driver=None,
     log_options=None,
     num_parallel=None,
+    privileged=None,
     **kwargs
 ):
     def echo(msg, stream="stderr", batch_id=None, **kwargs):
@@ -273,11 +297,19 @@ def step(
         "metaflow_version"
     ]
 
+    env = {"METAFLOW_FLOW_FILENAME": os.path.basename(sys.argv[0])}
+
+    if aws_batch_tags is not None:
+        # We do not need to validate these again,
+        # as they come supplied by the batch decorator which already performed validation.
+        batch_tags = {}
+        for item in list(aws_batch_tags):
+            key, value = item.split("=")
+            batch_tags[key] = value
+
     env_deco = [deco for deco in node.decorators if deco.name == "environment"]
     if env_deco:
-        env = env_deco[0].attributes["vars"]
-    else:
-        env = {}
+        env.update(env_deco[0].attributes["vars"])
 
     # Add the environment variables related to the input-paths argument
     if split_vars:
@@ -317,6 +349,7 @@ def step(
                 step_name,
                 step_cli,
                 task_spec,
+                code_package_metadata,
                 code_package_sha,
                 code_package_url,
                 ctx.obj.flow_datastore.TYPE,
@@ -338,6 +371,7 @@ def step(
                 host_volumes=host_volumes,
                 efs_volumes=efs_volumes,
                 use_tmpfs=use_tmpfs,
+                aws_batch_tags=batch_tags,
                 tmpfs_tempdir=tmpfs_tempdir,
                 tmpfs_size=tmpfs_size,
                 tmpfs_path=tmpfs_path,
@@ -345,6 +379,7 @@ def step(
                 log_driver=log_driver,
                 log_options=log_options,
                 num_parallel=num_parallel,
+                privileged=privileged,
             )
     except Exception:
         traceback.print_exc()

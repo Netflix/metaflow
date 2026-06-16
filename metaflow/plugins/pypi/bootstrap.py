@@ -8,9 +8,11 @@ import subprocess
 import sys
 import tarfile
 import time
+import platform
 from urllib.error import URLError
 from urllib.request import urlopen
-from metaflow.metaflow_config import DATASTORE_LOCAL_DIR
+from metaflow.metaflow_config import DATASTORE_LOCAL_DIR, CONDA_USE_FAST_INIT
+from metaflow.packaging_sys import MetaflowCodeContent, ContentType
 from metaflow.plugins import DATASTORES
 from metaflow.plugins.pypi.utils import MICROMAMBA_MIRROR_URL, MICROMAMBA_URL
 from metaflow.util import which
@@ -18,6 +20,8 @@ from urllib.request import Request
 import warnings
 
 from . import MAGIC_FILE, _datastore_packageroot
+
+FAST_INIT_BIN_URL = "https://fast-flow-init.outerbounds.sh/{platform}/latest"
 
 # Bootstraps a valid conda virtual environment composed of conda and pypi packages
 
@@ -34,39 +38,73 @@ def timer(func):
 
 
 if __name__ == "__main__":
-    # TODO: Detect architecture on the fly when dealing with arm architectures.
-    # ARCH=$(uname -m)
-    # OS=$(uname)
 
-    # if [[ "$OS" == "Linux" ]]; then
-    #     PLATFORM="linux"
-    #     if [[ "$ARCH" == "aarch64" ]]; then
-    #         ARCH="aarch64";
-    #     elif [[ $ARCH == "ppc64le" ]]; then
-    #         ARCH="ppc64le";
-    #     else
-    #         ARCH="64";
-    #     fi
-    # fi
-
-    # if [[ "$OS" == "Darwin" ]]; then
-    #     PLATFORM="osx";
-    #     if [[ "$ARCH" == "arm64" ]]; then
-    #         ARCH="arm64";
-    #     else
-    #         ARCH="64"
-    #     fi
-    # fi
-
-    def run_cmd(cmd):
+    def run_cmd(cmd, stdin_str=None):
         result = subprocess.run(
-            cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True
+            cmd,
+            shell=True,
+            input=stdin_str,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
         )
         if result.returncode != 0:
             print(f"Bootstrap failed while executing: {cmd}")
             print("Stdout:", result.stdout)
             print("Stderr:", result.stderr)
             sys.exit(1)
+
+    @timer
+    def install_fast_initializer(architecture):
+        import gzip
+
+        fast_initializer_path = os.path.join(
+            os.getcwd(), "fast-initializer", "bin", "fast-initializer"
+        )
+
+        if which("fast-initializer"):
+            return which("fast-initializer")
+        if os.path.exists(fast_initializer_path):
+            os.environ["PATH"] += os.pathsep + os.path.dirname(fast_initializer_path)
+            return fast_initializer_path
+
+        url = FAST_INIT_BIN_URL.format(platform=architecture)
+
+        # Prepare directory once
+        os.makedirs(os.path.dirname(fast_initializer_path), exist_ok=True)
+
+        # Download and decompress in one go
+        def _download_and_extract(url):
+            headers = {
+                "Accept-Encoding": "gzip, deflate, br",
+                "Connection": "keep-alive",
+                "User-Agent": "python-urllib",
+            }
+
+            max_retries = 3
+            for attempt in range(max_retries):
+                try:
+                    req = Request(url, headers=headers)
+                    with urlopen(req) as response:
+                        with gzip.GzipFile(fileobj=response) as gz:
+                            with open(fast_initializer_path, "wb") as f:
+                                f.write(gz.read())
+                    break
+                except (URLError, IOError) as e:
+                    if attempt == max_retries - 1:
+                        raise Exception(
+                            f"Failed to download fast-initializer after {max_retries} attempts: {e}"
+                        )
+                    time.sleep(2**attempt)
+
+        _download_and_extract(url)
+
+        # Set executable permission
+        os.chmod(fast_initializer_path, 0o755)
+
+        # Update PATH only once at the end
+        os.environ["PATH"] += os.pathsep + os.path.dirname(fast_initializer_path)
+        return fast_initializer_path
 
     @timer
     def install_micromamba(architecture):
@@ -268,12 +306,48 @@ if __name__ == "__main__":
                 # wait for conda environment to be created
                 futures["conda_env"].result()
 
-    if len(sys.argv) != 5:
-        print("Usage: bootstrap.py <flow_name> <id> <datastore_type> <architecture>")
+    @timer
+    def fast_setup_environment(architecture, storage, env, prefix, pkgs_dir):
+        install_fast_initializer(architecture)
+
+        # Get package urls
+        conda_pkgs = env["conda"]
+        pypi_pkgs = env.get("pypi", [])
+        conda_pkg_urls = [package["path"] for package in conda_pkgs]
+        pypi_pkg_urls = [package["path"] for package in pypi_pkgs]
+
+        # Create string with package URLs
+        all_package_urls = ""
+        for url in conda_pkg_urls:
+            all_package_urls += f"{storage.datastore_root}/{url}\n"
+        all_package_urls += "---\n"
+        for url in pypi_pkg_urls:
+            all_package_urls += f"{storage.datastore_root}/{url}\n"
+
+        # Initialize environment
+        # NOTE: For the time being the fast-initializer only works for the S3 datastore implementation
+        cmd = f"fast-initializer --prefix {prefix} --packages-dir {pkgs_dir}"
+        run_cmd(cmd, all_package_urls)
+
+    if len(sys.argv) != 4:
+        print("Usage: bootstrap.py <flow_name> <id> <datastore_type>")
         sys.exit(1)
 
     try:
-        _, flow_name, id_, datastore_type, architecture = sys.argv
+        _, flow_name, id_, datastore_type = sys.argv
+
+        system = platform.system().lower()
+        arch_machine = platform.machine().lower()
+
+        if system == "darwin" and arch_machine == "arm64":
+            architecture = "osx-arm64"
+        elif system == "darwin":
+            architecture = "osx-64"
+        elif system == "linux" and arch_machine == "aarch64":
+            architecture = "linux-aarch64"
+        else:
+            # default fallback
+            architecture = "linux-64"
 
         prefix = os.path.join(os.getcwd(), architecture, id_)
         pkgs_dir = os.path.join(os.getcwd(), ".pkgs")
@@ -292,16 +366,24 @@ if __name__ == "__main__":
 
         # Move MAGIC_FILE inside local datastore.
         os.makedirs(manifest_dir, exist_ok=True)
+        path_to_manifest = MetaflowCodeContent.get_filename(
+            MAGIC_FILE, ContentType.OTHER_CONTENT
+        )
+        if path_to_manifest is None:
+            raise RuntimeError(f"Cannot find {MAGIC_FILE} in the package")
         shutil.move(
-            os.path.join(os.getcwd(), MAGIC_FILE),
+            path_to_manifest,
             os.path.join(manifest_dir, MAGIC_FILE),
         )
         with open(os.path.join(manifest_dir, MAGIC_FILE)) as f:
             env = json.load(f)[id_][architecture]
 
-        setup_environment(
-            architecture, storage, env, prefix, conda_pkgs_dir, pypi_pkgs_dir
-        )
+        if CONDA_USE_FAST_INIT:
+            fast_setup_environment(architecture, storage, env, prefix, pkgs_dir)
+        else:
+            setup_environment(
+                architecture, storage, env, prefix, conda_pkgs_dir, pypi_pkgs_dir
+            )
 
     except Exception as e:
         print(f"Error: {str(e)}", file=sys.stderr)

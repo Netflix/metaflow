@@ -6,17 +6,17 @@ The code is written in [svelte](https://svelte.dev/).
 
 ## To run locally
 
-- `yarn install`
-- `yarn dev`
+- `npm install`
+- `npm run dev`
 
 This will run a [server](http://localhost:8080) showing a single card, using example data from `public/card-example.json`.
 
 ## To make changes to be used by metaflow
 
-- `yarn install`
+- `npm install`
 - Make your changes to the `.svelte` and/or `.css` files
-- `yarn lint` to ensure the types are correct
-- `yarn build`
+- `npm run lint` to ensure the types are correct
+- `npm run build`
 
 This will put a `main.js` and a `bundle.css` file in a directory that will be picked up by metaflow when it is running a flow. The output directory is specified in `package.json`.
 

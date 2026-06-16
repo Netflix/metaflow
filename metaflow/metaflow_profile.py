@@ -2,6 +2,24 @@ import time
 
 from contextlib import contextmanager
 
+from .metaflow_config import PROFILE_FROM_START
+
+init_time = None
+
+
+if PROFILE_FROM_START:
+
+    def from_start(msg: str):
+        global init_time
+        if init_time is None:
+            init_time = time.time()
+        print("From start: %s took %dms" % (msg, int((time.time() - init_time) * 1000)))
+
+else:
+
+    def from_start(_msg: str):
+        pass
+
 
 @contextmanager
 def profile(label, stats_dict=None):

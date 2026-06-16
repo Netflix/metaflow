@@ -3,60 +3,53 @@ from metaflow.metaflow_config import (
     OTEL_ENDPOINT,
     ZIPKIN_ENDPOINT,
     CONSOLE_TRACE_ENABLED,
+    SERVICE_AUTH_KEY,
+    SERVICE_HEADERS,
 )
 
 
 def get_span_exporter():
-    if OTEL_ENDPOINT:
-        return set_otel_exporter()
+    exporter_map = {
+        OTEL_ENDPOINT: _create_otel_exporter,
+        ZIPKIN_ENDPOINT: _create_zipkin_exporter,
+        CONSOLE_TRACE_ENABLED: _create_console_exporter,
+    }
 
-    elif ZIPKIN_ENDPOINT:
-        return set_zipkin_exporter()
+    for config, create_exporter in exporter_map.items():
+        if config:
+            return create_exporter()
 
-    elif CONSOLE_TRACE_ENABLED:
-        return set_console_exporter()
-    else:
-        print("WARNING: endpoints not set up for Opentelemetry", file=sys.stderr)
-        return
+    print("WARNING: endpoints not set up for OpenTelemetry", file=sys.stderr)
+    return None
 
 
-def set_otel_exporter():
+def _create_otel_exporter():
     from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
 
-    from metaflow.metaflow_config import (
-        SERVICE_AUTH_KEY,
-        SERVICE_HEADERS,
-    )
+    if not any([SERVICE_AUTH_KEY, SERVICE_HEADERS]):
+        print("WARNING: no auth settings for OpenTelemetry", file=sys.stderr)
+        return None
+
+    config = {
+        "endpoint": OTEL_ENDPOINT,
+        "timeout": 1,
+    }
 
     if SERVICE_AUTH_KEY:
-        span_exporter = OTLPSpanExporter(
-            endpoint=OTEL_ENDPOINT,
-            headers={"x-api-key": SERVICE_AUTH_KEY},
-            timeout=1,
-        )
+        config["headers"] = {"x-api-key": SERVICE_AUTH_KEY}
     elif SERVICE_HEADERS:
-        span_exporter = OTLPSpanExporter(
-            endpoint=OTEL_ENDPOINT,
-            headers=SERVICE_HEADERS,
-            timeout=1,
-        )
-    else:
-        print("WARNING: no auth settings for Opentelemetry", file=sys.stderr)
-        return
-    return span_exporter
+        config["headers"] = SERVICE_HEADERS
+
+    return OTLPSpanExporter(**config)
 
 
-def set_zipkin_exporter():
+def _create_zipkin_exporter():
     from opentelemetry.exporter.zipkin.proto.http import ZipkinExporter
 
-    span_exporter = ZipkinExporter(
-        endpoint=ZIPKIN_ENDPOINT,
-    )
-    return span_exporter
+    return ZipkinExporter(endpoint=ZIPKIN_ENDPOINT)
 
 
-def set_console_exporter():
+def _create_console_exporter():
     from opentelemetry.sdk.trace.export import ConsoleSpanExporter
 
-    span_exporter = ConsoleSpanExporter()
-    return span_exporter
+    return ConsoleSpanExporter()

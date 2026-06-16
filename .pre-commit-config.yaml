@@ -1,17 +1,53 @@
-exclude: 'test/core/tests/card_timeout.py'
+exclude: |
+  (?x)^(
+    test/core/tests/card_timeout\.py|
+    metaflow/_vendor/.*
+  )$
 repos:
   - repo: https://github.com/pre-commit/pre-commit-hooks
-    rev: v2.4.0
+    rev: v6.0.0
     hooks:
-      - id: check-yaml
+      - id: check-added-large-files
+      - id: check-ast
+      - id: check-case-conflict
+      - id: check-illegal-windows-names
       - id: check-json
+      - id: check-merge-conflict
+      - id: check-symlinks
+      - id: check-toml
+      - id: check-xml
+      - id: check-yaml
+        args: [--allow-multiple-documents]
+      - id: debug-statements
+      - id: detect-private-key
+      - id: end-of-file-fixer
+      - id: fix-byte-order-marker
+      - id: forbid-submodules
+      - id: mixed-line-ending
+      - id: requirements-txt-fixer
+      - id: trailing-whitespace
+        exclude: metaflow/plugins/cards/card_modules/main\.js
+      # - id: check-builtin-literals
+      # - id: check-executables-have-shebangs
+      # - id: check-shebang-scripts-are-executable
+      # - id: check-vcs-permalinks
+      # - id: detect-aws-credentials
+      # - id: name-tests-test
+      # - id: pretty-format-json
+
+
+  - repo: https://github.com/shellcheck-py/shellcheck-py
+    rev: v0.10.0.1
+    hooks:
+      - id: shellcheck
+        files: ^devtools/ci/
+        args: [-e, SC1091]  # don't follow sourced files
+
   - repo: https://github.com/ambv/black
-    rev: 24.4.2
+    rev: 25.12.0
     hooks:
       - id: black
         language_version: python3
         exclude: "^metaflow/_vendor/"
         additional_dependencies: ["click<8.1.0"]
-        args: [-t, py34, -t, py35, -t, py36, -t, py37, -t, py38, -t, py39, -t, py310, -t, py311, -t, py312]
-
-
+        args: [-t, py34, -t, py35, -t, py36, -t, py37, -t, py38, -t, py39, -t, py310, -t, py311, -t, py312, -t, py313, -t, py314]

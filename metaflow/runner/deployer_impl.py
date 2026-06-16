@@ -3,10 +3,12 @@ import json
 import os
 import sys
 
-from typing import Any, ClassVar, Dict, Optional, TYPE_CHECKING, Type
+from typing import Any, ClassVar, Dict, Optional, TYPE_CHECKING, Type, List
+
+from metaflow.metaflow_config import CLICK_API_PROCESS_CONFIG
 
 from .subprocess_manager import SubprocessManager
-from .utils import get_lower_level_group, handle_timeout, temporary_fifo
+from .utils import get_lower_level_group, handle_timeout, temporary_fifo, with_dir
 
 if TYPE_CHECKING:
     import metaflow.runner.deployer
@@ -25,7 +27,7 @@ class DeployerImpl(object):
     Parameters
     ----------
     flow_file : str
-        Path to the flow file to deploy.
+        Path to the flow file to deploy, relative to current directory.
     show_output : bool, default True
         Show the 'stdout' and 'stderr' to the console by default.
     profile : Optional[str], default None
@@ -63,19 +65,27 @@ class DeployerImpl(object):
 
         from metaflow.parameters import flow_context
 
-        if "metaflow.cli" in sys.modules:
-            # Reload the CLI with an "empty" flow -- this will remove any configuration
-            # options. They are re-added in from_cli (called below).
-            with flow_context(None) as _:
-                importlib.reload(sys.modules["metaflow.cli"])
+        # Reload the CLI with an "empty" flow -- this will remove any configuration
+        # and parameter options. They are re-added in from_cli (called below).
+        with flow_context(None):
+            [
+                importlib.reload(sys.modules[module])
+                for module in self.to_reload
+                if module in sys.modules
+            ]
+
         from metaflow.cli import start
         from metaflow.runner.click_api import MetaflowAPI
 
-        self.flow_file = flow_file
+        # Convert flow_file to absolute path if it's relative
+        if not os.path.isabs(flow_file):
+            self.flow_file = os.path.abspath(flow_file)
+        else:
+            self.flow_file = flow_file
         self.show_output = show_output
         self.profile = profile
         self.env = env
-        self.cwd = cwd
+        self.cwd = cwd or os.getcwd()
         self.file_read_timeout = file_read_timeout
 
         self.env_vars = os.environ.copy()
@@ -86,6 +96,19 @@ class DeployerImpl(object):
         self.spm = SubprocessManager()
         self.top_level_kwargs = kwargs
         self.api = MetaflowAPI.from_cli(self.flow_file, start)
+
+    @property
+    def to_reload(self) -> List[str]:
+        """
+        List of modules to reload when the deployer is initialized.
+        This is used to ensure that the CLI is in a clean state before
+        deploying the flow.
+        """
+        return [
+            "metaflow.cli",
+            "metaflow.cli_components.run_cmds",
+            "metaflow.cli_components.init_cmd",
+        ]
 
     @property
     def deployer_kwargs(self) -> Dict[str, Any]:
@@ -127,9 +150,19 @@ class DeployerImpl(object):
     ) -> "metaflow.runner.deployer.DeployedFlow":
         with temporary_fifo() as (attribute_file_path, attribute_file_fd):
             # every subclass needs to have `self.deployer_kwargs`
-            command = get_lower_level_group(
-                self.api, self.top_level_kwargs, self.TYPE, self.deployer_kwargs
-            ).create(deployer_attribute_file=attribute_file_path, **kwargs)
+            # TODO: Get rid of CLICK_API_PROCESS_CONFIG in the near future
+            if CLICK_API_PROCESS_CONFIG:
+                # We need to run this in the cwd because configs depend on files
+                # that may be located in paths relative to the directory the user
+                # wants to run in
+                with with_dir(self.cwd):
+                    command = get_lower_level_group(
+                        self.api, self.top_level_kwargs, self.TYPE, self.deployer_kwargs
+                    ).create(deployer_attribute_file=attribute_file_path, **kwargs)
+            else:
+                command = get_lower_level_group(
+                    self.api, self.top_level_kwargs, self.TYPE, self.deployer_kwargs
+                ).create(deployer_attribute_file=attribute_file_path, **kwargs)
 
             pid = self.spm.run_command(
                 [sys.executable, *command],

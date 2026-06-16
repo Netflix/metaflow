@@ -8,10 +8,11 @@ from concurrent.futures import ThreadPoolExecutor
 from itertools import chain, product
 from urllib.parse import unquote
 
+from metaflow.debug import debug
 from metaflow.exception import MetaflowException
 
 from .micromamba import Micromamba
-from .utils import pip_tags, wheel_tags
+from .utils import pip_tags, wheel_tags, markers_from_platform, conda_platform
 
 
 class PipException(MetaflowException):
@@ -36,7 +37,7 @@ class PipPackageNotFound(Exception):
             self.package_spec = re.search(
                 "ERROR: No matching distribution found for (.*)", self.error
             )[1]
-            self.package_name = re.match("\w*", self.package_spec)[0]
+            self.package_name = re.match(r"\w*", self.package_spec)[0]
         except Exception:
             pass
 
@@ -59,6 +60,15 @@ class Pip(object):
         else:
             self.logger = lambda *args, **kwargs: None  # No-op logger if not provided
 
+    def _get_resolved_python_version(self, prefix):
+        try:
+            result = self.micromamba._call(["list", "--prefix", prefix, "--json"])
+            for package in result:
+                if package.get("name") == "python":
+                    return package["version"]
+        except Exception:
+            return None
+
     def solve(self, id_, packages, python, platform):
         prefix = self.micromamba.path_to_environment(id_)
         if prefix is None:
@@ -66,12 +76,20 @@ class Pip(object):
             msg += "for id {id}".format(id=id_)
             raise PipException(msg)
 
+        resolved_python = self._get_resolved_python_version(prefix)
+        if not resolved_python:
+            raise PipException(
+                "Could not determine Python version from conda environment"
+            )
+
+        debug.conda_exec("Solving packages for PyPI environment %s" % id_)
+        freethreaded = python.endswith("t")
         with tempfile.TemporaryDirectory() as tmp_dir:
             report = "{tmp_dir}/report.json".format(tmp_dir=tmp_dir)
             implementations, platforms, abis = zip(
                 *[
                     (tag.interpreter, tag.platform, tag.abi)
-                    for tag in pip_tags(python, platform)
+                    for tag in pip_tags(resolved_python, platform, freethreaded)
                 ]
             )
             custom_index_url, extra_index_urls = self.indices(prefix)
@@ -102,7 +120,17 @@ class Pip(object):
                 else:
                     cmd.append(f"{package}=={version}")
             try:
-                self._call(prefix, cmd)
+                env = {}
+                if conda_platform() != platform:
+                    # cross-platform resolving requires patching the machine and system info for pip to pick up all the relevant packages.
+                    marker_overrides = markers_from_platform(platform)
+                    env = {
+                        "PIP_CUSTOMIZE_OVERRIDES": json.dumps(marker_overrides),
+                        "PYTHONPATH": os.path.join(
+                            os.path.dirname(__file__), "pip_patcher"
+                        ),
+                    }
+                self._call(prefix, cmd, env)
             except PipPackageNotFound as ex:
                 # pretty print package errors
                 raise PipException(
@@ -140,6 +168,14 @@ class Pip(object):
 
     def download(self, id_, packages, python, platform):
         prefix = self.micromamba.path_to_environment(id_)
+
+        freethreaded = python.endswith("t")
+        resolved_python = self._get_resolved_python_version(prefix)
+        if not resolved_python:
+            raise PipException(
+                "Could not determine Python version from conda environment"
+            )
+
         metadata_file = METADATA_FILE.format(prefix=prefix)
         # download packages only if they haven't ever been downloaded before
         if os.path.isfile(metadata_file):
@@ -152,6 +188,7 @@ class Pip(object):
         custom_index_url, extra_index_urls = self.indices(prefix)
 
         # build wheels if needed
+        debug.conda_exec("Building wheels for PyPI environment %s if necessary" % id_)
         with ThreadPoolExecutor() as executor:
 
             def _build(key, package):
@@ -189,7 +226,11 @@ class Pip(object):
                     if os.path.isfile(os.path.join(path, f)) and f.endswith(".whl")
                 ]
                 if (
-                    len(set(pip_tags(python, platform)).intersection(wheel_tags(wheel)))
+                    len(
+                        set(
+                            pip_tags(resolved_python, platform, freethreaded)
+                        ).intersection(wheel_tags(wheel))
+                    )
                     == 0
                 ):
                     raise PipException(
@@ -208,10 +249,11 @@ class Pip(object):
         implementations, platforms, abis = zip(
             *[
                 (tag.interpreter, tag.platform, tag.abi)
-                for tag in pip_tags(python, platform)
+                for tag in pip_tags(resolved_python, platform, freethreaded)
             ]
         )
 
+        debug.conda_exec("Downloading packages for PyPI environment %s" % id_)
         cmd = [
             "download",
             "--no-deps",
@@ -251,6 +293,7 @@ class Pip(object):
         # Pip can't install packages if the underlying virtual environment doesn't
         # share the same platform
         if self.micromamba.platform() == platform:
+            debug.conda_exec("Installing packages for local PyPI environment %s" % id_)
             cmd = [
                 "install",
                 "--no-compile",
@@ -281,7 +324,9 @@ class Pip(object):
                 key, value = line.split("=", 1)
                 _, key = key.split(".")
                 if key in ("index-url", "extra-index-url"):
-                    values = map(lambda x: x.strip("'\""), re.split("\s+", value, re.M))
+                    values = map(
+                        lambda x: x.strip("'\""), re.split(r"\\n|\s+", value, re.M)
+                    )
                     (indices if key == "index-url" else extra_indices).extend(values)
         except Exception:
             pass

@@ -162,6 +162,7 @@ class BatchJob(object):
         ephemeral_storage,
         log_driver,
         log_options,
+        privileged,
     ):
         # identify platform from any compute environment associated with the
         # queue
@@ -198,6 +199,9 @@ class BatchJob(object):
             # ECS tasks.
             "propagateTags": True,
         }
+
+        if privileged:
+            job_definition["containerProperties"]["privileged"] = privileged
 
         log_options_dict = {}
         if log_options:
@@ -480,6 +484,7 @@ class BatchJob(object):
         ephemeral_storage,
         log_driver,
         log_options,
+        privileged,
     ):
         self.payload["jobDefinition"] = self._register_job_definition(
             image,
@@ -502,6 +507,7 @@ class BatchJob(object):
             ephemeral_storage,
             log_driver,
             log_options,
+            privileged,
         )
         return self
 

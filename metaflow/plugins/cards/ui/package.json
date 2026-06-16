@@ -21,26 +21,27 @@
     "@types/node": "^20.10.4",
     "@typescript-eslint/eslint-plugin": "^6.14.0",
     "@typescript-eslint/parser": "^6.14.0",
-    "cypress": "^13.6.1",
+    "cypress": "^15.15.0",
     "cypress-svelte-unit-test": "^3.3.4",
     "eslint": "^8.55.0",
     "eslint-plugin-prettier": "^5.0.1",
     "eslint-plugin-svelte": "^2.35.1",
-    "postcss": "^8.4.32",
+    "postcss": "^8.5.12",
     "prettier": "^3.1.1",
     "svelte": "^4.2.19",
     "svelte-check": "^3.6.2",
     "svelte-preprocess": "^5.1.2",
     "tslib": "^2.6.2",
     "typescript": "^5.3.3",
-    "vite": "^5.4.6"
+    "vite": "^5.4.21"
   },
   "license": "UNLICENSED",
   "dependencies": {
     "@iconify/svelte": "^3.1.4",
     "svelte-markdown": "^0.4.0",
     "svelte-vega": "^2.1.0",
-    "vega": "^5.26.1",
-    "vega-lite": "^5.16.3"
+    "vega": "^6.2.0",
+    "vega-embed": "^7.1.0",
+    "vega-lite": "^6.4.1"
   }
 }

@@ -1,6 +1,7 @@
 import sys
 
 from metaflow.extension_support.plugins import (
+    get_trampoline_cli_names,
     merge_lists,
     process_plugins,
     resolve_plugins,
@@ -9,14 +10,22 @@ from metaflow.extension_support.plugins import (
 # Add new CLI commands here
 CLIS_DESC = [
     ("package", ".package_cli.cli"),
-    ("batch", ".aws.batch.batch_cli.cli"),
-    ("kubernetes", ".kubernetes.kubernetes_cli.cli"),
     ("step-functions", ".aws.step_functions.step_functions_cli.cli"),
     ("airflow", ".airflow.airflow_cli.cli"),
     ("argo-workflows", ".argo.argo_workflows_cli.cli"),
     ("card", ".cards.card_cli.cli"),
     ("tag", ".tag_cli.cli"),
+    ("spot-metadata", ".kubernetes.spot_metadata_cli.cli"),
     ("logs", ".logs_cli.cli"),
+]
+
+# Add trampoline CLI commands here — these are compute-backend CLI groups
+# whose "step" subcommand delegates to a remote system rather than executing
+# user code directly. They are merged into the regular CLI pipeline but also
+# tracked separately so system_context can detect the TRAMPOLINE phase.
+TRAMPOLINE_CLIS_DESC = [
+    ("batch", ".aws.batch.batch_cli.cli"),
+    ("kubernetes", ".kubernetes.kubernetes_cli.cli"),
 ]
 
 # Add additional commands to the runner here
@@ -68,23 +77,27 @@ FLOW_DECORATORS_DESC = [
     ("trigger_on_finish", ".events_decorator.TriggerOnFinishDecorator"),
     ("pypi_base", ".pypi.pypi_decorator.PyPIFlowDecorator"),
     ("conda_base", ".pypi.conda_decorator.CondaFlowDecorator"),
+    ("exit_hook", ".exit_hook.exit_hook_decorator.ExitHookDecorator"),
 ]
 
 # Add environments here
 ENVIRONMENTS_DESC = [
     ("conda", ".pypi.conda_environment.CondaEnvironment"),
     ("pypi", ".pypi.pypi_environment.PyPIEnvironment"),
+    ("uv", ".uv.uv_environment.UVEnvironment"),
 ]
 
 # Add metadata providers here
 METADATA_PROVIDERS_DESC = [
     ("service", ".metadata_providers.service.ServiceMetadataProvider"),
     ("local", ".metadata_providers.local.LocalMetadataProvider"),
+    ("spin", ".metadata_providers.spin.SpinMetadataProvider"),
 ]
 
 # Add datastore here
 DATASTORES_DESC = [
     ("local", ".datastores.local_storage.LocalStorage"),
+    ("spin", ".datastores.spin_storage.SpinStorage"),
     ("s3", ".datastores.s3_storage.S3Storage"),
     ("azure", ".datastores.azure_storage.AzureStorage"),
     ("gs", ".datastores.gs_storage.GSStorage"),
@@ -103,6 +116,10 @@ SIDECARS_DESC = [
     (
         "save_logs_periodically",
         "..mflog.save_logs_periodically.SaveLogsPeriodicallySidecar",
+    ),
+    (
+        "spot_termination_monitor",
+        ".kubernetes.spot_monitor_sidecar.SpotTerminationMonitorSidecar",
     ),
     ("heartbeat", "metaflow.metadata_provider.heartbeat.MetadataHeartBeat"),
 ]
@@ -162,6 +179,20 @@ DEPLOYER_IMPL_PROVIDERS_DESC = [
     ),
 ]
 
+TL_PLUGINS_DESC = [
+    ("yaml_parser", ".parsers.yaml_parser"),
+    ("requirements_txt_parser", ".pypi.parsers.requirements_txt_parser"),
+    ("namespaced_event_name", ".namespaced_events.namespaced_event_name"),
+    ("pyproject_toml_parser", ".pypi.parsers.pyproject_toml_parser"),
+    ("conda_environment_yml_parser", ".pypi.parsers.conda_environment_yml_parser"),
+]
+
+# Add artifact serializers here. Ordering is by PRIORITY (lower = tried first).
+# PickleSerializer is the universal fallback (PRIORITY=9999).
+ARTIFACT_SERIALIZERS_DESC = [
+    ("pickle", ".datastores.serializers.pickle_serializer.PickleSerializer"),
+]
+
 process_plugins(globals())
 
 
@@ -202,6 +233,8 @@ GCP_CLIENT_PROVIDERS = resolve_plugins("gcp_client_provider")
 if sys.version_info >= (3, 7):
     DEPLOYER_IMPL_PROVIDERS = resolve_plugins("deployer_impl_provider")
 
+TL_PLUGINS = resolve_plugins("tl_plugin")
+
 from .cards.card_modules import MF_EXTERNAL_CARDS
 
 # Cards; due to the way cards were designed, it is harder to make them fit
@@ -226,6 +259,7 @@ from .cards.card_modules.test_cards import (
     TestTimeoutCard,
     TestRefreshCard,
     TestRefreshComponentCard,
+    TestImageCard,
 )
 
 CARDS = [
@@ -244,5 +278,21 @@ CARDS = [
     DefaultCardJSON,
     TestRefreshCard,
     TestRefreshComponentCard,
+    TestImageCard,
 ]
 merge_lists(CARDS, MF_EXTERNAL_CARDS, "type")
+
+
+def _import_tl_plugins(globals_dict):
+
+    for name, p in TL_PLUGINS.items():
+        globals_dict[name] = p
+
+
+# Drive every ARTIFACT_SERIALIZERS_DESC entry through the serializer state
+# machine — this is what makes serializer classes reachable via
+# ``SerializerStore.get_ordered_serializers()`` at dispatch time.
+from metaflow.datastore.artifacts.serializer import SerializerStore as _SerializerStore
+
+_SerializerStore.bootstrap()
+del _SerializerStore

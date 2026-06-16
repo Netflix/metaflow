@@ -1,9 +1,22 @@
-import collections.abc
+import inspect
 import json
+import collections.abc
+import copy
 import os
 import re
 
-from typing import Any, Callable, Dict, Optional, TYPE_CHECKING, Union
+from typing import (
+    Any,
+    Callable,
+    Dict,
+    Iterable,
+    Iterator,
+    List,
+    Optional,
+    Tuple,
+    TYPE_CHECKING,
+    Union,
+)
 
 
 from ..exception import MetaflowException
@@ -36,25 +49,21 @@ if TYPE_CHECKING:
 
 #     return tracefunc_closure
 
-CONFIG_FILE = os.path.join(
-    os.path.dirname(os.path.abspath(__file__)), "CONFIG_PARAMETERS"
-)
-
 ID_PATTERN = re.compile(r"^[a-zA-Z_][a-zA-Z0-9_]*$")
 
 UNPACK_KEY = "_unpacked_delayed_"
 
 
 def dump_config_values(flow: "FlowSpec"):
-    from ..flowspec import _FlowState  # Prevent circular import
+    from ..flowspec import FlowStateItems  # Prevent circular import
 
-    configs = flow._flow_state.get(_FlowState.CONFIGS)
+    configs = flow._flow_state[FlowStateItems.CONFIGS]
     if configs:
         return {"user_configs": configs}
     return {}
 
 
-class ConfigValue(collections.abc.Mapping):
+class ConfigValue(collections.abc.Mapping, dict):
     """
     ConfigValue is a thin wrapper around an arbitrarily nested dictionary-like
     configuration object. It allows you to access elements of this nested structure
@@ -69,8 +78,67 @@ class ConfigValue(collections.abc.Mapping):
     # Thin wrapper to allow configuration values to be accessed using a "." notation
     # as well as a [] notation.
 
-    def __init__(self, data: Dict[str, Any]):
-        self._data = data
+    # We inherit from dict to allow the isinstanceof check to work easily and also
+    # to provide a simple json dumps functionality.
+
+    def __init__(self, data: Union["ConfigValue", Dict[str, Any]]):
+        self._data = {k: self._construct(v) for k, v in data.items()}
+
+        # Enable json dumps
+        dict.__init__(self, self._data)
+
+    @classmethod
+    def fromkeys(cls, iterable: Iterable, value: Any = None) -> "ConfigValue":
+        """
+        Creates a new ConfigValue object from the given iterable and value.
+
+        Parameters
+        ----------
+        iterable : Iterable
+            Iterable to create the ConfigValue from.
+        value : Any, optional
+            Value to set for each key in the iterable.
+
+        Returns
+        -------
+        ConfigValue
+            A new ConfigValue object.
+        """
+        return cls(dict.fromkeys(iterable, value))
+
+    def to_dict(self) -> Dict[Any, Any]:
+        """
+        Returns a dictionary representation of this configuration object.
+
+        Returns
+        -------
+        Dict[Any, Any]
+            Dictionary equivalent of this configuration object.
+        """
+        return self._to_dict(self._data)
+
+    def copy(self) -> "ConfigValue":
+        return self.__copy__()
+
+    def clear(self) -> None:
+        # Prevent configuration modification
+        raise TypeError("ConfigValue is immutable")
+
+    def update(self, *args, **kwargs) -> None:
+        # Prevent configuration modification
+        raise TypeError("ConfigValue is immutable")
+
+    def setdefault(self, key: Any, default: Any = None) -> Any:
+        # Prevent configuration modification
+        raise TypeError("ConfigValue is immutable")
+
+    def pop(self, key: Any, default: Any = None) -> Any:
+        # Prevent configuration modification
+        raise TypeError("ConfigValue is immutable")
+
+    def popitem(self) -> Tuple[Any, Any]:
+        # Prevent configuration modification
+        raise TypeError("ConfigValue is immutable")
 
     def __getattr__(self, key: str) -> Any:
         """
@@ -115,33 +183,96 @@ class ConfigValue(collections.abc.Mapping):
         Any
             Element of the configuration
         """
-        value = self._data[key]
-        if isinstance(value, dict):
-            value = ConfigValue(value)
-        return value
+        return self._data[key]
 
-    def __len__(self):
+    def __setitem__(self, key: Any, value: Any) -> None:
+        # Prevent configuration modification
+        raise TypeError("ConfigValue is immutable")
+
+    def __delattr__(self, key) -> None:
+        # Prevent configuration modification
+        raise TypeError("ConfigValue is immutable")
+
+    def __delitem__(self, key: Any) -> None:
+        # Prevent configuration modification
+        raise TypeError("ConfigValue is immutable")
+
+    def __len__(self) -> int:
         return len(self._data)
 
-    def __iter__(self):
+    def __iter__(self) -> Iterator:
         return iter(self._data)
 
-    def __repr__(self):
+    def __eq__(self, other: Any) -> bool:
+        if isinstance(other, ConfigValue):
+            return self._data == other._data
+        if isinstance(other, dict):
+            return self._data == other
+        return False
+
+    def __ne__(self, other: Any) -> bool:
+        return not self.__eq__(other)
+
+    def __copy__(self) -> "ConfigValue":
+        cls = self.__class__
+        result = cls.__new__(cls)
+        result.__dict__.update({k: copy.copy(v) for k, v in self.__dict__.items()})
+        return result
+
+    def __repr__(self) -> str:
         return repr(self._data)
 
-    def __str__(self):
-        return json.dumps(self._data)
+    def __str__(self) -> str:
+        return str(self._data)
 
-    def to_dict(self) -> Dict[Any, Any]:
+    def __dir__(self) -> Iterable[str]:
+        return dir(type(self)) + [k for k in self._data.keys() if ID_PATTERN.match(k)]
+
+    def __contains__(self, key: Any) -> bool:
+        try:
+            self[key]
+        except KeyError:
+            return False
+        return True
+
+    def keys(self):
         """
-        Returns a dictionary representation of this configuration object.
+        Returns the keys of this configuration object.
 
         Returns
         -------
-        Dict[Any, Any]
-            Dictionary equivalent of this configuration object.
+        Any
+            Keys of this configuration object.
         """
-        return dict(self._data)
+        return self._data.keys()
+
+    @classmethod
+    def _construct(cls, obj: Any) -> Any:
+        # Internal method to construct a ConfigValue so that all mappings internally
+        # are also converted to ConfigValue
+        if isinstance(obj, ConfigValue):
+            v = obj
+        elif isinstance(obj, collections.abc.Mapping):
+            v = ConfigValue({k: cls._construct(v) for k, v in obj.items()})
+        elif isinstance(obj, (list, tuple, set)):
+            v = type(obj)([cls._construct(x) for x in obj])
+        else:
+            v = obj
+        return v
+
+    @classmethod
+    def _to_dict(cls, obj: Any) -> Any:
+        # Internal method to convert all nested mappings to dicts
+        if isinstance(obj, collections.abc.Mapping):
+            v = {k: cls._to_dict(v) for k, v in obj.items()}
+        elif isinstance(obj, (list, tuple, set)):
+            v = type(obj)([cls._to_dict(x) for x in obj])
+        else:
+            v = obj
+        return v
+
+    def __reduce__(self):
+        return (self.__class__, (self.to_dict(),))
 
 
 class DelayEvaluator(collections.abc.Mapping):
@@ -157,8 +288,9 @@ class DelayEvaluator(collections.abc.Mapping):
         of _unpacked_delayed_*
     """
 
-    def __init__(self, ex: str):
+    def __init__(self, ex: str, saved_globals: Optional[Dict[str, Any]] = None):
         self._config_expr = ex
+        self._globals = saved_globals
         if ID_PATTERN.match(self._config_expr):
             # This is a variable only so allow things like config_expr("config").var
             self._is_var_only = True
@@ -166,17 +298,39 @@ class DelayEvaluator(collections.abc.Mapping):
         else:
             self._is_var_only = False
             self._access = None
+        self._cached_expr = None
+
+    def __copy__(self):
+        c = DelayEvaluator(self._config_expr)
+        c._access = self._access.copy() if self._access is not None else None
+        # Globals are not copied -- always kept as a reference
+        return c
+
+    def __deepcopy__(self, memo):
+        c = DelayEvaluator(self._config_expr)
+        c._access = (
+            copy.deepcopy(self._access, memo) if self._access is not None else None
+        )
+        # Globals are not copied -- always kept as a reference
+        return c
 
     def __iter__(self):
         yield "%s%d" % (UNPACK_KEY, id(self))
 
     def __getitem__(self, key):
-        if key == "%s%d" % (UNPACK_KEY, id(self)):
+        if isinstance(key, str) and key == "%s%d" % (UNPACK_KEY, id(self)):
             return self
         if self._access is None:
             raise KeyError(key)
-        self._access.append(key)
-        return self
+
+        # Make a copy so that we can support something like
+        # foo = delay_evaluator["blah"]
+        # bar = delay_evaluator["baz"]
+        # and don't end up with a access list that contains both "blah" and "baz"
+        c = self.__copy__()
+        c._access.append(key)
+        c._cached_expr = None
+        return c
 
     def __len__(self):
         return 1
@@ -184,11 +338,13 @@ class DelayEvaluator(collections.abc.Mapping):
     def __getattr__(self, name):
         if self._access is None:
             raise AttributeError(name)
-        self._access.append(name)
-        return self
+        c = self.__copy__()
+        c._access.append(name)
+        c._cached_expr = None
+        return c
 
     def __call__(self, ctx=None, deploy_time=False):
-        from ..flowspec import _FlowState  # Prevent circular import
+        from ..flowspec import FlowStateItems  # Prevent circular import
 
         # Two additional arguments are only used by DeployTimeField which will call
         # this function with those two additional arguments. They are ignored.
@@ -196,32 +352,44 @@ class DelayEvaluator(collections.abc.Mapping):
         if flow_cls is None:
             # We are not executing inside a flow (ie: not the CLI)
             raise MetaflowException(
-                "Config object can only be used directly in the FlowSpec defining them. "
-                "If using outside of the FlowSpec, please use ConfigEval"
+                "Config object can only be used directly in the FlowSpec defining them "
+                "(or their flow decorators)."
             )
-        if self._access is not None:
+        if self._cached_expr is not None:
+            to_eval_expr = self._cached_expr
+        elif self._access is not None:
             # Build the final expression by adding all the fields in access as . fields
-            self._config_expr = ".".join([self._config_expr] + self._access)
+            access_list = [self._config_expr]
+            for a in self._access:
+                if isinstance(a, str):
+                    access_list.append(a)
+                elif isinstance(a, DelayEvaluator):
+                    # Supports things like config[other_config.selector].var
+                    access_list.append(a())
+                else:
+                    raise MetaflowException(
+                        "Field '%s' of type '%s' is not supported" % (str(a), type(a))
+                    )
+            to_eval_expr = self._cached_expr = ".".join(access_list)
+        else:
+            to_eval_expr = self._cached_expr = self._config_expr
         # Evaluate the expression setting the config values as local variables
         try:
             return eval(
-                self._config_expr,
-                globals(),
+                to_eval_expr,
+                self._globals or globals(),
                 {
-                    k: ConfigValue(v)
-                    for k, v in flow_cls._flow_state.get(_FlowState.CONFIGS, {}).items()
+                    k: v if plain_flag or v is None else ConfigValue(v)
+                    for k, (v, plain_flag) in flow_cls._flow_state[
+                        FlowStateItems.CONFIGS
+                    ].items()
                 },
             )
         except NameError as e:
-            potential_config_name = self._config_expr.split(".")[0]
-            if potential_config_name not in flow_cls._flow_state.get(
-                _FlowState.CONFIGS, {}
-            ):
-                raise MetaflowException(
-                    "Config '%s' not found in the flow (maybe not required and not "
-                    "provided?)" % potential_config_name
-                ) from e
-            raise
+            raise MetaflowException(
+                "Config expression '%s' could not be evaluated: %s"
+                % (to_eval_expr, str(e))
+            ) from e
 
 
 def config_expr(expr: str) -> DelayEvaluator:
@@ -251,7 +419,10 @@ def config_expr(expr: str) -> DelayEvaluator:
     expr : str
         Expression using the config values.
     """
-    return DelayEvaluator(expr)
+    # Get globals where the expression is defined so that the user can use
+    # something like `config_expr("my_func()")` in the expression.
+    parent_globals = inspect.currentframe().f_back.f_globals
+    return DelayEvaluator(expr, saved_globals=parent_globals)
 
 
 class Config(Parameter, collections.abc.Mapping):
@@ -279,17 +450,17 @@ class Config(Parameter, collections.abc.Mapping):
     default : Union[str, Callable[[ParameterContext], str], optional, default None
         Default path from where to read this configuration. A function implies that the
         value will be computed using that function.
-        You can only specify default or default_value.
+        You can only specify default or default_value, not both.
     default_value : Union[str, Dict[str, Any], Callable[[ParameterContext, Union[str, Dict[str, Any]]], Any], optional, default None
         Default value for the parameter. A function
         implies that the value will be computed using that function.
-        You can only specify default or default_value.
+        You can only specify default or default_value, not both.
     help : str, optional, default None
         Help text to show in `run --help`.
     required : bool, optional, default None
-        Require that the user specified a value for the configuration. Note that if
-        a default is provided, the required flag is ignored. A value of None is
-        equivalent to False.
+        Require that the user specifies a value for the configuration. Note that if
+        a default or default_value is provided, the required flag is ignored.
+        A value of None is equivalent to False.
     parser : Union[str, Callable[[str], Dict[Any, Any]]], optional, default None
         If a callable, it is a function that can parse the configuration string
         into an arbitrarily nested dictionary. If a string, the string should refer to
@@ -298,6 +469,13 @@ class Config(Parameter, collections.abc.Mapping):
         If the name starts with a ".", it is assumed to be relative to "metaflow".
     show_default : bool, default True
         If True, show the default value in the help text.
+    plain : bool, default False
+        If True, the configuration value is just returned as is and not converted to
+        a ConfigValue. Use this is you just want to directly access your configuration.
+        Note that modifications are not persisted across steps (ie: ConfigValue prevents
+        modifications and raises and error -- if you have your own object, no error
+        is raised but no modifications are persisted). You can also use this to return
+        any arbitrary object (not just dictionary-like objects).
     """
 
     IS_CONFIG_PARAMETER = True
@@ -316,16 +494,17 @@ class Config(Parameter, collections.abc.Mapping):
         help: Optional[str] = None,
         required: Optional[bool] = None,
         parser: Optional[Union[str, Callable[[str], Dict[Any, Any]]]] = None,
+        plain: bool = False,
         **kwargs: Dict[str, str]
     ):
-
-        if default and default_value:
+        if default is not None and default_value is not None:
             raise MetaflowException(
                 "For config '%s', you can only specify default or default_value, not both"
                 % name
             )
         self._default_is_file = default is not None
-        kwargs["default"] = default or default_value
+        kwargs["default"] = default if default is not None else default_value
+        kwargs["plain"] = plain
         super(Config, self).__init__(
             name, required=required, help=help, type=str, **kwargs
         )
@@ -339,22 +518,20 @@ class Config(Parameter, collections.abc.Mapping):
         self._delayed_evaluator = None
 
     def load_parameter(self, v):
-        if v is None:
-            return None
-        return ConfigValue(v)
+        return v if v is None or self.kwargs["plain"] else ConfigValue(v)
 
     def _store_value(self, v: Any) -> None:
         self._computed_value = v
 
     def _init_delayed_evaluator(self) -> None:
         if self._delayed_evaluator is None:
-            self._delayed_evaluator = DelayEvaluator(self.name.lower())
+            self._delayed_evaluator = DelayEvaluator(self.name)
 
     # Support <config>.<var> syntax
     def __getattr__(self, name):
         # Need to return a new DelayEvaluator everytime because the evaluator will
         # contain the "path" (ie: .name) and can be further accessed.
-        return getattr(DelayEvaluator(self.name.lower()), name)
+        return getattr(DelayEvaluator(self.name), name)
 
     # Next three methods are to implement mapping to support **<config> syntax. We
     # need to be careful, however, to also support a regular `config["key"]` syntax
@@ -369,28 +546,35 @@ class Config(Parameter, collections.abc.Mapping):
 
     def __getitem__(self, key):
         self._init_delayed_evaluator()
-        if key.startswith(UNPACK_KEY):
+        if isinstance(key, str) and key.startswith(UNPACK_KEY):
             return self._delayed_evaluator[key]
-        return DelayEvaluator(self.name.lower())[key]
+        return DelayEvaluator(self.name)[key]
 
 
-def resolve_delayed_evaluator(v: Any, ignore_errors: bool = False) -> Any:
+def resolve_delayed_evaluator(
+    v: Any, ignore_errors: bool = False, to_dict: bool = False
+) -> Any:
     # NOTE: We don't ignore errors in downstream calls because we want to have either
     # all or nothing for the top-level call by the user.
     try:
         if isinstance(v, DelayEvaluator):
-            return v()
+            to_return = v()
+            if to_dict and isinstance(to_return, ConfigValue):
+                to_return = to_return.to_dict()
+            return to_return
         if isinstance(v, dict):
             return {
-                resolve_delayed_evaluator(k): resolve_delayed_evaluator(v)
+                resolve_delayed_evaluator(
+                    k, to_dict=to_dict
+                ): resolve_delayed_evaluator(v, to_dict=to_dict)
                 for k, v in v.items()
             }
         if isinstance(v, list):
-            return [resolve_delayed_evaluator(x) for x in v]
+            return [resolve_delayed_evaluator(x, to_dict=to_dict) for x in v]
         if isinstance(v, tuple):
-            return tuple(resolve_delayed_evaluator(x) for x in v)
+            return tuple(resolve_delayed_evaluator(x, to_dict=to_dict) for x in v)
         if isinstance(v, set):
-            return {resolve_delayed_evaluator(x) for x in v}
+            return {resolve_delayed_evaluator(x, to_dict=to_dict) for x in v}
         return v
     except Exception as e:
         if ignore_errors:
@@ -406,17 +590,20 @@ def resolve_delayed_evaluator(v: Any, ignore_errors: bool = False) -> Any:
 
 def unpack_delayed_evaluator(
     to_unpack: Dict[str, Any], ignore_errors: bool = False
-) -> Dict[str, Any]:
+) -> Tuple[Dict[str, Any], List[str]]:
     result = {}
+    new_keys = []
     for k, v in to_unpack.items():
         if not isinstance(k, str) or not k.startswith(UNPACK_KEY):
             result[k] = v
         else:
             # k.startswith(UNPACK_KEY)
             try:
-                result.update(resolve_delayed_evaluator(v))
+                new_vals = resolve_delayed_evaluator(v, to_dict=True)
+                new_keys.extend(new_vals.keys())
+                result.update(new_vals)
             except Exception as e:
                 if ignore_errors:
                     continue
                 raise e
-    return result
+    return result, new_keys
