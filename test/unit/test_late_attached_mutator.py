@@ -105,6 +105,7 @@ def test_allow_multiple_decorator_not_duplicated_on_mutator_rerun():
     start_step = TestFlow.start
     _init_mutators(start_step)
     _call_init_step_decorators(TestFlow)
+    _call_init_step_decorators(TestFlow)
 
     card_count_before = sum(
         1 for d in start_step.decorators if d.name == "card" and d.inserted_by
