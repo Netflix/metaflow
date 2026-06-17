@@ -3,6 +3,7 @@
 import pytest
 
 from metaflow import FlowSpec, StepMutator, step, card
+from metaflow.plugins.environment_decorator import EnvironmentDecorator
 from metaflow.user_decorators.user_step_decorator import UserStepDecoratorMeta
 from metaflow import decorators
 
@@ -162,3 +163,120 @@ def test_late_attachment_reruns_mutator_only_for_fresh_decorator(
 
     _call_process_late_attached(TestFlow)
     assert calls == expected_calls
+
+
+def test_late_attach_before_init_does_not_duplicate_allow_multiple():
+    """The @conda_base/@pypi_base ordering: those flow decorators call
+    _process_late_attached_decorator from flow_init, which cli.py runs *before*
+    _init_step_decorators. A StepMutator that adds an allow_multiple decorator
+    (e.g. @card) must not be applied by both passes and accumulate a duplicate."""
+
+    class AddCardMutator(StepMutator):
+        def mutate(self, mutable_step):
+            mutable_step.add_decorator(card, deco_kwargs={"id": "test_card"})
+
+    class TestFlow(FlowSpec):
+        @AddCardMutator()
+        @step
+        def start(self):
+            self.next(self.end)
+
+        @step
+        def end(self):
+            pass
+
+    start_step = TestFlow.start
+    _init_mutators(start_step)
+
+    # Late pass first (emulates conda/pypi flow_init), then the normal pass.
+    decorators._attach_decorators_to_step(start_step, [KubernetesDecorator.name])
+    _call_process_late_attached(TestFlow)
+    _call_init_step_decorators(TestFlow)
+
+    card_count = sum(
+        1 for d in start_step.decorators if d.name == "card" and d.inserted_by
+    )
+    assert card_count == 1, (
+        "late-before-init ordering must not duplicate allow_multiple decorators; "
+        "got %d @card(id='test_card') instances" % card_count
+    )
+
+
+def test_distinct_late_attaches_each_rerun_mutator():
+    """PR intent: a genuinely new late-attached decorator must still trigger a
+    mutator re-run so it can react to it. Two distinct late attachments
+    (@environment then @kubernetes) must each re-run the mutator."""
+
+    seen = []
+
+    class SpecRecordingMutator(StepMutator):
+        def mutate(self, mutable_step):
+            seen.append({name for name, _fq, _a, _k in mutable_step.decorator_specs})
+
+    class TestFlow(FlowSpec):
+        @SpecRecordingMutator()
+        @step
+        def start(self):
+            self.next(self.end)
+
+        @step
+        def end(self):
+            pass
+
+    start_step = TestFlow.start
+    _init_mutators(start_step)
+    _call_init_step_decorators(TestFlow)
+
+    decorators._attach_decorators_to_step(start_step, [EnvironmentDecorator.name])
+    decorators._process_late_attached_decorator(
+        [EnvironmentDecorator.name],
+        TestFlow(use_cli=False),
+        TestFlow._graph,
+        environment=None,
+        flow_datastore=_Datastore(),
+        logger=_logger,
+    )
+
+    decorators._attach_decorators_to_step(start_step, [KubernetesDecorator.name])
+    _call_process_late_attached(TestFlow)
+
+    assert any(
+        EnvironmentDecorator.name in s for s in seen
+    ), "mutator must re-run when @environment is late-attached"
+    assert any(
+        KubernetesDecorator.name in s for s in seen
+    ), "mutator must re-run again when @kubernetes is later late-attached"
+
+
+def test_late_rerun_initializes_replacement_output():
+    """When the late pass removes the mutator's previously-inserted (and already
+    initialized) output and re-adds a fresh one, the replacement must be
+    initialized too -- otherwise the surviving decorator silently never receives
+    external_init/step_init."""
+
+    class AddCardMutator(StepMutator):
+        def mutate(self, mutable_step):
+            mutable_step.add_decorator(card, deco_kwargs={"id": "test_card"})
+
+    class TestFlow(FlowSpec):
+        @AddCardMutator()
+        @step
+        def start(self):
+            self.next(self.end)
+
+        @step
+        def end(self):
+            pass
+
+    start_step = TestFlow.start
+    _init_mutators(start_step)
+    _call_init_step_decorators(TestFlow)
+
+    decorators._attach_decorators_to_step(start_step, [KubernetesDecorator.name])
+    _call_process_late_attached(TestFlow)
+
+    cards = [d for d in start_step.decorators if d.name == "card" and d.inserted_by]
+    assert len(cards) == 1
+    assert (
+        cards[0]._ran_init is True
+    ), "the @card surviving the late re-run must be initialized (external_init)"
