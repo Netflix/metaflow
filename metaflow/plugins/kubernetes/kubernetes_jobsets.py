@@ -564,7 +564,7 @@ class JobSetSpec(object):
             self._kwargs["disk"],
         )
 
-        extended_resources = self._kwargs.get("extended_resources", {})
+        extended_resources = self._kwargs.get("extended_resources", {}) or {}
         qos_requests = {**qos_requests, **extended_resources}
         qos_limits = {**qos_limits, **extended_resources}
 

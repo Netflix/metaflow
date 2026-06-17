@@ -128,7 +128,7 @@ class KubernetesDecorator(StepDecorator):
         Only applicable when @parallel is used.
     qos: str, default: Burstable
         Quality of Service class to assign to the pod. Supported values are: Guaranteed, Burstable, BestEffort
-    extended_resources: Dict[str, str], optional, default None
+    extended_resources: Dict[str, str], optional, default {}
         Extended resources to be requested for the pod.
         https://kubernetes.io/docs/tasks/administer-cluster/extended-resource-node/
 
