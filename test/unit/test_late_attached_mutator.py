@@ -85,8 +85,8 @@ def _kube(step_obj):
 def test_allow_multiple_decorator_not_duplicated_on_mutator_rerun():
     """Regression test: a StepMutator that adds an allow_multiple decorator (e.g.
     @card) must not accumulate a duplicate when _process_late_attached_decorator
-    re-runs the mutator because a platform decorator (@kubernetes) was late-attached
-    to the same step."""
+    runs *before* _init_step_decorators (as happens with conda/pypi via flow_init).
+    """
 
     class AddCardMutator(StepMutator):
         def mutate(self, mutable_step):
@@ -104,28 +104,26 @@ def test_allow_multiple_decorator_not_duplicated_on_mutator_rerun():
 
     start_step = TestFlow.start
     _init_mutators(start_step)
-    _call_init_step_decorators(TestFlow)
-    _call_init_step_decorators(TestFlow)
 
-    card_count_before = sum(
-        1 for d in start_step.decorators if d.name == "card" and d.inserted_by
-    )
-    assert (
-        card_count_before == 1
-    ), "expected exactly one mutator-added @card before re-run"
-
-    # Late-attach @kubernetes (fresh — _ran_init=False) so the step enters
-    # late_attached_step_names and the mutator re-run is triggered.
+    # Late-attach @kubernetes *before* _init_step_decorators runs — this is the
+    # real production order for conda/pypi (their flow_init calls
+    # _attach_decorators + _process_late_attached_decorator before
+    # _init_step_decorators is called in cli.py).
     decorators._attach_decorators_to_step(start_step, [KubernetesDecorator.name])
 
+    # First late-attach pass: mutator runs here (adds @card), _late_mutate_called=True.
     _call_process_late_attached(TestFlow)
 
-    card_count_after = sum(
+    # _init_step_decorators runs afterwards (as it does in cli.py after flow_init).
+    # Without the fix it sees _mutate_called=False and runs the mutator again → duplicate.
+    _call_init_step_decorators(TestFlow)
+
+    card_count = sum(
         1 for d in start_step.decorators if d.name == "card" and d.inserted_by
     )
-    assert card_count_after == 1, (
+    assert card_count == 1, (
         "mutator re-run must not duplicate allow_multiple decorators; "
-        "got %d @card(id='test_card') instances" % card_count_after
+        "got %d @card(id='test_card') instances" % card_count
     )
 
 

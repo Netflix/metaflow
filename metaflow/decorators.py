@@ -942,7 +942,11 @@ def _init_step_decorators(
                 # Guard against calling mutate more than once (e.g. if
                 # _init_step_decorators is invoked multiple times), which could
                 # have adverse effects for allow_multiple decorators like @card.
-                if deco._mutate_called:
+                # Also skip if _process_late_attached_decorator already ran the
+                # mutator (_late_mutate_called=True): that happens when a
+                # platform's flow_init late-attaches decorators *before*
+                # _init_step_decorators is called (conda/pypi pattern).
+                if deco._mutate_called or deco._late_mutate_called:
                     continue
 
                 debug.userconf_exec(
