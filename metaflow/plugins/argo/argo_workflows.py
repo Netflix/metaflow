@@ -2625,6 +2625,10 @@ class ArgoWorkflows(object):
                 resources["disk"],
             )
 
+            extended_resources = resources.get("extended_resources", {}) or {}
+
+            qos_requests = {**qos_requests, **extended_resources}
+            qos_limits = {**qos_limits, **extended_resources}
             security_context = resources.get("security_context", None)
             _security_context = {}
             if security_context is not None and len(security_context) > 0:
@@ -2691,6 +2695,7 @@ class ArgoWorkflows(object):
                     shared_memory=shared_memory,
                     port=port,
                     qos=resources["qos"],
+                    extended_resources=extended_resources,
                     security_context=security_context,
                 )
 
