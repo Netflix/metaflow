@@ -939,30 +939,17 @@ def _init_step_decorators(
             inserted_by_value = [deco.decorator_name] + (deco.inserted_by or [])
 
             if isinstance(deco, StepMutator):
-                # Guard against calling mutate more than once (e.g. if
-                # _init_step_decorators is invoked multiple times), which could
-                # have adverse effects for allow_multiple decorators like @card.
-                # Also skip if _process_late_attached_decorator already ran the
-                # mutator (_late_mutate_called=True): that happens when a
-                # platform's flow_init late-attaches decorators *before*
-                # _init_step_decorators is called (conda/pypi pattern).
-                if deco._mutate_called or deco._late_mutate_called:
+                # Skip if mutate() already ran (e.g. a @conda/@pypi late-attach pass
+                # ran it before this normal pass). The late-attach pass re-runs
+                # idempotently when genuinely new decorators appear.
+                if deco._mutate_called:
                     continue
-
-                debug.userconf_exec(
-                    "Evaluating step level decorator %s for %s (mutate)"
-                    % (deco.__class__.__name__, step.name)
+                _run_step_mutator(
+                    cls,
+                    step,
+                    deco,
+                    "Evaluating step level decorator %s for %s (mutate)",
                 )
-                deco.mutate(
-                    MutableStep(
-                        cls,
-                        step,
-                        pre_mutate=False,
-                        statically_defined=deco.statically_defined,
-                        inserted_by=inserted_by_value,
-                    )
-                )
-                deco._mutate_called = True
             else:
                 raise MetaflowInternalError(
                     "A non StepMutator found in step custom decorators"
@@ -1048,55 +1035,28 @@ def _process_late_attached_decorator(
     # This mirrors the StepMutator handling in _init_step_decorators.
     cls = flow.__class__
     mutators_ran = False
+    reinit_decorator_ids = set()
+    reinit_wrapper_ids = set()
     for s in cls._steps:
         if s.name not in late_attached_step_names:
             continue
         for deco in s.config_decorators:
             if isinstance(deco, StepMutator):
-                # Guard against calling the same mutator more than once within
-                # this late-attached pass (e.g. if this function is called
-                # multiple times).  We use a separate flag (_late_mutate_called)
-                # so that a mutator already called by _init_step_decorators
-                # (_mutate_called=True) is still re-run here when @kubernetes
-                # (or similar) is genuinely late-attached.
-                if deco._late_mutate_called:
-                    continue
-                # Before re-running, remove any step decorators that this
-                # mutator inserted during the earlier _init_step_decorators
-                # pass so that the re-run is idempotent. Without this,
-                # allow_multiple decorators (e.g. @card) added by the mutator would duplicate.
-                mutator_name = deco.decorator_name
-                s.decorators = [
-                    d
-                    for d in s.decorators
-                    if not (
-                        getattr(d, "inserted_by", None)
-                        and d.inserted_by[0] == mutator_name
-                    )
-                ]
-                s.wrappers = [
-                    d
-                    for d in s.wrappers
-                    if not (
-                        getattr(d, "inserted_by", None)
-                        and d.inserted_by[0] == mutator_name
-                    )
-                ]
-                inserted_by_value = [deco.decorator_name] + (deco.inserted_by or [])
-                debug.userconf_exec(
-                    "Re-evaluating step level decorator %s for %s (mutate) after "
-                    "late attachment" % (deco.__class__.__name__, s.name)
+                # We do NOT use a one-shot guard here: every genuinely new late
+                # attachment (gated by late_attached_step_names / _ran_init) must be
+                # able to re-run the mutator so it can react to it.
+                already_ran = deco._mutate_called
+                if already_ran:
+                    _remove_step_mutator_outputs(s, deco)
+                inserted = _run_step_mutator(
+                    cls,
+                    s,
+                    deco,
+                    "Re-evaluating step level decorator %s for %s (mutate) after late attachment",
                 )
-                deco.mutate(
-                    MutableStep(
-                        cls,
-                        s,
-                        pre_mutate=False,
-                        statically_defined=deco.statically_defined,
-                        inserted_by=inserted_by_value,
-                    )
-                )
-                deco._late_mutate_called = True
+                if already_ran:
+                    reinit_decorator_ids |= inserted["decorators"]
+                    reinit_wrapper_ids |= inserted["wrappers"]
                 mutators_ran = True
 
     # Rebuild the graph so node.decorators reflects mutator changes (OVERRIDE).
@@ -1104,18 +1064,20 @@ def _process_late_attached_decorator(
         cls._init_graph()
         graph = flow._graph
 
-    # Init late-attached decorators only now, after mutators ran, so a decorator
-    # replaced via OVERRIDE is never external_init'd. external_init is idempotent.
+    # Init late-attached decorators, plus any replacement outputs a re-run mutator
+    # just added (their initialized originals were removed above).
     for s in flow:
         for deco in s.decorators:
-            if deco.name in deco_names:
+            if deco.name in deco_names or id(deco) in reinit_decorator_ids:
+                deco.external_init()
+        for deco in s.wrappers or []:
+            if id(deco) in reinit_wrapper_ids:
                 deco.external_init()
 
     for s in flow:
         system_context.register_step_decorators(s.__name__, list(s.decorators))
-
         for deco in s.decorators:
-            if deco.name in deco_names:
+            if deco.name in deco_names or id(deco) in reinit_decorator_ids:
                 if _should_skip_decorator_for_spin(
                     deco, is_spin, skip_decorators, logger, "Step decorator"
                 ):
@@ -1241,3 +1203,36 @@ def _import_plugin_decorators(globals_dict):
     # add flow-level decorators
     for decotype in FLOW_DECORATORS:
         globals_dict[decotype.name] = partial(_base_flow_decorator, decotype)
+
+
+def _run_step_mutator(cls, step, deco, message):
+    inserted_by_value = [deco.decorator_name] + (deco.inserted_by or [])
+    before_decos = {id(d) for d in step.decorators}
+    before_wraps = {id(d) for d in (step.wrappers or [])}
+    debug.userconf_exec(message % (deco.__class__.__name__, step.name))
+    deco.mutate(
+        MutableStep(
+            cls,
+            step,
+            pre_mutate=False,
+            statically_defined=deco.statically_defined,
+            inserted_by=inserted_by_value,
+        )
+    )
+    deco._mutate_inserted = {
+        "decorators": {id(d) for d in step.decorators if id(d) not in before_decos},
+        "wrappers": {id(d) for d in (step.wrappers or []) if id(d) not in before_wraps},
+    }
+    deco._mutate_called = True
+    return deco._mutate_inserted
+
+
+def _remove_step_mutator_outputs(step, deco):
+    inserted = deco._mutate_inserted
+    if inserted["decorators"]:
+        step.decorators = [
+            d for d in step.decorators if id(d) not in inserted["decorators"]
+        ]
+    if inserted["wrappers"]:
+        step.wrappers = [d for d in step.wrappers if id(d) not in inserted["wrappers"]]
+    deco._mutate_inserted = {"decorators": set(), "wrappers": set()}
