@@ -2625,7 +2625,7 @@ class ArgoWorkflows(object):
                 resources["disk"],
             )
 
-            extended_resources = resources.get("extended_resources", {})
+            extended_resources = resources.get("extended_resources", {}) or {}
 
             qos_requests = {**qos_requests, **extended_resources}
             qos_limits = {**qos_limits, **extended_resources}
