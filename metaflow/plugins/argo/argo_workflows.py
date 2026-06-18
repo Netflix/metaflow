@@ -1,8 +1,10 @@
 import base64
 import json
 import os
+import random
 import re
 import shlex
+import string
 import sys
 from collections import defaultdict
 from hashlib import sha1
@@ -566,10 +568,17 @@ class ArgoWorkflows(object):
         return None
 
     def _process_parameters(self):
+        reserved_argo_params = ["script"]
         parameters = {}
         has_schedule = self.flow._flow_decorators.get("schedule") is not None
         seen = set()
         for var, param in self.flow._get_parameters():
+            # protect the reserved params
+            if param.name.lower() in reserved_argo_params:
+                raise MetaflowException(
+                    "Parameter name *%s* is a reserved word when running on Argo Workflows. Please use a different name for your parameter."
+                    % param.name.lower()
+                )
             # Throw an exception if the parameter is specified twice.
             norm = param.name.lower()
             if norm in seen:
@@ -1201,6 +1210,20 @@ class ArgoWorkflows(object):
             if self._is_conditional_node(self.graph[in_func])
         ]
         return len(cond_in_funcs) > 1 and len(cond_in_funcs) == len(node.in_funcs)
+
+    def _skippable_input_steps_in_dag_order(self, node):
+        graph_order = {
+            node_name: index for index, node_name in enumerate(self.graph.sorted_nodes)
+        }
+        return sorted(
+            [
+                in_func
+                for in_func in node.in_funcs
+                if self.graph[in_func].type == "split-switch"
+            ],
+            key=lambda in_func: graph_order[in_func],
+            reverse=True,
+        )
 
     def _is_recursive_node(self, node):
         return node.name in self.recursive_nodes
@@ -2175,16 +2198,36 @@ class ArgoWorkflows(object):
                         "--run-id %s" % run_id,
                         "--task-id %s" % task_id_params,
                     ]
-                    + [
+                )
+                # Export user-defined parameters into runtime environment
+                # NOTE: We save some characters from the cmd by making the bulk of the exports be written to a file instead.
+                # We can't easily get around having to pass the parameter values through the template though, as the source of these could change depending on Argo implementation.
+                param_file = "".join(
+                    random.choice(string.ascii_lowercase) for _ in range(10)
+                )
+                # Setup Parameters as environment variables which are stored in a dictionary.
+                param_csv = " ".join(
+                    [
                         # Parameter names can be hyphenated, hence we use
                         # {{foo.bar['param_name']}}.
                         # https://argoproj.github.io/argo-events/tutorials/02-parameterization/
                         # http://masterminds.github.io/sprig/strings.html
-                        "--%s=\\\"$(python -m metaflow.plugins.argo.param_val {{=toBase64(workflow.parameters['%s'])}})\\\""
-                        % (parameter["name"], parameter["name"])
+                        "%s,%s,{{=toBase64(workflow.parameters['%s'])}}"
+                        % (
+                            parameter["name"],
+                            "t" if parameter["value"] == "null" else "f",
+                            parameter["name"],
+                        )
                         for parameter in self.parameters.values()
                     ]
                 )
+
+                export_params = (
+                    "python -m "
+                    "metaflow.plugins.argo.set_parameters %s %s"
+                    " && . `pwd`/%s" % (param_file, param_csv, param_file)
+                )
+
                 if self.tags:
                     init.extend("--tag %s" % tag for tag in self.tags)
                 # if the start step gets retried, we must be careful
@@ -2195,10 +2238,15 @@ class ArgoWorkflows(object):
                     "--max-value-size=0",
                     "%s/_parameters/%s" % (run_id, task_id_params),
                 ]
+                # params export needs to happen before bootstrap commands
+                step_cmds.insert(0, export_params)
                 step_cmds.extend(
                     [
                         "if ! %s >/dev/null 2>/dev/null; then %s; fi"
-                        % (" ".join(exists), " ".join(init))
+                        % (
+                            " ".join(exists),
+                            " ".join(init),
+                        )
                     ]
                 )
                 input_paths = "%s/_parameters/%s" % (run_id, task_id_params)
@@ -2214,11 +2262,7 @@ class ArgoWorkflows(object):
                 # we need to pass in the set of conditional in_funcs to the pathspec generating script as in the case of split-switch skipping cases,
                 # non-conditional input-paths need to be ignored in favour of conditional ones when they have executed.
                 skippable_input_steps = ",".join(
-                    [
-                        in_func
-                        for in_func in node.in_funcs
-                        if self.graph[in_func].type == "split-switch"
-                    ]
+                    self._skippable_input_steps_in_dag_order(node)
                 )
                 input_paths = (
                     "$(python -m metaflow.plugins.argo.conditional_input_paths %s %s)"
@@ -2581,6 +2625,10 @@ class ArgoWorkflows(object):
                 resources["disk"],
             )
 
+            extended_resources = resources.get("extended_resources", {}) or {}
+
+            qos_requests = {**qos_requests, **extended_resources}
+            qos_limits = {**qos_limits, **extended_resources}
             security_context = resources.get("security_context", None)
             _security_context = {}
             if security_context is not None and len(security_context) > 0:
@@ -2647,6 +2695,7 @@ class ArgoWorkflows(object):
                     shared_memory=shared_memory,
                     port=port,
                     qos=resources["qos"],
+                    extended_resources=extended_resources,
                     security_context=security_context,
                 )
 

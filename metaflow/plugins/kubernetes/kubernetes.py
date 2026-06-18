@@ -198,6 +198,7 @@ class Kubernetes(object):
         port=None,
         num_parallel=None,
         qos=None,
+        extended_resources=None,
         security_context=None,
     ):
         name = "js-%s" % str(uuid4())[:6]
@@ -233,6 +234,7 @@ class Kubernetes(object):
                 port=port,
                 num_parallel=num_parallel,
                 qos=qos,
+                extended_resources=extended_resources,
                 security_context=security_context,
             )
             .environment_variable("METAFLOW_CODE_METADATA", code_package_metadata)
@@ -500,6 +502,7 @@ class Kubernetes(object):
         name_pattern=None,
         qos=None,
         annotations=None,
+        extended_resources=None,
         security_context=None,
     ):
         if env is None:
@@ -545,6 +548,7 @@ class Kubernetes(object):
                 shared_memory=shared_memory,
                 port=port,
                 qos=qos,
+                extended_resources=extended_resources,
                 security_context=security_context,
             )
             .environment_variable("METAFLOW_CODE_METADATA", code_package_metadata)

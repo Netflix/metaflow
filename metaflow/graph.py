@@ -46,6 +46,25 @@ def deindent_docstring(doc):
         return ""
 
 
+def _ast_literal_value(node):
+    """Extract the literal value from the `.value` of an `ast.keyword`.
+
+    `node` is the value node of a keyword argument (e.g. the node for
+    `"items"` in `foreach="items"`), so unwrapping is two levels:
+        ast.keyword(arg="foreach", value=ast.Constant(value="items"))
+                                          ^node           ^node.value
+
+    ast.Str (and the .s alias on ast.Constant) was deprecated in Python 3.8
+    and removed in 3.14; ast.Constant.value holds the literal value on all
+    supported versions. Returns None for non-literal nodes (e.g. ast.Name).
+    """
+    if hasattr(ast, "Str") and isinstance(node, ast.Str):
+        return node.s
+    if isinstance(node, ast.Constant):
+        return node.value
+    return None
+
+
 # ---------------------------------------------------------------------------
 # Note on "sourceless" DAGNodes (used by FunctionSpec)
 # ---------------------------------------------------------------------------
@@ -233,12 +252,9 @@ class DAGNode(object):
                 # Get condition parameter
                 for keyword in tail.value.keywords:
                     if keyword.arg == "condition":
-                        if hasattr(ast, "Str") and isinstance(keyword.value, ast.Str):
-                            condition_name = keyword.value.s
-                        elif isinstance(keyword.value, ast.Constant) and isinstance(
-                            keyword.value.value, str
-                        ):
-                            condition_name = keyword.value.value
+                        value = _ast_literal_value(keyword.value)
+                        if isinstance(value, str):
+                            condition_name = value
                         break
 
                 if switch_cases and condition_name:
@@ -253,7 +269,7 @@ class DAGNode(object):
                 self.out_funcs = [e.attr for e in tail.value.args]
 
             keywords = dict(
-                (k.arg, getattr(k.value, "s", None)) for k in tail.value.keywords
+                (k.arg, _ast_literal_value(k.value)) for k in tail.value.keywords
             )
             if len(keywords) == 1:
                 if "foreach" in keywords:
