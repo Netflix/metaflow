@@ -137,6 +137,13 @@ class UserStepDecoratorBase(metaclass=UserStepDecoratorMeta):
     _allowed_kwargs = False
 
     def __init__(self, *args, **kwargs):
+        # Whether mutate() has already been applied once (by either
+        # _init_step_decorators or an earlier late-attach pass).
+        self._mutate_called = False
+        # Object ids of the decorators/wrappers this mutator inserted on its last
+        # mutate() run, so a late re-run removes exactly its own previous outputs.
+        self._mutate_inserted = {"decorators": set(), "wrappers": set()}
+
         arg = None
         self._args = args
         self._kwargs = {}
