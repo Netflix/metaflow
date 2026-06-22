@@ -11,6 +11,7 @@ from functools import wraps
 import contextlib
 from typing import Dict, List, Optional
 from opentelemetry import trace as trace_api, context
+from metaflow.metaflow_config import OTEL_SERVICE_NAME
 from .span_exporter import get_span_exporter
 
 tracer_provider: Optional[TracerProvider] = None
@@ -32,7 +33,7 @@ def init_tracing():
     tracer_provider = TracerProvider(
         resource=Resource.create(
             {
-                SERVICE_NAME: "metaflow",
+                SERVICE_NAME: OTEL_SERVICE_NAME,
             }
         )
     )

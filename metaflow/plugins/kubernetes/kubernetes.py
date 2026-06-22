@@ -34,6 +34,7 @@ from metaflow.metaflow_config import (
     KUBERNETES_FETCH_EC2_METADATA,
     KUBERNETES_SANDBOX_INIT_SCRIPT,
     OTEL_ENDPOINT,
+    OTEL_SERVICE_NAME,
     S3_ENDPOINT_URL,
     S3_SERVER_SIDE_ENCRYPTION,
     SERVICE_HEADERS,
@@ -303,6 +304,7 @@ class Kubernetes(object):
                 ARGO_WORKFLOWS_ENV_VARS_TO_SKIP,
             )
             .environment_variable("METAFLOW_OTEL_ENDPOINT", OTEL_ENDPOINT)
+            .environment_variable("METAFLOW_OTEL_SERVICE_NAME", OTEL_SERVICE_NAME)
             # Skip setting METAFLOW_DATASTORE_SYSROOT_LOCAL because metadata sync
             # between the local user instance and the remote Kubernetes pod
             # assumes metadata is stored in DATASTORE_LOCAL_DIR on the Kubernetes
@@ -616,6 +618,7 @@ class Kubernetes(object):
                 ARGO_WORKFLOWS_ENV_VARS_TO_SKIP,
             )
             .environment_variable("METAFLOW_OTEL_ENDPOINT", OTEL_ENDPOINT)
+            .environment_variable("METAFLOW_OTEL_SERVICE_NAME", OTEL_SERVICE_NAME)
             # Skip setting METAFLOW_DATASTORE_SYSROOT_LOCAL because metadata sync
             # between the local user instance and the remote Kubernetes pod
             # assumes metadata is stored in DATASTORE_LOCAL_DIR on the Kubernetes
