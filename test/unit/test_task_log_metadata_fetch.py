@@ -5,16 +5,22 @@ import pytest
 from metaflow.client.core import Task
 
 PATH_COMPONENTS = ("TestFlow", "123", "start", "1")
+
 LOG_METADATA = {
     "ds-type": "local",
     "ds-root": "/tmp/logs",
     "attempt": "2",
 }
+
 SIZE_METADATA = {
     "ds-type": "local",
     "ds-root": "/tmp/logs",
     "attempt": "3",
 }
+
+# ---------------------------------------------------------------------------
+# Fixtures
+# ---------------------------------------------------------------------------
 
 
 @pytest.fixture
@@ -37,7 +43,14 @@ def filecache_cls(mocker):
     return mocker.patch("metaflow.client.core.FileCache")
 
 
-@pytest.mark.parametrize("stream", ["stdout", "stderr"])
+# ---------------------------------------------------------------------------
+# Tests
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    "stream", ["stdout", "stderr"], ids=["stdout_stream", "stderr_stream"]
+)
 def test_loglines_uses_supplied_metadata_without_refetching(
     minimal_task, metadata_dict_mock, filecache_cls, mocker, stream
 ):
@@ -53,7 +66,9 @@ def test_loglines_uses_supplied_metadata_without_refetching(
     merge_logs.assert_called_once_with([])
 
 
-@pytest.mark.parametrize("stream", ["stdout", "stderr"])
+@pytest.mark.parametrize(
+    "stream", ["stdout", "stderr"], ids=["stdout_stream", "stderr_stream"]
+)
 def test_log_size_uses_supplied_metadata_without_refetching(
     minimal_task, metadata_dict_mock, filecache_cls, stream
 ):
@@ -68,11 +83,16 @@ def test_log_size_uses_supplied_metadata_without_refetching(
 
 
 @pytest.mark.parametrize(
-    ("explicit_attempt", "meta_dict", "expected"),
+    "explicit_attempt, meta_dict, expected",
     [
         (5, {"attempt": "0"}, 5),
         (None, {"attempt": "2"}, 2),
         (None, {}, 0),
+    ],
+    ids=[
+        "explicit_overrides_metadata",
+        "metadata_overrides_default",
+        "defaults_to_zero",
     ],
 )
 def test_resolve_log_attempt_prefers_explicit_attempt_then_metadata(

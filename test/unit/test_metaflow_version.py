@@ -31,6 +31,19 @@ from metaflow.metaflow_version import format_git_describe, make_public_version
             "v9.2.97-rc.15.post100-git3a13f86-dirty",
         ),
     ],
+    ids=[
+        "plain_tag_clean_private",
+        "plain_tag_clean_public",
+        "plain_tag_ahead_private",
+        "plain_tag_ahead_public",
+        "plain_tag_ahead_dirty_private",
+        "plain_tag_clean_dirty_private",
+        "dashed_tag_clean_private",
+        "dashed_tag_ahead_private",
+        "dashed_tag_ahead_public",
+        "dashed_tag_ahead_dirty_private",
+        "multi_dashed_tag_ahead_dirty_private",
+    ],
 )
 def test_format_git_describe_parses_known_shapes(git_str, public, expected):
     assert format_git_describe(git_str, public=public) == expected
@@ -47,6 +60,12 @@ def test_format_git_describe_parses_known_shapes(git_str, public, expected):
         # Three tokens with trailing "dirty" — not a real describe output
         # but guarded symmetrically with the clean branch.
         "a-b-dirty",
+    ],
+    ids=[
+        "none",
+        "single_token",
+        "two_tokens",
+        "two_tokens_dirty",
     ],
 )
 def test_format_git_describe_returns_none_for_unparseable(git_str):
@@ -68,6 +87,15 @@ def test_format_git_describe_returns_none_for_unparseable(git_str):
         ("v1.0-rc.1.post12-gitabcdef0-dirty", "v1.0-rc.1.post12"),
         # PEP 440 local-version (+…) identifier is stripped alongside.
         ("v1.0-rc.1.post12-gitabcdef0+ext(foo)", "v1.0-rc.1.post12"),
+    ],
+    ids=[
+        "plain_tag_only",
+        "plain_tag_git_suffix",
+        "plain_tag_git_dirty",
+        "dashed_tag_only",
+        "dashed_tag_git_suffix",
+        "dashed_tag_git_dirty",
+        "pep440_local_version_stripped",
     ],
 )
 def test_make_public_version_strips_only_private_suffixes(version_string, expected):
