@@ -17,7 +17,7 @@ class ProjectDecorator(FlowDecorator):
     Specifies what flows belong to the same project.
 
     A project-specific namespace is created for all flows that
-    use the same `@project(name)`.
+    use the same `@project(name='my_project')`.
 
     Parameters
     ----------
