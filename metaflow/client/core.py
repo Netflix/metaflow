@@ -2,6 +2,7 @@ from __future__ import print_function
 
 import json
 import os
+import re
 import tarfile
 from collections import namedtuple
 from datetime import datetime
@@ -59,6 +60,13 @@ filecache = None
 current_namespace = False
 
 current_metadata = False
+
+# Run IDs can be plain integers (local runs) or prefixed strings for orchestrators:
+#   "argo-<workflow-name>" for Argo Workflows
+#   "sfn-<execution-name>" for AWS Step Functions
+# Task IDs follow the same pattern — numeric by default but may be prefixed by
+# orchestrators that pass their own identifiers.
+_RUN_ID_PATTERN = re.compile(r'^[a-zA-Z0-9][a-zA-Z0-9\-_]*$')
 
 
 def metadata(ms: str) -> str:
@@ -334,6 +342,24 @@ class MetaflowObject(object):
             elif self._NAME == "artifact" and len(ids) != 5:
                 raise MetaflowInvalidPathspec(
                     "Expects DataArtifact('FlowName/RunID/StepName/TaskID/ArtifactName')"
+                )
+
+            # Validate run ID and task ID format.
+            # Run IDs are numeric for local runs but orchestrators (Argo Workflows,
+            # AWS Step Functions) produce prefixed string IDs like "argo-*" and "sfn-*".
+            # The same applies to task IDs.
+            if len(ids) >= 2 and not _RUN_ID_PATTERN.match(ids[1]):
+                raise MetaflowInvalidPathspec(
+                    "Invalid run ID '%s' in pathspec '%s'. "
+                    "Run IDs must be alphanumeric and may contain hyphens or "
+                    "underscores (e.g. '123', 'argo-myflow-abc12', 'sfn-exec')."
+                    % (ids[1], pathspec)
+                )
+            if len(ids) >= 4 and not _RUN_ID_PATTERN.match(ids[3]):
+                raise MetaflowInvalidPathspec(
+                    "Invalid task ID '%s' in pathspec '%s'. "
+                    "Task IDs must be alphanumeric and may contain hyphens or underscores."
+                    % (ids[3], pathspec)
                 )
 
             self.id = ids[-1]
