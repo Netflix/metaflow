@@ -71,7 +71,7 @@ setup(
         metaflow=metaflow.cmd.main_cli:start
         metaflow-dev=metaflow.cmd.make_wrapper:main
       """,
-    install_requires=["requests", "boto3"],
+    install_requires=["requests", "boto3", "lz4"],
     extras_require={
         "stubs": ["metaflow-stubs==%s" % version],
         "dev": read_dev_requirements(),
