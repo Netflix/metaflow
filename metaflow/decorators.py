@@ -1,3 +1,4 @@
+import base64
 import importlib
 import json
 import re
@@ -15,6 +16,7 @@ from .exception import (
 from .debug import debug
 from .dynamic_var import (
     DynamicVar,
+    _NO_DEFAULT,
     _contains_dynamic_var,
     has_dynamic_vars,
     resolve_dynamic_vars_from_store,
@@ -35,6 +37,9 @@ from .user_decorators.user_step_decorator import (
 )
 from .metaflow_config import SPIN_ALLOWED_DECORATORS
 from metaflow._vendor import click
+
+_DYNAMIC_VAR_PREFIX = "__dynvar__:"
+_DYNAMIC_VAR_JSON_PREFIX = "json:"
 
 
 class BadStepDecoratorException(MetaflowException):
@@ -202,8 +207,10 @@ class Decorator(object):
         for a in re.split(r""",(?=[\s\w]+=)""", deco_spec):
             name, val = a.split("=", 1)
             val_stripped = val.strip()
-            if val_stripped.startswith("__dynvar__:"):
-                val_parsed = DynamicVar(val_stripped[len("__dynvar__:") :])
+            if val_stripped.startswith(_DYNAMIC_VAR_PREFIX):
+                val_parsed = Decorator._decode_dynamic_var_sentinel(
+                    val_stripped[len(_DYNAMIC_VAR_PREFIX) :]
+                )
             else:
                 try:
                     val_parsed = json.loads(val_stripped.replace('\\"', '"'))
@@ -234,13 +241,46 @@ class Decorator(object):
         return cls(attributes=kwargs)
 
     @staticmethod
+    def _encode_dynamic_var_sentinel(value):
+        payload = {
+            "var_name": value.var_name,
+            "pertask": value.pertask,
+            "has_default": value.default is not _NO_DEFAULT,
+        }
+        if value.default is not _NO_DEFAULT:
+            payload["default"] = value.default
+        encoded = base64.urlsafe_b64encode(
+            json.dumps(payload, separators=(",", ":"), sort_keys=True).encode("utf-8")
+        ).decode("ascii")
+        return "%s%s%s" % (_DYNAMIC_VAR_PREFIX, _DYNAMIC_VAR_JSON_PREFIX, encoded)
+
+    @staticmethod
+    def _decode_dynamic_var_sentinel(payload):
+        if payload.startswith(_DYNAMIC_VAR_JSON_PREFIX):
+            data = json.loads(
+                base64.urlsafe_b64decode(
+                    payload[len(_DYNAMIC_VAR_JSON_PREFIX) :].encode("ascii")
+                ).decode("utf-8")
+            )
+            if data.get("has_default"):
+                return DynamicVar(
+                    data["var_name"],
+                    pertask=bool(data.get("pertask", False)),
+                    default=data.get("default"),
+                )
+            return DynamicVar(
+                data["var_name"], pertask=bool(data.get("pertask", False))
+            )
+        return DynamicVar(payload)
+
+    @staticmethod
     def _encode_dynamic_vars(val):
         """Recursively encode DynamicVar as short string sentinel for JSON serialization."""
 
         # DynamicVar as value or key
         def encode_dyn(v):
             if isinstance(v, DynamicVar):
-                return "__dynvar__:%s" % v.var_name
+                return Decorator._encode_dynamic_var_sentinel(v)
             return v
 
         if isinstance(val, dict):
@@ -266,8 +306,10 @@ class Decorator(object):
         """Recursively decode __dynvar__ string sentinels back to DynamicVar,"""
 
         def try_decode(v):
-            if isinstance(v, str) and v.startswith("__dynvar__:"):
-                return DynamicVar(v[len("__dynvar__:") :])
+            if isinstance(v, str) and v.startswith(_DYNAMIC_VAR_PREFIX):
+                return Decorator._decode_dynamic_var_sentinel(
+                    v[len(_DYNAMIC_VAR_PREFIX) :]
+                )
             return v
 
         if isinstance(val, dict):
@@ -298,7 +340,9 @@ class Decorator(object):
             # we dump using JSON.
             for k, v in attrs.items():
                 if isinstance(v, DynamicVar):
-                    attr_list.append("%s=__dynvar__:%s" % (k, v.var_name))
+                    attr_list.append(
+                        "%s=%s" % (k, self._encode_dynamic_var_sentinel(v))
+                    )
                 elif isinstance(v, (int, float, str)):
                     attr_list.append("%s=%s" % (k, str(v)))
                 else:
