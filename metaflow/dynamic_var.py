@@ -216,8 +216,13 @@ def _resolve_val(val, source, split_index=None):
         if isinstance(collection, list):
             return collection[split_index]
         elif isinstance(collection, dict):
+            if split_index in collection:
+                return collection[split_index]
+            str_split_index = str(split_index)
+            if str_split_index in collection:
+                return collection[str_split_index]
             if val.default is not _NO_DEFAULT:
-                return collection.get(split_index, val.default)
+                return val.default
             return collection[split_index]
         else:
             from .exception import MetaflowException

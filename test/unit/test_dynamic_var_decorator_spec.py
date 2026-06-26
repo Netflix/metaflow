@@ -1,6 +1,6 @@
 from metaflow import var
 from metaflow.decorators import Decorator
-from metaflow.dynamic_var import _NO_DEFAULT
+from metaflow.dynamic_var import _NO_DEFAULT, resolve_dynamic_vars
 from metaflow.plugins.catch_decorator import CatchDecorator
 from metaflow.plugins.environment_decorator import EnvironmentDecorator
 
@@ -60,3 +60,16 @@ def test_nested_dynamic_var_spec_preserves_pertask_and_default():
     _assert_dynamic_var_spec(
         attrs["vars"]["DYNAMIC_ENV_VALUE"], "env_values", "fallback"
     )
+
+
+def test_pertask_dict_resolution_accepts_json_stringified_indexes():
+    assert resolve_dynamic_vars(
+        {"var": var("catch_names", pertask=True, default="caught_default")},
+        {"catch_names": {"0": "caught_zero"}},
+        split_index=0,
+    ) == {"var": "caught_zero"}
+    assert resolve_dynamic_vars(
+        {"var": var("catch_names", pertask=True, default="caught_default")},
+        {"catch_names": {"0": "caught_zero"}},
+        split_index=1,
+    ) == {"var": "caught_default"}
