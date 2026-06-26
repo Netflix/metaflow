@@ -16,6 +16,7 @@ from .debug import debug
 from .dynamic_var import (
     DynamicVar,
     _contains_dynamic_var,
+    has_dynamic_vars,
     resolve_dynamic_vars_from_store,
 )
 from .parameters import current_flow
@@ -1082,6 +1083,8 @@ def _init_step_decorators(
         # guard in external_init handles dual-inherit decorators that already
         # had external_init called via config_decorators in _process_config_decorators.
         for deco in step.wrappers or []:
+            if has_dynamic_vars(deco._args) or has_dynamic_vars(deco._kwargs):
+                continue
             deco.external_init(flow)
 
     for step in flow:
