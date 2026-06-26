@@ -299,6 +299,9 @@ class BatchDecorator(StepDecorator):
         self.metadata = metadata
         self.task_datastore = task_datastore
 
+        # Set compute environment info
+        current._update_env({"compute": "batch"})
+
         # current.tempdir reflects the value of METAFLOW_TEMPDIR (the current working
         # directory by default), or the value of tmpfs_path if tmpfs_tempdir=False.
         if not self.attributes["tmpfs_tempdir"]:
