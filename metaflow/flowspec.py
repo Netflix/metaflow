@@ -449,30 +449,13 @@ class FlowSpec(metaclass=FlowSpecMeta):
         # currently documented but follows the usual principle of finishing a callback
         # phase before starting the next one.
         for step in cls._steps:
-            for deco in step.decorators:
+            for deco in step.config_decorators:
                 if isinstance(deco, StepMutator):
                     deco.external_init()
                 else:
                     raise MetaflowInternalError(
                         "A non StepMutator found in step custom decorators"
                     )
-        for step in cls._steps:
-            for deco in step.config_decorators:
-                inserted_by_value = [deco.decorator_name] + (deco.inserted_by or [])
-                debug.userconf_exec(
-                    "Evaluating step level decorator %s for %s (pre-mutate)"
-                    % (deco.__class__.__name__, step.name)
-                )
-                deco.pre_mutate(
-                    MutableStep(
-                        cls,
-                        step,
-                        pre_mutate=True,
-                        statically_defined=deco.statically_defined,
-                        inserted_by=inserted_by_value,
-                    )
-                )
-
         for step in cls._steps:
             for deco in step.config_decorators:
                 inserted_by_value = [deco.decorator_name] + (deco.inserted_by or [])
