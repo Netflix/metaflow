@@ -9,74 +9,18 @@ These tests catch DAG generation bugs in seconds without deploying.
 """
 
 import ast
-import json
+import os
 import subprocess
 import sys
-import tempfile
-import os
+
 import pytest
 
 pytestmark = [pytest.mark.airflow_compilation]
 
 
-def _get_compile_env():
-    """Get environment variables for compilation-only tests."""
-    env = os.environ.copy()
-    env["METAFLOW_DEFAULT_METADATA"] = "local"
-    return env
-
-
-def _compile_flow_to_dag(flow_path, **extra_tl_args):
-    """Compile a flow to an Airflow DAG Python file."""
-    from .test_utils import _resolve_flow_path
-
-    full_path = _resolve_flow_path(flow_path)
-
-    with tempfile.NamedTemporaryFile(suffix=".py", delete=False, mode="w") as f:
-        dag_file_path = f.name
-
-    cmd = [sys.executable, full_path, "--no-pylint"]
-    for k, v in extra_tl_args.items():
-        if v is not None:
-            cmd.extend([f"--{k.replace('_', '-')}", str(v)])
-    cmd.extend(["airflow", "create", dag_file_path])
-
-    try:
-        result = subprocess.run(
-            cmd,
-            capture_output=True,
-            text=True,
-            timeout=30,
-            env=_get_compile_env(),
-        )
-        if result.returncode != 0:
-            # Clean up on failure
-            try:
-                os.unlink(dag_file_path)
-            except OSError:
-                pass
-            stderr = result.stderr or ""
-            stdout = result.stdout or ""
-            if "No such command" in stderr or "No such command" in stdout:
-                pytest.skip(
-                    "airflow CLI not available (extension may override plugins)"
-                )
-            if "ConnectionRefusedError" in stderr or "ConnectionError" in stderr:
-                pytest.skip("Airflow backend not configured (connection refused)")
-            if "is not supported" in stderr:
-                pytest.skip(f"Feature not supported by Airflow: {stderr.strip()}")
-            pytest.fail(f"Compilation failed:\nstderr: {stderr}\nstdout: {stdout}")
-
-        with open(dag_file_path, "r") as f:
-            dag_source = f.read()
-
-        return dag_source, dag_file_path
-    except Exception:
-        try:
-            os.unlink(dag_file_path)
-        except OSError:
-            pass
-        raise
+# ---------------------------------------------------------------------------
+# Core Validation Logic
+# ---------------------------------------------------------------------------
 
 
 def _validate_dag_source(dag_source, dag_file_path=None):
@@ -132,59 +76,83 @@ def _validate_dag_source(dag_source, dag_file_path=None):
 
 
 # ---------------------------------------------------------------------------
-# Tests
+# Fixtures
 # ---------------------------------------------------------------------------
 
 
 @pytest.fixture
-def compile_and_validate():
-    """Compile a flow to an Airflow DAG, validate it, and clean up the tempfile."""
+def compile_and_validate(tmp_path, monkeypatch):
+    """
+    Factory fixture to compile a flow to an Airflow DAG and validate it.
+    Automatically handles environment variables and temporary file cleanup.
+    """
+    # Ensure compilation-only environment variables are set safely
+    monkeypatch.setenv("METAFLOW_DEFAULT_METADATA", "local")
 
     def _impl(flow_path, **extra_tl_args):
-        dag_source, dag_file_path = _compile_flow_to_dag(flow_path, **extra_tl_args)
-        try:
-            result = _validate_dag_source(dag_source, dag_file_path)
-            assert (
-                result["result"] == "OK"
-            ), f"Validation failed: {result.get('diagnostics')}"
-            return dag_source
-        finally:
-            try:
-                os.unlink(dag_file_path)
-            except OSError:
-                pass
+        from .test_utils import _resolve_flow_path
+
+        full_path = _resolve_flow_path(flow_path)
+        dag_file_path = tmp_path / "compiled_dag.py"
+
+        cmd = [sys.executable, full_path, "--no-pylint"]
+        for k, v in extra_tl_args.items():
+            if v is not None:
+                cmd.extend([f"--{k.replace('_', '-')}", str(v)])
+        cmd.extend(["airflow", "create", str(dag_file_path)])
+
+        result = subprocess.run(
+            cmd,
+            capture_output=True,
+            text=True,
+            timeout=30,
+        )
+
+        if result.returncode != 0:
+            stderr = result.stderr or ""
+            stdout = result.stdout or ""
+            if "No such command" in stderr or "No such command" in stdout:
+                pytest.skip(
+                    "airflow CLI not available (extension may override plugins)"
+                )
+            if "ConnectionRefusedError" in stderr or "ConnectionError" in stderr:
+                pytest.skip("Airflow backend not configured (connection refused)")
+            if "is not supported" in stderr:
+                pytest.skip(f"Feature not supported by Airflow: {stderr.strip()}")
+            pytest.fail(f"Compilation failed:\nstderr: {stderr}\nstdout: {stdout}")
+
+        # Read the generated DAG and validate it
+        dag_source = dag_file_path.read_text()
+        validation = _validate_dag_source(dag_source, str(dag_file_path))
+
+        assert (
+            validation["result"] == "OK"
+        ), f"Validation failed: {validation.get('diagnostics')}"
+        return dag_source
 
     return _impl
 
 
-def test_linear_flow(compile_and_validate):
-    """Simple start->step->end flow compiles to valid Airflow DAG."""
-    compile_and_validate("basic/helloworld.py")
+# ---------------------------------------------------------------------------
+# Tests
+# ---------------------------------------------------------------------------
 
 
-def test_branch_flow(compile_and_validate):
-    """Parallel branch flow compiles to valid Airflow DAG."""
-    compile_and_validate("dag/branch_flow.py")
-
-
-def test_foreach_flow(compile_and_validate):
-    """Foreach flow compiles to valid Airflow DAG."""
-    compile_and_validate("dag/foreach_flow.py")
-
-
-def test_retry_flow(compile_and_validate):
-    """Flow with @retry compiles to valid Airflow DAG."""
-    compile_and_validate("basic/retry_flow.py")
-
-
-def test_resources_flow(compile_and_validate):
-    """Flow with @resources compiles to valid Airflow DAG."""
-    compile_and_validate("basic/resources_flow.py")
-
-
-def test_schedule_flow(compile_and_validate):
-    """Flow with @schedule compiles to valid Airflow DAG."""
-    compile_and_validate("lifecycle/schedule_flow.py")
+@pytest.mark.parametrize(
+    "flow_path",
+    [
+        "basic/helloworld.py",
+        "dag/branch_flow.py",
+        "dag/foreach_flow.py",
+        "basic/retry_flow.py",
+        "basic/resources_flow.py",
+        "lifecycle/schedule_flow.py",
+    ],
+    ids=["linear", "branch", "foreach", "retry", "resources", "schedule"],
+)
+def test_airflow_dag_compilation(compile_and_validate, flow_path):
+    """Core Metaflow flow patterns compile to structurally valid Airflow DAGs."""
+    compile_and_validate(flow_path)
 
 
 # ---------------------------------------------------------------------------
@@ -195,6 +163,7 @@ def test_schedule_flow(compile_and_validate):
 def test_tags_are_list_not_tuple(compile_and_validate):
     """DAG tags must be a list, not a tuple (Airflow rejects tuples)."""
     dag_source = compile_and_validate("basic/helloworld.py")
+
     # Check that tags assignment uses list syntax
     tree = ast.parse(dag_source)
     for node in ast.walk(tree):

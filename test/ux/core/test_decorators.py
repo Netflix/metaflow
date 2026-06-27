@@ -8,27 +8,24 @@ Run with:
     pytest test/ux/core/test_decorators.py -m decorators -v
 """
 
-import pytest
+from typing import Any, Callable, Dict, List
 
-pytestmark = pytest.mark.decorators
+import pytest
+from metaflow import Run
 
 from .test_utils import execute_test_flow
 
+# Apply markers to all tests in this module
+pytestmark = [pytest.mark.decorators, pytest.mark.basic]
 
-@pytest.mark.decorators
-@pytest.mark.basic
-def test_environment_vars(exec_mode, decospecs, compute_env, tag, scheduler_config):
-    """Verify @environment(vars={...}) injects env vars into step execution."""
-    run = execute_test_flow(
-        flow_name="decorators/env_flow.py",
-        exec_mode=exec_mode,
-        decospecs=decospecs,
-        tag=tag,
-        scheduler_config=scheduler_config,
-        test_name="env_vars",
-        tl_args_extra={"env": compute_env},
-    )
 
+# ---------------------------------------------------------------------------
+# Assertion Callbacks
+# ---------------------------------------------------------------------------
+
+
+def _assert_env_vars(run: Run):
+    """Validate @environment(vars={...}) standard injection."""
     assert run.successful, "Run was not successful"
     assert (
         run["start"].task.data.foo == "bar"
@@ -38,22 +35,8 @@ def test_environment_vars(exec_mode, decospecs, compute_env, tag, scheduler_conf
     ), f"Expected TEST_ENV_BAZ='qux', got {run['start'].task.data.baz!r}"
 
 
-@pytest.mark.decorators
-@pytest.mark.basic
-def test_environment_vars_foreach(
-    exec_mode, decospecs, compute_env, tag, scheduler_config
-):
-    """Verify @environment(vars={...}) on a foreach body step is correctly propagated."""
-    run = execute_test_flow(
-        flow_name="decorators/env_foreach_flow.py",
-        exec_mode=exec_mode,
-        decospecs=decospecs,
-        tag=tag,
-        scheduler_config=scheduler_config,
-        test_name="env_vars_foreach",
-        tl_args_extra={"env": compute_env},
-    )
-
+def _assert_env_vars_foreach(run: Run):
+    """Validate @environment(vars={...}) injection in a foreach body."""
     assert run.successful, "Run was not successful"
     # Every foreach body task must have received the injected env var.
     assert all(
@@ -61,20 +44,8 @@ def test_environment_vars_foreach(
     ), f"@environment var not injected into foreach body: {run['join'].task.data.env_vals!r}"
 
 
-@pytest.mark.decorators
-@pytest.mark.basic
-def test_card_basic(exec_mode, decospecs, compute_env, tag, scheduler_config):
-    """Verify @card decorator creates a card after step execution."""
-    run = execute_test_flow(
-        flow_name="decorators/card_flow.py",
-        exec_mode=exec_mode,
-        decospecs=decospecs,
-        tag=tag,
-        scheduler_config=scheduler_config,
-        test_name="card_basic",
-        tl_args_extra={"env": compute_env},
-    )
-
+def _assert_card_basic(run: Run):
+    """Validate @card decorator generates a card."""
     assert run.successful, "Run was not successful"
     assert run["start"].task.data.message == "hello from card flow"
 
@@ -83,3 +54,52 @@ def test_card_basic(exec_mode, decospecs, compute_env, tag, scheduler_config):
 
     cards = get_cards(run["start"].task)
     assert len(cards) > 0, "Expected at least one card on the start step"
+
+
+# ---------------------------------------------------------------------------
+# Tests
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    "flow_name, test_name, assertion_fn",
+    [
+        pytest.param(
+            "decorators/env_flow.py",
+            "env_vars",
+            _assert_env_vars,
+            id="environment_vars",
+        ),
+        pytest.param(
+            "decorators/env_foreach_flow.py",
+            "env_vars_foreach",
+            _assert_env_vars_foreach,
+            id="environment_vars_foreach",
+        ),
+        pytest.param(
+            "decorators/card_flow.py", "card_basic", _assert_card_basic, id="card_basic"
+        ),
+    ],
+)
+def test_decorator_behaviors(
+    exec_mode: str,
+    decospecs: Any,
+    compute_env: Dict[str, str],
+    tag: List[str],
+    scheduler_config: Any,
+    flow_name: str,
+    test_name: str,
+    assertion_fn: Callable[[Run], None],
+):
+    """Verify various decorators function properly across all execution modes."""
+    run = execute_test_flow(
+        flow_name=flow_name,
+        exec_mode=exec_mode,
+        decospecs=decospecs,
+        tag=tag,
+        scheduler_config=scheduler_config,
+        test_name=test_name,
+        tl_args_extra={"env": compute_env},
+    )
+
+    assertion_fn(run)
