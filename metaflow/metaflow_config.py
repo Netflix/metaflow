@@ -540,6 +540,7 @@ DEBUG_OPTIONS = [
     "userconf",
     "conda",
     "package",
+    "card",
 ]
 
 for typ in DEBUG_OPTIONS:
