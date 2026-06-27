@@ -391,9 +391,8 @@ def _install_micromamba(installation_location):
         for attempt in range(max_retries):
             try:
                 # https://mamba.readthedocs.io/en/latest/micromamba-installation.html#manual-installation
-                # requires bzip2
                 result = subprocess.Popen(
-                    f"curl -Ls {url} | tar -xvj -C {shlex.quote(installation_location)} bin/micromamba",
+                    f"curl -Ls {url} | tar -xv -C {shlex.quote(installation_location)} bin/micromamba",
                     shell=True,
                     stderr=subprocess.PIPE,
                     stdout=subprocess.PIPE,
