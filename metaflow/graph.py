@@ -333,6 +333,10 @@ class DAGNode(object):
 class FlowGraph(object):
     def __init__(self, flow):
         self.name = flow.__name__
+        # Phase 1 graph mutation: stash the flow class so lint checks
+        # can inspect mutator-added state (PACKAGED_CALLABLES, etc.)
+        # without re-resolving the class from a global registry.
+        self.flow_cls = flow
         self.nodes = self._create_nodes(flow)
         self.doc = deindent_docstring(flow.__doc__)
         # nodes sorted in topological order.
@@ -571,6 +575,9 @@ class FlowGraph(object):
                     node._mf_dataflow_entries = list(
                         getattr(func, "_mf_dataflow_entries", []) or []
                     )
+                    # Also stash the structured dataflow map for lint
+                    # rules — inputs/outputs/mode.
+                    node._mf_dataflow = dict(getattr(func, "_mf_dataflow", {}) or {})
                     nodes[element] = node
                     continue
 
