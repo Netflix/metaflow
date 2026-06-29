@@ -815,6 +815,10 @@ class MetaflowTask(object):
                 # should either be set prior to running the user code or listed in
                 # FlowSpec._EPHEMERAL to allow for proper merging/importing of
                 # user artifacts in the user's step code.
+                # input_obj is set inside the join branch; initialize here so
+                # the Phase 1 graph-mutation overlay install below can safely
+                # reference it regardless of which branch was taken.
+                input_obj = None
                 if join_type:
                     # Join step:
 
@@ -873,6 +877,30 @@ class MetaflowTask(object):
                                 "graph_info": self.flow._graph_info,
                             }
                         )
+                # Phase 1 graph mutation: install the per-task input overlay
+                # BEFORE any pre_step decorator hook can access self.<attr>
+                # so the existing __getattr__ datastore cache does not capture
+                # under the wrong (internal) name. For joins, propagate the
+                # overlay onto each cloned inp_flow in input_obj.flows so
+                # `inputs[i].<internal>` reads also resolve via the overlay.
+                mf_dataflow = getattr(step_func, "_mf_dataflow", None)
+                if mf_dataflow is not None:
+                    _overlay = dict(mf_dataflow.get("inputs", {}))
+                    # PM-001 mitigation: clear any pre-cached attrs whose name
+                    # collides with the overlay so __getattr__ fires fresh.
+                    for _internal in _overlay:
+                        self.flow.__dict__.pop(_internal, None)
+                    self.flow.__dict__["_mf_input_overlay"] = _overlay
+                    if input_obj is not None:
+                        for _inp_flow in input_obj.flows:
+                            for _internal in _overlay:
+                                _inp_flow.__dict__.pop(_internal, None)
+                            _inp_flow.__dict__["_mf_input_overlay"] = dict(_overlay)
+                else:
+                    # Defensive cleanup in case a prior task on this flow
+                    # instance (e.g. resume) left an overlay behind.
+                    self.flow.__dict__.pop("_mf_input_overlay", None)
+
                 from_start("MetaflowTask: before pre-step decorators")
                 # Update the system context singleton with task-level information.
                 from .system_context import system_context
