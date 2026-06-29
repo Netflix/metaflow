@@ -672,9 +672,13 @@ def _find_embedded_calls(src, module_name=None):
     ``docs/api/mutable_flow.md``.
     """
     import ast as _ast
+    import textwrap as _textwrap
 
+    # ``inspect.getsource`` on a method returns the def block with its
+    # original class-level indentation. ``ast.parse`` needs top-level
+    # Python, so dedent before parsing.
     try:
-        tree = _ast.parse(src)
+        tree = _ast.parse(_textwrap.dedent(src))
     except (SyntaxError, ValueError):
         return
     # Walk top-level imports to build an alias table.

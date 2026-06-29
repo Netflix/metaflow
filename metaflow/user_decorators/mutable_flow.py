@@ -742,14 +742,6 @@ class MutableFlow:
                 [next_steps] if isinstance(next_steps, str) else list(next_steps)
             )
 
-        # Name-collision check (matches add_parameter pattern).
-        if hasattr(self._flow_cls, name) and not overwrite:
-            raise MetaflowException(
-                "Flow %r already has a class member %r — set "
-                "overwrite=True in add_step to replace it."
-                % (self._flow_cls.__name__, name)
-            )
-
         # Signature inspection and rule check.
         try:
             sig = inspect.signature(func)
@@ -768,7 +760,11 @@ class MutableFlow:
 
         # Idempotency / dedup guard (PM-004 fix): key on
         # (flow_cls_qualname, step_name) — NOT id(self) — so the guard
-        # fires across pytest re-imports and importlib.reload.
+        # fires across pytest re-imports and importlib.reload. The
+        # PROCESSED_BY check MUST run BEFORE the class-attribute
+        # collision check so that a same-spec re-call sees its own
+        # prior registration as idempotent (the class attribute is
+        # exactly the wrapper we installed last time).
         processed_key = (self._flow_cls.__qualname__, name)
         processed = self._flow_cls._flow_state.setdefault(
             FlowStateItems.PROCESSED_BY, {}
@@ -797,6 +793,17 @@ class MutableFlow:
             # this as remove_step + add_step. Append the remove op first
             # so post-graph-build rewires fire in order.
             self.remove_step(name)
+
+        # Class-attribute collision check — runs AFTER the PROCESSED_BY
+        # idempotency check so a same-spec re-call short-circuits above
+        # rather than tripping a spurious collision on the wrapper we
+        # installed previously.
+        if hasattr(self._flow_cls, name) and not overwrite:
+            raise MetaflowException(
+                "Flow %r already has a class member %r — set "
+                "overwrite=True in add_step to replace it."
+                % (self._flow_cls.__name__, name)
+            )
 
         # Wrapper synthesis — share `edges` dict by reference with both
         # the wrapper closure and the `_mf_edges` attribute so post-
