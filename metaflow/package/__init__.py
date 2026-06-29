@@ -699,6 +699,32 @@ class MetaflowPackage(object):
                         continue
                     _add_tuple(path_tuple)
 
+        # Phase 1 graph mutation: source files for callables registered via
+        # MutableFlow.add_step. Each entry is an absolute file path; we add
+        # the file as CODE_CONTENT with its basename as arcname so the
+        # helper module is importable on remote runners. Deduplication is
+        # handled by _check_tuple via deco_module_paths.
+        try:
+            from ..flowspec import FlowStateItems
+
+            packaged_callables = self._flow._flow_state.get(
+                FlowStateItems.PACKAGED_CALLABLES, []
+            )
+        except (AttributeError, ImportError, KeyError):
+            packaged_callables = []
+        for entry in packaged_callables or []:
+            if isinstance(entry, tuple) and len(entry) >= 2:
+                file_path, arcname = entry[0], entry[1]
+            else:
+                file_path = entry
+                arcname = os.path.basename(file_path) if file_path else None
+            if not file_path or not arcname:
+                continue
+            path_tuple = _check_tuple((file_path, arcname, ContentType.CODE_CONTENT))
+            if path_tuple is None:
+                continue
+            _add_tuple(path_tuple)
+
     def _user_code_tuples(self):
         # Track arcnames yielded by the directory walker so we can detect overlap
         # with USER_CONTENT files contributed via add_to_package hooks.

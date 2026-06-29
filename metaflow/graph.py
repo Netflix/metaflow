@@ -437,6 +437,63 @@ class FlowGraph(object):
                 is_start = getattr(func, "is_start_step", False)
                 is_end = getattr(func, "is_end_step", False)
 
+                # Phase 1 graph mutation: mutator-synthesized wrappers carry
+                # `_mf_edges` and bypass the AST tail classifier. The AST
+                # parser at lines 221-303 (DAGNode._parse) is NOT modified
+                # for these steps — they declare their outgoing edges
+                # statically via `_mf_edges` instead.
+                mf_edges = getattr(func, "_mf_edges", None)
+                if mf_edges is not None:
+                    # Use inspect.unwrap recursively so the recorded
+                    # source_file is the user's def, not the wrapper's
+                    # compilation site (mutable_flow.py). Cycles in the
+                    # __wrapped__ chain raise ValueError; convert to a
+                    # MetaflowException with a clear pointer.
+                    try:
+                        inner = inspect.unwrap(func)
+                    except ValueError as e:
+                        from .exception import MetaflowException
+
+                        raise MetaflowException(
+                            "Decorator chain cycle on step %r: %s. "
+                            "Check for __wrapped__ pointing back to itself."
+                            % (element, e)
+                        )
+                    try:
+                        source_file = inspect.getfile(inner)
+                    except (OSError, TypeError):
+                        source_file = "<mutator-synthesized>"
+                    source_lineno = getattr(
+                        getattr(inner, "__code__", None), "co_firstlineno", 0
+                    )
+                    node = DAGNode(
+                        None,
+                        func.decorators,
+                        func.wrappers,
+                        func.config_decorators,
+                        func.__doc__,
+                        source_file,
+                        source_lineno,
+                        is_start_step=is_start,
+                        is_end_step=is_end,
+                        node_info=getattr(func, "node_info", None),
+                        name=element,
+                        num_args=len(inspect.signature(func).parameters),
+                    )
+                    node.out_funcs = list(mf_edges.get("out", []))
+                    node.type = mf_edges.get("type", "linear")
+                    node.has_tail_next = True
+                    node.invalid_tail_next = False
+                    # Phase 1 schema: attach the per-step data_flow entries
+                    # to the DAGNode so node_to_dict can emit them. Empty
+                    # list is suppressed at serialization time to preserve
+                    # byte-equivalence on flows that don't declare any.
+                    node._mf_dataflow_entries = list(
+                        getattr(func, "_mf_dataflow_entries", []) or []
+                    )
+                    nodes[element] = node
+                    continue
+
                 try:
                     source_file = inspect.getsourcefile(func) or inspect.getfile(func)
                     source_lines, lineno = inspect.getsourcelines(func)
@@ -643,6 +700,12 @@ class FlowGraph(object):
                 d["switch_cases"] = node.switch_cases
             if node.matching_join:
                 d["matching_join"] = node.matching_join
+            # Phase 1 graph mutation: emit per-step data_flow entries when the
+            # node carries them. Suppressed when empty so _graph_info stays
+            # byte-identical for flows that don't call add_step/remove_step.
+            df_entries = getattr(node, "_mf_dataflow_entries", None)
+            if df_entries:
+                d["data_flow"] = list(df_entries)
             return d
 
         def populate_block(start_name, end_name):
