@@ -337,9 +337,89 @@ class FlowGraph(object):
         self.doc = deindent_docstring(flow.__doc__)
         # nodes sorted in topological order.
         self.sorted_nodes = []
+        # Phase 1 graph mutation: apply ordered add_step / remove_step
+        # operations recorded by MutableFlow before any traversal so
+        # start/end inference and topo-sort see the post-mutation graph.
+        self._apply_graph_mutations(flow)
         self._identify_start_end()
         self._traverse_graph()
         self._postprocess()
+
+    def _apply_graph_mutations(self, flow):
+        """Apply ordered add_step / remove_step operations from MutableFlow.
+
+        Reads ``flow._flow_state[FlowStateItems.GRAPH_MUTATIONS]`` (a list of
+        ``("add", name, predecessors, next_override)`` and
+        ``("remove", name)`` tuples in call order). For each ``add``,
+        redirects every predecessor's ``out_funcs`` to point at the new
+        step, and sets the new step's ``out_funcs`` to the predecessor's
+        original successors (unless ``next_override`` is given). For each
+        ``remove``, splices the removed node out: every node whose
+        ``out_funcs`` referenced the removed name now references the
+        removed node's successors instead.
+        """
+        try:
+            from .flowspec import FlowStateItems
+
+            ops = flow._flow_state.get(FlowStateItems.GRAPH_MUTATIONS, [])
+        except (AttributeError, ImportError, KeyError):
+            ops = []
+        if not ops:
+            return
+
+        for op in ops:
+            kind = op[0]
+            if kind == "add":
+                _, name, predecessors, next_override = op
+                if name not in self.nodes:
+                    # The wrapper attribute may have been removed by a
+                    # later remove_step in the same operation list; skip
+                    # silently. The remove handler will already have
+                    # rewired any references.
+                    continue
+                new_node = self.nodes[name]
+                inherited_next = None
+                for pred in predecessors or []:
+                    if pred not in self.nodes:
+                        continue
+                    pred_node = self.nodes[pred]
+                    if inherited_next is None:
+                        # First predecessor sets what the new step's
+                        # successor will be (when there is no explicit
+                        # next_override).
+                        inherited_next = list(pred_node.out_funcs)
+                    # Predecessor now points at the new step.
+                    pred_node.out_funcs = [
+                        name if step == name else step for step in pred_node.out_funcs
+                    ]
+                    # If predecessor previously pointed nowhere (start of
+                    # a fresh chain) or didn't include `name`, fan it in.
+                    if name not in pred_node.out_funcs:
+                        pred_node.out_funcs = [name]
+                if next_override is not None:
+                    new_node.out_funcs = list(next_override)
+                elif inherited_next is not None:
+                    new_node.out_funcs = inherited_next
+                # else: new_node keeps whatever _mf_edges["out"] set.
+            elif kind == "remove":
+                _, name = op
+                removed_node = self.nodes.pop(name, None)
+                if removed_node is None:
+                    continue
+                successors = list(removed_node.out_funcs)
+                # Anyone pointing at the removed node now points at its
+                # successors (typically a single linear successor).
+                for other in self.nodes.values():
+                    if name in other.out_funcs:
+                        other.out_funcs = [
+                            s
+                            for step in other.out_funcs
+                            for s in (successors if step == name else [step])
+                        ]
+            else:
+                # Unknown op kind — ignore defensively so a future
+                # extension doesn't break graph build on older Metaflow.
+                continue
 
     def _identify_start_end(self):
         """

@@ -1,5 +1,18 @@
+import array
+import collections
+import inspect
 from functools import partial
-from typing import Any, Dict, Generator, List, Optional, Tuple, TYPE_CHECKING, Union
+from typing import (
+    Any,
+    Callable,
+    Dict,
+    Generator,
+    List,
+    Optional,
+    Tuple,
+    TYPE_CHECKING,
+    Union,
+)
 
 from metaflow.debug import debug
 from metaflow.exception import MetaflowException
@@ -11,6 +24,345 @@ if TYPE_CHECKING:
     import metaflow.user_decorators.mutable_step
     import metaflow.user_decorators.user_flow_decorator
     import metaflow.decorators
+
+
+# Stdlib mutable types that may legitimately appear as default-arg literals.
+# Per UD-9: rejected at add_step decoration time with a None-sentinel hint.
+# Third-party mutables (numpy.ndarray, pandas.DataFrame, etc.) are NOT
+# detected by this denylist and are documented as user responsibility
+# in docs/api/mutable_flow.md.
+_MUTABLE_DEFAULT_TYPES = (
+    list,
+    dict,
+    set,
+    bytearray,
+    collections.deque,
+    collections.OrderedDict,
+    collections.defaultdict,
+    collections.Counter,
+    array.array,
+)
+
+
+def _reject_mutable_defaults(func: Callable, sig: inspect.Signature) -> None:
+    """Raise TypeError if any parameter has a mutable default literal."""
+    for p in sig.parameters.values():
+        if p.default is inspect.Parameter.empty:
+            continue
+        if isinstance(p.default, _MUTABLE_DEFAULT_TYPES):
+            raise TypeError(
+                "add_step: parameter %r on %r has mutable default %r. "
+                "Use None sentinel + in-function check:\n"
+                "  def f(%s=None):\n"
+                "      if %s is None: %s = []  # or default literal\n"
+                "      ..."
+                % (
+                    p.name,
+                    getattr(func, "__qualname__", repr(func)),
+                    p.default,
+                    p.name,
+                    p.name,
+                    p.name,
+                )
+            )
+
+
+def _is_advanced_mode_r8(sig: inspect.Signature) -> bool:
+    """R8: single positional parameter named ``self``."""
+    params = list(sig.parameters.values())
+    if len(params) != 1:
+        return False
+    p = params[0]
+    if p.name != "self":
+        return False
+    return p.kind in (
+        inspect.Parameter.POSITIONAL_ONLY,
+        inspect.Parameter.POSITIONAL_OR_KEYWORD,
+    )
+
+
+def _check_signature_rules(func: Callable, sig: inspect.Signature) -> str:
+    """Apply rules R1..R13. Returns 'advanced_r8' or 'style_a'.
+
+    Rejects unsupported patterns with TypeError at decoration time.
+    R-EXTRA-EMBED-STYLE-A (embedded() in Style A funcs) is checked at
+    lint time, not here.
+    """
+    # R5: decorated functions are ACCEPTED. inspect.signature already
+    # follows __wrapped__ when functools.wraps is used; we do not call
+    # inspect.unwrap here (signature alone is correct per the design memo).
+    name = getattr(func, "__qualname__", repr(func))
+
+    # R3: lambdas
+    if getattr(func, "__name__", "") == "<lambda>":
+        raise TypeError(
+            "add_step: lambdas not supported (not packageable across runners). "
+            "Define %s as a module-level `def`." % name
+        )
+    # R4: functools.partial
+    if isinstance(func, partial):
+        raise TypeError(
+            "add_step: functools.partial is not supported in Phase 1; "
+            "wrap the partial application in a module-level def."
+        )
+    # R11: class objects
+    if inspect.isclass(func):
+        raise TypeError(
+            "add_step: class objects are not supported as steps; pass a "
+            "function instead."
+        )
+    # R6: bound methods (excluding the R8 `self` advanced-mode signature)
+    if inspect.ismethod(func) and getattr(func, "__self__", None) is not None:
+        raise TypeError(
+            "add_step: bound methods are not supported as steps; pass the "
+            "underlying function instead."
+        )
+    # R9: async functions
+    if inspect.iscoroutinefunction(func):
+        raise TypeError("add_step: `async def` functions are not supported.")
+    # R10: generator functions
+    if inspect.isgeneratorfunction(func):
+        raise TypeError("add_step: generator functions are not supported as steps.")
+    # R12: callable instances (have __call__ but aren't function/method/class)
+    if not (
+        inspect.isfunction(func) or inspect.ismethod(func) or inspect.isbuiltin(func)
+    ) and callable(func):
+        raise TypeError(
+            "add_step: callable instances (objects with __call__) are not "
+            "supported. Pass the underlying function."
+        )
+
+    # Now look at signature parameters for R1, R2, R13 — and detect R8.
+    for p in sig.parameters.values():
+        if p.kind is inspect.Parameter.VAR_POSITIONAL:
+            raise TypeError(
+                "add_step: *%s is not supported; declare positional "
+                "parameters explicitly or use inputs={} for advanced wiring." % p.name
+            )
+        if p.kind is inspect.Parameter.VAR_KEYWORD:
+            raise TypeError(
+                "add_step: **%s is not supported; declare keyword "
+                "parameters explicitly." % p.name
+            )
+        if p.kind is inspect.Parameter.KEYWORD_ONLY:
+            raise TypeError(
+                "add_step: keyword-only parameters (after *) are not "
+                "supported. Promote %r to positional-or-keyword." % p.name
+            )
+
+    return "advanced_r8" if _is_advanced_mode_r8(sig) else "style_a"
+
+
+def _resolve_inputs_map(
+    sig: inspect.Signature,
+    inputs: Optional[Dict[str, str]],
+    mode: str,
+) -> Dict[str, str]:
+    """Build internal_name -> external_artifact_name map.
+
+    Style A: signature drives the input list. Each positional parameter
+    becomes both the internal name (caller perspective) and the default
+    external name (producer perspective), unless overridden in ``inputs``.
+
+    Advanced R8: the single ``self`` parameter is the proxy; inputs are
+    declared explicitly via ``inputs={internal: external, ...}``.
+    """
+    inputs = dict(inputs or {})
+    result: Dict[str, str] = {}
+    if mode == "advanced_r8":
+        # The user's body references self.<x>; the overlay maps each
+        # declared internal name to its external in the producer.
+        return inputs
+    for p in sig.parameters.values():
+        internal = p.name
+        result[internal] = inputs.get(internal, internal)
+    # Allow inputs= to introduce extra overlay entries beyond the
+    # signature (e.g. for self.<x> references not captured by params).
+    for k, v in inputs.items():
+        if k not in result:
+            result[k] = v
+    return result
+
+
+def _normalize_produces(
+    produces: Union[str, Tuple[str, ...], List[str], None],
+) -> Optional[Tuple[str, ...]]:
+    if produces is None:
+        return None
+    if isinstance(produces, str):
+        return (produces,)
+    if isinstance(produces, (list, tuple)):
+        return tuple(produces)
+    raise TypeError(
+        "add_step: produces= must be None, a str, or a tuple/list of str; "
+        "got %r" % (produces,)
+    )
+
+
+def _spec_signature(
+    func: Callable,
+    produces: Optional[Tuple[str, ...]],
+    after: Tuple[str, ...],
+    decorators: Optional[List[Any]],
+) -> Tuple[Any, ...]:
+    """Stable tuple used to detect re-registration with matching spec."""
+    return (
+        getattr(func, "__qualname__", repr(func)),
+        getattr(func, "__module__", None),
+        produces,
+        after,
+        tuple(repr(d) for d in (decorators or [])),
+    )
+
+
+def _synthesize_wrapper(
+    *,
+    name: str,
+    func: Callable,
+    sig: inspect.Signature,
+    mode: str,
+    inputs_map: Dict[str, str],
+    produces: Optional[Tuple[str, ...]],
+    edges: Dict[str, Any],
+) -> Callable:
+    """Build the FlowSpec-callable wrapper around a user function.
+
+    The returned wrapper has the FlowSpec calling convention
+    ``f(self)`` and at runtime:
+      1. Resolves declared inputs via overlay-aware getattr.
+      2. Invokes ``func(...)``.
+      3. Stores the return value(s) on ``self.<produces>``.
+      4. Calls ``self.next(...)`` using the wrapper's ``_mf_edges["out"]``.
+
+    The wrapper carries:
+      - ``_mf_edges``: ``{"in": [...], "out": [...], "type": "linear"}``
+        — a mutable dict shared with FlowGraph so post-graph-build
+        rewiring updates take effect at runtime via the same reference.
+      - ``_mf_dataflow``: introspection metadata about the input/output
+        names (used by graph mutations and lint).
+      - ``_mf_dataflow_entries``: list of registered data_flow entries
+        to be emitted into ``_graph_info``.
+      - ``_mf_defaults``: snapshotted defaults captured at decoration time.
+      - ``is_step``, ``decorators``, ``wrappers``, ``config_decorators``:
+        attributes the FlowSpec runtime expects on every step.
+      - ``__wrapped__``: pointer at the original user func so
+        ``inspect.unwrap`` recovers the source file for ``DAGNode``.
+    """
+    # Snapshot defaults at decoration time. Mutable defaults are already
+    # rejected by _reject_mutable_defaults, so capture-by-reference is
+    # safe by construction for documented stdlib types.
+    defaults: Dict[str, Any] = {}
+    param_names: List[str] = []
+    for p_name, p in sig.parameters.items():
+        param_names.append(p_name)
+        if p.default is not inspect.Parameter.empty:
+            defaults[p_name] = p.default
+
+    produces_tuple = produces  # None or tuple[str, ...]
+
+    # Sentinel — the actual successors are set by FlowGraph post-processing.
+    # We refer to `edges` via closure so post-graph-build mutations are
+    # visible to the wrapper at runtime through the same dict reference.
+
+    if mode == "advanced_r8":
+        # The user func takes its own `self` (a _NamespacedSelf proxy).
+        # Inputs are NOT extracted via getattr in the wrapper — the body
+        # reads them via the proxy at the point of use.
+        from metaflow._namespaced_self import _NamespacedSelf
+
+        def _wrapper(self):
+            ns = _NamespacedSelf(self)
+            result = func(ns)
+            if produces_tuple is None:
+                pass
+            elif len(produces_tuple) == 1:
+                setattr(self, produces_tuple[0], result)
+            else:
+                if not isinstance(result, tuple) or len(result) != len(produces_tuple):
+                    raise RuntimeError(
+                        "step %r: produces declared %d values but function "
+                        "returned %r" % (name, len(produces_tuple), result)
+                    )
+                for slot_name, value in zip(produces_tuple, result):
+                    setattr(self, slot_name, value)
+            out_names = list(edges.get("out", []))
+            if not out_names:
+                # Unknown successors — defer to FlowSpec.next's own validation
+                self.next()
+            else:
+                self.next(*[getattr(self, n) for n in out_names])
+
+    else:
+        # Style A: signature-driven inputs, with try/except AttributeError
+        # fallback to closure-captured immutable defaults (UD-6).
+        def _wrapper(self):
+            kwargs: Dict[str, Any] = {}
+            for p_name in param_names:
+                try:
+                    kwargs[p_name] = getattr(self, p_name)
+                except AttributeError:
+                    if p_name in defaults:
+                        kwargs[p_name] = defaults[p_name]
+                    else:
+                        raise
+            result = func(**kwargs)
+            if produces_tuple is None:
+                pass
+            elif len(produces_tuple) == 1:
+                setattr(self, produces_tuple[0], result)
+            else:
+                if not isinstance(result, tuple) or len(result) != len(produces_tuple):
+                    raise RuntimeError(
+                        "step %r: produces declared %d values but function "
+                        "returned %r" % (name, len(produces_tuple), result)
+                    )
+                for slot_name, value in zip(produces_tuple, result):
+                    setattr(self, slot_name, value)
+            out_names = list(edges.get("out", []))
+            if not out_names:
+                self.next()
+            else:
+                self.next(*[getattr(self, n) for n in out_names])
+
+    _wrapper.__name__ = name
+    _wrapper.__qualname__ = getattr(func, "__qualname__", name)
+    _wrapper.__module__ = getattr(func, "__module__", "metaflow.user_decorators")
+    _wrapper.__doc__ = getattr(func, "__doc__", None)
+    _wrapper.__wrapped__ = func
+    _wrapper.is_step = True
+    _wrapper.decorators = []
+    _wrapper.wrappers = []
+    _wrapper.config_decorators = []
+    _wrapper._mf_edges = edges
+    _wrapper._mf_dataflow = {
+        "inputs": dict(inputs_map),
+        "outputs": dict((n, n) for n in (produces_tuple or ())),
+        "mode": mode,
+    }
+    _wrapper._mf_dataflow_entries = []
+    if inputs_map:
+        _wrapper._mf_dataflow_entries.append(
+            {"kind": "explicit_inputs", "payload": {"inputs": dict(inputs_map)}}
+        )
+    if produces_tuple:
+        _wrapper._mf_dataflow_entries.append(
+            {
+                "kind": "explicit_outputs",
+                "payload": {"outputs": list(produces_tuple)},
+            }
+        )
+    if mode == "advanced_r8":
+        _wrapper._mf_dataflow_entries.append(
+            {
+                "kind": "embedded_callable",
+                "payload": {
+                    "callable_qualname": getattr(func, "__qualname__", repr(func))
+                },
+            }
+        )
+    _wrapper._mf_defaults = dict(defaults)
+    _wrapper._mf_added_by_mutator = True
+    return _wrapper
 
 
 class MutableFlow:
@@ -306,6 +658,267 @@ class MutableFlow:
             "Mutable flow failed to remove parameter %s from flow" % parameter_name
         )
         return False
+
+    def add_step(
+        self,
+        name: str,
+        after: Union[str, List[str]],
+        func: Callable,
+        *,
+        produces: Union[str, Tuple[str, ...], List[str], None] = None,
+        inputs: Optional[Dict[str, str]] = None,
+        outputs: Optional[Dict[str, str]] = None,
+        decorators: Optional[List[Any]] = None,
+        next_steps: Union[str, List[str], None] = None,
+        overwrite: bool = False,
+    ) -> "metaflow.user_decorators.mutable_step.MutableStep":
+        """Insert a new step into the flow graph between ``after`` and its
+        original successor.
+
+        Two calling styles:
+
+        - **Style A (default — pure-function fast path):** pass ``func`` and
+          ``produces``. Inputs are inferred from ``inspect.signature(func)``;
+          the return value is assigned to ``self.<produces>``. ``produces``
+          may be a string or a tuple/list of strings for multi-return.
+
+        - **Style B (advanced — explicit mapping):** pass ``inputs={...}``
+          and/or ``outputs={...}`` to override the inferred naming. The
+          dict keys are the consumer-internal names; the values are the
+          producer-external artifact names.
+
+        - **R8 advanced (sandboxed self):** ``func`` may take a single
+          positional argument named ``self``. The wrapper invokes it
+          through a ``_NamespacedSelf`` proxy. Inside the body,
+          ``embedded("name")`` may be used to call helpers. Lint rule
+          ``L-NS-007`` rejects ``embedded()`` outside R8 mode.
+
+        ``add_step`` may only be called inside the ``pre_mutate`` method
+        of a ``FlowMutator`` — matching the timing of ``add_parameter``.
+
+        Parameters
+        ----------
+        name : str
+            Name of the new step.
+        after : str or list[str]
+            Predecessor step(s). The new step is inserted between
+            ``after`` and ``after``'s original successor(s).
+        func : Callable
+            User function implementing the step body (see styles above).
+        produces : str or tuple[str, ...], optional
+            Name(s) of artifact(s) the step assigns to ``self.<produces>``.
+        inputs : dict[str, str], optional
+            Explicit ``internal_name -> external_artifact_name`` map.
+        outputs : dict[str, str], optional
+            Explicit ``internal_name -> external_artifact_name`` map.
+        decorators : list, optional
+            Step decorators to attach to the synthesized wrapper.
+        next_steps : str or list[str], optional
+            Override the inherited successor of the new step. If not
+            given, the step takes ``after``'s original successor.
+        overwrite : bool, default False
+            If True and ``name`` already binds to a class attribute,
+            replace it (equivalent to ``remove_step(name)`` then add).
+
+        Returns
+        -------
+        MutableStep
+            A handle to the newly added step.
+        """
+        from metaflow.flowspec import FlowStateItems
+        from .mutable_step import MutableStep
+
+        if not self._pre_mutate:
+            raise MetaflowException(
+                "add_step(%r) from %s is only allowed in `pre_mutate`, "
+                "not `mutate`." % (name, self._inserted_by)
+            )
+
+        # Normalize predecessor list and next override.
+        after_list = [after] if isinstance(after, str) else list(after or [])
+        next_override: Optional[List[str]] = None
+        if next_steps is not None:
+            next_override = (
+                [next_steps] if isinstance(next_steps, str) else list(next_steps)
+            )
+
+        # Name-collision check (matches add_parameter pattern).
+        if hasattr(self._flow_cls, name) and not overwrite:
+            raise MetaflowException(
+                "Flow %r already has a class member %r — set "
+                "overwrite=True in add_step to replace it."
+                % (self._flow_cls.__name__, name)
+            )
+
+        # Signature inspection and rule check.
+        try:
+            sig = inspect.signature(func)
+        except (TypeError, ValueError) as e:
+            raise TypeError(
+                "add_step: cannot introspect signature of %r: %s" % (func, e)
+            )
+        mode = _check_signature_rules(func, sig)
+
+        # Mutable-default rejection (UD-9) runs only in Style A.
+        if mode != "advanced_r8":
+            _reject_mutable_defaults(func, sig)
+
+        produces_tuple = _normalize_produces(produces)
+        inputs_map = _resolve_inputs_map(sig, inputs, mode)
+
+        # Idempotency / dedup guard (PM-004 fix): key on
+        # (flow_cls_qualname, step_name) — NOT id(self) — so the guard
+        # fires across pytest re-imports and importlib.reload.
+        processed_key = (self._flow_cls.__qualname__, name)
+        processed = self._flow_cls._flow_state.setdefault(
+            FlowStateItems.PROCESSED_BY, {}
+        )
+        spec = _spec_signature(func, produces_tuple, tuple(after_list), decorators)
+        if processed_key in processed:
+            prior = processed[processed_key]
+            if prior == spec:
+                # Idempotent re-registration: return the existing wrapper as
+                # a MutableStep handle.
+                existing = getattr(self._flow_cls, name, None)
+                return MutableStep(
+                    self._flow_cls,
+                    existing,
+                    pre_mutate=self._pre_mutate,
+                    statically_defined=self._statically_defined,
+                    inserted_by=self._inserted_by,
+                )
+            raise MetaflowException(
+                "add_step(%r): conflicting prior registration on %r "
+                "with a different spec. Use overwrite=True or pick a "
+                "unique name." % (name, self._flow_cls.__name__)
+            )
+        if overwrite and hasattr(self._flow_cls, name):
+            # The collision check already passed (overwrite=True). Treat
+            # this as remove_step + add_step. Append the remove op first
+            # so post-graph-build rewires fire in order.
+            self.remove_step(name)
+
+        # Wrapper synthesis — share `edges` dict by reference with both
+        # the wrapper closure and the `_mf_edges` attribute so post-
+        # graph-build edge rewiring is visible at runtime.
+        edges = {
+            "in": list(after_list),
+            "out": [],
+            "type": "linear",
+        }
+        wrapper = _synthesize_wrapper(
+            name=name,
+            func=func,
+            sig=sig,
+            mode=mode,
+            inputs_map=inputs_map,
+            produces=produces_tuple,
+            edges=edges,
+        )
+        if decorators:
+            wrapper.decorators = list(decorators)
+
+        # Record the source file of the user func so packaging picks it
+        # up for remote runners.
+        try:
+            source_file = inspect.getfile(getattr(func, "__wrapped__", func))
+        except (OSError, TypeError):
+            source_file = None
+        if source_file:
+            packaged = self._flow_cls._flow_state.setdefault(
+                FlowStateItems.PACKAGED_CALLABLES, []
+            )
+            packaged.append(source_file)
+
+        # Install the wrapper on the flow class.
+        setattr(self._flow_cls, name, wrapper)
+
+        # Record the operation so FlowGraph._apply_graph_mutations runs
+        # edge rewiring in declaration order across this and subsequent
+        # add_step / remove_step calls.
+        ops = self._flow_cls._flow_state.setdefault(FlowStateItems.GRAPH_MUTATIONS, [])
+        ops.append(("add", name, list(after_list), next_override))
+        processed[processed_key] = spec
+
+        debug.userconf_exec(
+            "Mutable flow add_step: %r after=%r produces=%r mode=%s"
+            % (name, after_list, produces_tuple, mode)
+        )
+        return MutableStep(
+            self._flow_cls,
+            wrapper,
+            pre_mutate=self._pre_mutate,
+            statically_defined=self._statically_defined,
+            inserted_by=self._inserted_by,
+        )
+
+    def remove_step(self, name: str) -> bool:
+        """Remove a step from the flow graph by name.
+
+        Edge rewiring: every node whose ``out_funcs`` referenced the
+        removed step now references the removed step's successors
+        (typically a single linear successor). Removing a start step
+        or end step is rejected.
+
+        Parameters
+        ----------
+        name : str
+            Name of the step to remove.
+
+        Returns
+        -------
+        bool
+            ``True`` if a step was removed; ``False`` if no class
+            attribute by that name was a step.
+        """
+        from metaflow.flowspec import FlowStateItems
+
+        if not self._pre_mutate:
+            raise MetaflowException(
+                "remove_step(%r) from %s is only allowed in `pre_mutate`, "
+                "not `mutate`." % (name, self._inserted_by)
+            )
+
+        attr = getattr(self._flow_cls, name, None)
+        if attr is None or not getattr(attr, "is_step", False):
+            debug.userconf_exec("Mutable flow remove_step: no step named %r" % name)
+            return False
+        if getattr(attr, "is_start_step", False):
+            raise MetaflowException(
+                "remove_step(%r): refusing to remove a start step." % name
+            )
+        if getattr(attr, "is_end_step", False):
+            raise MetaflowException(
+                "remove_step(%r): refusing to remove an end step." % name
+            )
+
+        # Delete the class attribute so graph._create_nodes does not
+        # build a DAGNode for it. Edge rewiring happens in
+        # FlowGraph._apply_graph_mutations using the recorded op.
+        try:
+            delattr(self._flow_cls, name)
+        except AttributeError:
+            # Inherited attribute — shadow with a sentinel so dir(cls)
+            # discovery sees no step. Phase 1 only supports removing
+            # steps defined on (or added to) the immediate class.
+            raise MetaflowException(
+                "remove_step(%r): cannot remove an inherited step in "
+                "Phase 1. Define it directly on %r to remove it."
+                % (name, self._flow_cls.__name__)
+            )
+
+        ops = self._flow_cls._flow_state.setdefault(FlowStateItems.GRAPH_MUTATIONS, [])
+        ops.append(("remove", name))
+
+        # Allow the same name to be re-added after removal — drop the
+        # PROCESSED_BY entry so the dedup guard does not block it.
+        processed = self._flow_cls._flow_state.setdefault(
+            FlowStateItems.PROCESSED_BY, {}
+        )
+        processed.pop((self._flow_cls.__qualname__, name), None)
+
+        debug.userconf_exec("Mutable flow remove_step: removed %r" % name)
+        return True
 
     def add_decorator(
         self,

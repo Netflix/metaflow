@@ -90,6 +90,13 @@ class FlowStateItems(Enum):
     # Phase 1 graph mutation: dedup guard keyed by (flow_cls_qualname, step_name)
     # so the same add_step call is idempotent under pytest re-runs / reload.
     PROCESSED_BY = 7
+    # Phase 1 graph mutation: ordered list of edge-rewiring operations applied
+    # by FlowGraph after _create_nodes. Each entry is one of:
+    #   ("add",    step_name, [predecessor_names], [next_override] | None)
+    #   ("remove", step_name)
+    # Order is the call order of add_step / remove_step across all mutators
+    # for this flow.
+    GRAPH_MUTATIONS = 8
 
 
 class _FlowState(MutableMapping):
@@ -107,6 +114,9 @@ class _FlowState(MutableMapping):
         # PROCESSED_BY keys on (flow_cls_qualname, step_name) — per-class dedup;
         # parent entries refer to a different qualname and have no meaning here.
         FlowStateItems.PROCESSED_BY,
+        # GRAPH_MUTATIONS is an ordered call log per-class; inheriting and
+        # re-applying parent operations would double-rewire the graph.
+        FlowStateItems.GRAPH_MUTATIONS,
     ]
 
     def __init__(self, *args, **kwargs):
@@ -201,6 +211,7 @@ class FlowSpecMeta(type):
                 # Phase 1 graph mutation state — see FlowStateItems definitions.
                 FlowStateItems.PACKAGED_CALLABLES: [],
                 FlowStateItems.PROCESSED_BY: {},
+                FlowStateItems.GRAPH_MUTATIONS: [],
             }
         )
 
