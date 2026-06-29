@@ -261,7 +261,7 @@ class MetaflowCodeContentV1(MetaflowCodeContentV1Base):
 
         Parameters
         ----------
-        module_path: ModuleType
+        module: ModuleType
             The module to add
         """
         name = module.__name__
