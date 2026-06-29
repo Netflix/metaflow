@@ -1,0 +1,9 @@
+6cc34313f95fcc2a59a0acc8cbd1d406664f0f2b
+# P-001 baseline: last upstream commit touching metaflow/graph.py:221-303
+# (DAGNode._parse, the AST tail classifier) before the graph-mutation
+# Phase-1 work begins on this branch. AC-AST-UNCHANGED uses this SHA to
+# verify _parse stays byte-identical across this branch's commits.
+#
+# The first line above MUST be a full 40-char SHA reachable from HEAD.
+# Update only if upstream master legitimately changes DAGNode._parse and
+# the new behavior is consciously taken as the new baseline.

@@ -84,6 +84,12 @@ class FlowStateItems(Enum):
     CONFIGS = 3
     CACHED_PARAMETERS = 4
     SET_CONFIG_PARAMETERS = 5  # Parameters that now have a ConfigValue (converted)
+    # Phase 1 graph mutation: callables registered via MutableFlow.add_step
+    # that must be packaged for remote runners (records source-file paths).
+    PACKAGED_CALLABLES = 6
+    # Phase 1 graph mutation: dedup guard keyed by (flow_cls_qualname, step_name)
+    # so the same add_step call is idempotent under pytest re-runs / reload.
+    PROCESSED_BY = 7
 
 
 class _FlowState(MutableMapping):
@@ -98,6 +104,9 @@ class _FlowState(MutableMapping):
         FlowStateItems.CONFIGS,
         FlowStateItems.CACHED_PARAMETERS,
         FlowStateItems.SET_CONFIG_PARAMETERS,
+        # PROCESSED_BY keys on (flow_cls_qualname, step_name) — per-class dedup;
+        # parent entries refer to a different qualname and have no meaning here.
+        FlowStateItems.PROCESSED_BY,
     ]
 
     def __init__(self, *args, **kwargs):
@@ -189,6 +198,9 @@ class FlowSpecMeta(type):
                 FlowStateItems.CONFIGS: {},
                 FlowStateItems.CACHED_PARAMETERS: None,
                 FlowStateItems.SET_CONFIG_PARAMETERS: [],
+                # Phase 1 graph mutation state — see FlowStateItems definitions.
+                FlowStateItems.PACKAGED_CALLABLES: [],
+                FlowStateItems.PROCESSED_BY: {},
             }
         )
 

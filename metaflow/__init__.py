@@ -101,6 +101,11 @@ from .metaflow_current import current
 # Flow spec
 from .flowspec import FlowSpec
 
+# Eager-import the data-flow kind registry so the three built-in kinds
+# (explicit_inputs, explicit_outputs, embedded_callable) are registered
+# before any user code reads _graph_info.
+from . import _data_flow_registry  # noqa: F401
+
 from .parameters import Parameter, JSONTypeClass, JSONType
 
 from .user_configs.config_parameters import Config, ConfigValue, config_expr
