@@ -609,6 +609,23 @@ class FlowSpec(metaclass=FlowSpecMeta):
         return iter(self._steps)
 
     def __getattr__(self, name: str):
+        # Phase 1 graph mutation: consult per-task input overlay if one is
+        # installed. The overlay maps consumer-internal-name -> external
+        # artifact name in the producer's namespace. When absent (no
+        # add_step on this step) the dict.get returns None and the
+        # function falls through to the existing path immediately, so
+        # the no-namespace fast path stays at zero overhead.
+        overlay = self.__dict__.get("_mf_input_overlay")
+        if overlay is not None and name in overlay:
+            external_name = overlay[name]
+            if self._datastore and external_name in self._datastore:
+                x = self._datastore[external_name]
+                setattr(self, name, x)
+                return x
+            raise AttributeError(
+                "Step declared input %r (resolved to artifact %r) is "
+                "not present in the parent datastore" % (name, external_name)
+            )
         if self._datastore and name in self._datastore:
             # load the attribute from the datastore...
             x = self._datastore[name]
