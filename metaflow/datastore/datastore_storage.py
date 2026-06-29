@@ -133,7 +133,7 @@ class DataStoreStorage(object):
 
         Parameters
         ----------
-        path : List[string]
+        paths : List[string]
             Path to the object
 
         Returns

@@ -723,7 +723,7 @@ class TaskDataStore(object):
 
         Parameters
         ----------
-        names : string
+        name : string
             Metadata name to fetch
         add_attempt : bool, optional
             Adds the attempt identifier to the metadata name if True,

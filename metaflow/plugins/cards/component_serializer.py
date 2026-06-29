@@ -737,7 +737,7 @@ class CardComponentCollector:
 
         Parameters
         ----------
-        component : Iterator[MetaflowCardComponent]
+        components : Iterator[MetaflowCardComponent]
             Card components to add to this card.
         """
         if self._default_editable_card is None:
