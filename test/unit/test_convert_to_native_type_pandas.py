@@ -7,6 +7,7 @@ broke ``Table.from_dataframe`` (it rendered "Object type pandas.DataFrame not
 supported"). These tests pin the normalization so DataFrame detection stays
 version-agnostic.
 """
+
 import unittest
 
 import pytest
