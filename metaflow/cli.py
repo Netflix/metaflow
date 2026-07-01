@@ -40,7 +40,7 @@ from .plugins import (
 )
 from .pylint_wrapper import PyLint
 from .R import metaflow_r_version, use_r
-from .util import get_latest_run_id, resolve_identity, decompress_list
+from .util import get_latest_run_id, get_recent_run_ids, resolve_identity, decompress_list
 from .user_configs.config_options import LocalFileInput, config_options
 from .user_configs.config_parameters import ConfigValue
 
@@ -189,6 +189,56 @@ def show(obj):
 @click.pass_context
 def help(ctx):
     print(ctx.parent.get_help())
+
+
+@cli.command(help="List recent local runs of this flow.")
+@click.option(
+    "--num-runs",
+    default=10,
+    show_default=True,
+    type=int,
+    help="Maximum number of recent runs to display.",
+)
+@click.pass_obj
+def runs(obj, num_runs):
+    if obj.is_quiet:
+        echo = echo_dev_null
+    else:
+        echo = echo_always
+
+    history = get_recent_run_ids(obj.echo, obj.flow.name)
+    if not history:
+        echo(
+            "No recent local runs found for flow *%s*." % obj.flow.name,
+            fg="red",
+        )
+        echo(
+            "Run *'python %s.py run'* first to record local runs."
+            % obj.flow.name,
+            indent=True,
+        )
+        return
+
+    latest_run_id = history[0]["run_id"]
+    display = history[:max(num_runs, 1)]
+
+    echo("\nRecent local runs of flow *%s*:" % obj.flow.name, fg="magenta")
+    echo(
+        "(Use *--origin-run-id <run-id>* with the resume command to resume "
+        "a specific run)\n",
+        indent=True,
+        highlight="magenta",
+        highlight_bold=False,
+    )
+    for entry in display:
+        run_id = entry.get("run_id", "?")
+        created_at = entry.get("created_at", "unknown time")
+        marker = " *(latest)*" if run_id == latest_run_id else ""
+        echo(
+            "  Run *%s*%s  —  started %s" % (run_id, marker, created_at),
+            err=False,
+        )
+    echo("")
 
 
 @cli.command(help="Output internal state of the flow graph.")
