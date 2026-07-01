@@ -1,0 +1,14 @@
+load('./_result.tiltfile', 'new_result')
+
+def setup_jobset(ctx):
+    jobset_manifest_url = "https://github.com/kubernetes-sigs/jobset/releases/download/%s/manifests.yaml" % ctx.versions.jobset
+    k8s_yaml(local("curl -sSL %s" % jobset_manifest_url))
+
+    k8s_resource('jobset-controller-manager', labels=['jobset'])
+
+    k8s_yaml(read_file('./tilt/k8s/jobset-rbac.yaml'))
+
+    return new_result(
+        config={"METAFLOW_KUBERNETES_JOBSET_ENABLED": "true"},
+        config_resources=['jobset-controller-manager'],
+    )
