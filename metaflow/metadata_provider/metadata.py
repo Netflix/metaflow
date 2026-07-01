@@ -9,6 +9,7 @@ from typing import List
 from metaflow.exception import MetaflowInternalError, MetaflowTaggingError
 from metaflow.tagging_util import validate_tag
 from metaflow.util import get_username, resolve_identity_as_tuple, is_stringish
+from .tracer import get_active_metadata_tracer
 
 DataArtifact = namedtuple("DataArtifact", "name ds_type ds_root url type sha")
 
@@ -428,6 +429,16 @@ class MetadataProvider(object):
                 raise ValueError("Attempt can only be a positive integer")
         else:
             attempt_int = None
+
+        tracer = get_active_metadata_tracer()
+        if tracer is not None:
+            tracer.record(
+                obj_type=obj_type,
+                sub_type=sub_type,
+                depth=type_order,
+                attempt=attempt_int,
+                path="/".join(str(arg) for arg in args if arg is not None),
+            )
 
         pre_filter = cls._get_object_internal(
             obj_type, type_order, sub_type, sub_order, filters, attempt_int, *args
