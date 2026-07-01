@@ -30,6 +30,7 @@ components = {
     "ddb-local": [],
     "sfn-local": ["ddb-local"],
     "airflow": ["postgresql"],
+    "fake-gcs-server": [],
 }
 
 # ---------------------------------------------------------------------------
@@ -93,6 +94,7 @@ load('./tilt/localbatch.tiltfile', 'setup_localbatch')
 load('./tilt/ddb_local.tiltfile', 'setup_ddb_local')
 load('./tilt/sfn_local.tiltfile', 'setup_sfn_local')
 load('./tilt/airflow.tiltfile', 'setup_airflow')
+load('./tilt/fake_gcs_server.tiltfile', 'setup_fake_gcs_server')
 
 _SETUP = {
     "minio": setup_minio,
@@ -104,6 +106,7 @@ _SETUP = {
     "ddb-local": setup_ddb_local,
     "sfn-local": setup_sfn_local,
     "airflow": setup_airflow,
+    "fake-gcs-server": setup_fake_gcs_server,
 }
 
 # ---------------------------------------------------------------------------
