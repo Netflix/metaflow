@@ -4,8 +4,8 @@ Unit tests for pandas DataFrame handling in card native-type conversion.
 pandas >= 3.0 changed ``DataFrame.__module__`` from ``pandas.core.frame`` to
 ``pandas``, which shifted the type string that card serialization keys on and
 broke ``Table.from_dataframe`` (it rendered "Object type pandas.DataFrame not
-supported"). These tests pin the normalization so DataFrame detection stays
-version-agnostic.
+supported"). These tests pin the observable behavior so DataFrame detection
+stays version-agnostic.
 """
 
 import unittest
@@ -15,35 +15,46 @@ import pytest
 pd = pytest.importorskip("pandas")
 
 from metaflow.plugins.cards.card_modules.components import Table
-from metaflow.plugins.cards.card_modules.convert_to_native_type import (
-    TaskToDict,
-    _normalize_type_name,
-)
+from metaflow.plugins.cards.card_modules.convert_to_native_type import TaskToDict
 
 _CANONICAL_DATAFRAME_TYPE = "pandas.core.frame.DataFrame"
+
+
+def _obj_with_type(module, qualname):
+    """Return an instance whose type reports ``module``/``qualname``.
+
+    Lets us exercise a given pandas version's DataFrame class path (which
+    ``object_type`` keys on) without installing that pandas version.
+    """
+    cls = type(qualname, (), {})
+    cls.__module__ = module
+    cls.__qualname__ = qualname
+    return cls()
 
 
 class TestPandasDataframeConversion(unittest.TestCase):
     """Card serialization must recognize pandas DataFrames on any pandas version."""
 
-    def test_object_type_is_canonical_across_pandas_versions(self):
-        """object_type resolves a DataFrame to the canonical name regardless of
-        the (version-dependent) module path of the class."""
-        df = pd.DataFrame([{"a": 1}])
-        self.assertEqual(TaskToDict().object_type(df), _CANONICAL_DATAFRAME_TYPE)
-
-    def test_normalize_type_name_maps_moved_name(self):
-        """The pandas>=3.0 name is normalized; unrelated names pass through."""
+    def test_object_type_resolves_installed_dataframe(self):
+        """A real DataFrame resolves to the canonical type name."""
         self.assertEqual(
-            _normalize_type_name("pandas.DataFrame"), _CANONICAL_DATAFRAME_TYPE
+            TaskToDict().object_type(pd.DataFrame([{"a": 1}])),
+            _CANONICAL_DATAFRAME_TYPE,
         )
-        self.assertEqual(_normalize_type_name("builtins.int"), "builtins.int")
 
-    def test_normalize_type_name_is_noop_for_pandas2(self):
-        """Backwards compatible: the canonical name pandas<3.0 already produces
-        is passed through unchanged, so older pandas keeps its exact behavior."""
+    def test_object_type_is_version_agnostic(self):
+        """Both the pandas>=3.0 (``pandas.DataFrame``) and pandas<3.0
+        (``pandas.core.frame.DataFrame``) class paths resolve to the canonical
+        name, so detection is stable across pandas versions and older pandas
+        keeps its exact behavior."""
+        task_to_dict = TaskToDict()
         self.assertEqual(
-            _normalize_type_name(_CANONICAL_DATAFRAME_TYPE), _CANONICAL_DATAFRAME_TYPE
+            task_to_dict.object_type(_obj_with_type("pandas", "DataFrame")),
+            _CANONICAL_DATAFRAME_TYPE,
+        )
+        self.assertEqual(
+            task_to_dict.object_type(_obj_with_type("pandas.core.frame", "DataFrame")),
+            _CANONICAL_DATAFRAME_TYPE,
         )
 
     def test_table_from_dataframe_renders_rows(self):
