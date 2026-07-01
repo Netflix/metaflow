@@ -25,7 +25,16 @@ def generate_input_paths(input_paths, skippable_steps):
     # strip these out of the list.
 
     # all pathspecs of leading steps that executed.
-    trimmed = [path for path in paths if not "{{" in path]
+    def _is_resolved_path(path):
+        if "{{" in path:
+            return False
+        parts = path.split("/")
+        # Paths from skipped conditional steps resolve to "argo-<run>/<step>/"
+        # (empty task-id segment), which must be filtered out.
+        if len(parts) < 3 or not parts[-1]:
+            return False
+        return True
+    trimmed = [path for path in paths if _is_resolved_path(path)]
 
     skippable_steps = [step for step in skippable_steps if step]
     skippable_step_set = set(skippable_steps)
