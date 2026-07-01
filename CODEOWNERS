@@ -1,0 +1,5 @@
+# Default - core maintainers review everything
+* @savingoyal @saikonen @romain-intel
+
+# CI / GitHub Actions
+.github/ @savingoyal @saikonen @madhur-ob @npow
