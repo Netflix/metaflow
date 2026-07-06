@@ -111,7 +111,7 @@ DATASTORE_SYSROOT_GS = from_conf("DATASTORE_SYSROOT_GS")
 
 # Path to the client cache
 CLIENT_CACHE_PATH = from_conf("CLIENT_CACHE_PATH", "/tmp/metaflow_client")
-# Maximum size (in bytes) of the cache
+# Maximum size (in MB) of the cache
 CLIENT_CACHE_MAX_SIZE = from_conf("CLIENT_CACHE_MAX_SIZE", 10000)
 # Maximum number of cached Flow and TaskDatastores in the cache
 CLIENT_CACHE_MAX_FLOWDATASTORE_COUNT = from_conf(
