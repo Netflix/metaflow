@@ -7,6 +7,7 @@ import subprocess
 import sys
 import tempfile
 import threading
+import time
 import uuid
 from multiprocessing import Pool
 
@@ -267,6 +268,110 @@ def run_test(formatter, context, debug, checks, env_base, executor):
                         result.command_obj.process.returncode,
                         stdout,
                         stderr,
+                    )
+                )
+            elif executor == "scheduler":
+                scheduler = context.get("scheduler")
+                if not scheduler:
+                    raise ValueError(
+                        "Context %s uses 'scheduler' executor but has no 'scheduler' key"
+                        % context["name"]
+                    )
+
+                # Schedulers (Argo, SFN) don't support resume — skip those test cases
+                if formatter.should_resume:
+                    log(
+                        "skipping resume test (not supported by scheduler executor)",
+                        formatter,
+                        context,
+                    )
+                    return 0, path
+
+                # Step 1: compile and deploy the workflow template
+                create_cmd = [context["python"], "-B", "test_flow.py"]
+                create_cmd.extend(context["top_options"])
+                create_cmd.extend([scheduler, "create"])
+                called_processes.append(
+                    subprocess.run(
+                        create_cmd,
+                        env=env,
+                        stdout=subprocess.PIPE,
+                        stderr=subprocess.PIPE,
+                        check=False,
+                    )
+                )
+                if called_processes[-1].returncode:
+                    log(
+                        "scheduler create failed",
+                        formatter,
+                        context,
+                        processes=called_processes,
+                    )
+                    return called_processes[-1].returncode, path
+
+                # Step 2: trigger the workflow; run_id written to file by --run-id-file
+                trigger_cmd = [context["python"], "-B", "test_flow.py"]
+                trigger_cmd.extend(context["top_options"])
+                trigger_cmd.extend([scheduler, "trigger", "--run-id-file", "run-id"])
+                called_processes.append(
+                    subprocess.run(
+                        trigger_cmd,
+                        env=env,
+                        stdout=subprocess.PIPE,
+                        stderr=subprocess.PIPE,
+                        check=False,
+                    )
+                )
+                if called_processes[-1].returncode:
+                    if formatter.should_fail:
+                        log("Flow failed as expected.")
+                    else:
+                        log(
+                            "scheduler trigger failed",
+                            formatter,
+                            context,
+                            processes=called_processes,
+                        )
+                        return called_processes[-1].returncode, path
+                elif formatter.should_fail:
+                    log(
+                        "The flow should have failed but it didn't. Error!",
+                        formatter,
+                        context,
+                        processes=called_processes,
+                    )
+                    return 1, path
+
+                # Step 3: poll the metadata service until the run finishes
+                run_id = open("run-id").read().strip()
+                timeout = context.get("scheduler_timeout", 600)
+                deadline = time.time() + timeout
+                run_succeeded = None
+                from metaflow import Flow
+
+                while time.time() < deadline:
+                    try:
+                        run = Flow(formatter.flow_name, _namespace_check=False)[run_id]
+                        if run.finished:
+                            run_succeeded = run.successful
+                            break
+                    except Exception:
+                        pass
+                    time.sleep(10)
+
+                if run_succeeded is None:
+                    log(
+                        "scheduler run timed out after %ds" % timeout,
+                        formatter,
+                        context,
+                        processes=called_processes,
+                    )
+                    return 1, path
+
+                # Synthesise a CompletedProcess so the rest of the function is uniform
+                called_processes.append(
+                    subprocess.CompletedProcess(
+                        trigger_cmd, 0 if run_succeeded else 1, b"", b""
                     )
                 )
 

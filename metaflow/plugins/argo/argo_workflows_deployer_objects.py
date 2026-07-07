@@ -203,6 +203,16 @@ class ArgoWorkflowsDeployedFlow(DeployedFlow):
 
     TYPE: ClassVar[Optional[str]] = "argo-workflows"
 
+    @property
+    def workflow_template(self) -> Optional[dict]:
+        """
+        Return the compiled Argo WorkflowTemplate from an ``only_json=True`` create.
+
+        Normal deployments and objects reconstructed with ``from_deployment`` do not
+        retain the local compilation payload and return ``None``.
+        """
+        return getattr(self.deployer, "additional_info", {}).get("workflow_template")
+
     @classmethod
     def list_deployed_flows(cls, flow_name: Optional[str] = None):
         """

@@ -16,6 +16,7 @@ from ..packaging_sys.v1 import MetaflowCodeContentV1
 from ..packaging_sys.utils import suffix_filter, walk
 from ..metaflow_config import DEFAULT_PACKAGE_SUFFIXES
 from ..exception import MetaflowException
+from ..system_context import system_context
 from ..user_configs.config_parameters import dump_config_values
 from .. import R
 
@@ -131,6 +132,16 @@ class MetaflowPackage(object):
         self._blob_url = None
         self._blob = None
 
+        # USER_CONTENT files contributed by decorators/mutators via add_to_package.
+        # Keyed by arcname (path relative to the flow directory) -> absolute file path.
+        # These are merged with the files discovered by walking the flow directory;
+        # duplicates (same arcname) are dropped to avoid conflicts.
+        self._user_content_from_addl: Dict[str, str] = {}
+
+        # Update package in the system context -- it will be available
+        # in all hooks going forward including the ones called in the
+        # thread that is used to create the package asynchronously.
+        system_context._update(package=self)
         # We launch a thread to create the package asynchronously and upload
         # it opportunistically
         self._create_thread = threading.Thread(
@@ -528,7 +539,12 @@ class MetaflowPackage(object):
             if self._flow:
                 for step in self._flow:
                     for deco in step.decorators:
-                        deco.package_init(self._flow, step.__name__, self._environment)
+                        if deco.package_init_ctx is not None:
+                            deco.package_init_ctx(step.__name__)
+                        else:
+                            deco.package_init(
+                                self._flow, step.__name__, self._environment
+                            )
                 self._name = f"flow {self._flow.name}"
             else:
                 self._name = "<generic code package>"
@@ -601,11 +617,33 @@ class MetaflowPackage(object):
                     raise NonUniqueFileNameToFilePathMappingException(
                         file_name, [deco_module_paths[file_name], file_path]
                     )
+            elif file_type == ContentType.USER_CONTENT:
+                # USER_CONTENT files will be merged with the files discovered by
+                # walking the flow directory. Track them here so we can:
+                #   1. Include them in the package even if they live outside the
+                #      flow directory (or are excluded by the user_code_filter).
+                #   2. Avoid duplicating files already picked up by the walker.
+                real_path = os.path.realpath(path_tuple[0])
+                path_tuple = (real_path, file_name, file_type)
+                existing = self._user_content_from_addl.get(file_name)
+                if existing is None:
+                    self._user_content_from_addl[file_name] = real_path
+                elif existing != real_path:
+                    raise NonUniqueFileNameToFilePathMappingException(
+                        file_name, [existing, real_path]
+                    )
+                else:
+                    return None  # Already recorded for this arcname
             else:
                 raise ValueError(f"Unknown file type: {file_type}")
             return path_tuple
 
         def _add_tuple(path_tuple):
+            # USER_CONTENT is intentionally NOT handled here: those files are
+            # packaged alongside the user's flow code (see _user_code_tuples)
+            # rather than under the mfcontent namespace, and are tracked in
+            # self._user_content_from_addl by _check_tuple above. mfcontent
+            # owns MODULE/CODE/OTHER only.
             file_path, file_name, file_type = path_tuple
             if file_type == ContentType.MODULE_CONTENT:
                 # file_path is actually a module
@@ -615,6 +653,16 @@ class MetaflowPackage(object):
             elif file_type == ContentType.OTHER_CONTENT:
                 self._mfcontent.add_other_file(file_path, file_name)
 
+        # flow decorators
+        for decos in self._flow._flow_decorators.values():
+            for deco in decos:
+                for path_tuple in deco.add_to_package():
+                    path_tuple = _check_tuple(path_tuple)
+                    if path_tuple is None:
+                        continue
+                    _add_tuple(path_tuple)
+
+        # step decorators
         for step in self._flow:
             for deco in step.decorators:
                 for path_tuple in deco.add_to_package():
@@ -630,16 +678,42 @@ class MetaflowPackage(object):
                 continue
             _add_tuple(path_tuple)
 
+        # flow mutators
+        for mutator in self._flow._flow_mutators:
+            for path_tuple in mutator.add_to_package():
+                path_tuple = _check_tuple(path_tuple)
+                if path_tuple is None:
+                    continue
+                _add_tuple(path_tuple)
+
+        # step mutators (deduplicated across steps)
+        seen_step_mutators = set()
+        for step in self._flow:
+            for mutator in step.config_decorators:
+                if id(mutator) in seen_step_mutators:
+                    continue
+                seen_step_mutators.add(id(mutator))
+                for path_tuple in mutator.add_to_package():
+                    path_tuple = _check_tuple(path_tuple)
+                    if path_tuple is None:
+                        continue
+                    _add_tuple(path_tuple)
+
     def _user_code_tuples(self):
+        # Track arcnames yielded by the directory walker so we can detect overlap
+        # with USER_CONTENT files contributed via add_to_package hooks.
+        seen_arcnames = set()
         if R.use_r():
             # the R working directory
             self._user_flow_dir = R.working_dir()
             for path_tuple in walk(
                 "%s/" % R.working_dir(), file_filter=self._user_code_filter
             ):
+                seen_arcnames.add(path_tuple[1])
                 yield path_tuple
             # the R package
             for path_tuple in R.package_paths():
+                seen_arcnames.add(path_tuple[1])
                 yield path_tuple
         else:
             # the user's working directory
@@ -650,9 +724,16 @@ class MetaflowPackage(object):
                 file_filter=self._user_code_filter,
                 exclude_tl_dirs=self._exclude_tl_dirs,
             ):
-                # TODO: This is where we will check if the file is already included
-                # in the mfcontent portion
+                seen_arcnames.add(path_tuple[1])
                 yield path_tuple
+
+        # Emit USER_CONTENT files contributed by decorators/mutators that were not
+        # already picked up by the directory walker (either because they live
+        # outside the flow directory or were filtered out by the suffix/user filter).
+        for arcname, file_path in self._user_content_from_addl.items():
+            if arcname in seen_arcnames:
+                continue
+            yield (file_path, arcname)
 
     def _make(self):
         backend = self._backend()

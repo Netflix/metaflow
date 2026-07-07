@@ -1,8 +1,10 @@
 import base64
 import json
 import os
+import random
 import re
 import shlex
+import string
 import sys
 from collections import defaultdict
 from hashlib import sha1
@@ -481,6 +483,11 @@ class ArgoWorkflows(object):
         if schedule:
             # Remove the field "Year" if it exists
             schedule = schedule[0]
+            if schedule.schedule is None:
+                # @schedule decorator is present but all scheduling flags are
+                # falsy (e.g. @schedule(daily=False)). Treat this the same as
+                # no decorator — do not create a CronWorkflow.
+                return None, None
             return " ".join(schedule.schedule.split()[:5]), schedule.timezone
         return None, None
 
@@ -503,7 +510,7 @@ class ArgoWorkflows(object):
 
     def trigger_explanation(self):
         # Trigger explanation for cron workflows
-        if self.flow._flow_decorators.get("schedule"):
+        if self._schedule is not None:
             return (
                 "This workflow triggers automatically via the CronWorkflow *%s*."
                 % self.name
@@ -582,10 +589,17 @@ class ArgoWorkflows(object):
         return None
 
     def _process_parameters(self):
+        reserved_argo_params = ["script"]
         parameters = {}
         has_schedule = self.flow._flow_decorators.get("schedule") is not None
         seen = set()
         for var, param in self.flow._get_parameters():
+            # protect the reserved params
+            if param.name.lower() in reserved_argo_params:
+                raise MetaflowException(
+                    "Parameter name *%s* is a reserved word when running on Argo Workflows. Please use a different name for your parameter."
+                    % param.name.lower()
+                )
             # Throw an exception if the parameter is specified twice.
             norm = param.name.lower()
             if norm in seen:
@@ -1218,12 +1232,27 @@ class ArgoWorkflows(object):
         ]
         return len(cond_in_funcs) > 1 and len(cond_in_funcs) == len(node.in_funcs)
 
+    def _skippable_input_steps_in_dag_order(self, node):
+        graph_order = {
+            node_name: index for index, node_name in enumerate(self.graph.sorted_nodes)
+        }
+        return sorted(
+            [
+                in_func
+                for in_func in node.in_funcs
+                if self.graph[in_func].type == "split-switch"
+            ],
+            key=lambda in_func: graph_order[in_func],
+            reverse=True,
+        )
+
     def _is_recursive_node(self, node):
         return node.name in self.recursive_nodes
 
     def _matching_conditional_join(self, node):
-        # If no earlier conditional join step is found during parsing, then 'end' is always one.
-        return self.matching_conditional_join_dict.get(node.name, "end")
+        # If no earlier conditional join step is found during parsing,
+        # fall back to the graph's terminal step.
+        return self.matching_conditional_join_dict.get(node.name, self.graph.end_step)
 
     # Visit every node and yield the uber DAGTemplate(s).
     def _dag_templates(self):
@@ -1259,7 +1288,7 @@ class ArgoWorkflows(object):
 
             # helper variable for recursive conditional inputs
             has_foreach_inputs = False
-            if node.name == "start":
+            if node.name == self.graph.start_step:
                 # Start node has no dependencies.
                 dag_task = DAGTask(self._sanitize(node.name)).template(
                     self._sanitize(node.name)
@@ -1432,6 +1461,90 @@ class ArgoWorkflows(object):
                         for in_func in node.in_funcs
                     ]
                     required_deps = []
+
+                # join steps in_funcs need special handling, as there can be disjoint sets of always-executing and conditional branches.
+                if node.type == "join" and any(
+                    self._is_conditional_node(self.graph[fn]) for fn in node.in_funcs
+                ):
+
+                    def _split_switch_ancestors(step_name, first_ancestor):
+                        acc = []
+                        for in_fn in self.graph[step_name].in_funcs:
+                            if self.graph[in_fn].type == "split-switch":
+                                acc.append(in_fn)
+                            if not in_fn == first_ancestor:
+                                acc.extend(
+                                    _split_switch_ancestors(in_fn, first_ancestor)
+                                )
+
+                        return acc
+
+                    node_groups = {}
+                    node_switch_ancestors = {}
+                    for fn in node.in_funcs:
+                        if self.graph[fn].split_branches:
+                            # This is the latest split in the DAG.
+                            last_split = self.graph[fn].split_branches[-1]
+                            switch_ancestors = _split_switch_ancestors(
+                                fn, node.split_parents[-1]
+                            )
+                            if switch_ancestors:
+                                node_switch_ancestors[fn] = switch_ancestors
+                            new_funcs = node_groups.get(last_split, [])
+                            new_funcs.append(fn)
+                            node_groups[last_split] = new_funcs
+
+                    def build_ancestor_tree(node_groups, switch_ancestors):
+                        result = {}
+                        for parent, children in node_groups.items():
+                            nodes = [
+                                n
+                                for g in children
+                                for n in (g if isinstance(g, list) else [g])
+                            ]
+
+                            # Group nodes by their ancestor set
+                            by_anc = defaultdict(list)
+                            for n in nodes:
+                                by_anc[frozenset(switch_ancestors.get(n, []))].append(n)
+
+                            # Sort from most specific (most ancestors) to least
+                            groups = sorted(
+                                by_anc.items(), key=lambda x: len(x[0]), reverse=True
+                            )
+
+                            # Greedily build chains: add to a chain if this key is a subset of its first (largest) key
+                            chains = []
+                            for key, grp in groups:
+                                for chain in chains:
+                                    if key <= chain[0][0]:
+                                        chain.append((key, grp))
+                                        break
+                                else:
+                                    chains.append([(key, grp)])
+
+                            result[parent] = [[g for _, g in chain] for chain in chains]
+                        return result
+
+                    if node_groups:
+                        conditional_deps = []
+                        required_deps = []
+                        for parent, chains in build_ancestor_tree(
+                            node_groups, node_switch_ancestors
+                        ).items():
+                            parts = []
+                            for chain in chains:
+                                groups = [
+                                    "({})".format(
+                                        " || ".join(
+                                            "%s.Succeeded" % self._sanitize(g)
+                                            for g in grp
+                                        )
+                                    )
+                                    for grp in chain
+                                ]
+                                parts.append("({})".format(" || ".join(groups)))
+                            required_deps.append("&&".join(parts))
 
                 both_conditions = required_deps and conditional_deps
 
@@ -1847,6 +1960,7 @@ class ArgoWorkflows(object):
                     )
                 )
                 dag_tasks.append(join_foreach_task)
+                seen.append(self.graph[node.matching_join].name)
                 return _visit(
                     self.graph[self.graph[node.matching_join].out_funcs[0]],
                     exit_node,
@@ -1877,7 +1991,9 @@ class ArgoWorkflows(object):
             for daemon_template in self._daemon_templates()
         ]
 
-        templates, dag_tasks = _visit(node=self.graph["start"], dag_tasks=daemon_tasks)
+        templates, dag_tasks = _visit(
+            node=self.graph[self.graph.start_step], dag_tasks=daemon_tasks
+        )
         # Add the DAG template only after fully traversing the graph so we are guaranteed to have all the dag_tasks collected.
         templates.append(
             Template(self.flow.name).dag(DAGTemplate().fail_fast().tasks(dag_tasks))
@@ -1929,7 +2045,7 @@ class ArgoWorkflows(object):
             # input paths and parallel join will derive input paths based on a
             # formulaic approach using `num-parallel` and `task-id-entropy`.
             if not (
-                node.name == "start"
+                node.name == self.graph.start_step
                 or (node.type == "join" and self.graph[node.in_funcs[0]].parallel_step)
             ):
                 # For parallel joins we don't pass the INPUT_PATHS but are dynamically constructed.
@@ -2092,7 +2208,7 @@ class ArgoWorkflows(object):
                 % self.auto_emit_argo_events,
             ]
 
-            if node.name == "start":
+            if node.name == self.graph.start_step:
                 # Execute `init` before any step of the workflow executes
                 task_id_params = "%s-params" % task_id
                 init = (
@@ -2103,16 +2219,36 @@ class ArgoWorkflows(object):
                         "--run-id %s" % run_id,
                         "--task-id %s" % task_id_params,
                     ]
-                    + [
+                )
+                # Export user-defined parameters into runtime environment
+                # NOTE: We save some characters from the cmd by making the bulk of the exports be written to a file instead.
+                # We can't easily get around having to pass the parameter values through the template though, as the source of these could change depending on Argo implementation.
+                param_file = "".join(
+                    random.choice(string.ascii_lowercase) for _ in range(10)
+                )
+                # Setup Parameters as environment variables which are stored in a dictionary.
+                param_csv = " ".join(
+                    [
                         # Parameter names can be hyphenated, hence we use
                         # {{foo.bar['param_name']}}.
                         # https://argoproj.github.io/argo-events/tutorials/02-parameterization/
                         # http://masterminds.github.io/sprig/strings.html
-                        "--%s=\\\"$(python -m metaflow.plugins.argo.param_val {{=toBase64(workflow.parameters['%s'])}})\\\""
-                        % (parameter["name"], parameter["name"])
+                        "%s,%s,{{=toBase64(workflow.parameters['%s'])}}"
+                        % (
+                            parameter["name"],
+                            "t" if parameter["value"] == "null" else "f",
+                            parameter["name"],
+                        )
                         for parameter in self.parameters.values()
                     ]
                 )
+
+                export_params = (
+                    "python -m "
+                    "metaflow.plugins.argo.set_parameters %s %s"
+                    " && . `pwd`/%s" % (param_file, param_csv, param_file)
+                )
+
                 if self.tags:
                     init.extend("--tag %s" % tag for tag in self.tags)
                 # if the start step gets retried, we must be careful
@@ -2123,10 +2259,15 @@ class ArgoWorkflows(object):
                     "--max-value-size=0",
                     "%s/_parameters/%s" % (run_id, task_id_params),
                 ]
+                # params export needs to happen before bootstrap commands
+                step_cmds.insert(0, export_params)
                 step_cmds.extend(
                     [
                         "if ! %s >/dev/null 2>/dev/null; then %s; fi"
-                        % (" ".join(exists), " ".join(init))
+                        % (
+                            " ".join(exists),
+                            " ".join(init),
+                        )
                     ]
                 )
                 input_paths = "%s/_parameters/%s" % (run_id, task_id_params)
@@ -2142,11 +2283,7 @@ class ArgoWorkflows(object):
                 # we need to pass in the set of conditional in_funcs to the pathspec generating script as in the case of split-switch skipping cases,
                 # non-conditional input-paths need to be ignored in favour of conditional ones when they have executed.
                 skippable_input_steps = ",".join(
-                    [
-                        in_func
-                        for in_func in node.in_funcs
-                        if self.graph[in_func].type == "split-switch"
-                    ]
+                    self._skippable_input_steps_in_dag_order(node)
                 )
                 input_paths = (
                     "$(python -m metaflow.plugins.argo.conditional_input_paths %s %s)"
@@ -2389,7 +2526,7 @@ class ArgoWorkflows(object):
             # input paths and parallel join will derive input paths based on a
             # formulaic approach.
             if not (
-                node.name == "start"
+                node.name == self.graph.start_step
                 or (node.type == "join" and self.graph[node.in_funcs[0]].parallel_step)
             ):
                 inputs.append(Parameter("input-paths"))
@@ -2443,7 +2580,7 @@ class ArgoWorkflows(object):
             outputs = []
             # @parallel steps will not have a task-id as an output parameter since task-ids
             # are derived at runtime.
-            if not (node.name == "end" or node.parallel_step):
+            if not (node.name == self.graph.end_step or node.parallel_step):
                 outputs = [Parameter("task-id").valueFrom({"path": "/mnt/out/task_id"})]
 
             # If this step is a split-switch one, we need to output the switch step name
@@ -2509,6 +2646,10 @@ class ArgoWorkflows(object):
                 resources["disk"],
             )
 
+            extended_resources = resources.get("extended_resources", {}) or {}
+
+            qos_requests = {**qos_requests, **extended_resources}
+            qos_limits = {**qos_limits, **extended_resources}
             security_context = resources.get("security_context", None)
             _security_context = {}
             if security_context is not None and len(security_context) > 0:
@@ -2575,6 +2716,7 @@ class ArgoWorkflows(object):
                     shared_memory=shared_memory,
                     port=port,
                     qos=resources["qos"],
+                    extended_resources=extended_resources,
                     security_context=security_context,
                 )
 
@@ -2915,7 +3057,7 @@ class ArgoWorkflows(object):
     def _lifecycle_hook_from_deco(self, deco):
         from kubernetes import client as kubernetes_sdk
 
-        start_step = [step for step in self.graph if step.name == "start"][0]
+        start_step = self.graph[self.graph.start_step]
         # We want to grab the base image used by the start step, as this is known to be pullable from within the cluster,
         # and it might contain the required libraries, allowing us to start up faster.
         start_kube_deco = [
@@ -3062,7 +3204,7 @@ class ArgoWorkflows(object):
     def _error_msg_capture_hook_templates(self):
         from kubernetes import client as kubernetes_sdk
 
-        start_step = [step for step in self.graph if step.name == "start"][0]
+        start_step = self.graph[self.graph.start_step]
         # We want to grab the base image used by the start step, as this is known to be pullable from within the cluster,
         # and it might contain the required libraries, allowing us to start up faster.
         resources = dict(
@@ -3625,7 +3767,7 @@ class ArgoWorkflows(object):
 
         # We want to grab the base image used by the start step, as this is known to be pullable from within the cluster,
         # and it might contain the required libraries, allowing us to start up faster.
-        start_step = next(step for step in self.flow if step.name == "start")
+        start_step = self.graph[self.graph.start_step]
         resources = dict(
             [deco for deco in start_step.decorators if deco.name == "kubernetes"][
                 0

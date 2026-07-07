@@ -50,25 +50,15 @@ class PlayListFlow(FlowSpec):
         Parse the CSV file and load the values into a dictionary of lists.
 
         """
+        import csv
+
         # For this example, we only need the movie title and the genres.
         columns = ["movie_title", "genres"]
+        self.dataframe = {col: [] for col in columns}
 
-        # Create a simple data frame as a dictionary of lists.
-        self.dataframe = dict((column, list()) for column in columns)
-
-        # Parse the CSV header.
-        lines = self.movie_data.split("\n")
-        header = lines[0].split(",")
-        idx = {column: header.index(column) for column in columns}
-
-        # Populate our dataframe from the lines of the CSV file.
-        for line in lines[1:]:
-            if not line:
-                continue
-
-            fields = line.rsplit(",", 4)
-            for column in columns:
-                self.dataframe[column].append(fields[idx[column]])
+        for row in csv.DictReader(self.movie_data.splitlines()):
+            for col in columns:
+                self.dataframe[col].append(row[col])
 
         # Compute genre-specific movies and a bonus movie in parallel.
         self.next(self.bonus_movie, self.genre_movies)

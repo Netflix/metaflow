@@ -1,0 +1,53 @@
+load('ext://helm_remote', 'helm_remote')
+load('./_result.tiltfile', 'new_result')
+
+def setup_ui(ctx):
+    helm_remote(
+        'metaflow-ui',
+        repo_name='metaflow-tools',
+        repo_url='https://outerbounds.github.io/metaflow-tools',
+        set=[
+            'uiBackend.metadatadb.user=metaflow',
+            'uiBackend.metadatadb.password=metaflow123',
+            'uiBackend.metadatadb.name=metaflow',
+            'uiBackend.metadatadb.host=postgresql',
+            'uiBackend.metaflowDatastoreSysRootS3=s3://metaflow-test',
+            'uiBackend.metaflowS3EndpointURL=http://minio.default.svc.cluster.local:9000',
+            'uiBackend.image.name=public.ecr.aws/outerbounds/metaflow_metadata_service',
+            'uiBackend.image.tag=2.5.0',
+            'uiBackend.env[0].name=AWS_ACCESS_KEY_ID',
+            'uiBackend.env[0].value=rootuser',
+            'uiBackend.env[1].name=AWS_SECRET_ACCESS_KEY',
+            'uiBackend.env[1].value=rootpass123',
+            'uiBackend.resources.requests.cpu=100m',
+            'uiBackend.resources.requests.memory=256Mi',
+            'uiStatic.metaflowUIBackendURL=http://localhost:8083/api',
+            'uiStatic.image.name=public.ecr.aws/outerbounds/metaflow_ui',
+            'uiStatic.image.tag=v1.3.14',
+            'uiStatic.resources.requests.cpu=25m',
+            'uiStatic.resources.requests.memory=64Mi',
+            'uiStatic.resources.limits.cpu=50m',
+            'uiStatic.resources.limits.memory=128Mi',
+        ]
+    )
+
+    k8s_resource(
+        'metaflow-ui-static',
+        port_forwards=['3000:3000'],
+        links=[link('http://localhost:3000', 'Metaflow UI')],
+        labels=['metaflow-ui'],
+        resource_deps=ctx.components['ui'],
+    )
+
+    k8s_resource(
+        'metaflow-ui',
+        port_forwards=['8083:8083'],
+        links=[link('http://localhost:3000', 'Metaflow UI')],
+        labels=['metaflow-ui'],
+        resource_deps=ctx.components['ui'],
+    )
+
+    return new_result(
+        config={"METAFLOW_UI_URL": "http://localhost:3000"},
+        config_resources=['metaflow-ui', 'metaflow-ui-static'],
+    )

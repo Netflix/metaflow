@@ -6,7 +6,6 @@ class Inputs(object):
     """
 
     def __init__(self, flows):
-        # TODO sort by foreach index
         self.flows = list(flows)
         for flow in self.flows:
             setattr(self, flow._current_step, flow)

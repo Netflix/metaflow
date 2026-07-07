@@ -1,0 +1,50 @@
+load('ext://helm_remote', 'helm_remote')
+load('./_result.tiltfile', 'new_result')
+
+def setup_argo_workflows(ctx):
+    helm_remote(
+        'argo-workflows',
+        version=ctx.versions.argo_workflows_chart,
+        repo_name='argo',
+        repo_url='https://argoproj.github.io/argo-helm',
+        set=[
+            'server.extraArgs[0]=--auth-mode=server',
+            'workflow.serviceAccount.create=true',
+            'workflow.rbac.create=true',
+            'server.livenessProbe.initialDelaySeconds=1',
+            'server.readinessProbe.initialDelaySeconds=1',
+            'server.resources.requests.memory=128Mi',
+            'server.resources.requests.cpu=50m',
+            'server.resources.limits.memory=256Mi',
+            'server.resources.limits.cpu=100m',
+            'controller.resources.requests.memory=128Mi',
+            'controller.resources.requests.cpu=50m',
+            'controller.resources.limits.memory=256Mi',
+            'controller.resources.limits.cpu=100m',
+            'images.tag=%s' % ctx.versions.argo_workflows_image,
+            'controller.workflowDefaults.spec.ttlStrategy.secondsAfterCompletion=30',
+            'controller.workflowDefaults.spec.ttlStrategy.secondsAfterSuccess=30',
+            'controller.workflowDefaults.spec.ttlStrategy.secondsAfterFailure=60',
+            'controller.workflowDefaults.spec.podGC.strategy=OnWorkflowSuccess',
+        ]
+    )
+
+    k8s_yaml(read_file('./tilt/k8s/argo-workflows-rbac.yaml'))
+
+    k8s_resource(
+        workload='argo-workflows-server',
+        port_forwards=['2746:2746'],
+        links=[link('http://localhost:2746', 'Argo Workflows UI')],
+        labels=['argo-workflows'],
+        resource_deps=ctx.components['argo-workflows'],
+    )
+
+    k8s_resource(
+        workload='argo-workflows-workflow-controller',
+        labels=['argo-workflows'],
+        resource_deps=ctx.components['argo-workflows'],
+    )
+
+    return new_result(
+        config_resources=['argo-workflows-workflow-controller', 'argo-workflows-server'],
+    )

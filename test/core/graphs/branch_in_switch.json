@@ -1,7 +1,7 @@
 {
     "name": "branch_in_switch",
     "graph": {
-        "start": { 
+        "start": {
             "switch": {"process": "process_branch", "skip": "skip_path"},
             "condition": "mode",
             "quals": ["start-branch-in-switch"]

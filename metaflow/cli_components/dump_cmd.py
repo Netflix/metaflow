@@ -47,7 +47,7 @@ def dump(obj, input_path, private=None, max_value_size=None, include=None, file=
     output = {}
     kwargs = {
         "show_private": private,
-        "max_value_size": max_value_size,
+        "max_value_size": None if file is not None else max_value_size,
         "include": {t for t in include.split(",") if t},
     }
 

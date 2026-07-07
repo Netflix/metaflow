@@ -336,7 +336,7 @@ class BatchDecorator(StepDecorator):
                 meta["aws-batch-awslogs-group"] = logs_meta.get("awslogs-group")
                 meta["aws-batch-awslogs-region"] = logs_meta.get("awslogs-region")
                 meta["aws-batch-awslogs-stream"] = logs_meta.get("awslogs-stream")
-            except:
+            except Exception:
                 pass
 
             instance_meta = get_ec2_instance_metadata()
@@ -405,7 +405,7 @@ class BatchDecorator(StepDecorator):
         try:
             self._save_logs_sidecar.terminate()
             self._spot_monitor_sidecar.terminate()
-        except:
+        except Exception:
             # Best effort kill
             pass
 

@@ -1,0 +1,8 @@
+def new_result(config=None, config_resources=None, aws_config="", shell_env=None, k8s_secrets=None):
+    return {
+        "config": config if config else {},
+        "config_resources": config_resources if config_resources else [],
+        "aws_config": aws_config,
+        "shell_env": shell_env if shell_env else {},
+        "k8s_secrets": k8s_secrets if k8s_secrets else [],
+    }

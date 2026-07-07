@@ -289,7 +289,7 @@ class Airflow(object):
 
         # The below if/else block handles "input paths".
         # Input Paths help manage dataflow across the graph.
-        if node.name == "start":
+        if node.name == self.graph.start_step:
             # POSSIBLE_FUTURE_IMPROVEMENT:
             # We can extract metadata about the possible upstream sensor triggers.
             # There is a previous commit (7bdf6) in the `airflow` branch that has `SensorMetaExtractor` class and
@@ -561,7 +561,7 @@ class Airflow(object):
             "--with=airflow_internal",
         ]
 
-        if node.name == "start":
+        if node.name == self.graph.start_step:
             # We need a separate unique ID for the special _parameters task
             task_id_params = "%s-params" % AIRFLOW_MACROS.create_task_id(
                 self.contains_foreach
@@ -749,7 +749,7 @@ class Airflow(object):
             ),
             **airflow_dag_args
         )
-        workflow = _visit(self.graph["start"], workflow)
+        workflow = _visit(self.graph[self.graph.start_step], workflow)
 
         workflow.set_parameters(self.parameters)
         if len(appending_sensors) > 0:
