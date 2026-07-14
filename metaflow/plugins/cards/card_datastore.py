@@ -66,7 +66,7 @@ class CardDatastore(object):
             # lookup only when neither root is known.
             if CARD_LOCALROOT is not None:
                 return CARD_LOCALROOT
-            if datastore_root is not None:
+            if datastore_root:
                 return os.path.join(datastore_root, CARD_SUFFIX)
 
             local_dir = (
