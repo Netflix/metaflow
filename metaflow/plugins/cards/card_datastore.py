@@ -52,7 +52,7 @@ def is_file_present(path):
 
 class CardDatastore(object):
     @classmethod
-    def get_storage_root(cls, storage_type):
+    def get_storage_root(cls, storage_type, datastore_root=None):
         if storage_type == "s3":
             return CARD_S3ROOT
         elif storage_type == "azure":
@@ -60,27 +60,33 @@ class CardDatastore(object):
         elif storage_type == "gs":
             return CARD_GSROOT
         elif storage_type == "local" or storage_type == "spin":
-            # Borrowing some of the logic from LocalStorage.get_storage_root
-            result = CARD_LOCALROOT
+            # Prefer an explicit card root when configured. Otherwise keep cards
+            # under the already-resolved artifact datastore root when available.
+            # Fall back to the legacy nearest-parent `.metaflow` / `.metaflow_spin`
+            # lookup only when neither root is known.
+            if CARD_LOCALROOT is not None:
+                return CARD_LOCALROOT
+            if datastore_root is not None:
+                return os.path.join(datastore_root, CARD_SUFFIX)
+
             local_dir = (
                 DATASTORE_SPIN_LOCAL_DIR
                 if storage_type == "spin"
                 else DATASTORE_LOCAL_DIR
             )
-            if result is None:
-                current_path = os.getcwd()
+            current_path = os.getcwd()
+            check_dir = os.path.join(current_path, local_dir)
+            check_dir = os.path.realpath(check_dir)
+            orig_path = check_dir
+            while not os.path.isdir(check_dir):
+                new_path = os.path.dirname(current_path)
+                if new_path == current_path:
+                    # No longer making upward progress so we
+                    # return the top level path
+                    return os.path.join(orig_path, CARD_SUFFIX)
+                current_path = new_path
                 check_dir = os.path.join(current_path, local_dir)
-                check_dir = os.path.realpath(check_dir)
-                orig_path = check_dir
-                while not os.path.isdir(check_dir):
-                    new_path = os.path.dirname(current_path)
-                    if new_path == current_path:
-                        # No longer making upward progress so we
-                        # return the top level path
-                        return os.path.join(orig_path, CARD_SUFFIX)
-                    current_path = new_path
-                    check_dir = os.path.join(current_path, local_dir)
-                return os.path.join(check_dir, CARD_SUFFIX)
+            return os.path.join(check_dir, CARD_SUFFIX)
         else:
             # Let's make it obvious we need to update this block for each new datastore backend...
             raise NotImplementedError(
