@@ -14,6 +14,7 @@ import json
 import os
 import subprocess
 import sys
+from unittest import mock
 
 import pytest
 
@@ -241,6 +242,30 @@ class TestCronWorkflowJson:
         assert cron["spec"]["workflowSpec"] == {
             "workflowTemplateRef": {"name": "test-flow"}
         }
+
+    def test_cron_spec_use_schedules_flag_produces_list(self):
+        """When ARGO_WORKFLOWS_USE_SCHEDULES=True, spec uses 'schedules' (list), not 'schedule' (scalar)."""
+        argo = _make_argo_workflows(schedule="0 10 * * *", timezone="US/Pacific")
+        with mock.patch(
+            "metaflow.plugins.argo.argo_workflows.ARGO_WORKFLOWS_USE_SCHEDULES",
+            True,
+        ):
+            cron = argo._cron_workflow_json()
+        assert "schedules" in cron["spec"], "'schedules' key missing under ARGO_WORKFLOWS_USE_SCHEDULES=True"
+        assert "schedule" not in cron["spec"], "'schedule' (scalar) must not appear when ARGO_WORKFLOWS_USE_SCHEDULES=True"
+        assert cron["spec"]["schedules"] == ["0 10 * * *"]
+
+    def test_cron_spec_default_flag_produces_scalar(self):
+        """When ARGO_WORKFLOWS_USE_SCHEDULES=False (default), spec uses 'schedule' (scalar)."""
+        argo = _make_argo_workflows(schedule="0 10 * * *", timezone="US/Pacific")
+        with mock.patch(
+            "metaflow.plugins.argo.argo_workflows.ARGO_WORKFLOWS_USE_SCHEDULES",
+            False,
+        ):
+            cron = argo._cron_workflow_json()
+        assert "schedule" in cron["spec"], "'schedule' key missing under ARGO_WORKFLOWS_USE_SCHEDULES=False"
+        assert "schedules" not in cron["spec"], "'schedules' (list) must not appear when ARGO_WORKFLOWS_USE_SCHEDULES=False"
+        assert cron["spec"]["schedule"] == "0 10 * * *"
 
 
 # ---------------------------------------------------------------------------

@@ -28,6 +28,7 @@ from metaflow.metaflow_config import (
     ARGO_WORKFLOWS_ENV_VARS_TO_SKIP,
     ARGO_WORKFLOWS_KUBERNETES_SECRETS,
     ARGO_WORKFLOWS_UI_URL,
+    ARGO_WORKFLOWS_USE_SCHEDULES,
     AWS_SECRETS_MANAGER_DEFAULT_REGION,
     AZURE_KEY_VAULT_PREFIX,
     AZURE_STORAGE_BLOB_SERVICE_ENDPOINT,
@@ -197,16 +198,25 @@ class ArgoWorkflows(object):
         return str(self._workflow_template)
 
     def _cron_workflow_json(self):
-        """Build the CronWorkflow manifest as a dict (without deploying it)."""
+        """Build the CronWorkflow manifest as a dict (without deploying it).
+
+        Mirrors the schedule spec structure that ArgoClient.schedule_workflow_template
+        produces: when ARGO_WORKFLOWS_USE_SCHEDULES is True, uses a "schedules" list;
+        otherwise uses the legacy "schedule" scalar.
+        """
         if self._schedule is None:
             return None
+        if ARGO_WORKFLOWS_USE_SCHEDULES:
+            schedule_spec = {"schedules": [self._schedule]}
+        else:
+            schedule_spec = {"schedule": self._schedule}
         return {
             "apiVersion": "argoproj.io/v1alpha1",
             "kind": "CronWorkflow",
             "metadata": {"name": self.name},
             "spec": {
                 "suspend": False,
-                "schedule": self._schedule,
+                **schedule_spec,
                 "timezone": self._timezone,
                 "failedJobsHistoryLimit": 10000,
                 "successfulJobsHistoryLimit": 10000,
