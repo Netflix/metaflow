@@ -160,6 +160,14 @@ def argo_workflows(obj, name=None):
     hidden=True,
 )
 @click.option(
+    "--dump-manifests",
+    is_flag=True,
+    default=False,
+    help="Print all Kubernetes manifests as JSON without connecting to the cluster "
+    "or uploading a code package. Suitable for GitOps workflows with kubectl apply, "
+    "kustomize, or ArgoCD. Code package fields use placeholder values.",
+)
+@click.option(
     "--max-workers",
     default=100,
     show_default=True,
@@ -259,6 +267,7 @@ def create(
     tags=None,
     user_namespace=None,
     only_json=False,
+    dump_manifests=False,
     authorize=None,
     generate_new_token=False,
     given_token=None,
@@ -291,12 +300,12 @@ def create(
 
     validate_tags(tags)
 
-    if not only_json:
+    if not only_json and not dump_manifests:
         _write_deployer_attributes(obj, deployer_attribute_file)
 
     obj.echo("Deploying *%s* to Argo Workflows..." % obj.flow.name, bold=True)
 
-    if only_json:
+    if only_json or dump_manifests:
         # When only generating JSON, we skip cluster access operations:
         # - Metadata service version check (requires service access)
         # - Token resolution (requires Kubernetes cluster access to check existing deployments)
@@ -366,9 +375,12 @@ def create(
         enable_error_msg_capture,
         workflow_title,
         workflow_description,
+        dump_manifests=dump_manifests,
     )
 
-    if only_json:
+    if dump_manifests:
+        obj.echo_always(flow.export_all_json(), err=False, no_bold=True)
+    elif only_json:
         _write_deployer_attributes(
             obj,
             deployer_attribute_file,
@@ -717,13 +729,15 @@ def make_flow(
     enable_error_msg_capture,
     workflow_title,
     workflow_description,
+    dump_manifests=False,
 ):
-    # TODO: Make this check less specific to Amazon S3 as we introduce
-    #       support for more cloud object stores.
-    if obj.flow_datastore.TYPE not in ("azure", "gs", "s3"):
-        raise MetaflowException(
-            "Argo Workflows requires --datastore=s3 or --datastore=azure or --datastore=gs"
-        )
+    if not dump_manifests:
+        # TODO: Make this check less specific to Amazon S3 as we introduce
+        #       support for more cloud object stores.
+        if obj.flow_datastore.TYPE not in ("azure", "gs", "s3"):
+            raise MetaflowException(
+                "Argo Workflows requires --datastore=s3 or --datastore=azure or --datastore=gs"
+            )
 
     if (notify_on_error or notify_on_success) and not (
         notify_slack_webhook_url
@@ -764,30 +778,39 @@ def make_flow(
     )
     obj.graph = obj.flow._graph
 
-    # Save the code package in the flow datastore so that both user code and
-    # metaflow package can be retrieved during workflow execution.
-    obj.package = MetaflowPackage(
-        obj.flow,
-        obj.environment,
-        obj.echo,
-        suffixes=obj.package_suffixes,
-        flow_datastore=obj.flow_datastore if FEAT_ALWAYS_UPLOAD_CODE_PACKAGE else None,
-    )
-
-    # This blocks until the package is created
-    if FEAT_ALWAYS_UPLOAD_CODE_PACKAGE:
-        package_url = obj.package.package_url()
-        package_sha = obj.package.package_sha()
+    if dump_manifests:
+        # Skip code package upload; use placeholders for manifest inspection.
+        package_url = "__PLACEHOLDER_CODE_PACKAGE_URL__"
+        package_sha = "__PLACEHOLDER_CODE_PACKAGE_SHA__"
+        package_metadata = json.dumps({"version": 0})
     else:
-        package_url, package_sha = obj.flow_datastore.save_data(
-            [obj.package.blob], len_hint=1
-        )[0]
+        # Save the code package in the flow datastore so that both user code and
+        # metaflow package can be retrieved during workflow execution.
+        obj.package = MetaflowPackage(
+            obj.flow,
+            obj.environment,
+            obj.echo,
+            suffixes=obj.package_suffixes,
+            flow_datastore=(
+                obj.flow_datastore if FEAT_ALWAYS_UPLOAD_CODE_PACKAGE else None
+            ),
+        )
+
+        # This blocks until the package is created
+        if FEAT_ALWAYS_UPLOAD_CODE_PACKAGE:
+            package_url = obj.package.package_url()
+            package_sha = obj.package.package_sha()
+        else:
+            package_url, package_sha = obj.flow_datastore.save_data(
+                [obj.package.blob], len_hint=1
+            )[0]
+        package_metadata = obj.package.package_metadata
 
     return ArgoWorkflows(
         name,
         obj.graph,
         obj.flow,
-        obj.package.package_metadata,
+        package_metadata,
         package_sha,
         package_url,
         token,

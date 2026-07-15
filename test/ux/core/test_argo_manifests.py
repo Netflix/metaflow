@@ -316,3 +316,93 @@ class TestArgoCliOnlyJsonScheduledFlow:
         cron = data["cron_workflow"]
         wt_name = data["workflow_template"]["metadata"]["name"]
         assert cron["spec"]["workflowSpec"]["workflowTemplateRef"]["name"] == wt_name
+
+
+# ---------------------------------------------------------------------------
+# Helper for --dump-manifests integration tests
+# ---------------------------------------------------------------------------
+
+
+def _compile_flow_to_dump_manifests(flow_path, **extra_tl_args):
+    """Compile a flow to Argo JSON using the CLI with --dump-manifests.
+
+    Unlike --only-json, this skips datastore validation and code package upload,
+    so it works without any cloud datastore configured.
+    """
+    from .test_utils import _resolve_flow_path
+
+    full_path = _resolve_flow_path(flow_path)
+
+    cmd = [sys.executable, full_path, "--no-pylint"]
+    for k, v in extra_tl_args.items():
+        if v is not None:
+            cmd.extend([f"--{k.replace('_', '-')}", str(v)])
+    cmd.extend(["argo-workflows", "create", "--dump-manifests"])
+
+    result = subprocess.run(
+        cmd,
+        capture_output=True,
+        text=True,
+        timeout=30,
+        env=_get_compile_env(),
+    )
+    if result.returncode != 0:
+        stderr = result.stderr or ""
+        stdout = result.stdout or ""
+        if "No such command" in stderr or "No such command" in stdout:
+            pytest.skip(
+                "argo-workflows CLI not available (extension may override plugins)"
+            )
+        if "ConnectionRefusedError" in stderr or "ConnectionError" in stderr:
+            pytest.skip(
+                "Argo backend not configured (connection refused to metadata service)"
+            )
+        # Note: do NOT skip for 'requires --datastore=' — that error would mean
+        # the datastore-bypass logic in make_flow() is broken.
+        pytest.fail(f"--dump-manifests failed:\nstderr: {stderr}\nstdout: {stdout}")
+
+    stdout = result.stdout.strip()
+    json_start = stdout.find("{")
+    if json_start == -1:
+        pytest.fail(f"No JSON found in --dump-manifests output:\n{stdout}")
+
+    return json.loads(stdout[json_start:])
+
+
+# ---------------------------------------------------------------------------
+# Integration tests — --dump-manifests (no datastore required)
+# ---------------------------------------------------------------------------
+
+
+class TestArgoCliDumpManifests:
+    """Run `argo-workflows create --dump-manifests` via subprocess.
+
+    Unlike --only-json, --dump-manifests skips datastore validation and code
+    package upload, so it works without any cloud datastore configured.
+    """
+
+    def test_plain_flow_has_workflow_template(self):
+        data = _compile_flow_to_dump_manifests("basic/helloworld.py")
+        assert "workflow_template" in data
+        assert data["workflow_template"]["kind"] == "WorkflowTemplate"
+
+    def test_plain_flow_no_cron_or_sensor(self):
+        data = _compile_flow_to_dump_manifests("basic/helloworld.py")
+        assert "cron_workflow" not in data
+        assert "sensor" not in data
+
+    def test_output_is_valid_json_object(self):
+        data = _compile_flow_to_dump_manifests("basic/helloworld.py")
+        assert isinstance(data, dict)
+
+    def test_placeholder_package_values_present(self):
+        """Placeholder strings should appear in the manifest for code package fields."""
+        data = _compile_flow_to_dump_manifests("basic/helloworld.py")
+        manifest_str = json.dumps(data)
+        assert "__PLACEHOLDER_CODE_PACKAGE_URL__" in manifest_str
+        assert "__PLACEHOLDER_CODE_PACKAGE_SHA__" in manifest_str
+
+    def test_scheduled_flow_has_cron_workflow(self):
+        data = _compile_flow_to_dump_manifests("lifecycle/schedule_flow.py")
+        assert "cron_workflow" in data
+        assert data["cron_workflow"]["kind"] == "CronWorkflow"
