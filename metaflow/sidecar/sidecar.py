@@ -1,3 +1,5 @@
+import threading
+
 from .sidecar_subprocess import SidecarSubProcess
 
 
@@ -8,6 +10,14 @@ class Sidecar(object):
         from metaflow.plugins import SIDECARS
 
         self._sidecar_type = sidecar_type
+        self._publisher_health = None
+        if self._sidecar_type == "save_logs_periodically":
+            from metaflow.mflog import publisher_health
+
+            if publisher_health.health_logging_enabled():
+                self._publisher_health = publisher_health
+                self._publisher_monitor_stop = threading.Event()
+                self._publisher_shutdown_requested = False
         self._has_valid_worker = False
         t = SIDECARS.get(self._sidecar_type)
         if t is not None and t.get_worker() is not None:
@@ -19,6 +29,36 @@ class Sidecar(object):
     def start(self):
         if not self.is_active and self._has_valid_worker:
             self.sidecar_process = SidecarSubProcess(self._sidecar_type)
+            if self._publisher_health is not None:
+                process = getattr(self.sidecar_process, "_process", None)
+                self._publisher_health.write_health_event(
+                    "publisher_process_start",
+                    publisher_pid=getattr(process, "pid", None),
+                    start_succeeded=process is not None,
+                )
+                self._publisher_monitor_thread = threading.Thread(
+                    target=self._monitor_publisher_process,
+                    name="log-publisher-process-health",
+                    daemon=True,
+                )
+                self._publisher_monitor_thread.start()
+
+    def _monitor_publisher_process(self):
+        process = getattr(self.sidecar_process, "_process", None)
+        while not self._publisher_monitor_stop.is_set():
+            return_code = process.poll() if process is not None else None
+            if process is None or return_code is not None:
+                self._publisher_health.write_health_event(
+                    "publisher_process_exit",
+                    publisher_pid=getattr(process, "pid", None),
+                    return_code=return_code,
+                    expected=self._publisher_shutdown_requested,
+                )
+                self._publisher_monitor_stop.set()
+                return
+            self._publisher_monitor_stop.wait(
+                self._publisher_health.PROCESS_POLL_INTERVAL_SECONDS
+            )
 
     def enable_threadsafe_send(self):
         self._threadsafe_send_enabled = True
@@ -34,6 +74,14 @@ class Sidecar(object):
 
     def terminate(self):
         if self.is_active:
+            if self._publisher_health is not None:
+                process = getattr(self.sidecar_process, "_process", None)
+                self._publisher_shutdown_requested = True
+                self._publisher_health.write_health_event(
+                    "publisher_process_shutdown_requested",
+                    publisher_pid=getattr(process, "pid", None),
+                    return_code=process.poll() if process is not None else None,
+                )
             self.sidecar_process.kill()
 
     @property
