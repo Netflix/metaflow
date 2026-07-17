@@ -27,6 +27,27 @@ class SaveLogsPeriodicallySidecar(object):
             self._upload_started_at = None
             self._thread_dead_reported = False
 
+        self._debug_hooks = self._load_debug_hooks()
+        if self._debug_hooks is not None:
+            self._debug_state_lock = threading.Lock()
+            self._debug_last_success_at = None
+            self._debug_last_remote_sizes = {}
+            self._debug_upload_started_at = None
+            self._debug_last_upload_verified = None
+            self._debug_stuck_reported = False
+            self._fault_mode = self._debug_hooks._fault_mode()
+            self._fault_triggered = threading.Event()
+            self._debug_health_interval_seconds = self._debug_hooks._float_env(
+                self._debug_hooks.HEALTH_INTERVAL_ENV_VAR,
+                self._debug_hooks.HEALTH_TRACE_INTERVAL_SECONDS,
+            )
+            self._stuck_upload_seconds = self._debug_hooks._float_env(
+                self._debug_hooks.STUCK_UPLOAD_ENV_VAR,
+                self._debug_hooks.STUCK_UPLOAD_SECONDS,
+            )
+            self._redirect_stderr()
+            self._debug_hooks._trace("publisher_worker_start")
+
         self._thread = threading.Thread(target=self._update_loop)
         self.is_alive = True
         self._thread.start()
@@ -40,6 +61,32 @@ class SaveLogsPeriodicallySidecar(object):
             )
             self._health_thread.start()
 
+        if self._debug_hooks is not None:
+            if self._fault_mode:
+                self._fault_thread = threading.Thread(
+                    target=self._inject_fault,
+                    name="log-publisher-fault-injection",
+                    daemon=True,
+                )
+                self._fault_thread.start()
+            self._debug_health_thread = threading.Thread(
+                target=self._debug_health_loop,
+                name="log-publisher-debug-health",
+                daemon=True,
+            )
+            self._debug_health_thread.start()
+
+    @staticmethod
+    def _load_debug_hooks():
+        try:
+            from metaflow_extensions.nflx.plugins import log_upload_tracing
+
+            if log_upload_tracing.debug_log_transfer_enabled():
+                return log_upload_tracing
+        except ImportError:
+            pass
+        return None
+
     def process_message(self, msg):
         if msg.msg_type == MessageTypes.SHUTDOWN:
             self.is_alive = False
@@ -52,6 +99,8 @@ class SaveLogsPeriodicallySidecar(object):
         return cls
 
     def _update_loop(self):
+        debug_hooks = getattr(self, "_debug_hooks", None)
+
         def _file_size(path):
             if os.path.exists(path):
                 return os.path.getsize(path)
@@ -72,9 +121,22 @@ class SaveLogsPeriodicallySidecar(object):
                     except:
                         pass
                 time.sleep(update_delay(time.time() - start_time))
+
+            if (
+                debug_hooks is not None
+                and self._fault_mode == debug_hooks.FAULT_THREAD_FAILURE
+                and self._fault_triggered.is_set()
+            ):
+                raise RuntimeError("Injected log publisher thread failure")
         except BaseException as error:
-            if self._health_logging_enabled:
+            if getattr(self, "_health_logging_enabled", False):
                 write_health_event(
+                    "publisher_thread_failure",
+                    error=repr(error),
+                    traceback=traceback.format_exc(),
+                )
+            if debug_hooks is not None:
+                debug_hooks._trace(
                     "publisher_thread_failure",
                     error=repr(error),
                     traceback=traceback.format_exc(),
@@ -82,8 +144,14 @@ class SaveLogsPeriodicallySidecar(object):
             raise
 
     def _upload_logs(self, sizes):
+        upload_call = lambda: subprocess.call(BASH_SAVE_LOGS_ARGS)
+        if getattr(self, "_debug_hooks", None) is not None:
+            upload_call = lambda: self._run_periodic_upload(
+                lambda: subprocess.call(BASH_SAVE_LOGS_ARGS)
+            )
+
         if not self._health_logging_enabled:
-            return subprocess.call(BASH_SAVE_LOGS_ARGS)
+            return upload_call()
 
         started_at = time.monotonic()
         with self._state_lock:
@@ -93,7 +161,7 @@ class SaveLogsPeriodicallySidecar(object):
         return_code = None
         error = None
         try:
-            return_code = subprocess.call(BASH_SAVE_LOGS_ARGS)
+            return_code = upload_call()
             return return_code
         except BaseException as ex:
             error = repr(ex)
@@ -140,3 +208,134 @@ class SaveLogsPeriodicallySidecar(object):
                 self._thread_dead_reported = True
                 write_health_event("publisher_thread_dead", **fields)
             self._health_stop.wait(interval)
+
+    def _inject_fault(self):
+        hooks = self._debug_hooks
+        time.sleep(
+            hooks._float_env(hooks.FAULT_DELAY_ENV_VAR, hooks.FAULT_DELAY_SECONDS)
+        )
+        hooks._write_fault_marker(self._fault_mode)
+        hooks._trace("fault_injection_triggered", fault_mode=self._fault_mode)
+        self._fault_triggered.set()
+        if self._fault_mode == hooks.FAULT_PROCESS_EXIT:
+            os._exit(hooks.FAULT_EXIT_CODE)
+        if self._fault_mode == hooks.FAULT_THREAD_FAILURE:
+            self.is_alive = False
+
+    def _redirect_stderr(self):
+        try:
+            output_path = self._debug_hooks.PUBLISHER_STDERR_PATH
+            os.makedirs(os.path.dirname(output_path), exist_ok=True)
+            output = open(output_path, "a", buffering=1)
+            sys.stdout = output
+            sys.stderr = output
+        except Exception as error:
+            self._debug_hooks._trace(
+                "publisher_stderr_redirect_failure", error=repr(error)
+            )
+
+    def _run_periodic_upload(self, upload_call):
+        hooks = self._debug_hooks
+        if hasattr(self, "_debug_state_lock"):
+            state_lock = self._debug_state_lock
+            state_prefix = "_debug"
+        else:
+            # Keep compatibility with the original investigation hook contract.
+            # Normal initialization always uses the isolated debug state above.
+            state_lock = self._state_lock
+            state_prefix = ""
+
+        upload_started_at_attr = "%s_upload_started_at" % state_prefix
+        stuck_reported_attr = "%s_stuck_reported" % state_prefix
+        last_success_at_attr = "%s_last_success_at" % state_prefix
+        last_remote_sizes_attr = "%s_last_remote_sizes" % state_prefix
+        last_upload_verified_attr = "%s_last_upload_verified" % state_prefix
+
+        with state_lock:
+            setattr(self, upload_started_at_attr, time.monotonic())
+            setattr(self, stuck_reported_attr, False)
+            last_success_at = getattr(self, last_success_at_attr)
+            previous_remote_sizes = getattr(self, last_remote_sizes_attr)
+
+        effective_upload_call = upload_call
+        if self._fault_triggered.is_set():
+            if self._fault_mode == hooks.FAULT_UPLOAD_HANG:
+                hang_seconds = hooks._float_env(
+                    hooks.FAULT_HANG_ENV_VAR, hooks.FAULT_HANG_SECONDS
+                )
+                effective_upload_call = lambda: time.sleep(hang_seconds)
+            elif self._fault_mode == hooks.FAULT_UPLOAD_FAILURE:
+                effective_upload_call = lambda: hooks.FAULT_EXIT_CODE
+
+        verified, remote_sizes, return_code = hooks._run_upload(
+            "periodic",
+            last_success_at,
+            previous_remote_sizes,
+            effective_upload_call,
+        )
+
+        with state_lock:
+            setattr(self, upload_started_at_attr, None)
+            setattr(self, last_upload_verified_attr, verified)
+            if remote_sizes:
+                setattr(self, last_remote_sizes_attr, remote_sizes)
+            if verified:
+                setattr(self, last_success_at_attr, time.time())
+        return return_code
+
+    def _debug_health_loop(self):
+        hooks = self._debug_hooks
+        while self.is_alive:
+            with self._debug_state_lock:
+                upload_started_at = self._debug_upload_started_at
+                upload_age = (
+                    time.monotonic() - upload_started_at
+                    if upload_started_at is not None
+                    else None
+                )
+                last_success_at = self._debug_last_success_at
+                destination_sizes = dict(self._debug_last_remote_sizes)
+                last_upload_verified = self._debug_last_upload_verified
+                should_report_stuck = (
+                    upload_age is not None
+                    and upload_age >= self._stuck_upload_seconds
+                    and not self._debug_stuck_reported
+                )
+                if should_report_stuck:
+                    self._debug_stuck_reported = True
+
+            fields = {
+                "publisher_thread_alive": self._thread.is_alive(),
+                "upload_in_progress": upload_started_at is not None,
+                "upload_age_seconds": upload_age,
+                "local_sizes": hooks._local_log_sizes(),
+                "destination_sizes": destination_sizes,
+                "last_upload_verified": last_upload_verified,
+                "last_success_age_seconds": hooks._last_success_age(last_success_at),
+            }
+            hooks._trace("publisher_health", **fields)
+            hooks._gauge("last_success_age_seconds", fields["last_success_age_seconds"])
+            hooks._gauge("upload_age_seconds", upload_age)
+            if should_report_stuck:
+                hooks._trace("upload_stuck", phase="periodic", **fields)
+                hooks._count("stuck")
+            time.sleep(self._debug_health_interval_seconds)
+
+    def shutdown(self):
+        if self._debug_hooks is None:
+            return
+        with self._debug_state_lock:
+            upload_started_at = self._debug_upload_started_at
+        self._debug_hooks._trace(
+            "publisher_worker_stop",
+            publisher_thread_alive=self._thread.is_alive(),
+            upload_in_progress=upload_started_at is not None,
+            upload_age_seconds=(
+                time.monotonic() - upload_started_at
+                if upload_started_at is not None
+                else None
+            ),
+            last_success_age_seconds=self._debug_hooks._last_success_age(
+                self._debug_last_success_at
+            ),
+        )

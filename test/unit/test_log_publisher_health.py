@@ -47,6 +47,68 @@ def test_upload_failure_records_return_code(monkeypatch, mocker):
     assert write_event.call_args_list[-1].kwargs["return_code"] == 70
 
 
+def test_debug_fault_exits_publisher_process(mocker):
+    hooks = SimpleNamespace(
+        FAULT_DELAY_ENV_VAR="METAFLOW_DEBUG_LOG_UPLOAD_FAULT_DELAY_SECONDS",
+        FAULT_DELAY_SECONDS=8,
+        FAULT_PROCESS_EXIT="publisher_process_exit",
+        FAULT_THREAD_FAILURE="publisher_thread_failure",
+        FAULT_EXIT_CODE=70,
+        _float_env=mocker.Mock(return_value=0),
+        _write_fault_marker=mocker.Mock(),
+        _trace=mocker.Mock(),
+    )
+    publisher = SaveLogsPeriodicallySidecar.__new__(SaveLogsPeriodicallySidecar)
+    publisher._debug_hooks = hooks
+    publisher._fault_mode = hooks.FAULT_PROCESS_EXIT
+    publisher._fault_triggered = threading.Event()
+    publisher.is_alive = True
+    mocker.patch("metaflow.mflog.save_logs_periodically.time.sleep")
+    exit_process = mocker.patch("metaflow.mflog.save_logs_periodically.os._exit")
+
+    publisher._inject_fault()
+
+    hooks._write_fault_marker.assert_called_once_with(hooks.FAULT_PROCESS_EXIT)
+    hooks._trace.assert_called_once_with(
+        "fault_injection_triggered", fault_mode=hooks.FAULT_PROCESS_EXIT
+    )
+    assert publisher._fault_triggered.is_set()
+    exit_process.assert_called_once_with(70)
+
+
+def test_debug_upload_failure_skips_uploader(mocker):
+    hooks = SimpleNamespace(
+        FAULT_UPLOAD_HANG="upload_hang",
+        FAULT_UPLOAD_FAILURE="upload_failure",
+        FAULT_EXIT_CODE=70,
+        _run_upload=mocker.Mock(
+            side_effect=lambda phase, last_success, remote_sizes, upload_call: (
+                False,
+                {},
+                upload_call(),
+            )
+        ),
+    )
+    publisher = SaveLogsPeriodicallySidecar.__new__(SaveLogsPeriodicallySidecar)
+    publisher._debug_hooks = hooks
+    publisher._debug_state_lock = threading.Lock()
+    publisher._debug_last_success_at = None
+    publisher._debug_last_remote_sizes = {}
+    publisher._debug_upload_started_at = None
+    publisher._debug_last_upload_verified = None
+    publisher._debug_stuck_reported = False
+    publisher._fault_mode = hooks.FAULT_UPLOAD_FAILURE
+    publisher._fault_triggered = threading.Event()
+    publisher._fault_triggered.set()
+    uploader = mocker.Mock(return_value=0)
+
+    return_code = publisher._run_periodic_upload(uploader)
+
+    assert return_code == hooks.FAULT_EXIT_CODE
+    uploader.assert_not_called()
+    assert hooks._run_upload.call_args.args[0] == "periodic"
+
+
 def test_process_monitor_records_unexpected_exit(mocker):
     class StopAfterWait:
         stopped = False

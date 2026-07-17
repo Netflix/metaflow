@@ -18,6 +18,13 @@ class Sidecar(object):
                 self._publisher_health = publisher_health
                 self._publisher_monitor_stop = threading.Event()
                 self._publisher_shutdown_requested = False
+
+        self._debug_hooks = self._load_debug_hooks()
+        if self._debug_hooks is not None:
+            self._monitor_stop = threading.Event()
+            self._monitor_thread = None
+            self._shutdown_requested = False
+
         self._has_valid_worker = False
         t = SIDECARS.get(self._sidecar_type)
         if t is not None and t.get_worker() is not None:
@@ -43,6 +50,16 @@ class Sidecar(object):
                 )
                 self._publisher_monitor_thread.start()
 
+            if self._debug_hooks is not None:
+                if getattr(self.sidecar_process, "_process", None) is None:
+                    self._debug_hooks._trace("publisher_process_start_failure")
+                self._monitor_thread = threading.Thread(
+                    target=self._monitor_process,
+                    name="log-publisher-process-monitor",
+                    daemon=True,
+                )
+                self._monitor_thread.start()
+
     def _monitor_publisher_process(self):
         process = getattr(self.sidecar_process, "_process", None)
         while not self._publisher_monitor_stop.is_set():
@@ -59,6 +76,55 @@ class Sidecar(object):
             self._publisher_monitor_stop.wait(
                 self._publisher_health.PROCESS_POLL_INTERVAL_SECONDS
             )
+
+    def _load_debug_hooks(self):
+        if self._sidecar_type != "save_logs_periodically":
+            return None
+        try:
+            from metaflow_extensions.nflx.plugins import log_upload_tracing
+
+            if log_upload_tracing.debug_log_transfer_enabled():
+                return log_upload_tracing
+        except ImportError:
+            pass
+        return None
+
+    def _monitor_process(self):
+        observed_process = None
+        observed_exit = False
+        while not self._monitor_stop.is_set():
+            process = getattr(self.sidecar_process, "_process", None)
+            if process is not observed_process:
+                previous_process = observed_process
+                event = (
+                    "publisher_process_start"
+                    if observed_process is None
+                    else "publisher_process_restart"
+                )
+                observed_process = process
+                observed_exit = False
+                self._debug_hooks._trace(
+                    event,
+                    publisher_pid=getattr(process, "pid", None),
+                    previous_publisher_pid=(
+                        getattr(previous_process, "pid", None)
+                        if event == "publisher_process_restart"
+                        else None
+                    ),
+                )
+
+            if process is not None and not observed_exit:
+                return_code = process.poll()
+                if return_code is not None:
+                    observed_exit = True
+                    self._debug_hooks._trace(
+                        "publisher_process_exit",
+                        publisher_pid=process.pid,
+                        return_code=return_code,
+                        expected=self._shutdown_requested,
+                    )
+                    self._debug_hooks._count("process_exit")
+            self._monitor_stop.wait(self._debug_hooks.PROCESS_POLL_INTERVAL_SECONDS)
 
     def enable_threadsafe_send(self):
         self._threadsafe_send_enabled = True
@@ -82,7 +148,29 @@ class Sidecar(object):
                     publisher_pid=getattr(process, "pid", None),
                     return_code=process.poll() if process is not None else None,
                 )
-            self.sidecar_process.kill()
+
+            if self._debug_hooks is None:
+                self.sidecar_process.kill()
+                return
+
+            process = getattr(self.sidecar_process, "_process", None)
+            return_code = process.poll() if process is not None else None
+            if return_code is not None:
+                self._debug_hooks._trace(
+                    "publisher_process_found_dead_at_shutdown",
+                    publisher_pid=getattr(process, "pid", None),
+                    return_code=return_code,
+                )
+            self._shutdown_requested = True
+            self._debug_hooks._trace(
+                "publisher_process_shutdown_requested",
+                publisher_pid=getattr(process, "pid", None),
+                return_code=return_code,
+            )
+            try:
+                self.sidecar_process.kill()
+            finally:
+                self._monitor_stop.set()
 
     @property
     def is_active(self):
