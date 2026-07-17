@@ -1,15 +1,17 @@
+import json
 import threading
 
 from .sidecar_subprocess import SidecarSubProcess
 
 
 class Sidecar(object):
-    def __init__(self, sidecar_type):
+    def __init__(self, sidecar_type, options=None):
         # Needs to be here because this file gets loaded by lots of things and SIDECARS
         # may not be fully populated by then
         from metaflow.plugins import SIDECARS
 
         self._sidecar_type = sidecar_type
+        self._options = self._normalize_options(options)
         self._publisher_health = None
         if self._sidecar_type == "save_logs_periodically":
             from metaflow.mflog import publisher_health
@@ -35,7 +37,9 @@ class Sidecar(object):
 
     def start(self):
         if not self.is_active and self._has_valid_worker:
-            self.sidecar_process = SidecarSubProcess(self._sidecar_type)
+            self.sidecar_process = SidecarSubProcess(
+                self._sidecar_type, options=self._options
+            )
             if self._publisher_health is not None:
                 process = getattr(self.sidecar_process, "_process", None)
                 self._publisher_health.write_health_event(
@@ -80,14 +84,33 @@ class Sidecar(object):
     def _load_debug_hooks(self):
         if self._sidecar_type != "save_logs_periodically":
             return None
+        enable_tracing = self._options.get("enable_tracing")
+        if enable_tracing is False:
+            return None
         try:
             from metaflow_extensions.nflx.plugins import log_upload_tracing
 
-            if log_upload_tracing.debug_log_transfer_enabled():
+            if (
+                enable_tracing is True
+                or log_upload_tracing.debug_log_transfer_enabled()
+            ):
                 return log_upload_tracing
         except ImportError:
             pass
         return None
+
+    @staticmethod
+    def _normalize_options(options):
+        if options is None:
+            return {}
+        if not isinstance(options, dict):
+            raise TypeError("Sidecar options must be a dictionary")
+        try:
+            # Round-tripping validates the process-boundary representation and
+            # prevents callers from mutating nested values after construction.
+            return json.loads(json.dumps(options))
+        except (TypeError, ValueError) as error:
+            raise TypeError("Sidecar options must be JSON-serializable: %s" % error)
 
     def _monitor_process(self):
         observed_process = None

@@ -16,7 +16,20 @@ from .publisher_health import (
 
 
 class SaveLogsPeriodicallySidecar(object):
-    def __init__(self):
+    SUPPORTED_OPTIONS = {"enable_tracing"}
+
+    def __init__(self, options=None):
+        self._options = dict(options or {})
+        unknown_options = set(self._options) - self.SUPPORTED_OPTIONS
+        if unknown_options:
+            raise ValueError(
+                "Unsupported save_logs_periodically options: %s"
+                % ", ".join(sorted(unknown_options))
+            )
+        enable_tracing = self._options.get("enable_tracing")
+        if enable_tracing is not None and not isinstance(enable_tracing, bool):
+            raise TypeError("enable_tracing must be a boolean")
+
         self._health_logging_enabled = health_logging_enabled()
         if self._health_logging_enabled:
             self._state_lock = threading.Lock()
@@ -76,12 +89,17 @@ class SaveLogsPeriodicallySidecar(object):
             )
             self._debug_health_thread.start()
 
-    @staticmethod
-    def _load_debug_hooks():
+    def _load_debug_hooks(self=None):
+        enable_tracing = getattr(self, "_options", {}).get("enable_tracing")
+        if enable_tracing is False:
+            return None
         try:
             from metaflow_extensions.nflx.plugins import log_upload_tracing
 
-            if log_upload_tracing.debug_log_transfer_enabled():
+            if (
+                enable_tracing is True
+                or log_upload_tracing.debug_log_transfer_enabled()
+            ):
                 return log_upload_tracing
         except ImportError:
             pass
