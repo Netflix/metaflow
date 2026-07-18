@@ -5,11 +5,18 @@ import subprocess
 from threading import Thread
 
 from metaflow.sidecar import MessageTypes
-from . import update_delay, BASH_SAVE_LOGS_ARGS
+from . import update_delay, BASH_SAVE_LOGS_ARGS, TASK_LOG_SOURCE
+from .mflog import decorate
 
 
 class SaveLogsPeriodicallySidecar(object):
-    def __init__(self):
+    def __init__(self, options=None):
+        options = options or {}
+        if set(options) - {"enable_tracing"}:
+            raise ValueError("Unsupported save_logs_periodically option")
+        self._enable_tracing = options.get("enable_tracing", False)
+        if not isinstance(self._enable_tracing, bool):
+            raise TypeError("enable_tracing must be a boolean")
         self._thread = Thread(target=self._update_loop)
         self.is_alive = True
         self._thread.start()
@@ -36,7 +43,24 @@ class SaveLogsPeriodicallySidecar(object):
         while self.is_alive:
             new_sizes = list(map(_file_size, FILES))
             if new_sizes != sizes:
+                previous_sizes = sizes
                 sizes = new_sizes
+                if self._enable_tracing:
+                    elapsed = time.time() - start_time
+                    payload = b"".join(
+                        decorate(
+                            TASK_LOG_SOURCE,
+                            "[save_logs_periodically] file=%s previous_size=%d "
+                            "current_size=%d delta=%d elapsed_seconds=%.3f\n"
+                            % (path, previous, current, current - previous, elapsed),
+                        )
+                        for path, previous, current in zip(
+                            FILES, previous_sizes, new_sizes
+                        )
+                    )
+                    with open(os.environ["MFLOG_STDERR"], "ab", buffering=0) as trace:
+                        trace.write(payload)
+                    sizes[1] += len(payload)
                 try:
                     subprocess.call(BASH_SAVE_LOGS_ARGS)
                 except:

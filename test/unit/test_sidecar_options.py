@@ -4,6 +4,7 @@ from types import SimpleNamespace
 import pytest
 
 from metaflow.mflog.save_logs_periodically import SaveLogsPeriodicallySidecar
+from metaflow.mflog.mflog import parse
 from metaflow.sidecar import Sidecar
 from metaflow.sidecar.sidecar_subprocess import SidecarSubProcess
 from metaflow.sidecar.sidecar_worker import deserialize_options, instantiate_worker
@@ -119,3 +120,35 @@ def test_monitor_records_unexpected_publisher_exit(mocker):
 def test_log_publisher_rejects_invalid_options(options):
     with pytest.raises((TypeError, ValueError)):
         SaveLogsPeriodicallySidecar(options=options)
+
+
+def test_log_publisher_traces_file_sizes_to_task_stderr(monkeypatch, mocker, tmp_path):
+    stdout = tmp_path / "stdout"
+    stderr = tmp_path / "stderr"
+    stdout.write_bytes(b"out\n")
+    stderr.write_bytes(b"err\n")
+    monkeypatch.setenv("MFLOG_STDOUT", str(stdout))
+    monkeypatch.setenv("MFLOG_STDERR", str(stderr))
+    publisher = SaveLogsPeriodicallySidecar.__new__(SaveLogsPeriodicallySidecar)
+    publisher._enable_tracing = True
+    publisher.is_alive = True
+    mocker.patch(
+        "metaflow.mflog.save_logs_periodically.time.sleep",
+        side_effect=lambda _: setattr(publisher, "is_alive", False),
+    )
+    mocker.patch("metaflow.mflog.save_logs_periodically.time.time", return_value=100)
+    upload = mocker.patch("metaflow.mflog.save_logs_periodically.subprocess.call")
+
+    publisher._update_loop()
+
+    records = [
+        parse(line)
+        for line in stderr.read_bytes().splitlines(keepends=True)
+        if line.startswith(b"[MFLOG|")
+    ]
+    messages = [record.msg.decode() for record in records]
+    assert len(messages) == 2
+    assert "file=%s previous_size=0 current_size=4 delta=4" % stdout in messages[0]
+    assert "file=%s previous_size=0 current_size=4 delta=4" % stderr in messages[1]
+    assert all("elapsed_seconds=0.000" in message for message in messages)
+    upload.assert_called_once()
