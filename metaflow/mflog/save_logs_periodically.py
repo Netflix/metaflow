@@ -5,8 +5,8 @@ import subprocess
 from threading import Thread
 
 from metaflow.sidecar import MessageTypes
-from . import update_delay, BASH_SAVE_LOGS_ARGS, TASK_LOG_SOURCE
-from .mflog import decorate
+from . import update_delay, BASH_SAVE_LOGS_ARGS
+from .publisher_health import write_uploader_log
 
 
 class SaveLogsPeriodicallySidecar(object):
@@ -47,20 +47,16 @@ class SaveLogsPeriodicallySidecar(object):
                 sizes = new_sizes
                 if self._enable_tracing:
                     elapsed = time.time() - start_time
-                    payload = b"".join(
-                        decorate(
-                            TASK_LOG_SOURCE,
+                    written = 0
+                    for path, previous, current in zip(
+                        FILES, previous_sizes, new_sizes
+                    ):
+                        written += write_uploader_log(
                             "[save_logs_periodically] file=%s previous_size=%d "
-                            "current_size=%d delta=%d elapsed_seconds=%.3f\n"
+                            "current_size=%d delta=%d elapsed_seconds=%.3f"
                             % (path, previous, current, current - previous, elapsed),
                         )
-                        for path, previous, current in zip(
-                            FILES, previous_sizes, new_sizes
-                        )
-                    )
-                    with open(os.environ["MFLOG_STDERR"], "ab", buffering=0) as trace:
-                        trace.write(payload)
-                    sizes[1] += len(payload)
+                    sizes[1] += written
                 try:
                     subprocess.call(BASH_SAVE_LOGS_ARGS)
                 except:

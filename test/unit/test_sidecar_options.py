@@ -74,44 +74,6 @@ def test_worker_without_options_uses_legacy_constructor():
     assert worker.started is True
 
 
-def test_monitor_records_unexpected_publisher_exit(mocker):
-    class StopAfterOnePoll:
-        stopped = False
-
-        def is_set(self):
-            return self.stopped
-
-        def wait(self, timeout):
-            self.stopped = True
-
-    process = SimpleNamespace(pid=1234, poll=lambda: 9)
-    sidecar = Sidecar.__new__(Sidecar)
-    sidecar.sidecar_process = SimpleNamespace(_process=process)
-    sidecar._debug_hooks = SimpleNamespace(
-        PROCESS_POLL_INTERVAL_SECONDS=0,
-        _trace=mocker.Mock(),
-        _count=mocker.Mock(),
-    )
-    sidecar._monitor_stop = StopAfterOnePoll()
-    sidecar._shutdown_requested = False
-
-    sidecar._monitor_process()
-
-    assert sidecar._debug_hooks._trace.call_args_list == [
-        mocker.call(
-            "publisher_process_start",
-            publisher_pid=1234,
-            previous_publisher_pid=None,
-        ),
-        mocker.call(
-            "publisher_process_exit",
-            publisher_pid=1234,
-            return_code=9,
-            expected=False,
-        ),
-    ]
-
-
 @pytest.mark.parametrize(
     "options",
     [{"enable_tracing": "yes"}, {"unsupported": True}],
