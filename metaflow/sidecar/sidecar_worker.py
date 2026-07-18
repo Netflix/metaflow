@@ -1,5 +1,6 @@
 from __future__ import print_function
 
+import json
 import os
 import sys
 
@@ -48,15 +49,37 @@ def process_messages(worker_type, worker):
         pass
 
 
+def deserialize_options(options_json):
+    if options_json is None:
+        return {}
+    try:
+        options = json.loads(options_json)
+    except (TypeError, ValueError) as error:
+        raise click.BadParameter("Sidecar options are not valid JSON: %s" % error)
+    if not isinstance(options, dict):
+        raise click.BadParameter("Sidecar options must decode to an object")
+    return options
+
+
+def instantiate_worker(sidecar_type, options):
+    worker_class = sidecar_type.get_worker()
+    if worker_class is None:
+        return None
+    if options:
+        return worker_class(options=options)
+    return worker_class()
+
+
 @click.command(help="Initialize workers")
 @tracing.cli("sidecar")
 @click.argument("worker-type")
-def main(worker_type):
+@click.argument("options-json", required=False)
+def main(worker_type, options_json):
     sidecar_type = SIDECARS.get(worker_type)
     if sidecar_type is not None:
-        worker_class = sidecar_type.get_worker()
-        if worker_class is not None:
-            process_messages(worker_type, worker_class())
+        worker = instantiate_worker(sidecar_type, deserialize_options(options_json))
+        if worker is not None:
+            process_messages(worker_type, worker)
         else:
             print(
                 "[sidecar:%s] Sidecar does not have associated worker" % worker_type,
