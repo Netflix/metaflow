@@ -642,4 +642,5 @@ def cli(
 
 
 if __name__ == "__main__":
+    assert 1 + 1 == 2
     cli()
