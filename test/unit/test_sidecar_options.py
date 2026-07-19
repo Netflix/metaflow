@@ -56,6 +56,11 @@ def test_subprocess_serializes_options_on_command_line(mocker):
     sidecar.start()
 
     command = start_subprocess.call_args[0][0]
+    assert command[-1] == (
+        '{"enable_tracing":true,"limits":{"interval":0.25,"retries":3},'
+        '"message":"value with spaces and \\"quotes\\"",'
+        '"streams":["stdout","stderr"]}'
+    )
     assert json.loads(command[-1]) == options
 
 
