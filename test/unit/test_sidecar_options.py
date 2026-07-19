@@ -3,11 +3,16 @@ from types import SimpleNamespace
 
 import pytest
 
+from metaflow._vendor.click.testing import CliRunner
 from metaflow.mflog.save_logs_periodically import SaveLogsPeriodicallySidecar
 from metaflow.mflog.mflog import parse
 from metaflow.sidecar import Sidecar
 from metaflow.sidecar.sidecar_subprocess import SidecarSubProcess
-from metaflow.sidecar.sidecar_worker import deserialize_options, instantiate_worker
+from metaflow.sidecar.sidecar_worker import (
+    deserialize_options,
+    instantiate_worker,
+    main as sidecar_worker_main,
+)
 
 
 def test_sidecar_passes_detached_options_to_subprocess(mocker):
@@ -34,9 +39,15 @@ def test_sidecar_rejects_invalid_options(options):
 
 
 def test_subprocess_serializes_options_on_command_line(mocker):
+    options = {
+        "enable_tracing": True,
+        "streams": ["stdout", "stderr"],
+        "limits": {"retries": 3, "interval": 0.25},
+        "message": 'value with spaces and "quotes"',
+    }
     sidecar = SidecarSubProcess.__new__(SidecarSubProcess)
     sidecar._worker_type = "save_logs_periodically"
-    sidecar._options = {"enable_tracing": True}
+    sidecar._options = options
     sidecar._logger = mocker.Mock()
     start_subprocess = mocker.patch.object(
         sidecar, "_start_subprocess", return_value=None
@@ -45,7 +56,32 @@ def test_subprocess_serializes_options_on_command_line(mocker):
     sidecar.start()
 
     command = start_subprocess.call_args[0][0]
-    assert json.loads(command[-1]) == {"enable_tracing": True}
+    assert json.loads(command[-1]) == options
+
+
+def test_worker_main_initializes_worker_from_command_line(mocker):
+    options = {"enable_tracing": True, "nested": {"values": [1, 2, 3]}}
+
+    class Worker(object):
+        def __init__(self, options=None):
+            self.options = options
+
+    provider = SimpleNamespace(get_worker=lambda: Worker)
+    mocker.patch.dict(
+        "metaflow.sidecar.sidecar_worker.SIDECARS", {"test_worker": provider}
+    )
+    process_messages = mocker.patch(
+        "metaflow.sidecar.sidecar_worker.process_messages"
+    )
+
+    result = CliRunner().invoke(
+        sidecar_worker_main, ["test_worker", json.dumps(options)]
+    )
+
+    assert result.exit_code == 0, result.output
+    worker_type, worker = process_messages.call_args[0]
+    assert worker_type == "test_worker"
+    assert worker.options == options
 
 
 def test_worker_receives_deserialized_options():
