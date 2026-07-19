@@ -44,7 +44,7 @@ def test_subprocess_serializes_options_on_command_line(mocker):
 
     sidecar.start()
 
-    command = start_subprocess.call_args.args[0]
+    command = start_subprocess.call_args[0][0]
     assert json.loads(command[-1]) == {"enable_tracing": True}
 
 
