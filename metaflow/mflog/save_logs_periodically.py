@@ -5,6 +5,7 @@ import subprocess
 from threading import Thread
 
 from metaflow.sidecar import MessageTypes
+from metaflow.util import to_unicode
 from . import update_delay, BASH_SAVE_LOGS_ARGS, TASK_LOG_SOURCE
 from .mflog import decorate
 
@@ -15,8 +16,9 @@ def _write_uploader_log(message):
         log.write(payload)
 
 
-def _write_save_logs_process_log(log, message):
-    log.write(decorate(TASK_LOG_SOURCE, "%s\n" % message))
+def _write_save_logs_output(stream, output):
+    for line in output.splitlines():
+        _write_uploader_log("[save_logs %s] %s" % (stream, to_unicode(line)))
 
 
 class SaveLogsPeriodicallySidecar(object):
@@ -43,31 +45,15 @@ class SaveLogsPeriodicallySidecar(object):
         if not self._enable_tracing:
             return subprocess.call(BASH_SAVE_LOGS_ARGS)
 
-        # PERIODICAL_UPLOADER_STDOUT contains messages from this long-lived
-        # sidecar. SAVE_LOGS_PROCESS_STDOUT captures stdout and stderr from
-        # each short-lived save_logs subprocess spawned by the sidecar.
-        with open(os.environ["SAVE_LOGS_PROCESS_STDOUT"], "ab", buffering=0) as output:
-            started_at = time.time()
-            _write_save_logs_process_log(output, "[save_logs_process] process_start")
-            try:
-                return_code = subprocess.call(
-                    BASH_SAVE_LOGS_ARGS,
-                    stdout=output,
-                    stderr=subprocess.STDOUT,
-                )
-            except BaseException as error:
-                _write_save_logs_process_log(
-                    output,
-                    "[save_logs_process] process_failure error=%r "
-                    "elapsed_seconds=%.3f" % (error, time.time() - started_at),
-                )
-                raise
-            _write_save_logs_process_log(
-                output,
-                "[save_logs_process] process_exit return_code=%d "
-                "elapsed_seconds=%.3f" % (return_code, time.time() - started_at),
-            )
-            return return_code
+        process = subprocess.Popen(
+            BASH_SAVE_LOGS_ARGS,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+        )
+        stdout, stderr = process.communicate()
+        _write_save_logs_output("stdout", stdout)
+        _write_save_logs_output("stderr", stderr)
+        return process.returncode
 
     def _update_loop(self):
         def _file_size(path):
