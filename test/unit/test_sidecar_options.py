@@ -84,13 +84,17 @@ def test_log_publisher_rejects_invalid_options(options):
         SaveLogsPeriodicallySidecar(options=options)
 
 
-def test_log_publisher_traces_file_sizes_to_task_stderr(monkeypatch, mocker, tmp_path):
+def test_log_publisher_traces_file_sizes_to_uploader_stdout(
+    monkeypatch, mocker, tmp_path
+):
     stdout = tmp_path / "stdout"
     stderr = tmp_path / "stderr"
+    uploader_stdout = tmp_path / "periodical_uploader_stdout"
     stdout.write_bytes(b"out\n")
     stderr.write_bytes(b"err\n")
     monkeypatch.setenv("MFLOG_STDOUT", str(stdout))
     monkeypatch.setenv("MFLOG_STDERR", str(stderr))
+    monkeypatch.setenv("PERIODICAL_UPLOADER_STDOUT", str(uploader_stdout))
     publisher = SaveLogsPeriodicallySidecar.__new__(SaveLogsPeriodicallySidecar)
     publisher._enable_tracing = True
     publisher.is_alive = True
@@ -105,7 +109,7 @@ def test_log_publisher_traces_file_sizes_to_task_stderr(monkeypatch, mocker, tmp
 
     records = [
         parse(line)
-        for line in stderr.read_bytes().splitlines(keepends=True)
+        for line in uploader_stdout.read_bytes().splitlines(keepends=True)
         if line.startswith(b"[MFLOG|")
     ]
     messages = [record.msg.decode() for record in records]

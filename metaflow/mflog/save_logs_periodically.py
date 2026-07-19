@@ -11,9 +11,8 @@ from .mflog import decorate
 
 def _write_uploader_log(message):
     payload = decorate(TASK_LOG_SOURCE, "%s\n" % message)
-    with open(os.environ["MFLOG_STDERR"], "ab", buffering=0) as log:
+    with open(os.environ["PERIODICAL_UPLOADER_STDOUT"], "ab", buffering=0) as log:
         log.write(payload)
-    return len(payload)
 
 
 class SaveLogsPeriodicallySidecar(object):
@@ -54,16 +53,14 @@ class SaveLogsPeriodicallySidecar(object):
                 sizes = new_sizes
                 if self._enable_tracing:
                     elapsed = time.time() - start_time
-                    written = 0
                     for path, previous, current in zip(
                         FILES, previous_sizes, new_sizes
                     ):
-                        written += _write_uploader_log(
+                        _write_uploader_log(
                             "[save_logs_periodically] file=%s previous_size=%d "
                             "current_size=%d delta=%d elapsed_seconds=%.3f"
                             % (path, previous, current, current - previous, elapsed),
                         )
-                    sizes[1] += written
                 try:
                     subprocess.call(BASH_SAVE_LOGS_ARGS)
                 except:
