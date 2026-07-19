@@ -1,4 +1,5 @@
 import os
+import time
 
 # This script is used to upload logs during task bootstrapping, so
 # it shouldn't have external dependencies besides Metaflow itself
@@ -7,10 +8,27 @@ from metaflow.datastore import FlowDataStore
 from metaflow.plugins import DATASTORES
 from metaflow.util import Path
 from . import TASK_LOG_SOURCE
+from .mflog import decorate
 
 from metaflow.tracing import cli
 
 SMALL_FILE_LIMIT = 1024 * 1024
+
+
+def _write_process_log(message):
+    # PERIODICAL_UPLOADER_STDOUT describes the long-lived sidecar loop.
+    # This file describes each short-lived `python -m metaflow.mflog.save_logs`
+    # process spawned by that loop.
+    path = os.environ.get("SAVE_LOGS_PROCESS_STDOUT")
+    if path is None:
+        return
+    try:
+        payload = decorate(TASK_LOG_SOURCE, "%s\n" % message)
+        with open(path, "ab", buffering=0) as log:
+            log.write(payload)
+    except Exception:
+        # Diagnostic logging must never interfere with uploading task logs.
+        pass
 
 
 @cli("save_logs")
@@ -41,6 +59,8 @@ def save_logs():
         run_id, step_name, task_id, int(attempt), mode="w"
     )
 
+    start_time = time.time()
+    sizes = []
     try:
         streams = ("stdout", "stderr")
         sizes = [
@@ -55,8 +75,19 @@ def save_logs():
             op = Path
 
         data = {stream: op(path) for stream, path, _ in sizes}
+        _write_process_log(
+            "[save_logs] upload_start datastore=%s files=%s" % (ds_type, sizes)
+        )
         task_datastore.save_logs(TASK_LOG_SOURCE, data)
-    except:
+        _write_process_log(
+            "[save_logs] upload_success datastore=%s files=%s "
+            "elapsed_seconds=%.3f" % (ds_type, sizes, time.time() - start_time)
+        )
+    except BaseException as error:
+        _write_process_log(
+            "[save_logs] upload_failure datastore=%s files=%s error=%r "
+            "elapsed_seconds=%.3f" % (ds_type, sizes, error, time.time() - start_time)
+        )
         # Upload failing is not considered a fatal error.
         # This script shouldn't return non-zero exit codes
         # for transient errors.
