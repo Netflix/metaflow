@@ -75,9 +75,7 @@ def test_worker_main_initializes_worker_from_command_line(mocker):
     mocker.patch.dict(
         "metaflow.sidecar.sidecar_worker.SIDECARS", {"test_worker": provider}
     )
-    process_messages = mocker.patch(
-        "metaflow.sidecar.sidecar_worker.process_messages"
-    )
+    process_messages = mocker.patch("metaflow.sidecar.sidecar_worker.process_messages")
 
     result = CliRunner().invoke(
         sidecar_worker_main, ["test_worker", json.dumps(options)]
