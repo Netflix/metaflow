@@ -35,6 +35,20 @@ class SaveLogsPeriodicallySidecar(object):
     def get_worker(cls):
         return cls
 
+    def _call_save_logs(self):
+        if not self._enable_tracing:
+            return subprocess.call(BASH_SAVE_LOGS_ARGS)
+
+        # PERIODICAL_UPLOADER_STDOUT contains messages from this long-lived
+        # sidecar. SAVE_LOGS_PROCESS_STDOUT captures stdout and stderr from
+        # each short-lived save_logs subprocess spawned by the sidecar.
+        with open(os.environ["SAVE_LOGS_PROCESS_STDOUT"], "ab", buffering=0) as output:
+            return subprocess.call(
+                BASH_SAVE_LOGS_ARGS + ["--enable-tracing"],
+                stdout=output,
+                stderr=subprocess.STDOUT,
+            )
+
     def _update_loop(self):
         def _file_size(path):
             if os.path.exists(path):
@@ -62,7 +76,7 @@ class SaveLogsPeriodicallySidecar(object):
                             % (path, previous, current, current - previous, elapsed),
                         )
                 try:
-                    subprocess.call(BASH_SAVE_LOGS_ARGS)
+                    self._call_save_logs()
                 except:
                     pass
             time.sleep(update_delay(time.time() - start_time))

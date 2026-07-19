@@ -1,4 +1,5 @@
 import json
+import subprocess
 from types import SimpleNamespace
 
 import pytest
@@ -129,11 +130,13 @@ def test_log_publisher_traces_file_sizes_to_uploader_stdout(
     stdout = tmp_path / "stdout"
     stderr = tmp_path / "stderr"
     uploader_stdout = tmp_path / "periodical_uploader_stdout"
+    save_logs_stdout = tmp_path / "save_logs_process_stdout"
     stdout.write_bytes(b"out\n")
     stderr.write_bytes(b"err\n")
     monkeypatch.setenv("MFLOG_STDOUT", str(stdout))
     monkeypatch.setenv("MFLOG_STDERR", str(stderr))
     monkeypatch.setenv("PERIODICAL_UPLOADER_STDOUT", str(uploader_stdout))
+    monkeypatch.setenv("SAVE_LOGS_PROCESS_STDOUT", str(save_logs_stdout))
     publisher = SaveLogsPeriodicallySidecar.__new__(SaveLogsPeriodicallySidecar)
     publisher._enable_tracing = True
     publisher.is_alive = True
@@ -157,3 +160,16 @@ def test_log_publisher_traces_file_sizes_to_uploader_stdout(
     assert "file=%s previous_size=0 current_size=4 delta=4" % stderr in messages[1]
     assert all("elapsed_seconds=0.000" in message for message in messages)
     upload.assert_called_once()
+    assert upload.call_args.args[0][-1] == "--enable-tracing"
+    assert upload.call_args.kwargs["stdout"].name == str(save_logs_stdout)
+    assert upload.call_args.kwargs["stderr"] is subprocess.STDOUT
+
+
+def test_log_publisher_does_not_redirect_save_logs_without_tracing(mocker):
+    publisher = SaveLogsPeriodicallySidecar.__new__(SaveLogsPeriodicallySidecar)
+    publisher._enable_tracing = False
+    upload = mocker.patch("metaflow.mflog.save_logs_periodically.subprocess.call")
+
+    publisher._call_save_logs()
+
+    upload.assert_called_once_with(["python", "-m", "metaflow.mflog.save_logs"])
