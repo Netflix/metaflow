@@ -145,7 +145,9 @@ def test_log_publisher_traces_file_sizes_to_uploader_stdout(
         side_effect=lambda _: setattr(publisher, "is_alive", False),
     )
     mocker.patch("metaflow.mflog.save_logs_periodically.time.time", return_value=100)
-    upload = mocker.patch("metaflow.mflog.save_logs_periodically.subprocess.call")
+    upload = mocker.patch(
+        "metaflow.mflog.save_logs_periodically.subprocess.call", return_value=0
+    )
 
     publisher._update_loop()
 
@@ -160,9 +162,17 @@ def test_log_publisher_traces_file_sizes_to_uploader_stdout(
     assert "file=%s previous_size=0 current_size=4 delta=4" % stderr in messages[1]
     assert all("elapsed_seconds=0.000" in message for message in messages)
     upload.assert_called_once()
-    assert upload.call_args.args[0][-1] == "--enable-tracing"
+    assert upload.call_args.args[0] == ["python", "-m", "metaflow.mflog.save_logs"]
     assert upload.call_args.kwargs["stdout"].name == str(save_logs_stdout)
     assert upload.call_args.kwargs["stderr"] is subprocess.STDOUT
+    process_records = [
+        parse(line)
+        for line in save_logs_stdout.read_bytes().splitlines(keepends=True)
+        if line.startswith(b"[MFLOG|")
+    ]
+    process_messages = [record.msg.decode() for record in process_records]
+    assert "[save_logs_process] process_start" in process_messages[0]
+    assert "[save_logs_process] process_exit return_code=0" in process_messages[1]
 
 
 def test_log_publisher_does_not_redirect_save_logs_without_tracing(mocker):

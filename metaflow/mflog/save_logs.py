@@ -1,6 +1,4 @@
 import os
-import sys
-import time
 
 # This script is used to upload logs during task bootstrapping, so
 # it shouldn't have external dependencies besides Metaflow itself
@@ -15,15 +13,8 @@ from metaflow.tracing import cli
 SMALL_FILE_LIMIT = 1024 * 1024
 
 
-def _write_process_log(message, enable_tracing):
-    if not enable_tracing:
-        return
-    sys.stdout.write("%s\n" % message)
-    sys.stdout.flush()
-
-
 @cli("save_logs")
-def save_logs(enable_tracing=False):
+def save_logs():
     def _read_file(path):
         with open(path, "rb") as f:
             return f.read()
@@ -50,8 +41,6 @@ def save_logs(enable_tracing=False):
         run_id, step_name, task_id, int(attempt), mode="w"
     )
 
-    start_time = time.time()
-    sizes = []
     try:
         streams = ("stdout", "stderr")
         sizes = [
@@ -66,22 +55,8 @@ def save_logs(enable_tracing=False):
             op = Path
 
         data = {stream: op(path) for stream, path, _ in sizes}
-        _write_process_log(
-            "[save_logs] upload_start datastore=%s files=%s" % (ds_type, sizes),
-            enable_tracing,
-        )
         task_datastore.save_logs(TASK_LOG_SOURCE, data)
-        _write_process_log(
-            "[save_logs] upload_success datastore=%s files=%s "
-            "elapsed_seconds=%.3f" % (ds_type, sizes, time.time() - start_time),
-            enable_tracing,
-        )
-    except BaseException as error:
-        _write_process_log(
-            "[save_logs] upload_failure datastore=%s files=%s error=%r "
-            "elapsed_seconds=%.3f" % (ds_type, sizes, error, time.time() - start_time),
-            enable_tracing,
-        )
+    except:
         # Upload failing is not considered a fatal error.
         # This script shouldn't return non-zero exit codes
         # for transient errors.
@@ -89,7 +64,7 @@ def save_logs(enable_tracing=False):
 
 
 if __name__ == "__main__":
-    save_logs(enable_tracing="--enable-tracing" in sys.argv[1:])
+    save_logs()
     # to debug delays in logs, comment the line above and uncomment
     # this snippet:
     """

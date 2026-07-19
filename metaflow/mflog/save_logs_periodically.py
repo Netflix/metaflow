@@ -15,6 +15,10 @@ def _write_uploader_log(message):
         log.write(payload)
 
 
+def _write_save_logs_process_log(log, message):
+    log.write(decorate(TASK_LOG_SOURCE, "%s\n" % message))
+
+
 class SaveLogsPeriodicallySidecar(object):
     def __init__(self, options=None):
         options = options or {}
@@ -43,11 +47,27 @@ class SaveLogsPeriodicallySidecar(object):
         # sidecar. SAVE_LOGS_PROCESS_STDOUT captures stdout and stderr from
         # each short-lived save_logs subprocess spawned by the sidecar.
         with open(os.environ["SAVE_LOGS_PROCESS_STDOUT"], "ab", buffering=0) as output:
-            return subprocess.call(
-                BASH_SAVE_LOGS_ARGS + ["--enable-tracing"],
-                stdout=output,
-                stderr=subprocess.STDOUT,
+            started_at = time.time()
+            _write_save_logs_process_log(output, "[save_logs_process] process_start")
+            try:
+                return_code = subprocess.call(
+                    BASH_SAVE_LOGS_ARGS,
+                    stdout=output,
+                    stderr=subprocess.STDOUT,
+                )
+            except BaseException as error:
+                _write_save_logs_process_log(
+                    output,
+                    "[save_logs_process] process_failure error=%r "
+                    "elapsed_seconds=%.3f" % (error, time.time() - started_at),
+                )
+                raise
+            _write_save_logs_process_log(
+                output,
+                "[save_logs_process] process_exit return_code=%d "
+                "elapsed_seconds=%.3f" % (return_code, time.time() - started_at),
             )
+            return return_code
 
     def _update_loop(self):
         def _file_size(path):
