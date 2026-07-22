@@ -590,6 +590,33 @@ if AWS_SANDBOX_ENABLED:
 
 KUBERNETES_SANDBOX_INIT_SCRIPT = from_conf("KUBERNETES_SANDBOX_INIT_SCRIPT")
 
+###
+# Tenki Sandbox microVM compute backend
+###
+# API key for the Tenki Sandbox SDK. The SDK also reads TENKI_API_KEY /
+# TENKI_AUTH_TOKEN directly from the environment; this is only used to forward
+# an explicit value configured via metaflow config.
+TENKI_API_KEY = from_conf("TENKI_API_KEY")
+# Optional override for the Tenki API endpoint (SDK default: https://api.tenki.cloud).
+TENKI_BASE_URL = from_conf("TENKI_BASE_URL")
+# Default base image for the microVM. If unset, the Tenki default image is used.
+# Must be a Tenki-registry image (Tenki does not pull external registries like
+# Docker Hub) providing python3; the backend exposes `python` and bootstraps pip
+# at startup, so the default image works, but an image with python/pip/boto3
+# preinstalled starts faster.
+TENKI_CONTAINER_IMAGE = from_conf("TENKI_CONTAINER_IMAGE")
+# Default CPU/memory for @tenki steps (used only when the step does not set them
+# and no @resources value is larger).
+TENKI_CPU = from_conf("TENKI_CPU")
+TENKI_MEMORY = from_conf("TENKI_MEMORY")
+# Tenki project/workspace to create sandboxes in. If TENKI_PROJECT_ID is unset,
+# the backend auto-resolves the first project of the token's first workspace.
+TENKI_PROJECT_ID = from_conf("TENKI_PROJECT_ID")
+TENKI_WORKSPACE_ID = from_conf("TENKI_WORKSPACE_ID")
+# Optional init script run before anything else inside the sandbox (parity with
+# KUBERNETES_SANDBOX_INIT_SCRIPT). Useful for configuring egress/proxy.
+TENKI_SANDBOX_INIT_SCRIPT = from_conf("TENKI_SANDBOX_INIT_SCRIPT")
+
 OTEL_ENDPOINT = from_conf("OTEL_ENDPOINT")
 ZIPKIN_ENDPOINT = from_conf("ZIPKIN_ENDPOINT")
 CONSOLE_TRACE_ENABLED = from_conf("CONSOLE_TRACE_ENABLED", False)
