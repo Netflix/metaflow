@@ -256,6 +256,66 @@ def test_resolve_scope_semantics(monkeypatch):
         tenki_cli._resolve_scope("F", None, None, False, echo)
 
 
+class _KillSandbox(object):
+    """A sandbox whose teardown methods succeed or raise per `fails`.
+
+    `fails` is a set of method names that raise; any other listed method
+    succeeds. Only methods in `has` exist on the object.
+    """
+
+    def __init__(self, name, has=("terminate", "close"), fails=()):
+        self.name = name
+        self._fails = set(fails)
+        self.calls = []
+        for m in has:
+            setattr(self, m, self._make(m))
+
+    def _make(self, method):
+        def _fn():
+            self.calls.append(method)
+            if method in self._fails:
+                raise RuntimeError("boom-%s" % method)
+
+        return _fn
+
+
+def test_terminate_sandboxes_tries_all_methods_before_failing():
+    echoes = []
+    echo = echoes.append
+
+    # terminate() fails but close() succeeds -> counted as killed, NO false alarm.
+    recovered = _KillSandbox("a", has=("terminate", "close"), fails=("terminate",))
+    # every method fails -> counted as failed, one failure line.
+    dead = _KillSandbox("b", has=("terminate", "close"), fails=("terminate", "close"))
+
+    killed, failed = tenki_cli._terminate_sandboxes([recovered, dead], echo)
+
+    assert (killed, failed) == (1, 1)
+    # The recovered sandbox tried terminate then close (no early break).
+    assert recovered.calls == ["terminate", "close"]
+    # No "Failed" line for the recovered one; exactly one for the dead one.
+    assert "Terminated a." in echoes
+    assert not any("Failed to terminate a" in m for m in echoes)
+    assert any("Failed to terminate b" in m for m in echoes)
+
+
+def test_terminate_sandboxes_all_succeed():
+    echoes = []
+    sbs = [_KillSandbox("a"), _KillSandbox("b")]
+    killed, failed = tenki_cli._terminate_sandboxes(sbs, echoes.append)
+    assert (killed, failed) == (2, 0)
+
+
+def test_terminate_sandboxes_no_teardown_method():
+    # Degenerate sandbox exposing no teardown method: reported as failed with a
+    # clear reason, not a stray "None".
+    echoes = []
+    sb = _KillSandbox("a", has=())
+    killed, failed = tenki_cli._terminate_sandboxes([sb], echoes.append)
+    assert (killed, failed) == (0, 1)
+    assert any("no teardown method" in m for m in echoes)
+
+
 def _conda_interpreter_for(step_decorators):
     """Drive the real CondaStepDecorator.runtime_task_created and return the
     interpreter it selects for a step carrying `step_decorators`."""

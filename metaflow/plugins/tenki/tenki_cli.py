@@ -68,6 +68,37 @@ def _matching_sandboxes(flow_name, run_id, user):
     return client.list_sandboxes(tags=tags)
 
 
+def _terminate_sandboxes(sandboxes, echo):
+    # Return (killed, failed). For each sandbox try every teardown method in
+    # turn and don't give up after the first failure (mirrors
+    # tenki.py._cleanup); only report a failure when *no* method worked, so a
+    # recovered error never prints a false-alarm "Failed" line.
+    killed = 0
+    failed = 0
+    for sb in sandboxes:
+        name = getattr(sb, "name", "?")
+        terminated = False
+        last_error = None
+        for method in ("terminate", "close", "delete"):
+            fn = getattr(sb, method, None)
+            if fn is None:
+                continue
+            try:
+                fn()
+                terminated = True
+                break
+            except Exception as e:
+                last_error = e
+        if terminated:
+            killed += 1
+            echo("Terminated %s." % name)
+        else:
+            failed += 1
+            reason = last_error if last_error is not None else "no teardown method"
+            echo("Failed to terminate %s: %s" % (name, reason))
+    return killed, failed
+
+
 @tenki.command(name="list", help="List running Metaflow-launched Tenki sandboxes.")
 @click.option(
     "--my-runs",
@@ -112,22 +143,10 @@ def kill(ctx, run_id, user, my_runs):
     if not sandboxes:
         ctx.obj.echo_always("No matching sandboxes to terminate.")
         return
-    killed = 0
-    for sb in sandboxes:
-        name = getattr(sb, "name", "?")
-        for method in ("terminate", "close", "delete"):
-            fn = getattr(sb, method, None)
-            if fn is None:
-                continue
-            try:
-                fn()
-                killed += 1
-                ctx.obj.echo_always("Terminated %s." % name)
-                break
-            except Exception as e:
-                ctx.obj.echo_always("Failed to terminate %s: %s" % (name, e))
-                break
+    killed, failed = _terminate_sandboxes(sandboxes, ctx.obj.echo_always)
     ctx.obj.echo_always("Terminated %d sandbox(es)." % killed)
+    if failed:
+        ctx.obj.echo_always("Failed to terminate %d sandbox(es)." % failed)
 
 
 @tenki.command(
