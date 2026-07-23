@@ -6,7 +6,7 @@ import traceback
 import metaflow.tracing as tracing
 from metaflow import util
 from metaflow._vendor import click
-from metaflow.exception import METAFLOW_EXIT_DISALLOW_RETRY
+from metaflow.exception import CommandException, METAFLOW_EXIT_DISALLOW_RETRY
 from metaflow.metadata_provider.util import sync_local_metadata_from_datastore
 from metaflow.metaflow_config import (
     DATASTORE_LOCAL_DIR,
@@ -15,7 +15,14 @@ from metaflow.metaflow_config import (
 )
 from metaflow.mflog import TASK_LOG_SOURCE
 
-from .tenki import Tenki, TENKI_TAG, TENKI_TAG_RUN, TENKI_TAG_USER, _tag
+from .tenki import (
+    Tenki,
+    TENKI_TAG,
+    TENKI_TAG_FLOW,
+    TENKI_TAG_RUN,
+    TENKI_TAG_USER,
+    _tag,
+)
 from .tenki_client import TenkiClient, TenkiKilledException
 
 
@@ -29,8 +36,28 @@ def tenki():
     pass
 
 
-def _matching_sandboxes(run_id, user):
-    tags = [TENKI_TAG]
+def _resolve_scope(flow_name, run_id, user, my_runs, echo):
+    # Mirror @kubernetes / @batch (parse_cli_options): an unscoped invocation
+    # resolves to the *latest run of the current flow*, never the whole project.
+    # Replicated locally (as @batch does) to keep the plugin self-contained.
+    if user and my_runs:
+        raise CommandException("--user and --my-runs are mutually exclusive.")
+    if run_id and my_runs:
+        raise CommandException("--run-id and --my-runs are mutually exclusive.")
+    if my_runs:
+        user = util.get_username()
+    # A user filter alone means "all of that user's runs of this flow"; only
+    # fall back to the latest run when neither a run id nor a user was given.
+    if not run_id and not user:
+        run_id = util.get_latest_run_id(echo, flow_name)
+        if run_id is None:
+            raise CommandException("A previous run id was not found. Specify --run-id.")
+    return run_id, user
+
+
+def _matching_sandboxes(flow_name, run_id, user):
+    # Always scope by flow so cleanup can never touch another flow's sandboxes.
+    tags = [TENKI_TAG, _tag(TENKI_TAG_FLOW, flow_name)]
     if run_id:
         tags.append(_tag(TENKI_TAG_RUN, run_id))
     if user:
@@ -42,11 +69,20 @@ def _matching_sandboxes(run_id, user):
 
 
 @tenki.command(name="list", help="List running Metaflow-launched Tenki sandboxes.")
+@click.option(
+    "--my-runs",
+    default=False,
+    is_flag=True,
+    help="List all my sandboxes of this flow.",
+)
 @click.option("--run-id", default=None, help="Only sandboxes for this run id.")
 @click.option("--user", default=None, help="Only sandboxes launched by this user.")
 @click.pass_context
-def list_sandboxes(ctx, run_id, user):
-    sandboxes = _matching_sandboxes(run_id, user)
+def list_sandboxes(ctx, run_id, user, my_runs):
+    run_id, user = _resolve_scope(
+        ctx.obj.flow.name, run_id, user, my_runs, ctx.obj.echo_always
+    )
+    sandboxes = _matching_sandboxes(ctx.obj.flow.name, run_id, user)
     for sb in sandboxes:
         ctx.obj.echo_always(
             "%s [%s]" % (getattr(sb, "name", "?"), getattr(sb, "state", "?"))
@@ -56,14 +92,23 @@ def list_sandboxes(ctx, run_id, user):
 
 @tenki.command(help="Terminate running Metaflow-launched Tenki sandboxes.")
 @click.option(
+    "--my-runs",
+    default=False,
+    is_flag=True,
+    help="Terminate all my sandboxes of this flow.",
+)
+@click.option(
     "--run-id", default=None, help="Only terminate sandboxes for this run id."
 )
 @click.option(
     "--user", default=None, help="Only terminate sandboxes launched by this user."
 )
 @click.pass_context
-def kill(ctx, run_id, user):
-    sandboxes = _matching_sandboxes(run_id, user)
+def kill(ctx, run_id, user, my_runs):
+    run_id, user = _resolve_scope(
+        ctx.obj.flow.name, run_id, user, my_runs, ctx.obj.echo_always
+    )
+    sandboxes = _matching_sandboxes(ctx.obj.flow.name, run_id, user)
     if not sandboxes:
         ctx.obj.echo_always("No matching sandboxes to terminate.")
         return

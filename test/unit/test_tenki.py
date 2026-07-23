@@ -197,15 +197,63 @@ def test_cli_matching_sandboxes_uses_configured_credentials(monkeypatch):
     monkeypatch.setattr(tenki_cli, "TENKI_API_KEY", "cfg-key")
     monkeypatch.setattr(tenki_cli, "TENKI_BASE_URL", "https://cfg.example")
 
-    tenki_cli._matching_sandboxes("run-1", "tester")
+    tenki_cli._matching_sandboxes("MyFlow", "run-1", "tester")
 
     assert captured["api_key"] == "cfg-key"
     assert captured["base_url"] == "https://cfg.example"
+    # Always flow-scoped (second tag) so cleanup can never cross flows.
     assert captured["tags"] == [
         "metaflow",
+        "metaflow-flow:myflow",
         "metaflow-run:run-1",
         "metaflow-user:tester",
     ]
+
+
+def test_cli_matching_sandboxes_is_always_flow_scoped(monkeypatch):
+    # Even with no run-id/user, the query is scoped to the flow tag — never the
+    # bare "metaflow" tag (which would match every user's sandboxes).
+    captured = {}
+
+    class _FakeClient:
+        def __init__(self, api_key=None, base_url=None):
+            pass
+
+        def list_sandboxes(self, tags=None):
+            captured["tags"] = tags
+            return []
+
+    monkeypatch.setattr(tenki_cli, "TenkiClient", _FakeClient)
+    tenki_cli._matching_sandboxes("MyFlow", None, None)
+    assert captured["tags"] == ["metaflow", "metaflow-flow:myflow"]
+
+
+def test_resolve_scope_semantics(monkeypatch):
+    from metaflow.exception import CommandException
+
+    echo = lambda *a, **k: None
+
+    # Mutually-exclusive flags.
+    with pytest.raises(CommandException):
+        tenki_cli._resolve_scope("F", None, "u", True, echo)
+    with pytest.raises(CommandException):
+        tenki_cli._resolve_scope("F", "r", None, True, echo)
+
+    # --my-runs -> current user, run_id stays None (all my runs of this flow).
+    monkeypatch.setattr(tenki_cli.util, "get_username", lambda: "me")
+    assert tenki_cli._resolve_scope("F", None, None, True, echo) == (None, "me")
+
+    # A user filter alone -> that user's runs, no latest-run fallback.
+    assert tenki_cli._resolve_scope("F", None, "bob", False, echo) == (None, "bob")
+
+    # No flags -> default to the latest run of this flow.
+    monkeypatch.setattr(tenki_cli.util, "get_latest_run_id", lambda e, f: "run-9")
+    assert tenki_cli._resolve_scope("F", None, None, False, echo) == ("run-9", None)
+
+    # No flags and no previous run -> clear error.
+    monkeypatch.setattr(tenki_cli.util, "get_latest_run_id", lambda e, f: None)
+    with pytest.raises(CommandException):
+        tenki_cli._resolve_scope("F", None, None, False, echo)
 
 
 def _conda_interpreter_for(step_decorators):
@@ -374,6 +422,14 @@ def test_run_success(monkeypatch):
     assert sandbox.create_kwargs["cpu_cores"] == 2
     assert sandbox.create_kwargs["memory_mb"] == 4096
     assert sandbox.create_kwargs["project_id"] == "proj-test"
+    # Sandbox is tagged with the flow (for flow-scoped `tenki list`/`kill`),
+    # run, and user — all sanitized to Tenki's tag charset.
+    assert sandbox.create_kwargs["tags"] == [
+        "metaflow",
+        "metaflow-flow:myflow",
+        "metaflow-run:run-1",
+        "metaflow-user:tester",
+    ]
     # Server-side TTL backstop = run_time_limit (120) + grace.
     assert sandbox.create_kwargs["max_duration"] > 120
     # We must NOT set idle_timeout_minutes: a data-plane exec doesn't refresh

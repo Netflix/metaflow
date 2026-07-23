@@ -132,7 +132,11 @@ _RUNTIME_BOOTSTRAP_SHIM = (
 
 
 # Tags applied to every sandbox so `tenki list` / `tenki kill` can find them.
+# The flow tag scopes cleanup to the current flow (mirrors how @kubernetes /
+# @batch always filter by flow name) so an unscoped `tenki kill` can never reap
+# another flow's or user's sandboxes.
 TENKI_TAG = "metaflow"
+TENKI_TAG_FLOW = "metaflow-flow"
 TENKI_TAG_RUN = "metaflow-run"
 TENKI_TAG_USER = "metaflow-user"
 
@@ -428,6 +432,7 @@ class Tenki(object):
             # in-process teardown never ran).
             tags=[
                 TENKI_TAG,
+                _tag(TENKI_TAG_FLOW, flow_name),
                 _tag(TENKI_TAG_RUN, run_id),
                 _tag(TENKI_TAG_USER, user),
             ],
