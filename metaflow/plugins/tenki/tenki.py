@@ -166,6 +166,52 @@ def _describe_failure(exit_code, signal, reason, errno):
     return ", ".join(parts) or "unknown status"
 
 
+def is_permanent_launch_error(err, client=None):
+    """Classify a launch-path exception: True -> do not retry (DISALLOW_RETRY),
+    False -> retryable (plain non-zero exit, so @retry relaunches).
+
+    launch_job does synchronous network I/O (Client auth, who_am_i project
+    discovery, create), so transient API/network failures are a real mode and
+    must stay retryable. The tenki-sandbox SDK already classifies its own errors
+    via a ``retryable`` attribute (e.g. an UNAVAILABLE service and rate limits
+    are retryable; auth / permission / quota / bad-image are not), so we defer
+    to it for SDK errors. Command/session timeouts and a client-side deadline
+    are also treated as transient, matching Tenki._interpret_result (the wait
+    path). Unknown / non-SDK errors default to PERMANENT: an unclassified launch
+    failure is more often a misconfig than a blip, and looping @retry on a
+    guaranteed failure wastes billed sandbox-create attempts.
+    """
+    # Our own signals. TenkiKilledException is always non-retryable; a
+    # TenkiException at launch comes from the SDK soft-import failing or the
+    # minimum-version guard — both permanent.
+    if isinstance(err, (TenkiKilledException, TenkiException)):
+        return True
+
+    def sdk(name):
+        # Resolve an SDK exception class by name via the client, or () when the
+        # client is unavailable (e.g. construction itself failed) so isinstance
+        # never matches. Mirrors TenkiClient.exception().
+        return client.exception(name) if client is not None else ()
+
+    # Transient, consistent with the wait-path classification: a client-side
+    # deadline, or the SDK's command-timeout / session-lost errors.
+    if isinstance(err, TimeoutError):
+        return False
+    transient = (sdk("CommandTimeoutError"), sdk("SessionNotFoundError"))
+    if any(t and isinstance(err, t) for t in transient):
+        return False
+
+    # For any other SDK error, defer to the SDK's own `retryable` flag
+    # (True for UNAVAILABLE / rate-limit, False for auth / permission / quota /
+    # bad-image / invalid-state / unknown gRPC codes).
+    sandbox_error = sdk("SandboxError")
+    if sandbox_error and isinstance(err, sandbox_error):
+        return not getattr(err, "retryable", False)
+
+    # Unknown / non-SDK error -> permanent (see docstring).
+    return True
+
+
 def _tag(key, value):
     # Build a "<key>:<value>" tag whose value is normalized to the Tenki tag
     # charset/length. When the normalized value would overflow the 32-char

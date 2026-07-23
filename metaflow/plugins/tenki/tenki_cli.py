@@ -22,6 +22,7 @@ from .tenki import (
     TENKI_TAG_RUN,
     TENKI_TAG_USER,
     _tag,
+    is_permanent_launch_error,
 )
 from .tenki_client import TenkiClient, TenkiKilledException
 
@@ -269,6 +270,9 @@ def step(
                 ),
             )
 
+    # Bound before the try so the except-block can safely read tenki._client
+    # even if the Tenki(...) constructor itself were to raise.
+    tenki = None
     try:
         tenki = Tenki(
             datastore=ctx.obj.flow_datastore,
@@ -294,10 +298,17 @@ def step(
                 run_time_limit=run_time_limit,
                 env=env,
             )
-    except Exception:
+    except Exception as e:
         traceback.print_exc(chain=False)
         _sync_metadata()
-        sys.exit(METAFLOW_EXIT_DISALLOW_RETRY)
+        # launch_job does synchronous network I/O (auth, project discovery,
+        # sandbox create), so a transient Tenki API/network failure must stay
+        # retryable when the step has @retry. Only permanent auth/permission/
+        # misconfig errors (and our own non-retryable signals) disallow retry;
+        # everything else exits non-zero so @retry can relaunch.
+        if is_permanent_launch_error(e, client=getattr(tenki, "_client", None)):
+            sys.exit(METAFLOW_EXIT_DISALLOW_RETRY)
+        sys.exit(1)
 
     try:
         tenki.wait(stdout_location, stderr_location, echo=echo)

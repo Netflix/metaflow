@@ -10,7 +10,12 @@ from metaflow.plugins.aws.aws_utils import compute_resource_attributes
 from metaflow.plugins.pypi.conda_decorator import CondaStepDecorator
 from metaflow.plugins.tenki import tenki as tenki_mod
 from metaflow.plugins.tenki import tenki_cli, tenki_client
-from metaflow.plugins.tenki.tenki import Tenki, _sanitize_name, _tag
+from metaflow.plugins.tenki.tenki import (
+    Tenki,
+    _sanitize_name,
+    _tag,
+    is_permanent_launch_error,
+)
 from metaflow.plugins.tenki.tenki_client import (
     TenkiClient,
     TenkiException,
@@ -356,22 +361,50 @@ def test_conda_does_not_hijack_tenki_trampoline_interpreter():
 # ---------------------------------------------------------------------------
 
 
-class _FakeCommandTimeout(Exception):
+# Mirror the real SDK: every error subclasses SandboxError and carries a
+# `retryable` class flag (only UNAVAILABLE / rate-limit are retryable).
+class _FakeSandboxError(Exception):
+    retryable = False
+
+
+class _FakeCommandTimeout(_FakeSandboxError):
     pass
 
 
-class _FakeSessionNotFound(Exception):
+class _FakeSessionNotFound(_FakeSandboxError):
     pass
 
 
-class _FakePermissionDenied(Exception):
+class _FakePermissionDenied(_FakeSandboxError):
     pass
+
+
+class _FakeMissingAuthToken(_FakeSandboxError):
+    pass
+
+
+class _FakeUnauthorized(_FakeSandboxError):
+    pass
+
+
+class _FakeQuotaExceeded(_FakeSandboxError):
+    pass
+
+
+class _FakeRegistryImageNotFound(_FakeSandboxError):
+    pass
+
+
+class _FakeRateLimited(_FakeSandboxError):
+    retryable = True
 
 
 _FAKE_EXC = {
+    "SandboxError": _FakeSandboxError,
     "CommandTimeoutError": _FakeCommandTimeout,
     "SessionNotFoundError": _FakeSessionNotFound,
     "PermissionDeniedError": _FakePermissionDenied,
+    "MissingAuthTokenError": _FakeMissingAuthToken,
 }
 
 
@@ -652,6 +685,46 @@ def test_permission_denied_is_not_retryable(monkeypatch):
     # maps to METAFLOW_EXIT_DISALLOW_RETRY.
     with pytest.raises(TenkiKilledException):
         _run_task(monkeypatch, _FakePermissionDenied("bad token"))
+
+
+def test_is_permanent_launch_error_classification():
+    # A client that resolves SDK exception classes like the real TenkiClient.
+    client = _FakeClient(None)
+
+    # Permanent -> DISALLOW_RETRY.
+    assert is_permanent_launch_error(TenkiKilledException("x"), client) is True
+    assert is_permanent_launch_error(TenkiException("too old"), client) is True
+    assert is_permanent_launch_error(_FakePermissionDenied("no"), client) is True
+    assert is_permanent_launch_error(_FakeMissingAuthToken("no"), client) is True
+    # Non-retryable SDK errors we don't name explicitly must still be permanent
+    # (the bug the SDK's `retryable` flag guards against): auth, quota, bad image.
+    assert is_permanent_launch_error(_FakeUnauthorized("no"), client) is True
+    assert is_permanent_launch_error(_FakeQuotaExceeded("no"), client) is True
+    assert is_permanent_launch_error(_FakeRegistryImageNotFound("no"), client) is True
+    # A generic SandboxError (unknown gRPC code) defaults to retryable=False.
+    assert is_permanent_launch_error(_FakeSandboxError("blip"), client) is True
+    # Unknown non-SDK error -> permanent (conservative default).
+    assert is_permanent_launch_error(RuntimeError("???"), client) is True
+
+    # Transient -> retryable (plain non-zero exit).
+    assert is_permanent_launch_error(_FakeSessionNotFound("gone"), client) is False
+    assert is_permanent_launch_error(_FakeCommandTimeout("slow"), client) is False
+    assert is_permanent_launch_error(TimeoutError("deadline"), client) is False
+    # SDK-declared retryable (UNAVAILABLE / rate-limit) is honored.
+    assert is_permanent_launch_error(_FakeRateLimited("slow down"), client) is False
+    unavailable = _FakeSandboxError("service unavailable")
+    unavailable.retryable = True  # mirrors map_rpc_error's UNAVAILABLE mapping
+    assert is_permanent_launch_error(unavailable, client) is False
+
+
+def test_is_permanent_launch_error_without_client():
+    # If the client failed to construct, SDK names resolve to () and never
+    # match; our own signals and the unknown-default still classify correctly.
+    assert is_permanent_launch_error(TenkiException("guard"), None) is True
+    assert is_permanent_launch_error(TenkiKilledException("x"), None) is True
+    assert is_permanent_launch_error(RuntimeError("???"), None) is True
+    # A builtin TimeoutError is transient even with no client.
+    assert is_permanent_launch_error(TimeoutError("x"), None) is False
 
 
 def test_unknown_exit_code_is_retryable(monkeypatch):
