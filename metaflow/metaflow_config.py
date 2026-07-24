@@ -534,6 +534,7 @@ PROFILE_FROM_START = from_conf("PROFILE_FROM_START", False)
 DEBUG_OPTIONS = [
     "subcommand",
     "sidecar",
+    "log_transfer",
     "s3client",
     "tracing",
     "stubgen",
@@ -544,6 +545,11 @@ DEBUG_OPTIONS = [
 
 for typ in DEBUG_OPTIONS:
     vars()["DEBUG_%s" % typ.upper()] = from_conf("DEBUG_%s" % typ.upper(), False)
+
+LOG_TRANSFER_TRACE_PATH = from_conf(
+    "LOG_TRANSFER_TRACE_PATH",
+    os.path.join(".logs", "periodical_uploader_stdout"),
+)
 
 ###
 # Plugin configuration

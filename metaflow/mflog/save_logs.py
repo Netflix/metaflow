@@ -1,9 +1,12 @@
 import os
+import sys
+import time
 
 # This script is used to upload logs during task bootstrapping, so
 # it shouldn't have external dependencies besides Metaflow itself
 # (e.g. no click for parsing CLI args).
 from metaflow.datastore import FlowDataStore
+from metaflow.metaflow_config import DEBUG_LOG_TRANSFER
 from metaflow.plugins import DATASTORES
 from metaflow.util import Path
 from . import TASK_LOG_SOURCE
@@ -41,6 +44,8 @@ def save_logs():
         run_id, step_name, task_id, int(attempt), mode="w"
     )
 
+    start_time = time.time()
+    sizes = []
     try:
         streams = ("stdout", "stderr")
         sizes = [
@@ -55,8 +60,27 @@ def save_logs():
             op = Path
 
         data = {stream: op(path) for stream, path, _ in sizes}
+        if DEBUG_LOG_TRANSFER:
+            print(
+                "[save_logs] upload_start datastore=%s files=%s" % (ds_type, sizes),
+                flush=True,
+            )
         task_datastore.save_logs(TASK_LOG_SOURCE, data)
-    except:
+        if DEBUG_LOG_TRANSFER:
+            print(
+                "[save_logs] upload_success datastore=%s files=%s "
+                "elapsed_seconds=%.3f" % (ds_type, sizes, time.time() - start_time),
+                flush=True,
+            )
+    except BaseException as error:
+        if DEBUG_LOG_TRANSFER:
+            print(
+                "[save_logs] upload_failure datastore=%s files=%s error=%r "
+                "elapsed_seconds=%.3f"
+                % (ds_type, sizes, error, time.time() - start_time),
+                file=sys.stderr,
+                flush=True,
+            )
         # Upload failing is not considered a fatal error.
         # This script shouldn't return non-zero exit codes
         # for transient errors.

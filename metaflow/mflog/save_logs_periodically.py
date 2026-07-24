@@ -4,12 +4,27 @@ import time
 import subprocess
 from threading import Thread
 
+from metaflow.metaflow_config import DEBUG_LOG_TRANSFER, LOG_TRANSFER_TRACE_PATH
 from metaflow.sidecar import MessageTypes
-from . import update_delay, BASH_SAVE_LOGS_ARGS
+from metaflow.util import to_unicode
+from . import update_delay, BASH_SAVE_LOGS_ARGS, TASK_LOG_SOURCE
+from .mflog import decorate
+
+
+def _write_uploader_log(message):
+    payload = decorate(TASK_LOG_SOURCE, "%s\n" % message)
+    with open(LOG_TRANSFER_TRACE_PATH, "ab", buffering=0) as log:
+        log.write(payload)
+
+
+def _write_save_logs_output(stream, output):
+    for line in output.splitlines():
+        _write_uploader_log("[save_logs %s] %s" % (stream, to_unicode(line)))
 
 
 class SaveLogsPeriodicallySidecar(object):
     def __init__(self):
+        self._enable_tracing = DEBUG_LOG_TRANSFER
         self._thread = Thread(target=self._update_loop)
         self.is_alive = True
         self._thread.start()
@@ -21,6 +36,20 @@ class SaveLogsPeriodicallySidecar(object):
     @classmethod
     def get_worker(cls):
         return cls
+
+    def _call_save_logs(self):
+        if not self._enable_tracing:
+            return subprocess.call(BASH_SAVE_LOGS_ARGS)
+
+        process = subprocess.Popen(
+            BASH_SAVE_LOGS_ARGS,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+        )
+        stdout, stderr = process.communicate()
+        _write_save_logs_output("stdout", stdout)
+        _write_save_logs_output("stderr", stderr)
+        return process.returncode
 
     def _update_loop(self):
         def _file_size(path):
@@ -36,9 +65,20 @@ class SaveLogsPeriodicallySidecar(object):
         while self.is_alive:
             new_sizes = list(map(_file_size, FILES))
             if new_sizes != sizes:
+                previous_sizes = sizes
                 sizes = new_sizes
+                if self._enable_tracing:
+                    elapsed = time.time() - start_time
+                    for path, previous, current in zip(
+                        FILES, previous_sizes, new_sizes
+                    ):
+                        _write_uploader_log(
+                            "[save_logs_periodically] file=%s previous_size=%d "
+                            "current_size=%d delta=%d elapsed_seconds=%.3f"
+                            % (path, previous, current, current - previous, elapsed),
+                        )
                 try:
-                    subprocess.call(BASH_SAVE_LOGS_ARGS)
+                    self._call_save_logs()
                 except:
                     pass
             time.sleep(update_delay(time.time() - start_time))
