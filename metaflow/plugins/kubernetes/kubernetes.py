@@ -51,6 +51,7 @@ from metaflow.mflog import (
     tail_logs,
 )
 
+from .kube_utils import KubernetesException
 from .kubernetes_client import KubernetesClient
 
 # Redirect structured logs to $PWD/.logs/
@@ -63,10 +64,6 @@ STDERR_PATH = os.path.join(LOGS_DIR, STDERR_FILE)
 METAFLOW_PARALLEL_STEP_CLI_OPTIONS_TEMPLATE = (
     "{METAFLOW_PARALLEL_STEP_CLI_OPTIONS_TEMPLATE}"
 )
-
-
-class KubernetesException(MetaflowException):
-    headline = "Kubernetes error"
 
 
 class KubernetesKilledException(MetaflowException):
