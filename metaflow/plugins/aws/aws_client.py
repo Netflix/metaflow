@@ -35,6 +35,8 @@ class Boto3ClientProvider(object):
                 "Could not import module 'boto3'. Install boto3 first."
             )
 
+        from metaflow.version import metaflow_version
+
         # Convert dictionary config to Config object if needed
         if "config" in client_params and not isinstance(
             client_params["config"], Config
@@ -47,6 +49,18 @@ class Boto3ClientProvider(object):
             # do not set anything if the user has already set something
             config = client_params.get("config", Config())
             config.retries = S3_CLIENT_RETRY_CONFIG
+            client_params["config"] = config
+
+        if module == "s3":
+            # Identify Metaflow to any S3-compatible endpoint, appending to (not
+            # replacing) any user agent the caller already configured.
+            config = client_params.get("config", Config())
+            ua = "metaflow/%s" % metaflow_version
+            existing_ua = config.user_agent_extra
+            if not existing_ua:
+                config.user_agent_extra = ua
+            elif ua not in existing_ua.split():
+                config.user_agent_extra = "%s %s" % (existing_ua, ua)
             client_params["config"] = config
 
         if AWS_SANDBOX_ENABLED:
