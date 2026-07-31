@@ -11,6 +11,15 @@ from .mflog import decorate
 
 
 def _write_uploader_log(message):
+    # This is intentionally not best effort. If PERIODICAL_UPLOADER_STDOUT is
+    # incorrectly configured, it should be easy to detect in normal traced runs.
+    # Otherwise a user sidecar uploader issue can happen while this diagnostics
+    # log silently doesn't exist.
+    #
+    # Adding another hard-coded log file location to record the error of lacking
+    # this log file path in the env variable complicates things. Once this path
+    # is setup correctly, it should not normally change, so the chance that this
+    # happens in some flows but not others is very low.
     payload = decorate(TASK_LOG_SOURCE, "%s\n" % message)
     with open(os.environ["PERIODICAL_UPLOADER_STDOUT"], "ab", buffering=0) as log:
         log.write(payload)
