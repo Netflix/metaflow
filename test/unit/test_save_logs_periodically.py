@@ -80,7 +80,7 @@ def _patch_save_logs_child_process(monkeypatch, tmp_path):
     python_bin = tmp_path / "bin"
     python_bin.mkdir()
     python = python_bin / "python"
-    python.write_text("#!/bin/sh\nexec %s \"$@\"\n" % sys.executable)
+    python.write_text('#!/bin/sh\nexec %s "$@"\n' % sys.executable)
     python.chmod(0o755)
     monkeypatch.setenv(
         "PATH",
