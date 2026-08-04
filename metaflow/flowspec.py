@@ -938,6 +938,8 @@ class FlowSpec(metaclass=FlowSpecMeta):
           with the `@step` decorator and `condition_variable` is a variable name in the current
           class. The value of the condition variable determines which step to execute. If the
           value doesn't match any of the dictionary keys, a RuntimeError is raised.
+          A case value may also be a non-empty list or tuple of step methods to fan out
+          after the condition has selected that case.
 
         Parameters
         ----------
@@ -1021,26 +1023,43 @@ class FlowSpec(metaclass=FlowSpecMeta):
                 )
 
             # Get the chosen step and set transition directly
-            chosen_step_func = switch_cases[condition_value]
+            chosen_step_funcs = switch_cases[condition_value]
+            if isinstance(chosen_step_funcs, (list, tuple)):
+                if not chosen_step_funcs:
+                    msg = (
+                        "Step *{step}* specifies an empty switch transition. "
+                        "Make sure the value in the dictionary is a step method "
+                        "or a non-empty list or tuple of step methods.".format(
+                            step=step
+                        )
+                    )
+                    raise InvalidNextException(msg)
+            else:
+                chosen_step_funcs = [chosen_step_funcs]
 
             # Validate that the chosen step exists
-            try:
-                name = chosen_step_func.__func__.__name__
-            except:
-                msg = (
-                    "Step *{step}* specifies a switch transition that is not a function. "
-                    "Make sure the value in the dictionary is a method "
-                    "of the Flow class.".format(step=step)
-                )
-                raise InvalidNextException(msg)
-            if not hasattr(self, name):
-                msg = (
-                    "Step *{step}* specifies a switch transition to an "
-                    "unknown step, *{name}*.".format(step=step, name=name)
-                )
-                raise InvalidNextException(msg)
+            names = []
+            for chosen_step_func in chosen_step_funcs:
+                try:
+                    name = chosen_step_func.__func__.__name__
+                except AttributeError:
+                    msg = (
+                        "Step *{step}* specifies a switch transition that is not a function. "
+                        "Make sure the value in the dictionary is a step method "
+                        "or a non-empty list or tuple of step methods.".format(
+                            step=step
+                        )
+                    )
+                    raise InvalidNextException(msg)
+                if not hasattr(self, name):
+                    msg = (
+                        "Step *{step}* specifies a switch transition to an "
+                        "unknown step, *{name}*.".format(step=step, name=name)
+                    )
+                    raise InvalidNextException(msg)
+                names.append(name)
 
-            self._transition = ([name], None)
+            self._transition = (names, None)
             return
 
         # Check for an invalid transition: a dictionary used without a 'condition' parameter.

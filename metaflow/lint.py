@@ -1,5 +1,6 @@
 import re
 from .exception import MetaflowException
+from .graph import switch_case_target_lists
 from .util import all_equal
 
 
@@ -321,11 +322,18 @@ def check_split_join_balance(graph):
         elif node.type in ("split", "foreach"):
             new_stack = split_stack + [("split", node.out_funcs)]
         elif node.type == "split-switch":
-            # For a switch, continue traversal down each path with the same stack
-            for n in node.out_funcs:
-                if node.type == "split-switch" and n == node.name:
-                    continue
-                traverse(graph[n], split_stack)
+            # A switch selects exactly one case. A list-valued case then behaves
+            # like a split, but only within that selected case.
+            for targets in switch_case_target_lists(node.switch_cases):
+                case_stack = (
+                    split_stack + [("split", targets)]
+                    if len(targets) > 1
+                    else split_stack
+                )
+                for n in targets:
+                    if n == node.name:
+                        continue
+                    traverse(graph[n], case_stack)
             return
         elif node.type == "end":
             new_stack = split_stack

@@ -17,6 +17,7 @@ from .metadata_provider import MetaDatum
 from .metaflow_profile import from_start
 from .mflog import TASK_LOG_SOURCE
 from .datastore import Inputs, TaskDataStoreSet
+from .graph import switch_case_target_lists
 from .exception import (
     MetaflowInternalError,
     MetaflowDataMissing,
@@ -822,12 +823,51 @@ class MetaflowTask(object):
                     if join_type != "foreach":
                         # Find the corresponding split node from the graph.
                         split_node = self.flow._graph[node.split_parents[-1]]
-                        # The number of expected inputs is the number of branches
-                        # from that split -- we can't use in_funcs because there may
-                        # be more due to split-switch branches that all converge here.
-                        expected_inputs = len(split_node.out_funcs)
+                        expected_inputs = None
+                        expected_counts = None
 
-                        if len(inputs) != expected_inputs:
+                        if split_node.type == "split-switch":
+                            branch_roots = set()
+                            for in_func in node.in_funcs:
+                                in_node = self.flow._graph[in_func]
+                                if (
+                                    in_node.split_parents
+                                    and in_node.split_parents[-1] == split_node.name
+                                    and in_node.split_branches
+                                ):
+                                    branch_roots.add(in_node.split_branches[-1])
+
+                            expected_counts = set(
+                                len(targets)
+                                for targets in switch_case_target_lists(
+                                    split_node.switch_cases
+                                )
+                                if len(targets) > 1
+                                and set(targets).issubset(branch_roots)
+                            )
+                            if not expected_counts:
+                                expected_inputs = len(split_node.out_funcs)
+                        else:
+                            # The number of expected inputs is the number of branches
+                            # from that split -- we can't use in_funcs because there may
+                            # be more due to split-switch branches that all converge here.
+                            expected_inputs = len(split_node.out_funcs)
+
+                        if expected_counts:
+                            if len(inputs) not in expected_counts:
+                                raise MetaflowDataMissing(
+                                    "Join *%s* expected one of %s inputs but only %d "
+                                    "inputs were found"
+                                    % (
+                                        step_name,
+                                        ", ".join(
+                                            str(count)
+                                            for count in sorted(expected_counts)
+                                        ),
+                                        len(inputs),
+                                    )
+                                )
+                        elif len(inputs) != expected_inputs:
                             raise MetaflowDataMissing(
                                 "Join *%s* expected %d inputs but only %d inputs "
                                 "were found" % (step_name, expected_inputs, len(inputs))

@@ -65,6 +65,25 @@ def _ast_literal_value(node):
     return None
 
 
+def switch_case_targets(case_value):
+    if isinstance(case_value, (list, tuple)):
+        return list(case_value)
+    return [case_value]
+
+
+def switch_case_target_lists(switch_cases):
+    return [switch_case_targets(case_value) for case_value in switch_cases.values()]
+
+
+def flatten_switch_cases(switch_cases):
+    out_funcs = []
+    for targets in switch_case_target_lists(switch_cases):
+        for target in targets:
+            if target not in out_funcs:
+                out_funcs.append(target)
+    return out_funcs
+
+
 # ---------------------------------------------------------------------------
 # Note on "sourceless" DAGNodes (used by FunctionSpec)
 # ---------------------------------------------------------------------------
@@ -168,6 +187,25 @@ class DAGNode(object):
     def _expr_str(self, expr):
         return "%s.%s" % (expr.value.id, expr.attr)
 
+    def _parse_switch_target(self, value):
+        if isinstance(value, ast.Attribute) and isinstance(value.value, ast.Name):
+            if value.value.id == "self":
+                return value.attr
+            return None
+        return None
+
+    def _parse_switch_value(self, value):
+        target = self._parse_switch_target(value)
+        if target is not None:
+            return target
+
+        if isinstance(value, (ast.List, ast.Tuple)) and value.elts:
+            targets = [self._parse_switch_target(elt) for elt in value.elts]
+            if all(target is not None for target in targets):
+                return targets
+
+        return None
+
     def _parse_switch_dict(self, dict_node):
         switch_cases = {}
 
@@ -204,17 +242,10 @@ class DAGNode(object):
                 if case_key is None:
                     return None
 
-                # extract the step name from the value
-                if isinstance(value, ast.Attribute) and isinstance(
-                    value.value, ast.Name
-                ):
-                    if value.value.id == "self":
-                        step_name = value.attr
-                        switch_cases[case_key] = step_name
-                    else:
-                        return None
-                else:
+                case_value = self._parse_switch_value(value)
+                if case_value is None:
                     return None
+                switch_cases[case_key] = case_value
 
         return switch_cases if switch_cases else None
 
@@ -261,7 +292,7 @@ class DAGNode(object):
                     self.type = "split-switch"
                     self.condition = condition_name
                     self.switch_cases = switch_cases
-                    self.out_funcs = list(switch_cases.values())
+                    self.out_funcs = flatten_switch_cases(switch_cases)
                     self.invalid_tail_next = False
                     return
 
@@ -502,7 +533,8 @@ class FlowGraph(object):
             elif node.type == "join":
                 # ignore joins without splits
                 if split_parents:
-                    self[split_parents[-1]].matching_join = node.name
+                    if self[split_parents[-1]].type != "split-switch":
+                        self[split_parents[-1]].matching_join = node.name
                     node.split_parents = split_parents
                     node.split_branches = split_branches[:-1]
                     split_parents = split_parents[:-1]
@@ -510,6 +542,26 @@ class FlowGraph(object):
             else:
                 node.split_parents = split_parents
                 node.split_branches = split_branches
+
+            if node.type == "split-switch":
+                for targets in switch_case_target_lists(node.switch_cases):
+                    case_is_fanout = len(targets) > 1
+                    child_split_parents = (
+                        split_parents + [node.name] if case_is_fanout else split_parents
+                    )
+                    for n in targets:
+                        if n == node.name:
+                            continue
+                        if n not in seen and n in self:
+                            child = self[n]
+                            child.in_funcs.add(node.name)
+                            traverse(
+                                child,
+                                seen + [n],
+                                child_split_parents,
+                                split_branches + ([n] if case_is_fanout else []),
+                            )
+                return
 
             for n in node.out_funcs:
                 # graph may contain loops - ignore them
@@ -549,12 +601,13 @@ class FlowGraph(object):
             for node in self.nodes.values():
                 if node.type == "split-switch":
                     # Label edges for switch cases
-                    for case_value, step_name in node.switch_cases.items():
-                        yield (
-                            '{0} -> {1} [label="{2}" color="blue" fontcolor="blue"];'.format(
-                                node.name, step_name, case_value
+                    for case_value, case_target in node.switch_cases.items():
+                        for step_name in switch_case_targets(case_target):
+                            yield (
+                                '{0} -> {1} [label="{2}" color="blue" fontcolor="blue"];'.format(
+                                    node.name, step_name, case_value
+                                )
                             )
-                        )
                 else:
                     for edge in node.out_funcs:
                         yield "%s -> %s;" % (node.name, edge)
