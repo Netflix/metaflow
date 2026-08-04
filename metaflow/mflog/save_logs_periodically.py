@@ -15,9 +15,7 @@ UPLOADER_DIAGNOSTICS_FALLBACK = "uploader_diagnostics_fallback"
 def _write_uploader_log(message):
     try:
         payload = decorate(TASK_LOG_SOURCE, "%s\n" % message)
-        with open(
-            os.environ["PERIODICAL_UPLOADER_LOG_PATH"], "ab", buffering=0
-        ) as log:
+        with open(os.environ["PERIODICAL_UPLOADER_LOG_PATH"], "ab", buffering=0) as log:
             log.write(payload)
     except BaseException as error:
         _write_uploader_log_failure(message, error)

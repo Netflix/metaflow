@@ -124,9 +124,7 @@ def test_log_publisher_rejects_invalid_options(options):
         SaveLogsPeriodicallySidecar(options=options)
 
 
-def test_log_publisher_writes_debug_logs_to_uploader_log(
-    monkeypatch, mocker, tmp_path
-):
+def test_log_publisher_writes_debug_logs_to_uploader_log(monkeypatch, mocker, tmp_path):
     stdout = tmp_path / "stdout"
     stderr = tmp_path / "stderr"
     uploader_log = tmp_path / "periodical_uploader_log"
