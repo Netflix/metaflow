@@ -15,48 +15,65 @@ import pytest
 from metaflow.client.core import Run
 from metaflow.exception import MetaflowNotFound
 
+# ---------------------------------------------------------------------------
+# Constants
+# ---------------------------------------------------------------------------
+
+FALLBACK_ENDPOINTS = ("start", "end")
+
+# ---------------------------------------------------------------------------
+# Fixtures & Helpers
+# ---------------------------------------------------------------------------
+
 
 @pytest.fixture
 def run():
-    """Bare Run instance, Run.__init__ skipped to avoid metadata service I/O."""
+    """Provide a bare Run instance, skipping Run.__init__ to avoid metadata service I/O."""
     return Run.__new__(Run)
 
 
-def _params_step(mocker, metadata):
-    """Stand-in for run["_parameters"] with a controlled metadata_dict."""
+def _mock_params_step(mocker, metadata_dict):
+    """Build a mock task stand-in representing run["_parameters"] with custom metadata."""
     params = mocker.MagicMock()
-    params.task.metadata_dict = metadata
+    params.task.metadata_dict = metadata_dict
     return params
 
 
+# ---------------------------------------------------------------------------
+# Tests
+# ---------------------------------------------------------------------------
+
+
 def test_missing_metadata_falls_back_to_literals(run, mocker):
-    """Empty metadata returns ('start', 'end')."""
-    mocker.patch.object(Run, "__getitem__", return_value=_params_step(mocker, {}))
-    assert run._graph_endpoints == ("start", "end")
+    """Verify that empty or missing metadata immediately returns the legacy fallback endpoints."""
+    mocker.patch.object(Run, "__getitem__", return_value=_mock_params_step(mocker, {}))
+
+    assert run._graph_endpoints == FALLBACK_ENDPOINTS
 
 
 def test_metaflow_not_found_caches_fallback(run, mocker):
-    """MetaflowNotFound (old run, no _parameters) caches the fallback."""
+    """Verify that MetaflowNotFound (e.g., an old run lacking parameters) permanently caches the fallback."""
     mocker.patch.object(Run, "__getitem__", side_effect=MetaflowNotFound("_parameters"))
-    assert run._graph_endpoints == ("start", "end")
-    assert run._cached_endpoints == ("start", "end")
+
+    assert run._graph_endpoints == FALLBACK_ENDPOINTS
+    assert run._cached_endpoints == FALLBACK_ENDPOINTS
 
 
-def test_transient_error_not_cached(run, mocker):
-    """A transient exception returns the fallback but does NOT cache it."""
+def test_transient_error_does_not_cache_fallback(run, mocker):
+    """Verify that transient exceptions fallback safely but do NOT poison the cache for future retries."""
     mocker.patch.object(
         Run,
         "__getitem__",
         side_effect=[
             RuntimeError("transient (e.g., metadata service down)"),
-            _params_step(mocker, {"start_step": "begin", "end_step": "finish"}),
+            _mock_params_step(mocker, {"start_step": "begin", "end_step": "finish"}),
         ],
     )
 
-    # First call: transient error, fallback returned, not cached.
-    assert run._graph_endpoints == ("start", "end")
+    # First attempt: encounters a transient error, falls back, and completely avoids caching
+    assert run._graph_endpoints == FALLBACK_ENDPOINTS
     assert not hasattr(run, "_cached_endpoints")
 
-    # Second call: succeeds, caches.
+    # Second attempt: network/service recovers, successfully resolves custom steps, and caches the result
     assert run._graph_endpoints == ("begin", "finish")
     assert run._cached_endpoints == ("begin", "finish")

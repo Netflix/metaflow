@@ -1,9 +1,15 @@
+import pytest
+
 from metaflow.plugins.pypi.parsers import (
     requirements_txt_parser,
     conda_environment_yml_parser,
     pyproject_toml_parser,
     ParserValueError,
 )
+
+# ---------------------------------------------------------------------------
+# Test Data Constants
+# ---------------------------------------------------------------------------
 
 VALID_REQ = """
 dummypkg==1.1.1
@@ -77,7 +83,12 @@ dependencies:
 """
 
 
-def test_yml_parser():
+# ---------------------------------------------------------------------------
+# Tests
+# ---------------------------------------------------------------------------
+
+
+def test_conda_environment_yml_parser_extracts_packages_and_python():
     result = conda_environment_yml_parser(VALID_YML)
 
     assert result["python"] == "3.10.*"
@@ -85,30 +96,25 @@ def test_yml_parser():
     assert result["packages"]["anotherpkg"] == "0.0.1"
 
 
-def test_requirements_parser():
-    # success case
-    result = requirements_txt_parser(VALID_REQ)
+@pytest.mark.parametrize(
+    "content",
+    [VALID_REQ, VALID_RYE_LOCK],
+    ids=["standard_requirements", "rye_lockfile"],
+)
+def test_requirements_txt_parser_extracts_packages(content):
+    result = requirements_txt_parser(content)
 
-    assert result["python"] == None
+    assert result["python"] is None
     assert result["packages"]["dummypkg"] == "1.1.1"
     assert result["packages"]["anotherpkg"] == "0.0.1"
 
-    # Rye lockfile success case
-    result = requirements_txt_parser(VALID_RYE_LOCK)
 
-    assert result["python"] == None
-    assert result["packages"]["dummypkg"] == "1.1.1"
-    assert result["packages"]["anotherpkg"] == "0.0.1"
-
-    # failures
-    try:
+def test_requirements_txt_parser_rejects_invalid_flags():
+    with pytest.raises(ParserValueError):
         requirements_txt_parser(INVALID_REQ)
-        raise Exception("parsing invalid content did not raise an expected exception.")
-    except ParserValueError:
-        pass  # expected to raise
 
 
-def test_toml_parser():
+def test_pyproject_toml_parser_extracts_packages_and_python():
     result = pyproject_toml_parser(VALID_TOML)
 
     assert result["python"] == ">=3.8"

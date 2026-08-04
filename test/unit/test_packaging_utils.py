@@ -1,38 +1,51 @@
 import os
-import tempfile
+import pytest
 
 from metaflow.packaging_sys.utils import walk
 
 
-def _make_file(path):
-    os.makedirs(os.path.dirname(path), exist_ok=True)
-    with open(path, "w") as f:
-        f.write("")
+@pytest.mark.parametrize(
+    "root_parts, files_to_create, expected_results",
+    [
+        (
+            # Root is under a hidden ancestor.
+            # Regression: hidden ancestor dirs must not exclude user files.
+            [".hidden_parent", "project", "flows"],
+            ["hello_flow.py"],
+            ["flows/hello_flow.py"],
+        ),
+        (
+            # Root contains both visible files and hidden directories.
+            # Hidden directories *under* root should be excluded.
+            [".hidden_parent", "project"],
+            ["visible.py", ".secret/hidden.py"],
+            ["project/visible.py"],
+        ),
+    ],
+    ids=[
+        "hidden_ancestor_allows_visible_children",
+        "hidden_descendant_is_excluded",
+    ],
+)
+def test_walk_handles_hidden_directories(
+    tmp_path, root_parts, files_to_create, expected_results
+):
+    # Setup: Create dynamic root structure
+    root_dir = tmp_path.joinpath(*root_parts)
+    root_dir.mkdir(parents=True, exist_ok=True)
 
+    # Setup: Create files within the root
+    for file_path in files_to_create:
+        normalized_file = os.path.normpath(file_path)
+        full_path = root_dir / normalized_file
+        full_path.parent.mkdir(parents=True, exist_ok=True)
+        full_path.write_text("")
 
-def test_walk_includes_files_when_hidden_dir_is_ancestor_of_root():
-    """Regression: hidden ancestor dirs must not exclude user files."""
-    with tempfile.TemporaryDirectory() as base:
-        root = os.path.join(base, ".hidden_parent", "project", "flows")
-        os.makedirs(root)
-        _make_file(os.path.join(root, "hello_flow.py"))
+    # Act
+    # walk yields (absolute_path, relative_path) tuples
+    results = {rel for _, rel in walk(str(root_dir), exclude_hidden=True)}
 
-        results = {rel for _, rel in walk(root, exclude_hidden=True)}
-        assert any(
-            "hello_flow.py" in r for r in results
-        ), f"Expected hello_flow.py in walk results, got: {results}"
+    expected_set = {os.path.normpath(p) for p in expected_results}
 
-
-def test_walk_excludes_hidden_dirs_under_root():
-    """Hidden directories *under* root should still be excluded."""
-    with tempfile.TemporaryDirectory() as base:
-        root = os.path.join(base, ".hidden_parent", "project")
-        os.makedirs(root)
-        _make_file(os.path.join(root, "visible.py"))
-        _make_file(os.path.join(root, ".secret", "hidden.py"))
-
-        results = {rel for _, rel in walk(root, exclude_hidden=True)}
-        assert any("visible.py" in r for r in results)
-        assert not any(
-            "hidden.py" in r for r in results
-        ), f"hidden.py should be excluded, got: {results}"
+    # Assert: Exact set matching guarantees both inclusion AND exclusion
+    assert results == expected_set, f"Expected {expected_set}, got {results}"
