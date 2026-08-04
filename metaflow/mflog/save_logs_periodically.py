@@ -9,7 +9,7 @@ from metaflow.util import to_unicode
 from . import update_delay, BASH_SAVE_LOGS_ARGS, TASK_LOG_SOURCE
 from .mflog import decorate
 
-PERIODICAL_UPLOADER_STDERR = "periodical_uploader_stderr"
+UPLOADER_DIAGNOSTICS_FALLBACK = "uploader_diagnostics_fallback"
 
 
 def _write_uploader_log(message):
@@ -30,7 +30,7 @@ def _write_uploader_log_failure(message, error):
         # Put this beside MFLOG_STDERR with a fixed name, so if the uploader
         # stdout path is bad we still have some file to look at.
         stderr_dir = os.path.dirname(os.environ["MFLOG_STDERR"]) or "."
-        path = os.path.join(stderr_dir, PERIODICAL_UPLOADER_STDERR)
+        path = os.path.join(stderr_dir, UPLOADER_DIAGNOSTICS_FALLBACK)
         payload = decorate(
             TASK_LOG_SOURCE,
             "[save_logs_periodically] failed to write uploader diagnostics "

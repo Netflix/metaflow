@@ -114,7 +114,7 @@ def _configure_child_save_logs_env(monkeypatch, tmp_path):
 def test_write_uploader_log_falls_back_to_sibling_stderr_file(monkeypatch, tmp_path):
     stderr = tmp_path / "stderr"
     uploader_stderr = (
-        tmp_path / save_logs_periodically_module.PERIODICAL_UPLOADER_STDERR
+        tmp_path / save_logs_periodically_module.UPLOADER_DIAGNOSTICS_FALLBACK
     )
     stderr.write_bytes(b"err\n")
     monkeypatch.delenv("PERIODICAL_UPLOADER_STDOUT", raising=False)
@@ -154,7 +154,7 @@ def test_update_loop_still_saves_logs_when_uploader_diagnostics_is_misconfigured
     stdout = tmp_path / "stdout"
     stderr = tmp_path / "stderr"
     uploader_stderr = (
-        tmp_path / save_logs_periodically_module.PERIODICAL_UPLOADER_STDERR
+        tmp_path / save_logs_periodically_module.UPLOADER_DIAGNOSTICS_FALLBACK
     )
     stdout.write_bytes(b"out\n")
     stderr.write_bytes(b"err\n")
