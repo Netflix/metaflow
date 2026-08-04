@@ -111,6 +111,25 @@ def _configure_child_save_logs_env(monkeypatch, tmp_path):
     monkeypatch.setenv("MFLOG_STDERR", str(stderr))
 
 
+def test_write_uploader_log_falls_back_to_sibling_stderr_file(monkeypatch, tmp_path):
+    stderr = tmp_path / "stderr"
+    uploader_stderr = (
+        tmp_path / save_logs_periodically_module.PERIODICAL_UPLOADER_STDERR
+    )
+    stderr.write_bytes(b"err\n")
+    monkeypatch.delenv("PERIODICAL_UPLOADER_STDOUT", raising=False)
+    monkeypatch.setenv("MFLOG_STDERR", str(stderr))
+
+    save_logs_periodically_module._write_uploader_log("diagnostic message")
+
+    assert _read_uploader_messages(stderr) == []
+    messages = _read_uploader_messages(uploader_stderr)
+    assert len(messages) == 1
+    assert "failed to write uploader diagnostics" in messages[0]
+    assert "PERIODICAL_UPLOADER_STDOUT" in messages[0]
+    assert "diagnostic message" in messages[0]
+
+
 def test_sidecar_tracing_defaults_to_false(monkeypatch, mocker, tmp_path):
     mocker.patch.object(save_logs_periodically_module, "Thread")
     # Verify that the environment variable alone won't accidentally enable tracing.
@@ -127,6 +146,49 @@ def test_init_enables_tracing_from_options(mocker):
     sidecar = SaveLogsPeriodicallySidecar(options={"enable_tracing": True})
 
     assert sidecar._enable_tracing is True
+
+
+def test_update_loop_still_saves_logs_when_uploader_diagnostics_is_misconfigured(
+    monkeypatch, mocker, tmp_path
+):
+    stdout = tmp_path / "stdout"
+    stderr = tmp_path / "stderr"
+    uploader_stderr = (
+        tmp_path / save_logs_periodically_module.PERIODICAL_UPLOADER_STDERR
+    )
+    stdout.write_bytes(b"out\n")
+    stderr.write_bytes(b"err\n")
+    monkeypatch.setenv("MFLOG_STDOUT", str(stdout))
+    monkeypatch.setenv("MFLOG_STDERR", str(stderr))
+    monkeypatch.delenv("PERIODICAL_UPLOADER_STDOUT", raising=False)
+    sidecar = _new_sidecar(True)
+    sidecar.is_alive = True
+    mocker.patch(
+        "metaflow.mflog.save_logs_periodically.time.sleep",
+        side_effect=lambda _: setattr(sidecar, "is_alive", False),
+    )
+    mocker.patch("metaflow.mflog.save_logs_periodically.time.time", return_value=100)
+    process = SimpleNamespace(
+        communicate=mocker.Mock(return_value=(b"", b"")),
+        returncode=0,
+    )
+    popen = mocker.patch(
+        "metaflow.mflog.save_logs_periodically.subprocess.Popen",
+        return_value=process,
+    )
+
+    sidecar._update_loop()
+
+    popen.assert_called_once_with(
+        BASH_SAVE_LOGS_ARGS,
+        stdout=save_logs_periodically_module.subprocess.PIPE,
+        stderr=save_logs_periodically_module.subprocess.PIPE,
+    )
+    assert any(
+        "failed to write uploader diagnostics" in message
+        for message in _read_uploader_messages(uploader_stderr)
+    )
+    assert _read_uploader_messages(stderr) == []
 
 
 def test_call_save_logs_captures_upload_failure_diagnostics(

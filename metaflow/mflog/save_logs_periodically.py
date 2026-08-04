@@ -9,20 +9,39 @@ from metaflow.util import to_unicode
 from . import update_delay, BASH_SAVE_LOGS_ARGS, TASK_LOG_SOURCE
 from .mflog import decorate
 
+PERIODICAL_UPLOADER_STDERR = "periodical_uploader_stderr"
+
 
 def _write_uploader_log(message):
-    # This is intentionally not best effort. If PERIODICAL_UPLOADER_STDOUT is
-    # incorrectly configured, it should be easy to detect in normal traced runs.
-    # Otherwise a user sidecar uploader issue can happen while this diagnostics
-    # log silently doesn't exist.
-    #
-    # Adding another hard-coded log file location to record the error of lacking
-    # this log file path in the env variable complicates things. Once this path
-    # is setup correctly, it should not normally change, so the chance that this
-    # happens in some flows but not others is very low.
-    payload = decorate(TASK_LOG_SOURCE, "%s\n" % message)
-    with open(os.environ["PERIODICAL_UPLOADER_STDOUT"], "ab", buffering=0) as log:
-        log.write(payload)
+    try:
+        payload = decorate(TASK_LOG_SOURCE, "%s\n" % message)
+        with open(os.environ["PERIODICAL_UPLOADER_STDOUT"], "ab", buffering=0) as log:
+            log.write(payload)
+    except BaseException as error:
+        _write_uploader_log_failure(message, error)
+
+
+def _write_uploader_log_failure(message, error):
+    try:
+        # Don't write this to MFLOG_STDERR. The user code and this sidecar can
+        # write to the same file at the same time and it is easy to create a
+        # race condition there. It also changes the regular stderr log size and
+        # can make this sidecar think regular logs changed again.
+        # Put this beside MFLOG_STDERR with a fixed name, so if the uploader
+        # stdout path is bad we still have some file to look at.
+        stderr_dir = os.path.dirname(os.environ["MFLOG_STDERR"]) or "."
+        path = os.path.join(stderr_dir, PERIODICAL_UPLOADER_STDERR)
+        payload = decorate(
+            TASK_LOG_SOURCE,
+            "[save_logs_periodically] failed to write uploader diagnostics "
+            "error=%r message=%r\n" % (error, message),
+        )
+        with open(path, "ab", buffering=0) as log:
+            log.write(payload)
+    except BaseException:
+        # No more fallback here. This is only for uploader diagnostics. The
+        # important thing is to not let this stop the regular log upload.
+        pass
 
 
 def _write_save_logs_output(stream, output):
