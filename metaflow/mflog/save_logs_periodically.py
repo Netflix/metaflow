@@ -15,7 +15,9 @@ UPLOADER_DIAGNOSTICS_FALLBACK = "uploader_diagnostics_fallback"
 def _write_uploader_log(message):
     try:
         payload = decorate(TASK_LOG_SOURCE, "%s\n" % message)
-        with open(os.environ["PERIODICAL_UPLOADER_STDOUT"], "ab", buffering=0) as log:
+        with open(
+            os.environ["PERIODICAL_UPLOADER_LOG_PATH"], "ab", buffering=0
+        ) as log:
             log.write(payload)
     except BaseException as error:
         _write_uploader_log_failure(message, error)
@@ -28,7 +30,7 @@ def _write_uploader_log_failure(message, error):
         # race condition there. It also changes the regular stderr log size and
         # can make this sidecar think regular logs changed again.
         # Put this beside MFLOG_STDERR with a fixed name, so if the uploader
-        # stdout path is bad we still have some file to look at.
+        # log path is bad we still have some file to look at.
         stderr_dir = os.path.dirname(os.environ["MFLOG_STDERR"]) or "."
         path = os.path.join(stderr_dir, UPLOADER_DIAGNOSTICS_FALLBACK)
         payload = decorate(
@@ -52,11 +54,11 @@ def _write_save_logs_output(stream, output):
 class SaveLogsPeriodicallySidecar(object):
     def __init__(self, options=None):
         options = options or {}
-        if set(options) - {"enable_tracing"}:
+        if set(options) - {"enable_debug_logs"}:
             raise ValueError("Unsupported save_logs_periodically option")
-        self._enable_tracing = options.get("enable_tracing", False)
-        if not isinstance(self._enable_tracing, bool):
-            raise TypeError("enable_tracing must be a boolean")
+        self._enable_debug_logs = options.get("enable_debug_logs", False)
+        if not isinstance(self._enable_debug_logs, bool):
+            raise TypeError("enable_debug_logs must be a boolean")
         self._thread = Thread(target=self._update_loop)
         self.is_alive = True
         self._thread.start()
@@ -70,7 +72,7 @@ class SaveLogsPeriodicallySidecar(object):
         return cls
 
     def _call_save_logs(self):
-        if not self._enable_tracing:
+        if not self._enable_debug_logs:
             return subprocess.call(BASH_SAVE_LOGS_ARGS)
 
         process = subprocess.Popen(
@@ -99,7 +101,7 @@ class SaveLogsPeriodicallySidecar(object):
             if new_sizes != sizes:
                 previous_sizes = sizes
                 sizes = new_sizes
-                if self._enable_tracing:
+                if self._enable_debug_logs:
                     elapsed = time.time() - start_time
                     for path, previous, current in zip(
                         FILES, previous_sizes, new_sizes

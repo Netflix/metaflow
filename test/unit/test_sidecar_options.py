@@ -41,7 +41,7 @@ def test_sidecar_rejects_invalid_options(options):
 
 def test_subprocess_serializes_options_on_command_line(mocker):
     options = {
-        "enable_tracing": True,
+        "enable_debug_logs": True,
         "streams": ["stdout", "stderr"],
         "limits": {"retries": 3, "interval": 0.25},
         "message": 'value with spaces and "quotes"',
@@ -58,7 +58,7 @@ def test_subprocess_serializes_options_on_command_line(mocker):
 
     command = start_subprocess.call_args[0][0]
     assert command[-1] == (
-        '{"enable_tracing":true,"limits":{"interval":0.25,"retries":3},'
+        '{"enable_debug_logs":true,"limits":{"interval":0.25,"retries":3},'
         '"message":"value with spaces and \\"quotes\\"",'
         '"streams":["stdout","stderr"]}'
     )
@@ -66,7 +66,7 @@ def test_subprocess_serializes_options_on_command_line(mocker):
 
 
 def test_worker_main_initializes_worker_from_command_line(mocker):
-    options = {"enable_tracing": True, "nested": {"values": [1, 2, 3]}}
+    options = {"enable_debug_logs": True, "nested": {"values": [1, 2, 3]}}
 
     class Worker(object):
         def __init__(self, options=None):
@@ -96,10 +96,10 @@ def test_worker_receives_deserialized_options():
     provider = SimpleNamespace(get_worker=lambda: Worker)
 
     worker = instantiate_worker(
-        provider, deserialize_options('{"enable_tracing": true}')
+        provider, deserialize_options('{"enable_debug_logs": true}')
     )
 
-    assert worker.options == {"enable_tracing": True}
+    assert worker.options == {"enable_debug_logs": True}
 
 
 def test_worker_without_options_uses_legacy_constructor():
@@ -116,7 +116,7 @@ def test_worker_without_options_uses_legacy_constructor():
 
 @pytest.mark.parametrize(
     "options",
-    [{"enable_tracing": "yes"}, {"unsupported": True}],
+    [{"enable_debug_logs": "yes"}, {"unsupported": True}],
     ids=["invalid-type", "unknown-option"],
 )
 def test_log_publisher_rejects_invalid_options(options):
@@ -124,19 +124,19 @@ def test_log_publisher_rejects_invalid_options(options):
         SaveLogsPeriodicallySidecar(options=options)
 
 
-def test_log_publisher_traces_file_sizes_to_uploader_stdout(
+def test_log_publisher_writes_debug_logs_to_uploader_log(
     monkeypatch, mocker, tmp_path
 ):
     stdout = tmp_path / "stdout"
     stderr = tmp_path / "stderr"
-    uploader_stdout = tmp_path / "periodical_uploader_stdout"
+    uploader_log = tmp_path / "periodical_uploader_log"
     stdout.write_bytes(b"out\n")
     stderr.write_bytes(b"err\n")
     monkeypatch.setenv("MFLOG_STDOUT", str(stdout))
     monkeypatch.setenv("MFLOG_STDERR", str(stderr))
-    monkeypatch.setenv("PERIODICAL_UPLOADER_STDOUT", str(uploader_stdout))
+    monkeypatch.setenv("PERIODICAL_UPLOADER_LOG_PATH", str(uploader_log))
     publisher = SaveLogsPeriodicallySidecar.__new__(SaveLogsPeriodicallySidecar)
-    publisher._enable_tracing = True
+    publisher._enable_debug_logs = True
     publisher.is_alive = True
     mocker.patch(
         "metaflow.mflog.save_logs_periodically.time.sleep",
@@ -156,7 +156,7 @@ def test_log_publisher_traces_file_sizes_to_uploader_stdout(
 
     records = [
         parse(line)
-        for line in uploader_stdout.read_bytes().splitlines(keepends=True)
+        for line in uploader_log.read_bytes().splitlines(keepends=True)
         if line.startswith(b"[MFLOG|")
     ]
     messages = [record.msg.decode() for record in records]
@@ -174,9 +174,9 @@ def test_log_publisher_traces_file_sizes_to_uploader_stdout(
     process.communicate.assert_called_once_with()
 
 
-def test_log_publisher_does_not_redirect_save_logs_without_tracing(mocker):
+def test_log_publisher_does_not_redirect_save_logs_without_debug_logs(mocker):
     publisher = SaveLogsPeriodicallySidecar.__new__(SaveLogsPeriodicallySidecar)
-    publisher._enable_tracing = False
+    publisher._enable_debug_logs = False
     upload = mocker.patch("metaflow.mflog.save_logs_periodically.subprocess.call")
 
     publisher._call_save_logs()

@@ -9,9 +9,9 @@ from metaflow.mflog.mflog import parse
 from metaflow.mflog.save_logs_periodically import SaveLogsPeriodicallySidecar
 
 
-def _new_sidecar(enable_tracing):
+def _new_sidecar(enable_debug_logs):
     sidecar = SaveLogsPeriodicallySidecar.__new__(SaveLogsPeriodicallySidecar)
-    sidecar._enable_tracing = enable_tracing
+    sidecar._enable_debug_logs = enable_debug_logs
     return sidecar
 
 
@@ -117,7 +117,7 @@ def test_write_uploader_log_falls_back_to_sibling_stderr_file(monkeypatch, tmp_p
         tmp_path / save_logs_periodically_module.UPLOADER_DIAGNOSTICS_FALLBACK
     )
     stderr.write_bytes(b"err\n")
-    monkeypatch.delenv("PERIODICAL_UPLOADER_STDOUT", raising=False)
+    monkeypatch.delenv("PERIODICAL_UPLOADER_LOG_PATH", raising=False)
     monkeypatch.setenv("MFLOG_STDERR", str(stderr))
 
     save_logs_periodically_module._write_uploader_log("diagnostic message")
@@ -126,26 +126,26 @@ def test_write_uploader_log_falls_back_to_sibling_stderr_file(monkeypatch, tmp_p
     messages = _read_uploader_messages(uploader_stderr)
     assert len(messages) == 1
     assert "failed to write uploader diagnostics" in messages[0]
-    assert "PERIODICAL_UPLOADER_STDOUT" in messages[0]
+    assert "PERIODICAL_UPLOADER_LOG_PATH" in messages[0]
     assert "diagnostic message" in messages[0]
 
 
-def test_sidecar_tracing_defaults_to_false(monkeypatch, mocker, tmp_path):
+def test_sidecar_debug_logs_defaults_to_false(monkeypatch, mocker, tmp_path):
     mocker.patch.object(save_logs_periodically_module, "Thread")
-    # Verify that the environment variable alone won't accidentally enable tracing.
-    monkeypatch.setenv("PERIODICAL_UPLOADER_STDOUT", str(tmp_path / "trace"))
+    # Verify that the environment variable alone won't accidentally enable debug logs.
+    monkeypatch.setenv("PERIODICAL_UPLOADER_LOG_PATH", str(tmp_path / "trace"))
 
     sidecar = SaveLogsPeriodicallySidecar()
 
-    assert sidecar._enable_tracing is False
+    assert sidecar._enable_debug_logs is False
 
 
-def test_init_enables_tracing_from_options(mocker):
+def test_init_enables_debug_logs_from_options(mocker):
     mocker.patch.object(save_logs_periodically_module, "Thread")
 
-    sidecar = SaveLogsPeriodicallySidecar(options={"enable_tracing": True})
+    sidecar = SaveLogsPeriodicallySidecar(options={"enable_debug_logs": True})
 
-    assert sidecar._enable_tracing is True
+    assert sidecar._enable_debug_logs is True
 
 
 def test_update_loop_still_saves_logs_when_uploader_diagnostics_is_misconfigured(
@@ -160,7 +160,7 @@ def test_update_loop_still_saves_logs_when_uploader_diagnostics_is_misconfigured
     stderr.write_bytes(b"err\n")
     monkeypatch.setenv("MFLOG_STDOUT", str(stdout))
     monkeypatch.setenv("MFLOG_STDERR", str(stderr))
-    monkeypatch.delenv("PERIODICAL_UPLOADER_STDOUT", raising=False)
+    monkeypatch.delenv("PERIODICAL_UPLOADER_LOG_PATH", raising=False)
     sidecar = _new_sidecar(True)
     sidecar.is_alive = True
     mocker.patch(
@@ -194,8 +194,8 @@ def test_update_loop_still_saves_logs_when_uploader_diagnostics_is_misconfigured
 def test_call_save_logs_captures_upload_failure_diagnostics(
     monkeypatch, mocker, tmp_path
 ):
-    uploader_stdout = tmp_path / "periodical_uploader_stdout"
-    monkeypatch.setenv("PERIODICAL_UPLOADER_STDOUT", str(uploader_stdout))
+    uploader_log = tmp_path / "periodical_uploader_log"
+    monkeypatch.setenv("PERIODICAL_UPLOADER_LOG_PATH", str(uploader_log))
     sidecar = _new_sidecar(True)
     process = SimpleNamespace(
         communicate=mocker.Mock(
@@ -216,7 +216,7 @@ def test_call_save_logs_captures_upload_failure_diagnostics(
     returncode = sidecar._call_save_logs()
 
     assert returncode == 0
-    messages = _read_uploader_messages(uploader_stdout)
+    messages = _read_uploader_messages(uploader_log)
     assert messages == [
         "[save_logs stdout] [save_logs] upload_start datastore=s3 files=[]",
         "[save_logs stderr] [save_logs] upload_failure datastore=s3 files=[] "
@@ -233,8 +233,8 @@ def test_call_save_logs_captures_upload_failure_diagnostics(
 def test_call_save_logs_captures_s3_api_failure_from_child_process(
     monkeypatch, tmp_path
 ):
-    uploader_stdout = tmp_path / "periodical_uploader_stdout"
-    monkeypatch.setenv("PERIODICAL_UPLOADER_STDOUT", str(uploader_stdout))
+    uploader_log = tmp_path / "periodical_uploader_log"
+    monkeypatch.setenv("PERIODICAL_UPLOADER_LOG_PATH", str(uploader_log))
     _configure_child_save_logs_env(monkeypatch, tmp_path)
     _patch_save_logs_child_process(monkeypatch, tmp_path)
     sidecar = _new_sidecar(True)
@@ -242,7 +242,7 @@ def test_call_save_logs_captures_s3_api_failure_from_child_process(
     returncode = sidecar._call_save_logs()
 
     assert returncode == 0
-    messages = _read_uploader_messages(uploader_stdout)
+    messages = _read_uploader_messages(uploader_log)
     assert len(messages) == 2
     assert messages[0].startswith("[save_logs stdout] [save_logs] upload_start ")
     assert "datastore=s3" in messages[0]
@@ -254,8 +254,8 @@ def test_call_save_logs_captures_s3_api_failure_from_child_process(
 def test_call_save_logs_confirms_absence_of_logs_when_child_crashes(
     monkeypatch, mocker, tmp_path
 ):
-    uploader_stdout = tmp_path / "periodical_uploader_stdout"
-    monkeypatch.setenv("PERIODICAL_UPLOADER_STDOUT", str(uploader_stdout))
+    uploader_log = tmp_path / "periodical_uploader_log"
+    monkeypatch.setenv("PERIODICAL_UPLOADER_LOG_PATH", str(uploader_log))
     sidecar = _new_sidecar(True)
     process = SimpleNamespace(
         communicate=mocker.Mock(return_value=(b"", b"")),
@@ -269,5 +269,5 @@ def test_call_save_logs_confirms_absence_of_logs_when_child_crashes(
     returncode = sidecar._call_save_logs()
 
     assert returncode == -9
-    assert _read_uploader_messages(uploader_stdout) == []
+    assert _read_uploader_messages(uploader_log) == []
     process.communicate.assert_called_once_with()
