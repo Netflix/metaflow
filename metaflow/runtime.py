@@ -2333,6 +2333,7 @@ class Worker(object):
         # Pass configuration options
         env.update(args.get_env())
         env["PYTHONUNBUFFERED"] = "x"
+        env["METAFLOW_RUN_ID"] = str(self.task.run_id)
         tracing.inject_tracing_vars(env)
         # NOTE bufsize=1 below enables line buffering which is required
         # by read_logline() below that relies on readline() not blocking
