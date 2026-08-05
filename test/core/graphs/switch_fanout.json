@@ -1,0 +1,19 @@
+{
+    "name": "switch_fanout",
+    "graph": {
+        "start": { "linear": "switch_step", "quals": ["start"] },
+        "switch_step": {
+            "switch": {
+                "hit": "finalize",
+                "miss": ["clip", "face"]
+            },
+            "condition": "condition",
+            "quals": ["switch-simple"]
+        },
+        "finalize": { "linear": "end", "quals": ["path-hit"] },
+        "clip": { "linear": "join_miss", "quals": ["path-clip"] },
+        "face": { "linear": "join_miss", "quals": ["path-face"] },
+        "join_miss": { "join": true, "linear": "end", "quals": ["fanout-join"] },
+        "end": { "quals": ["end"] }
+    }
+}

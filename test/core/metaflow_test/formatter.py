@@ -164,13 +164,20 @@ class FlowFormatter(object):
                 branches = ",".join("self.%s" % x for x in node["branch"])
                 yield 2, "self.next(%s)" % branches
             elif "switch" in node:
-                # Handle switch nodes - generate the switch dictionary and condition
+                # Handle switch nodes - generate the switch dictionary and condition.
+                # A case value can be a string (single target) or a list (fanout).
                 switch_dict = node["switch"]
                 condition = node["condition"]
+
+                def _fmt_case_value(branch):
+                    if isinstance(branch, list):
+                        return "[%s]" % ", ".join("self.%s" % s for s in branch)
+                    return "self.%s" % branch
+
                 switch_branches = (
                     "{"
                     + ", ".join(
-                        '"%s": self.%s' % (key, branch)
+                        '"%s": %s' % (key, _fmt_case_value(branch))
                         for key, branch in switch_dict.items()
                     )
                     + "}"

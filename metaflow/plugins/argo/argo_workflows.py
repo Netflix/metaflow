@@ -14,7 +14,7 @@ from typing import List
 from metaflow import JSONType, current
 from metaflow.decorators import flow_decorators
 from metaflow.exception import MetaflowException
-from metaflow.graph import FlowGraph, switch_case_target_lists
+from metaflow.graph import FlowGraph
 from metaflow.includefile import FilePathClass
 from metaflow.metaflow_config import (
     ARGO_EVENTS_EVENT,
@@ -1027,17 +1027,6 @@ class ArgoWorkflows(object):
 
     # Visit every node and record information on conditional step structure
     def _parse_conditional_branches(self):
-        for node in self.graph.nodes.values():
-            if node.type == "split-switch":
-                for targets in switch_case_target_lists(node.switch_cases):
-                    if len(targets) > 1:
-                        raise ArgoWorkflowsException(
-                            "Step *%s* uses a list-valued switch case (fanout), "
-                            "which is not yet supported on Argo Workflows. "
-                            "Use a dedicated step to fan out after the condition instead."
-                            % node.name
-                        )
-
         self.conditional_nodes = set()
         self.conditional_join_nodes = set()
         self.matching_conditional_join_dict = {}
@@ -1567,7 +1556,10 @@ class ArgoWorkflows(object):
                     # NOTE: Due to an issue in Argo Workflows 'when' clauses, we can not use ternaries or 'safe' getters directly on a tasks['step-name'] due to this leading to errors when the step has not executed.
                     conditional_when = "||".join(
                         [
-                            "({{=(tasks['%s'].status == 'Succeeded' ? tasks['%s'].outputs.parameters['switch-step'] : nil) == '%s'}})"
+                            # switch-step holds a comma-separated list of chosen targets
+                            # (single-target cases have no comma; fanout cases have one).
+                            # CEL split+exists handles both uniformly.
+                            "({{=(tasks['%s'].status == 'Succeeded' ? tasks['%s'].outputs.parameters['switch-step'].split(',').exists(x, x == '%s') : false)}})"
                             % (
                                 self._sanitize(switch_in_func),
                                 self._sanitize(switch_in_func),
@@ -1670,7 +1662,7 @@ class ArgoWorkflows(object):
                                 .name("%s-recursion" % sanitized_name)
                                 .template(sanitized_name)
                                 .when(
-                                    "{{steps.%s-internal.outputs.parameters.switch-step}}==%s"
+                                    "{{=steps['%s-internal'].outputs.parameters['switch-step'].split(',').exists(x, x == '%s')}}"
                                     % (sanitized_name, node.name)
                                 )
                                 .arguments(
@@ -1812,7 +1804,7 @@ class ArgoWorkflows(object):
                 ):
                     in_func = node.in_funcs[0]
                     foreach_task.when(
-                        "{{tasks.%s.outputs.parameters.switch-step}}==%s"
+                        "{{=tasks['%s'].outputs.parameters['switch-step'].split(',').exists(x, x == '%s')}}"
                         % (self._sanitize(in_func), node.name)
                     )
                 dag_tasks.append(foreach_task)
