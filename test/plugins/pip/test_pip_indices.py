@@ -1,5 +1,3 @@
-from unittest.mock import MagicMock
-
 from metaflow.plugins.pypi.pip import Pip
 
 
@@ -9,7 +7,7 @@ def _make_pip():
     return pip
 
 
-def test_multiple_extra_index_urls_literal_newline(monkeypatch):
+def test_multiple_extra_index_urls_literal_newline(mocker):
     """Regression test: pip config list separates multiple URLs with literal \\n."""
     pip = _make_pip()
     config_output = (
@@ -17,14 +15,10 @@ def test_multiple_extra_index_urls_literal_newline(monkeypatch):
         r"global.extra-index-url='https://extra1.example.com/simple'\n'https://extra2.example.com/simple'"
     )
 
-    # Use monkeypatch instead of unittest.mock.patch
-    mock_call = MagicMock(return_value=config_output)
-    monkeypatch.setattr(pip, "_call", mock_call)
+    mocker.patch.object(pip, "_call", return_value=config_output)
 
-    # Execute
     index, extras = pip.indices("dummy")
 
-    # Assert
     assert index == "https://pypi.org/simple"
     assert extras == [
         "https://extra1.example.com/simple",
