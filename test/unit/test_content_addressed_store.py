@@ -1,17 +1,25 @@
-from contextlib import contextmanager
+import contextlib
+from pathlib import Path
 
 import pytest
 
 from metaflow.datastore.content_addressed_store import ContentAddressedStore
 from metaflow.datastore.exceptions import DataException
 
+# ---------------------------------------------------------------------------
+# Mocks & Helpers
+# ---------------------------------------------------------------------------
 
-@contextmanager
+
+@contextlib.contextmanager
 def _loaded_bytes(entries):
+    """Context manager to simulate loading bytes iteratively."""
     yield iter(entries)
 
 
-class _FakeStorageImpl(object):
+class _FakeStorageImpl:
+    """A minimal fake storage implementation to support CAS loading tests."""
+
     TYPE = "fake"
 
     def __init__(self, entries):
@@ -27,24 +35,31 @@ class _FakeStorageImpl(object):
 
     @staticmethod
     def full_uri(path):
-        return "fake://" + path
+        return f"fake://{path}"
 
     def load_bytes(self, paths):
-        expected_paths = [entry[0] for entry in self._entries]
-        assert set(expected_paths).issubset(
-            set(paths)
-        ), "expected paths %s not all in %s" % (expected_paths, paths)
+        expected_paths = {entry[0] for entry in self._entries}
+        assert expected_paths.issubset(
+            paths
+        ), f"expected paths {expected_paths} not all in {paths}"
         return _loaded_bytes(self._entries)
 
 
 def _make_store(entries):
+    """Helper to initialize a ContentAddressedStore with fake storage."""
     return ContentAddressedStore("prefix", _FakeStorageImpl(entries))
 
 
-def _write_blob_file(tmp_path, name="blob.bin", data=b"not-a-valid-gzip-stream"):
+def _write_blob_file(tmp_path: Path, name="blob.bin", data=b"not-a-valid-gzip-stream"):
+    """Helper to write a temporary binary blob file."""
     blob_file = tmp_path / name
     blob_file.write_bytes(data)
     return str(blob_file)
+
+
+# ---------------------------------------------------------------------------
+# Tests
+# ---------------------------------------------------------------------------
 
 
 @pytest.mark.parametrize(
@@ -62,15 +77,20 @@ def _write_blob_file(tmp_path, name="blob.bin", data=b"not-a-valid-gzip-stream")
             ["Could not unpack artifact", "boom"],
         ),
     ],
-    ids=["missing_version", "unknown_version", "unpack_failure"],
+    ids=["missing-version", "unknown-version", "unpack-failure"],
 )
 def test_load_blobs_error_message_uses_current_path_key(
     tmp_path, monkeypatch, meta, unpack_error, expected_substrings
 ):
+    """
+    Verify that load_blobs error messages accurately reference the *current*
+    failing path, preventing regression of a bug where a stale outer-loop
+    variable caused misleading exception messages.
+    """
     stale_key = "aaaaaaaaaa"
     current_key = "bbbbbbbbbb"
-    stale_path = "prefix/aa/%s" % stale_key
-    current_path = "prefix/bb/%s" % current_key
+    stale_path = f"prefix/aa/{stale_key}"
+    current_path = f"prefix/bb/{current_key}"
 
     file_path = _write_blob_file(tmp_path)
     store = _make_store([(current_path, file_path, meta)])
@@ -89,7 +109,14 @@ def test_load_blobs_error_message_uses_current_path_key(
         list(store.load_blobs([current_key, stale_key]))
 
     message = str(exc.value)
-    assert current_path in message
-    assert stale_path not in message
+
+    # Assertions
+    assert (
+        current_path in message
+    ), f"Expected active path {current_path} in error message."
+    assert (
+        stale_path not in message
+    ), f"Stale path {stale_path} leaked into the error message."
+
     for expected in expected_substrings:
         assert expected in message

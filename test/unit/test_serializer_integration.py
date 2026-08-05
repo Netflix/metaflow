@@ -9,12 +9,14 @@ Tests that:
 """
 
 import json
-import os
-import shutil
-import tempfile
+import threading
 
 import pytest
 
+from metaflow.datastore.artifacts.diagnostic import (
+    SerializerRecord,
+    SerializerState,
+)
 from metaflow.datastore.artifacts.serializer import (
     ArtifactSerializer,
     SerializationFormat,
@@ -22,21 +24,51 @@ from metaflow.datastore.artifacts.serializer import (
     SerializedBlob,
     SerializerStore,
 )
+from metaflow.datastore.exceptions import (
+    DataException,
+    UnpicklableArtifactException,
+)
+from metaflow.datastore.flow_datastore import FlowDataStore
+from metaflow.exception import MetaflowException
+from metaflow.plugins.datastores.local_storage import LocalStorage
 from metaflow.plugins.datastores.serializers.pickle_serializer import PickleSerializer
 
+
 # ---------------------------------------------------------------------------
-# Test PickleSerializer round-trip through save/load artifacts
+# Fixtures
 # ---------------------------------------------------------------------------
+
+
+@pytest.fixture
+def isolated_store():
+    """
+    Fixture to isolate SerializerStore global state per test.
+    Prevents tests from poisoning the registry if they fail mid-execution.
+    """
+    saved_all = dict(SerializerStore._all_serializers)
+    saved_active = set(SerializerStore._active_serializers)
+    saved_records = dict(SerializerStore._records)
+    saved_pending = dict(SerializerStore._pending_by_module)
+    saved_cache = SerializerStore._ordered_cache
+
+    yield
+
+    SerializerStore._all_serializers.clear()
+    SerializerStore._all_serializers.update(saved_all)
+    SerializerStore._active_serializers.clear()
+    SerializerStore._active_serializers.update(saved_active)
+    SerializerStore._records.clear()
+    SerializerStore._records.update(saved_records)
+    SerializerStore._pending_by_module.clear()
+    SerializerStore._pending_by_module.update(saved_pending)
+    SerializerStore._ordered_cache = saved_cache
 
 
 @pytest.fixture
 def task_datastore(tmp_path):
     """Create a minimal TaskDataStore wired to a local storage backend."""
-    from metaflow.datastore.flow_datastore import FlowDataStore
-    from metaflow.plugins.datastores.local_storage import LocalStorage
-
-    storage_root = str(tmp_path / "datastore")
-    os.makedirs(storage_root, exist_ok=True)
+    storage_root = tmp_path / "datastore"
+    storage_root.mkdir()
 
     flow_ds = FlowDataStore(
         flow_name="TestFlow",
@@ -45,7 +77,7 @@ def task_datastore(tmp_path):
         event_logger=None,
         monitor=None,
         storage_impl=LocalStorage,
-        ds_root=storage_root,
+        ds_root=str(storage_root),
     )
 
     task_ds = flow_ds.get_task_datastore(
@@ -62,30 +94,35 @@ def task_datastore(tmp_path):
     return task_ds
 
 
-def test_save_load_pickle_round_trip(task_datastore):
-    """Standard Python objects go through PickleSerializer and round-trip."""
-    artifacts = [
+# ---------------------------------------------------------------------------
+# Test PickleSerializer round-trip through save/load artifacts
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    "name, value",
+    [
         ("my_dict", {"key": "value", "nested": [1, 2, 3]}),
         ("my_int", 42),
         ("my_str", "hello world"),
         ("my_none", None),
-    ]
-    task_datastore.save_artifacts(iter(artifacts))
+    ],
+    ids=["dict", "int", "str", "none"],
+)
+def test_save_load_pickle_round_trip(task_datastore, name, value):
+    """Standard Python objects go through PickleSerializer and round-trip."""
+    task_datastore.save_artifacts(iter([(name, value)]))
 
     # Verify metadata
-    for name, _ in artifacts:
-        info = task_datastore._info[name]
-        assert "encoding" in info
-        assert info["encoding"] == "pickle-v4"
-        assert info["size"] > 0
-        assert "type" in info
+    info = task_datastore._info[name]
+    assert "encoding" in info
+    assert info["encoding"] == "pickle-v4"
+    assert info["size"] > 0
+    assert "type" in info
 
     # Load and verify
-    loaded = dict(task_datastore.load_artifacts([name for name, _ in artifacts]))
-    assert loaded["my_dict"] == {"key": "value", "nested": [1, 2, 3]}
-    assert loaded["my_int"] == 42
-    assert loaded["my_str"] == "hello world"
-    assert loaded["my_none"] is None
+    loaded = dict(task_datastore.load_artifacts([name]))
+    assert loaded[name] == value
 
 
 def test_distinct_objects_on_load(task_datastore):
@@ -107,14 +144,9 @@ def test_metadata_auto_populates_source_for_pickle(task_datastore):
     assert info.get("serializer_info", {}).get("source") == "metaflow"
 
 
-def test_author_source_is_not_overridden(task_datastore):
+def test_author_source_is_not_overridden(task_datastore, isolated_store):
     """A serializer that sets its own ``source`` in serializer_info should
     not have it overridden by the auto-injected bootstrap source."""
-    from metaflow.datastore.artifacts import SerializationFormat, SerializerStore
-    from metaflow.datastore.artifacts.diagnostic import (
-        SerializerRecord,
-        SerializerState,
-    )
 
     class _ExplicitSourceSerializer(ArtifactSerializer):
         TYPE = "test_explicit_source"
@@ -159,15 +191,9 @@ def test_author_source_is_not_overridden(task_datastore):
 
     task_datastore._serializers = [_ExplicitSourceSerializer, PickleSerializer]
 
-    try:
-        task_datastore.save_artifacts(iter([("hello", "world")]))
-        info = task_datastore._info["hello"]
-        assert info["serializer_info"]["source"] == "i-picked-this-myself"
-    finally:
-        SerializerStore._records.pop("test_explicit_source", None)
-        SerializerStore._active_serializers.discard(_ExplicitSourceSerializer)
-        SerializerStore._all_serializers.pop("test_explicit_source", None)
-        SerializerStore._ordered_cache = None
+    task_datastore.save_artifacts(iter([("hello", "world")]))
+    info = task_datastore._info["hello"]
+    assert info["serializer_info"]["source"] == "i-picked-this-myself"
 
 
 # ---------------------------------------------------------------------------
@@ -175,10 +201,9 @@ def test_author_source_is_not_overridden(task_datastore):
 # ---------------------------------------------------------------------------
 
 
-def test_custom_serializer_takes_priority(task_datastore):
+def test_custom_serializer_takes_priority(task_datastore, isolated_store):
     """A custom serializer with lower PRIORITY claims matching objects over pickle."""
 
-    # Define and register a custom serializer inside the test
     class _JsonStringSerializer(ArtifactSerializer):
         TYPE = "test_json_str"
         PRIORITY = 50
@@ -208,29 +233,23 @@ def test_custom_serializer_takes_priority(task_datastore):
         def deserialize(cls, data, metadata=None, format="storage"):
             return json.loads(data[0].decode("utf-8"))
 
-    # Explicitly set serializers: custom first, then pickle fallback.
-    # Don't use get_ordered_serializers() to avoid pollution from other test files.
     task_datastore._serializers = [_JsonStringSerializer, PickleSerializer]
 
-    try:
-        task_datastore.save_artifacts(iter([("msg", "hello"), ("num", 42)]))
+    task_datastore.save_artifacts(iter([("msg", "hello"), ("num", 42)]))
 
-        # "msg" should use our custom serializer (str → _JsonStringSerializer)
-        msg_info = task_datastore._info["msg"]
-        assert msg_info["encoding"] == "test_json_str"
-        assert msg_info["serializer_info"] == {"format": "json-utf8"}
+    # "msg" should use our custom serializer (str → _JsonStringSerializer)
+    msg_info = task_datastore._info["msg"]
+    assert msg_info["encoding"] == "test_json_str"
+    assert msg_info["serializer_info"] == {"format": "json-utf8"}
 
-        # "num" should fall through to PickleSerializer (int → not claimed by custom)
-        num_info = task_datastore._info["num"]
-        assert num_info["encoding"] == "pickle-v4"
+    # "num" should fall through to PickleSerializer (int → not claimed by custom)
+    num_info = task_datastore._info["num"]
+    assert num_info["encoding"] == "pickle-v4"
 
-        # Both round-trip correctly
-        loaded = dict(task_datastore.load_artifacts(["msg", "num"]))
-        assert loaded["msg"] == "hello"
-        assert loaded["num"] == 42
-    finally:
-        SerializerStore._all_serializers.pop("test_json_str", None)
-        SerializerStore._ordered_cache = None
+    # Both round-trip correctly
+    loaded = dict(task_datastore.load_artifacts(["msg", "num"]))
+    assert loaded["msg"] == "hello"
+    assert loaded["num"] == 42
 
 
 # ---------------------------------------------------------------------------
@@ -240,7 +259,6 @@ def test_custom_serializer_takes_priority(task_datastore):
 
 def test_backward_compat_old_metadata(task_datastore):
     """Artifacts saved with old metadata format (no serializer_info) still load."""
-    # Save normally first
     task_datastore.save_artifacts(iter([("old_artifact", {"a": 1})]))
 
     # Simulate old metadata format: no serializer_info, old encoding
@@ -248,27 +266,22 @@ def test_backward_compat_old_metadata(task_datastore):
         "size": 100,
         "type": "<class 'dict'>",
         "encoding": "gzip+pickle-v4",
-        # no "serializer_info" key
     }
 
-    # Should still load via PickleSerializer (can_deserialize handles gzip+pickle-v4)
+    # Should still load via PickleSerializer
     loaded = dict(task_datastore.load_artifacts(["old_artifact"]))
     assert loaded["old_artifact"] == {"a": 1}
 
 
 def test_backward_compat_no_encoding(task_datastore):
     """Very old artifacts without encoding field default to gzip+pickle-v2."""
-    # Save an artifact
     task_datastore.save_artifacts(iter([("ancient", 99)]))
 
-    # Simulate very old metadata: no encoding, no serializer_info
     task_datastore._info["ancient"] = {
         "size": 10,
         "type": "<class 'int'>",
-        # no "encoding" key — defaults to gzip+pickle-v2
     }
 
-    # Should still load
     loaded = dict(task_datastore.load_artifacts(["ancient"]))
     assert loaded["ancient"] == 99
 
@@ -289,7 +302,6 @@ def test_missing_info_with_object_uses_pickle_defaults(task_datastore):
     del task_datastore._info["present"]
 
     loaded = dict(task_datastore.load_artifacts(["present"]))
-
     assert loaded["present"] == {"value": 1}
 
 
@@ -311,13 +323,12 @@ def test_info_without_object_raises_key_error(task_datastore):
 # ---------------------------------------------------------------------------
 
 
-def test_post_init_registration_reaches_existing_datastore(task_datastore):
+def test_post_init_registration_reaches_existing_datastore(
+    task_datastore, isolated_store
+):
     """A serializer registered AFTER the datastore was constructed must still
     be visible. Without the dynamic ``_serializers`` property, lazy imports
-    (e.g. ``import torch`` after ``TaskDataStore.__init__``) would be silently
-    ignored for that instance.
-    """
-    # Drop the test override so the property falls back to the live registry.
+    would be silently ignored for that instance."""
     task_datastore._serializers = None
 
     class _PostInitSerializer(ArtifactSerializer):
@@ -340,15 +351,10 @@ def test_post_init_registration_reaches_existing_datastore(task_datastore):
         def deserialize(cls, data, metadata=None, format="storage"):
             raise NotImplementedError
 
-    # Dispatch reads from _active_serializers now (post-Phase-6).
     SerializerStore._active_serializers.add(_PostInitSerializer)
     SerializerStore._ordered_cache = None
-    try:
-        assert _PostInitSerializer in task_datastore._serializers
-    finally:
-        SerializerStore._all_serializers.pop("test_post_init_registration", None)
-        SerializerStore._active_serializers.discard(_PostInitSerializer)
-        SerializerStore._ordered_cache = None
+
+    assert _PostInitSerializer in task_datastore._serializers
 
 
 # ---------------------------------------------------------------------------
@@ -356,13 +362,11 @@ def test_post_init_registration_reaches_existing_datastore(task_datastore):
 # ---------------------------------------------------------------------------
 
 
-def test_info_not_populated_when_serializer_returns_no_blobs(task_datastore):
-    """
-    Regression for the "_info[name] poisoned on validation failure" bug: if a
-    serializer returns an empty blob list, ``save_artifacts`` must raise
-    without leaving partial metadata in ``_info``.
-    """
-    from metaflow.datastore.exceptions import DataException
+def test_info_not_populated_when_serializer_returns_no_blobs(
+    task_datastore, isolated_store
+):
+    """If a serializer returns an empty blob list, ``save_artifacts`` must raise
+    without leaving partial metadata in ``_info``."""
 
     class _EmptyBlobSerializer(ArtifactSerializer):
         TYPE = "test_empty_blob"
@@ -378,28 +382,23 @@ def test_info_not_populated_when_serializer_returns_no_blobs(task_datastore):
 
         @classmethod
         def serialize(cls, obj, format="storage"):
-            return (
-                [],
-                SerializationMetadata("x", 0, "test_empty_blob", {}),
-            )
+            return ([], SerializationMetadata("x", 0, "test_empty_blob", {}))
 
         @classmethod
         def deserialize(cls, data, metadata=None, format="storage"):
             raise NotImplementedError
 
     task_datastore._serializers = [_EmptyBlobSerializer, PickleSerializer]
-    try:
-        with pytest.raises(DataException, match="returned no blobs"):
-            task_datastore.save_artifacts(iter([("bad", object())]))
-        assert "bad" not in task_datastore._info
-    finally:
-        SerializerStore._all_serializers.pop("test_empty_blob", None)
-        SerializerStore._ordered_cache = None
+
+    with pytest.raises(DataException, match="returned no blobs"):
+        task_datastore.save_artifacts(iter([("bad", object())]))
+    assert "bad" not in task_datastore._info
 
 
-def test_info_not_populated_when_serializer_returns_multi_blob(task_datastore):
+def test_info_not_populated_when_serializer_returns_multi_blob(
+    task_datastore, isolated_store
+):
     """Same guarantee as above for the multi-blob rejection path."""
-    from metaflow.datastore.exceptions import DataException
 
     class _MultiBlobSerializer(ArtifactSerializer):
         TYPE = "test_multi_blob"
@@ -425,31 +424,20 @@ def test_info_not_populated_when_serializer_returns_multi_blob(task_datastore):
             raise NotImplementedError
 
     task_datastore._serializers = [_MultiBlobSerializer, PickleSerializer]
-    try:
-        with pytest.raises(DataException, match="single-blob serializers"):
-            task_datastore.save_artifacts(iter([("bad", object())]))
-        assert "bad" not in task_datastore._info
-    finally:
-        SerializerStore._all_serializers.pop("test_multi_blob", None)
-        SerializerStore._ordered_cache = None
+
+    with pytest.raises(DataException, match="single-blob serializers"):
+        task_datastore.save_artifacts(iter([("bad", object())]))
+    assert "bad" not in task_datastore._info
 
 
 # ---------------------------------------------------------------------------
-# Exception flow: PickleSerializer owns its own UnpicklableArtifactException;
-# extension MetaflowExceptions pass through; everything else gets wrapped.
+# Exception flow mapping
 # ---------------------------------------------------------------------------
 
 
 def test_pickle_serializer_raises_unpicklable_with_artifact_name(task_datastore):
-    """PickleSerializer raises ``UnpicklableArtifactException`` from inside
-    ``serialize()`` (no name); ``save_artifacts`` re-raises it with the
-    artifact name attached so users see the original "named X" message."""
-    import threading
-
-    from metaflow.datastore.exceptions import UnpicklableArtifactException
-
-    # ``threading.Lock`` raises ``TypeError`` from ``pickle.dumps``, which is
-    # the path that turns into ``UnpicklableArtifactException``.
+    """PickleSerializer raises ``UnpicklableArtifactException``;
+    ``save_artifacts`` re-raises it with the artifact name attached."""
     unpicklable = threading.Lock()
 
     with pytest.raises(UnpicklableArtifactException, match='named "bad_one"'):
@@ -457,11 +445,9 @@ def test_pickle_serializer_raises_unpicklable_with_artifact_name(task_datastore)
     assert "bad_one" not in task_datastore._info
 
 
-def test_extension_metaflow_exception_passes_through(task_datastore):
+def test_extension_metaflow_exception_passes_through(task_datastore, isolated_store):
     """An extension serializer raising a ``MetaflowException`` subclass must
-    propagate as-is — wrapping it in ``DataException`` would obscure the
-    original headline/message that is already user-facing."""
-    from metaflow.exception import MetaflowException
+    propagate as-is."""
 
     class _ExtensionError(MetaflowException):
         headline = "Extension validation failed"
@@ -487,22 +473,17 @@ def test_extension_metaflow_exception_passes_through(task_datastore):
             raise NotImplementedError
 
     task_datastore._serializers = [_RaisingSerializer, PickleSerializer]
-    try:
-        with pytest.raises(_ExtensionError, match="schema mismatch on field 'foo'"):
-            task_datastore.save_artifacts(iter([("x", object())]))
-        assert "x" not in task_datastore._info
-    finally:
-        SerializerStore._all_serializers.pop("test_passthrough_ser", None)
-        SerializerStore._ordered_cache = None
+
+    with pytest.raises(_ExtensionError, match="schema mismatch on field 'foo'"):
+        task_datastore.save_artifacts(iter([("x", object())]))
+    assert "x" not in task_datastore._info
 
 
-def test_extension_type_error_is_not_mislabeled_unpicklable(task_datastore):
+def test_extension_type_error_is_not_mislabeled_unpicklable(
+    task_datastore, isolated_store
+):
     """A non-pickle serializer raising ``TypeError`` must NOT be reported as
-    ``UnpicklableArtifactException`` — that wrapper is pickle-specific now."""
-    from metaflow.datastore.exceptions import (
-        DataException,
-        UnpicklableArtifactException,
-    )
+    ``UnpicklableArtifactException``."""
 
     class _TypeErrorSerializer(ArtifactSerializer):
         TYPE = "test_typeerror_ser"
@@ -525,31 +506,23 @@ def test_extension_type_error_is_not_mislabeled_unpicklable(task_datastore):
             raise NotImplementedError
 
     task_datastore._serializers = [_TypeErrorSerializer, PickleSerializer]
-    try:
-        with pytest.raises(DataException, match="_TypeErrorSerializer") as exc_info:
-            task_datastore.save_artifacts(iter([("x", object())]))
-        # Critically: NOT UnpicklableArtifactException — that name would lie
-        # to users about which serializer rejected the object.
-        assert not isinstance(exc_info.value, UnpicklableArtifactException)
-        assert "x" not in task_datastore._info
-    finally:
-        SerializerStore._all_serializers.pop("test_typeerror_ser", None)
-        SerializerStore._ordered_cache = None
+
+    with pytest.raises(DataException, match="_TypeErrorSerializer") as exc_info:
+        task_datastore.save_artifacts(iter([("x", object())]))
+
+    assert not isinstance(exc_info.value, UnpicklableArtifactException)
+    assert "x" not in task_datastore._info
 
 
-def test_can_serialize_exception_falls_through_to_pickle(task_datastore):
+def test_can_serialize_exception_falls_through_to_pickle(
+    task_datastore, isolated_store
+):
     """A buggy custom serializer's can_serialize exception must NOT crash
-    save_artifacts. The buggy serializer is skipped; pickle fallback handles
-    the artifact; dispatch_error_count is incremented."""
-    from metaflow.datastore.artifacts import SerializationFormat
-    from metaflow.datastore.artifacts.diagnostic import (
-        SerializerRecord,
-        SerializerState,
-    )
+    save_artifacts. Pickle fallback handles it; dispatch_error_count is incremented."""
 
     class _BuggyCanSerialize(ArtifactSerializer):
         TYPE = "test_buggy_cs"
-        PRIORITY = 1  # tried first
+        PRIORITY = 1
 
         @classmethod
         def can_serialize(cls, obj):
@@ -567,7 +540,6 @@ def test_can_serialize_exception_falls_through_to_pickle(task_datastore):
         def deserialize(cls, data, metadata=None, format=SerializationFormat.STORAGE):
             raise NotImplementedError
 
-    # Seed a diagnostic record so dispatch_error_count has somewhere to go.
     rec = SerializerRecord(
         name="test_buggy_cs",
         class_path="test.inline.BuggyCanSerialize",
@@ -580,27 +552,15 @@ def test_can_serialize_exception_falls_through_to_pickle(task_datastore):
 
     task_datastore._serializers = [_BuggyCanSerialize, PickleSerializer]
 
-    try:
-        # Must NOT raise.
-        task_datastore.save_artifacts(iter([("x", 42)]))
-        assert task_datastore._info["x"]["encoding"] == "pickle-v4"
-        assert rec.dispatch_error_count == 1
-        assert rec.last_error is not None
-        assert "RuntimeError" in rec.last_error
-    finally:
-        SerializerStore._all_serializers.pop("test_buggy_cs", None)
-        SerializerStore._active_serializers.discard(_BuggyCanSerialize)
-        SerializerStore._records.pop("test_buggy_cs", None)
-        SerializerStore._ordered_cache = None
+    # Must NOT raise.
+    task_datastore.save_artifacts(iter([("x", 42)]))
+    assert task_datastore._info["x"]["encoding"] == "pickle-v4"
+    assert rec.dispatch_error_count == 1
+    assert "RuntimeError" in rec.last_error
 
 
-def test_can_deserialize_exception_falls_through(task_datastore):
+def test_can_deserialize_exception_falls_through(task_datastore, isolated_store):
     """Same guarantee for can_deserialize during load_artifacts."""
-    from metaflow.datastore.artifacts import SerializationFormat
-    from metaflow.datastore.artifacts.diagnostic import (
-        SerializerRecord,
-        SerializerState,
-    )
 
     class _BuggyCanDeserialize(ArtifactSerializer):
         TYPE = "test_buggy_cd"
@@ -632,35 +592,22 @@ def test_can_deserialize_exception_falls_through(task_datastore):
     SerializerStore._records["test_buggy_cd"] = rec
     SerializerStore._active_serializers.add(_BuggyCanDeserialize)
 
-    # First save an artifact normally via pickle so load has something to load.
+    # First save an artifact normally via pickle
     task_datastore._serializers = [PickleSerializer]
     task_datastore.save_artifacts(iter([("y", "hello")]))
 
-    # Now install the buggy serializer and try to load — buggy can_deserialize
-    # should be skipped and pickle should take over.
+    # Now install the buggy serializer and try to load
     task_datastore._serializers = [_BuggyCanDeserialize, PickleSerializer]
 
-    try:
-        loaded = dict(task_datastore.load_artifacts(["y"]))
-        assert loaded["y"] == "hello"
-        assert rec.dispatch_error_count == 1
-        assert rec.last_error is not None
-        assert "RuntimeError" in rec.last_error
-    finally:
-        SerializerStore._all_serializers.pop("test_buggy_cd", None)
-        SerializerStore._active_serializers.discard(_BuggyCanDeserialize)
-        SerializerStore._records.pop("test_buggy_cd", None)
-        SerializerStore._ordered_cache = None
+    loaded = dict(task_datastore.load_artifacts(["y"]))
+    assert loaded["y"] == "hello"
+    assert rec.dispatch_error_count == 1
+    assert "RuntimeError" in rec.last_error
 
 
-def test_subclass_lazy_import_stashes_on_child_not_parent():
+def test_subclass_lazy_import_stashes_on_child_not_parent(isolated_store):
     """lazy_import on a subclass should set attrs on the subclass, not the parent.
     Parent and children should each have their own _lazy_imported_names set."""
-    from metaflow.datastore.artifacts import (
-        ArtifactSerializer,
-        SerializationFormat,
-        SerializerStore,
-    )
 
     class _ParentSer(ArtifactSerializer):
         TYPE = "test_inherit_parent"
@@ -692,29 +639,16 @@ def test_subclass_lazy_import_stashes_on_child_not_parent():
         def setup_imports(cls, context=None):
             cls.lazy_import("sys")
 
-    try:
-        _ParentSer.setup_imports()
-        _ChildSer.setup_imports()
-        import json as _json
-        import sys as _sys
+    _ParentSer.setup_imports()
+    _ChildSer.setup_imports()
 
-        # Parent has json; child has sys
-        assert _ParentSer.json is _json
-        assert _ChildSer.sys is _sys
+    import json as _json
+    import sys as _sys
 
-        # Each class should have its OWN _lazy_imported_names set
-        # (not a shared inherited one)
-        parent_names = _ParentSer.__dict__.get("_lazy_imported_names", set())
-        child_names = _ChildSer.__dict__.get("_lazy_imported_names", set())
-        assert parent_names == {"json"}
-        assert child_names == {"sys"}
-    finally:
-        for t in ("test_inherit_parent", "test_inherit_child"):
-            SerializerStore._all_serializers.pop(t, None)
-        SerializerStore._ordered_cache = None
-        for c, attr in ((_ParentSer, "json"), (_ChildSer, "sys")):
-            if attr in c.__dict__:
-                delattr(c, attr)
-        for c in (_ParentSer, _ChildSer):
-            if "_lazy_imported_names" in c.__dict__:
-                delattr(c, "_lazy_imported_names")
+    assert _ParentSer.json is _json
+    assert _ChildSer.sys is _sys
+
+    parent_names = _ParentSer.__dict__.get("_lazy_imported_names", set())
+    child_names = _ChildSer.__dict__.get("_lazy_imported_names", set())
+    assert parent_names == {"json"}
+    assert child_names == {"sys"}

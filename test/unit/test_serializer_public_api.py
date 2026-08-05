@@ -1,55 +1,55 @@
 """Smoke tests guarding the public surface of metaflow.datastore.artifacts."""
 
+import pytest
 
-def test_register_serializer_for_type_not_public():
-    """Imperative per-type registration is not a public API."""
-    import metaflow.datastore.artifacts as mda
-
-    assert not hasattr(mda, "register_serializer_for_type")
-
-
-def test_serializer_config_not_public():
-    """SerializerConfig is not a public export."""
-    import metaflow.datastore.artifacts as mda
-
-    assert not hasattr(mda, "SerializerConfig")
+import metaflow.datastore.artifacts as mda
+import metaflow.plugins as mplugins
+from metaflow.datastore.artifacts import list_serializer_status
 
 
-def test_register_serializer_config_not_public():
-    import metaflow.datastore.artifacts as mda
-
-    assert not hasattr(mda, "register_serializer_config")
-
-
-def test_iter_registered_configs_not_public():
-    import metaflow.datastore.artifacts as mda
-
-    assert not hasattr(mda, "iter_registered_configs")
+# ---------------------------------------------------------------------------
+# Tests
+# ---------------------------------------------------------------------------
 
 
-def test_load_serializer_class_not_public():
-    import metaflow.datastore.artifacts as mda
+@pytest.mark.parametrize(
+    "internal_attribute",
+    [
+        "register_serializer_for_type",
+        "SerializerConfig",
+        "register_serializer_config",
+        "iter_registered_configs",
+        "load_serializer_class",
+    ],
+    ids=[
+        "register_serializer_for_type",
+        "serializer_config",
+        "register_serializer_config",
+        "iter_registered_configs",
+        "load_serializer_class",
+    ],
+)
+def test_datastore_artifacts_hides_internal_api(internal_attribute):
+    """Ensure internal serialization methods and configs are not exposed publicly."""
+    assert not hasattr(mda, internal_attribute)
 
-    assert not hasattr(mda, "load_serializer_class")
 
-
-def test_plugins_has_no_artifact_serializers_global():
-    """metaflow.plugins does not expose a resolved ARTIFACT_SERIALIZERS global.
-    Dispatch reads directly from SerializerStore.get_ordered_serializers()."""
-    import metaflow.plugins as mplugins
-
+def test_plugins_hides_artifact_serializers_global():
+    """
+    metaflow.plugins does not expose a resolved ARTIFACT_SERIALIZERS global.
+    Dispatch reads directly from SerializerStore.get_ordered_serializers().
+    """
     assert not hasattr(
         mplugins, "ARTIFACT_SERIALIZERS"
     ), "Expected ARTIFACT_SERIALIZERS to be absent; still present"
 
 
-def test_pickle_serializer_is_active_after_import():
-    """After import metaflow, PickleSerializer should be in ACTIVE state."""
-    from metaflow.datastore.artifacts import list_serializer_status
-
+def test_pickle_serializer_defaults_to_active_state():
+    """After importing metaflow, PickleSerializer should be in the ACTIVE state."""
     status = list_serializer_status()
     pickle_rec = next((r for r in status if r.get("type") == "pickle"), None)
-    assert pickle_rec is not None, "PickleSerializer record missing; status=%r" % status
-    assert pickle_rec["state"] == "active", (
-        "Expected pickle active; got %r" % pickle_rec
-    )
+
+    assert pickle_rec is not None, f"PickleSerializer record missing; status={status!r}"
+    assert (
+        pickle_rec["state"] == "active"
+    ), f"Expected pickle active; got {pickle_rec!r}"
