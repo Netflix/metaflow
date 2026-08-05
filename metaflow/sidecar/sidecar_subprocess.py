@@ -1,5 +1,6 @@
 from __future__ import print_function
 
+import json
 import subprocess
 import fcntl
 import select
@@ -54,9 +55,10 @@ class NullPoller(object):
 
 
 class SidecarSubProcess(object):
-    def __init__(self, worker_type):
+    def __init__(self, worker_type, options=None):
         # type: (str, dict) -> None
         self._worker_type = worker_type
+        self._options = dict(options or {})
 
         # Sub-process launched and poller used
         self._process = None
@@ -96,6 +98,10 @@ class SidecarSubProcess(object):
                 os.path.dirname(__file__) + "/sidecar_worker.py",
                 self._worker_type,
             ]
+            if self._options:
+                cmdline.append(
+                    json.dumps(self._options, sort_keys=True, separators=(",", ":"))
+                )
             self._logger("Starting sidecar")
             debug.sidecar_exec(cmdline)
 
