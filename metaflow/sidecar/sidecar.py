@@ -1,13 +1,16 @@
+import json
+
 from .sidecar_subprocess import SidecarSubProcess
 
 
 class Sidecar(object):
-    def __init__(self, sidecar_type):
+    def __init__(self, sidecar_type, options=None):
         # Needs to be here because this file gets loaded by lots of things and SIDECARS
         # may not be fully populated by then
         from metaflow.plugins import SIDECARS
 
         self._sidecar_type = sidecar_type
+        self._options = self._normalize_options(options)
         self._has_valid_worker = False
         t = SIDECARS.get(self._sidecar_type)
         if t is not None and t.get_worker() is not None:
@@ -18,7 +21,20 @@ class Sidecar(object):
 
     def start(self):
         if not self.is_active and self._has_valid_worker:
-            self.sidecar_process = SidecarSubProcess(self._sidecar_type)
+            self.sidecar_process = SidecarSubProcess(
+                self._sidecar_type, options=self._options
+            )
+
+    @staticmethod
+    def _normalize_options(options):
+        if options is None:
+            return {}
+        if not isinstance(options, dict):
+            raise TypeError("Sidecar options must be a dictionary")
+        try:
+            return json.loads(json.dumps(options))
+        except (TypeError, ValueError) as error:
+            raise TypeError("Sidecar options must be JSON-serializable: %s" % error)
 
     def enable_threadsafe_send(self):
         self._threadsafe_send_enabled = True
