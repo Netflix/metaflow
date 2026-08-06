@@ -1,7 +1,6 @@
 import os
 
 from metaflow.exception import MetaflowException
-from metaflow.metaflow_config import UV_VERSION
 from metaflow.metaflow_environment import MetaflowEnvironment
 from metaflow.packaging_sys import ContentType
 
@@ -65,9 +64,8 @@ class UVEnvironment(MetaflowEnvironment):
             # uses the internal S3 client which would fail to import tracing due to the required
             # dependencies being bundled into the conda environment, which is yet to be
             # initialized at this point.
-            # UV_VERSION is resolved here locally and passed explicitly, so the remote inherits it
-            'DISABLE_TRACING=True python -m metaflow.plugins.uv.bootstrap "%s" "%s"'
-            % (datastore_type, UV_VERSION),
+            'DISABLE_TRACING=True python -m metaflow.plugins.uv.bootstrap "%s"'
+            % datastore_type,
             "echo 'uv project bootstrapped.'",
             "flush_mflogs",
             "export PATH=$PATH:$(pwd)/uv_install",
