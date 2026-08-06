@@ -4,13 +4,13 @@ import shutil
 import subprocess
 import sys
 import time
-
-from metaflow.util import which
-from metaflow.meta_files import read_info_file
-from metaflow.metaflow_config import get_pinned_conda_libs, UV_VERSION
-from metaflow.packaging_sys import MetaflowCodeContent, ContentType
-from urllib.request import Request, urlopen
 from urllib.error import URLError
+from urllib.request import Request, urlopen
+
+from metaflow.meta_files import read_info_file
+from metaflow.metaflow_config import UV_VERSION, get_pinned_conda_libs
+from metaflow.packaging_sys import ContentType, MetaflowCodeContent
+from metaflow.util import which
 
 _UV_BASE_URL = "https://github.com/astral-sh/uv/releases/download"
 
@@ -57,7 +57,7 @@ if __name__ == "__main__":
             print("Stderr:", result.stderr)
             sys.exit(1)
 
-    def install_uv():
+    def install_uv(version=None):
         import tarfile
 
         uv_install_path = os.path.join(os.getcwd(), "uv_install")
@@ -66,7 +66,7 @@ if __name__ == "__main__":
 
         print("Installing uv...")
 
-        uv_url = _get_uv_download_url()
+        uv_url = _get_uv_download_url(version=version)
 
         # Prepare directory once
         os.makedirs(uv_install_path, exist_ok=True)
@@ -143,13 +143,15 @@ if __name__ == "__main__":
             """
         run_cmd(cmd)
 
-    if len(sys.argv) != 2:
-        print("Usage: bootstrap.py <datastore_type>")
+    if len(sys.argv) not in (2, 3):
+        print("Usage: bootstrap.py <datastore_type> [uv_version]")
         sys.exit(1)
 
     try:
         datastore_type = sys.argv[1]
-        install_uv()
+        # uv_version optional for graceful fallback
+        uv_version = sys.argv[2] if len(sys.argv) == 3 else None
+        install_uv(version=uv_version)
         sync_uv_project(datastore_type)
     except Exception as e:
         print(f"Error: {str(e)}", file=sys.stderr)
