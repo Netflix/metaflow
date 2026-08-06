@@ -1,88 +1,67 @@
 import pytest
-from unittest.mock import patch
 
+from metaflow.metaflow_config import UV_VERSION
 from metaflow.plugins.uv.bootstrap import (
     _UV_BASE_URL,
     _UV_TARGET_MAP,
     _get_uv_download_url,
 )
-from metaflow.metaflow_config import UV_VERSION
 
-_SYS = "metaflow.plugins.uv.bootstrap.platform.system"
-_MACH = "metaflow.plugins.uv.bootstrap.platform.machine"
-
-
-@pytest.fixture
-def url():
-    def _build(version, target):
-        return f"{_UV_BASE_URL}/{version}/uv-{target}.tar.gz"
-
-    return _build
+_SYSTEM = "metaflow.plugins.uv.bootstrap.platform.system"
+_MACHINE = "metaflow.plugins.uv.bootstrap.platform.machine"
 
 
-@patch(_MACH, return_value="x86_64")
-@patch(_SYS, return_value="Linux")
-def test_linux_x86_64(_sys, _mach, url):
-    assert _get_uv_download_url() == url(UV_VERSION, "x86_64-unknown-linux-gnu")
+_PLATFORM_CASES = [
+    ("Linux", "x86_64", "x86_64-unknown-linux-gnu"),
+    ("Linux", "amd64", "x86_64-unknown-linux-gnu"),
+    ("Linux", "aarch64", "aarch64-unknown-linux-gnu"),
+    ("Linux", "arm64", "aarch64-unknown-linux-gnu"),
+    ("Darwin", "x86_64", "x86_64-apple-darwin"),
+    ("Darwin", "amd64", "x86_64-apple-darwin"),
+    ("Darwin", "arm64", "aarch64-apple-darwin"),
+    ("Darwin", "aarch64", "aarch64-apple-darwin"),
+]
 
 
-@patch(_MACH, return_value="aarch64")
-@patch(_SYS, return_value="Linux")
-def test_linux_aarch64(_sys, _mach, url):
-    assert _get_uv_download_url() == url(UV_VERSION, "aarch64-unknown-linux-gnu")
+def _expected_url(version, target):
+    return f"{_UV_BASE_URL}/{version}/uv-{target}.tar.gz"
 
 
-@patch(_MACH, return_value="arm64")
-@patch(_SYS, return_value="Linux")
-def test_linux_arm64_alias(_sys, _mach, url):
-    assert _get_uv_download_url() == url(UV_VERSION, "aarch64-unknown-linux-gnu")
+def test_platform_cases_cover_target_map():
+    tested = {
+        (system.lower(), machine.lower()) for system, machine, _ in _PLATFORM_CASES
+    }
+    assert tested == set(_UV_TARGET_MAP.keys())
 
 
-@patch(_MACH, return_value="amd64")
-@patch(_SYS, return_value="Linux")
-def test_linux_amd64_alias(_sys, _mach, url):
-    assert _get_uv_download_url() == url(UV_VERSION, "x86_64-unknown-linux-gnu")
+@pytest.mark.parametrize(
+    "system, machine, target",
+    _PLATFORM_CASES,
+    ids=[f"{system}-{machine}" for system, machine, _ in _PLATFORM_CASES],
+)
+def test_platform_resolves_to_expected_target(mocker, system, machine, target):
+    mocker.patch(_SYSTEM, return_value=system)
+    mocker.patch(_MACHINE, return_value=machine)
+    assert _get_uv_download_url() == _expected_url(UV_VERSION, target)
 
 
-@patch(_MACH, return_value="arm64")
-@patch(_SYS, return_value="Darwin")
-def test_darwin_arm64(_sys, _mach, url):
-    assert _get_uv_download_url() == url(UV_VERSION, "aarch64-apple-darwin")
-
-
-@patch(_MACH, return_value="x86_64")
-@patch(_SYS, return_value="Darwin")
-def test_darwin_x86_64(_sys, _mach, url):
-    assert _get_uv_download_url() == url(UV_VERSION, "x86_64-apple-darwin")
-
-
-@patch(_MACH, return_value="x86_64")
-@patch(_SYS, return_value="Linux")
-def test_custom_version_argument(_sys, _mach, url):
-    assert _get_uv_download_url(version="0.5.0") == url(
+def test_version_argument(mocker):
+    mocker.patch(_MACHINE, return_value="x86_64")
+    mocker.patch(_SYSTEM, return_value="Linux")
+    assert _get_uv_download_url(version="0.5.0") == _expected_url(
         "0.5.0", "x86_64-unknown-linux-gnu"
     )
 
 
-@patch(_MACH, return_value="riscv64")
-@patch(_SYS, return_value="Linux")
-def test_unsupported_architecture_raises(_sys, _mach):
+def test_unsupported_architecture_raises(mocker):
+    mocker.patch(_MACHINE, return_value="riscv64")
+    mocker.patch(_SYSTEM, return_value="Linux")
     with pytest.raises(RuntimeError, match="linux/riscv64"):
         _get_uv_download_url()
 
 
-@patch(_MACH, return_value="x86_64")
-@patch(_SYS, return_value="Windows")
-def test_unsupported_os_raises(_sys, _mach):
+def test_unsupported_os_raises(mocker):
+    mocker.patch(_MACHINE, return_value="x86_64")
+    mocker.patch(_SYSTEM, return_value="Windows")
     with pytest.raises(RuntimeError, match="windows/x86_64"):
         _get_uv_download_url()
-
-
-def test_target_map_completeness(url):
-    for (system, machine), target in _UV_TARGET_MAP.items():
-        with patch(_SYS, return_value=system.capitalize()):
-            with patch(_MACH, return_value=machine):
-                result = _get_uv_download_url()
-                assert target in result
-                assert result.startswith(_UV_BASE_URL)
-                assert result.endswith(".tar.gz")
