@@ -29,6 +29,7 @@ FAULT_MODES = {
     FAULT_UPLOAD_FAILURE,
     FAULT_UPLOAD_HANG,
 }
+UPLOAD_FAULT_MODES = {FAULT_UPLOAD_FAILURE, FAULT_UPLOAD_HANG}
 _TRUE_VALUES = {"1", "true", "yes", "on"}
 
 
@@ -114,10 +115,13 @@ class SaveLogsPeriodicallySidecar(object):
             raise TypeError("enable_debug_logs must be a boolean")
         self._fault_mode = _debug_fault_mode() if self._enable_debug_logs else None
         self._fault_triggered = Event()
+        self._fault_delay_seconds = _float_env(
+            FAULT_DELAY_ENV_VAR, FAULT_DELAY_SECONDS
+        )
         self._thread = Thread(target=self._update_loop)
         self.is_alive = True
         self._thread.start()
-        if self._fault_mode is not None:
+        if self._fault_mode in (FAULT_PROCESS_EXIT, FAULT_THREAD_FAILURE):
             self._fault_thread = Thread(
                 target=self._inject_fault,
                 name="log-publisher-fault-injection",
@@ -147,27 +151,50 @@ class SaveLogsPeriodicallySidecar(object):
         _write_save_logs_output("stderr", stderr)
         return process.returncode
 
-    def _inject_fault(self):
-        time.sleep(_float_env(FAULT_DELAY_ENV_VAR, FAULT_DELAY_SECONDS))
+    def _activate_fault(self):
         _write_fault_marker(self._fault_mode)
         _write_uploader_log(
             "[save_logs_periodically] fault_injection_triggered mode=%s"
             % self._fault_mode
         )
         self._fault_triggered.set()
+
+    def _inject_fault(self):
+        time.sleep(getattr(self, "_fault_delay_seconds", FAULT_DELAY_SECONDS))
+        self._activate_fault()
         if self._fault_mode == FAULT_PROCESS_EXIT:
             os._exit(FAULT_EXIT_CODE)
         if self._fault_mode == FAULT_THREAD_FAILURE:
             self.is_alive = False
+
+    def _activate_upload_fault_if_due(self, start_time):
+        fault_triggered = getattr(self, "_fault_triggered", None)
+        if (
+            getattr(self, "_fault_mode", None) in UPLOAD_FAULT_MODES
+            and fault_triggered is not None
+            and not fault_triggered.is_set()
+            and time.time() - start_time
+            >= getattr(self, "_fault_delay_seconds", FAULT_DELAY_SECONDS)
+        ):
+            self._activate_fault()
 
     def _upload_logs(self):
         if getattr(self, "_fault_triggered", None) is not None and (
             self._fault_triggered.is_set()
         ):
             if self._fault_mode == FAULT_UPLOAD_HANG:
-                time.sleep(_float_env(FAULT_HANG_ENV_VAR, FAULT_HANG_SECONDS))
+                hang_seconds = _float_env(FAULT_HANG_ENV_VAR, FAULT_HANG_SECONDS)
+                _write_uploader_log(
+                    "[save_logs_periodically] simulated upload_hang "
+                    "sleep_seconds=%.3f" % hang_seconds
+                )
+                time.sleep(hang_seconds)
                 return None
             if self._fault_mode == FAULT_UPLOAD_FAILURE:
+                _write_uploader_log(
+                    "[save_logs_periodically] simulated upload_failure "
+                    "return_code=%d" % FAULT_EXIT_CODE
+                )
                 return FAULT_EXIT_CODE
         return self._call_save_logs()
 
@@ -187,6 +214,7 @@ class SaveLogsPeriodicallySidecar(object):
             if new_sizes != sizes:
                 previous_sizes = sizes
                 sizes = new_sizes
+                self._activate_upload_fault_if_due(start_time)
                 if self._enable_debug_logs:
                     elapsed = time.time() - start_time
                     for path, previous, current in zip(

@@ -169,11 +169,34 @@ def test_debug_upload_failure_skips_uploader(mocker):
     publisher._fault_triggered = Event()
     publisher._fault_triggered.set()
     uploader = mocker.patch.object(publisher, "_call_save_logs")
+    write_log = mocker.patch("metaflow.mflog.save_logs_periodically._write_uploader_log")
 
     return_code = publisher._upload_logs()
 
     assert return_code == save_logs_periodically.FAULT_EXIT_CODE
     uploader.assert_not_called()
+    write_log.assert_called_once_with(
+        "[save_logs_periodically] simulated upload_failure return_code=%d"
+        % save_logs_periodically.FAULT_EXIT_CODE
+    )
+
+
+def test_upload_fault_activates_before_next_upload(mocker):
+    publisher = SaveLogsPeriodicallySidecar.__new__(SaveLogsPeriodicallySidecar)
+    publisher._fault_mode = save_logs_periodically.FAULT_UPLOAD_FAILURE
+    publisher._fault_triggered = Event()
+    publisher._fault_delay_seconds = 15
+    activate = mocker.patch.object(
+        publisher,
+        "_activate_fault",
+        side_effect=lambda: publisher._fault_triggered.set(),
+    )
+    mocker.patch("metaflow.mflog.save_logs_periodically.time.time", return_value=115)
+
+    publisher._activate_upload_fault_if_due(start_time=100)
+
+    activate.assert_called_once_with()
+    assert publisher._fault_triggered.is_set()
 
 
 def test_log_publisher_writes_debug_logs_to_uploader_log(monkeypatch, mocker, tmp_path):
