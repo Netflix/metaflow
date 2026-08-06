@@ -138,6 +138,17 @@ class SaveLogsPeriodicallySidecar(object):
         return cls
 
     def _call_save_logs(self):
+        if (
+            getattr(self, "_fault_triggered", None) is not None
+            and self._fault_triggered.is_set()
+            and getattr(self, "_fault_mode", None) == FAULT_UPLOAD_FAILURE
+        ):
+            _write_uploader_log(
+                "[save_logs_periodically] simulated upload_failure "
+                "raising RuntimeError"
+            )
+            raise RuntimeError("Injected periodic log upload failure")
+
         if not self._enable_debug_logs:
             return subprocess.call(BASH_SAVE_LOGS_ARGS)
 
@@ -190,12 +201,6 @@ class SaveLogsPeriodicallySidecar(object):
                 )
                 time.sleep(hang_seconds)
                 return None
-            if self._fault_mode == FAULT_UPLOAD_FAILURE:
-                _write_uploader_log(
-                    "[save_logs_periodically] simulated upload_failure "
-                    "raising RuntimeError"
-                )
-                raise RuntimeError("Injected periodic log upload failure")
         return self._call_save_logs()
 
     def _update_loop(self):
@@ -227,12 +232,7 @@ class SaveLogsPeriodicallySidecar(object):
                         )
                 try:
                     self._upload_logs()
-                except BaseException as error:
-                    if self._enable_debug_logs:
-                        _write_uploader_log(
-                            "[save_logs_periodically] upload_exception error=%r"
-                            % error
-                        )
+                except:
                     pass
             time.sleep(update_delay(time.time() - start_time))
 

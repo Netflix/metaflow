@@ -163,18 +163,19 @@ def test_debug_fault_exits_publisher_process(mocker):
     exit_process.assert_called_once_with(save_logs_periodically.FAULT_EXIT_CODE)
 
 
-def test_debug_upload_failure_skips_uploader(mocker):
+def test_debug_upload_failure_raises_from_call_save_logs(mocker):
     publisher = SaveLogsPeriodicallySidecar.__new__(SaveLogsPeriodicallySidecar)
     publisher._fault_mode = save_logs_periodically.FAULT_UPLOAD_FAILURE
     publisher._fault_triggered = Event()
     publisher._fault_triggered.set()
-    uploader = mocker.patch.object(publisher, "_call_save_logs")
+    publisher._enable_debug_logs = False
+    upload = mocker.patch("metaflow.mflog.save_logs_periodically.subprocess.call")
     write_log = mocker.patch("metaflow.mflog.save_logs_periodically._write_uploader_log")
 
     with pytest.raises(RuntimeError, match="Injected periodic log upload failure"):
-        publisher._upload_logs()
+        publisher._call_save_logs()
 
-    uploader.assert_not_called()
+    upload.assert_not_called()
     write_log.assert_called_once_with(
         "[save_logs_periodically] simulated upload_failure raising RuntimeError"
     )
@@ -198,7 +199,7 @@ def test_upload_fault_activates_before_next_upload(mocker):
     assert publisher._fault_triggered.is_set()
 
 
-def test_log_publisher_logs_caught_upload_exception(monkeypatch, mocker, tmp_path):
+def test_log_publisher_silently_catches_upload_exception(monkeypatch, mocker, tmp_path):
     stdout = tmp_path / "stdout"
     stderr = tmp_path / "stderr"
     uploader_log = tmp_path / "periodical_uploader_log"
@@ -227,7 +228,7 @@ def test_log_publisher_logs_caught_upload_exception(monkeypatch, mocker, tmp_pat
         if line.startswith(b"[MFLOG|")
     ]
     assert any("simulated upload_failure raising RuntimeError" in m for m in messages)
-    assert any("upload_exception error=RuntimeError" in m for m in messages)
+    assert not any("upload_exception" in m for m in messages)
 
 
 def test_log_publisher_writes_debug_logs_to_uploader_log(monkeypatch, mocker, tmp_path):
