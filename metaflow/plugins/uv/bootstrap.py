@@ -2,6 +2,7 @@ import os
 import shutil
 import subprocess
 import sys
+import tarfile
 import time
 
 from metaflow.util import which
@@ -13,6 +14,44 @@ from urllib.error import URLError
 
 # TODO: support version/platform/architecture selection.
 UV_URL = "https://github.com/astral-sh/uv/releases/download/0.6.11/uv-x86_64-unknown-linux-gnu.tar.gz"
+
+
+def _extract_uv(tar: tarfile.TarFile, uv_install_path: str) -> None:
+    def _tar_filter(member: tarfile.TarInfo, path):
+        if os.path.basename(member.name) != "uv":
+            return None
+        member.path = os.path.basename(member.path)
+        return member
+
+    try:
+        tar.extractall(uv_install_path, filter=_tar_filter)
+        return
+    except TypeError:
+        pass
+
+    candidates = [
+        m for m in tar.getmembers() if os.path.basename(m.name) == "uv" and m.isfile()
+    ]
+    if not candidates:
+        raise RuntimeError("Could not find uv binary in archive")
+
+    member = candidates[0]
+    extracted = tar.extractfile(member)
+    if extracted is None:
+        raise RuntimeError("Could not extract uv binary from archive")
+
+    target_path = os.path.join(uv_install_path, "uv")
+    try:
+        with open(target_path, "wb") as f:
+            shutil.copyfileobj(extracted, f)
+    finally:
+        extracted.close()
+
+    try:
+        os.chmod(target_path, member.mode)
+    except Exception:
+        pass
+
 
 if __name__ == "__main__":
 
@@ -32,8 +71,6 @@ if __name__ == "__main__":
             sys.exit(1)
 
     def install_uv():
-        import tarfile
-
         uv_install_path = os.path.join(os.getcwd(), "uv_install")
         if which("uv"):
             return
@@ -50,19 +87,13 @@ if __name__ == "__main__":
             "User-Agent": "python-urllib",
         }
 
-        def _tar_filter(member: tarfile.TarInfo, path):
-            if os.path.basename(member.name) != "uv":
-                return None  # skip
-            member.path = os.path.basename(member.path)
-            return member
-
         max_retries = 3
         for attempt in range(max_retries):
             try:
                 req = Request(UV_URL, headers=headers)
                 with urlopen(req) as response:
                     with tarfile.open(fileobj=response, mode="r:gz") as tar:
-                        tar.extractall(uv_install_path, filter=_tar_filter)
+                        _extract_uv(tar, uv_install_path)
                 break
             except (URLError, IOError) as e:
                 if attempt == max_retries - 1:
