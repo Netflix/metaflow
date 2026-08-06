@@ -13,6 +13,24 @@ from . import TASK_LOG_SOURCE
 from metaflow.tracing import cli
 
 SMALL_FILE_LIMIT = 1024 * 1024
+DEBUG_LOG_TRANSFER_ENV_VAR = "METAFLOW_DEBUG_LOG_TRANSFER"
+FAULT_MODE_ENV_VAR = "METAFLOW_DEBUG_LOG_UPLOAD_FAULT"
+FAULT_UPLOAD_FAILURE = "upload_failure"
+_TRUE_VALUES = {"1", "true", "yes", "on"}
+
+
+def _debug_log_transfer_enabled():
+    return (
+        os.environ.get(DEBUG_LOG_TRANSFER_ENV_VAR, "").strip().lower()
+        in _TRUE_VALUES
+    )
+
+
+def _inject_upload_failure():
+    return (
+        _debug_log_transfer_enabled()
+        and os.environ.get(FAULT_MODE_ENV_VAR) == FAULT_UPLOAD_FAILURE
+    )
 
 
 @cli("save_logs")
@@ -67,6 +85,8 @@ def save_logs():
             "[save_logs] upload_start datastore=%s files=%s" % (ds_type, sizes),
             flush=True,
         )
+        if _inject_upload_failure():
+            raise RuntimeError("Injected periodic log upload failure")
         task_datastore.save_logs(TASK_LOG_SOURCE, data)
         print(
             "[save_logs] upload_success datastore=%s files=%s "

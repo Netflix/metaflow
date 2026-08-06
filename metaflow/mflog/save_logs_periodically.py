@@ -138,17 +138,6 @@ class SaveLogsPeriodicallySidecar(object):
         return cls
 
     def _call_save_logs(self):
-        if (
-            getattr(self, "_fault_triggered", None) is not None
-            and self._fault_triggered.is_set()
-            and getattr(self, "_fault_mode", None) == FAULT_UPLOAD_FAILURE
-        ):
-            _write_uploader_log(
-                "[save_logs_periodically] simulated upload_failure "
-                "raising RuntimeError"
-            )
-            raise RuntimeError("Injected periodic log upload failure")
-
         if not self._enable_debug_logs:
             return subprocess.call(BASH_SAVE_LOGS_ARGS)
 

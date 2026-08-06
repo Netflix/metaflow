@@ -58,6 +58,21 @@ def test_save_logs_prints_upload_failure_to_stderr(
     assert "RuntimeError('upload failed')" in captured.err
 
 
+def test_save_logs_can_inject_upload_failure(monkeypatch, mocker, tmp_path, capsys):
+    task_datastore = _configure_save_logs(monkeypatch, mocker, tmp_path)
+    monkeypatch.setenv("METAFLOW_DEBUG_LOG_TRANSFER", "1")
+    monkeypatch.setenv("METAFLOW_DEBUG_LOG_UPLOAD_FAULT", "upload_failure")
+
+    save_logs_module.save_logs()
+
+    captured = capsys.readouterr()
+    assert "[save_logs] upload_start datastore=test" in captured.out
+    assert "[save_logs] upload_failure datastore=test" in captured.err
+    assert "RuntimeError('Injected periodic log upload failure')" in captured.err
+    assert "upload_success" not in captured.out
+    task_datastore.save_logs.assert_not_called()
+
+
 def test_save_logs_prints_s3_api_failure_to_stderr(
     monkeypatch, mocker, tmp_path, capsys
 ):

@@ -163,22 +163,17 @@ def test_debug_fault_exits_publisher_process(mocker):
     exit_process.assert_called_once_with(save_logs_periodically.FAULT_EXIT_CODE)
 
 
-def test_debug_upload_failure_raises_from_call_save_logs(mocker):
+def test_debug_upload_failure_runs_save_logs_script(mocker):
     publisher = SaveLogsPeriodicallySidecar.__new__(SaveLogsPeriodicallySidecar)
     publisher._fault_mode = save_logs_periodically.FAULT_UPLOAD_FAILURE
     publisher._fault_triggered = Event()
     publisher._fault_triggered.set()
-    publisher._enable_debug_logs = False
-    upload = mocker.patch("metaflow.mflog.save_logs_periodically.subprocess.call")
-    write_log = mocker.patch("metaflow.mflog.save_logs_periodically._write_uploader_log")
+    call_save_logs = mocker.patch.object(publisher, "_call_save_logs", return_value=0)
 
-    with pytest.raises(RuntimeError, match="Injected periodic log upload failure"):
-        publisher._call_save_logs()
+    return_code = publisher._upload_logs()
 
-    upload.assert_not_called()
-    write_log.assert_called_once_with(
-        "[save_logs_periodically] simulated upload_failure raising RuntimeError"
-    )
+    assert return_code == 0
+    call_save_logs.assert_called_once_with()
 
 
 def test_upload_fault_activates_before_next_upload(mocker):
@@ -199,7 +194,7 @@ def test_upload_fault_activates_before_next_upload(mocker):
     assert publisher._fault_triggered.is_set()
 
 
-def test_log_publisher_silently_catches_upload_exception(monkeypatch, mocker, tmp_path):
+def test_log_publisher_captures_child_upload_failure(monkeypatch, mocker, tmp_path):
     stdout = tmp_path / "stdout"
     stderr = tmp_path / "stderr"
     uploader_log = tmp_path / "periodical_uploader_log"
@@ -210,15 +205,27 @@ def test_log_publisher_silently_catches_upload_exception(monkeypatch, mocker, tm
     monkeypatch.setenv("PERIODICAL_UPLOADER_LOG_PATH", str(uploader_log))
     publisher = SaveLogsPeriodicallySidecar.__new__(SaveLogsPeriodicallySidecar)
     publisher._enable_debug_logs = True
-    publisher._fault_mode = save_logs_periodically.FAULT_UPLOAD_FAILURE
-    publisher._fault_triggered = Event()
-    publisher._fault_triggered.set()
     publisher.is_alive = True
     mocker.patch(
         "metaflow.mflog.save_logs_periodically.time.sleep",
         side_effect=lambda _: setattr(publisher, "is_alive", False),
     )
     mocker.patch("metaflow.mflog.save_logs_periodically.time.time", return_value=100)
+    process = SimpleNamespace(
+        communicate=mocker.Mock(
+            return_value=(
+                b"[save_logs] upload_start datastore=s3 files=[]\n",
+                b"[save_logs] upload_failure datastore=s3 files=[] "
+                b"error=RuntimeError('Injected periodic log upload failure') "
+                b"elapsed_seconds=0.001\n",
+            )
+        ),
+        returncode=0,
+    )
+    upload = mocker.patch(
+        "metaflow.mflog.save_logs_periodically.subprocess.Popen",
+        return_value=process,
+    )
 
     publisher._update_loop()
 
@@ -227,8 +234,10 @@ def test_log_publisher_silently_catches_upload_exception(monkeypatch, mocker, tm
         for line in uploader_log.read_bytes().splitlines(keepends=True)
         if line.startswith(b"[MFLOG|")
     ]
-    assert any("simulated upload_failure raising RuntimeError" in m for m in messages)
+    assert any("[save_logs stderr] [save_logs] upload_failure" in m for m in messages)
+    assert any("Injected periodic log upload failure" in m for m in messages)
     assert not any("upload_exception" in m for m in messages)
+    upload.assert_called_once()
 
 
 def test_log_publisher_writes_debug_logs_to_uploader_log(monkeypatch, mocker, tmp_path):
