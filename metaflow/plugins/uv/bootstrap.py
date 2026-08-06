@@ -26,18 +26,21 @@ _UV_TARGET_MAP = {
 }
 
 
-def _get_uv_download_url(version=None):
-    if version is None:
-        version = UV_VERSION
+def _get_uv_download_url():
+    """Return the uv release tarball URL for the current platform.
+
+    Raises:
+        RuntimeError: if the host platform/arch combination is not in _UV_TARGET_MAP.
+    """
     system = platform.system().lower()
     machine = platform.machine().lower()
     target = _UV_TARGET_MAP.get((system, machine))
     if target is None:
-        supported = ", ".join(f"{s}/{m}" for s, m in _UV_TARGET_MAP)
+        supported = ", ".join(f"{s}/{m}" for s, m in sorted(_UV_TARGET_MAP))
         raise RuntimeError(
             f"Unsupported platform for UV: {system}/{machine}. Supported: {supported}"
         )
-    return f"{_UV_BASE_URL}/{version}/uv-{target}.tar.gz"
+    return f"{_UV_BASE_URL}/{UV_VERSION}/uv-{target}.tar.gz"
 
 
 if __name__ == "__main__":

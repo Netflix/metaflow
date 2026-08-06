@@ -45,14 +45,6 @@ def test_platform_resolves_to_expected_target(mocker, system, machine, target):
     assert _get_uv_download_url() == _expected_url(UV_VERSION, target)
 
 
-def test_version_argument(mocker):
-    mocker.patch(_MACHINE, return_value="x86_64")
-    mocker.patch(_SYSTEM, return_value="Linux")
-    assert _get_uv_download_url(version="0.5.0") == _expected_url(
-        "0.5.0", "x86_64-unknown-linux-gnu"
-    )
-
-
 def test_unsupported_architecture_raises(mocker):
     mocker.patch(_MACHINE, return_value="riscv64")
     mocker.patch(_SYSTEM, return_value="Linux")
