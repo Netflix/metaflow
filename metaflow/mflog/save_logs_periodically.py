@@ -2,7 +2,7 @@ import os
 import sys
 import time
 import subprocess
-from threading import Thread
+from threading import Event, Thread
 
 from metaflow.sidecar import MessageTypes
 from metaflow.util import to_unicode
@@ -10,6 +10,26 @@ from . import update_delay, BASH_SAVE_LOGS_ARGS, TASK_LOG_SOURCE
 from .mflog import decorate
 
 UPLOADER_DIAGNOSTICS_FALLBACK = "uploader_diagnostics_fallback"
+DEBUG_LOG_TRANSFER_ENV_VAR = "METAFLOW_DEBUG_LOG_TRANSFER"
+FAULT_MODE_ENV_VAR = "METAFLOW_DEBUG_LOG_UPLOAD_FAULT"
+FAULT_DELAY_ENV_VAR = "METAFLOW_DEBUG_LOG_UPLOAD_FAULT_DELAY_SECONDS"
+FAULT_HANG_ENV_VAR = "METAFLOW_DEBUG_LOG_UPLOAD_FAULT_HANG_SECONDS"
+FAULT_MARKER_PATH = "/logs/metaflow_log_upload_fault_triggered"
+FAULT_DELAY_SECONDS = 8
+FAULT_HANG_SECONDS = 300
+FAULT_EXIT_CODE = 70
+
+FAULT_PROCESS_EXIT = "publisher_process_exit"
+FAULT_THREAD_FAILURE = "publisher_thread_failure"
+FAULT_UPLOAD_FAILURE = "upload_failure"
+FAULT_UPLOAD_HANG = "upload_hang"
+FAULT_MODES = {
+    FAULT_PROCESS_EXIT,
+    FAULT_THREAD_FAILURE,
+    FAULT_UPLOAD_FAILURE,
+    FAULT_UPLOAD_HANG,
+}
+_TRUE_VALUES = {"1", "true", "yes", "on"}
 
 
 def _write_uploader_log(message):
@@ -49,6 +69,41 @@ def _write_save_logs_output(stream, output):
         _write_uploader_log("[save_logs %s] %s" % (stream, to_unicode(line)))
 
 
+def _debug_log_transfer_enabled():
+    return (
+        os.environ.get(DEBUG_LOG_TRANSFER_ENV_VAR, "").strip().lower()
+        in _TRUE_VALUES
+    )
+
+
+def _float_env(name, default):
+    try:
+        return max(0, float(os.environ.get(name, default)))
+    except (TypeError, ValueError):
+        return default
+
+
+def _debug_fault_mode():
+    if not _debug_log_transfer_enabled():
+        return None
+    mode = os.environ.get(FAULT_MODE_ENV_VAR)
+    return mode if mode in FAULT_MODES else None
+
+
+def _write_fault_marker(mode):
+    try:
+        marker_dir = os.path.dirname(FAULT_MARKER_PATH)
+        if marker_dir:
+            os.makedirs(marker_dir, exist_ok=True)
+        with open(FAULT_MARKER_PATH, "w", encoding="utf-8") as marker:
+            marker.write(mode)
+    except BaseException as error:
+        _write_uploader_log(
+            "[save_logs_periodically] failed to write fault marker "
+            "mode=%r error=%r" % (mode, error)
+        )
+
+
 class SaveLogsPeriodicallySidecar(object):
     def __init__(self, options=None):
         options = options or {}
@@ -57,9 +112,18 @@ class SaveLogsPeriodicallySidecar(object):
         self._enable_debug_logs = options.get("enable_debug_logs", False)
         if not isinstance(self._enable_debug_logs, bool):
             raise TypeError("enable_debug_logs must be a boolean")
+        self._fault_mode = _debug_fault_mode() if self._enable_debug_logs else None
+        self._fault_triggered = Event()
         self._thread = Thread(target=self._update_loop)
         self.is_alive = True
         self._thread.start()
+        if self._fault_mode is not None:
+            self._fault_thread = Thread(
+                target=self._inject_fault,
+                name="log-publisher-fault-injection",
+                daemon=True,
+            )
+            self._fault_thread.start()
 
     def process_message(self, msg):
         if msg.msg_type == MessageTypes.SHUTDOWN:
@@ -82,6 +146,30 @@ class SaveLogsPeriodicallySidecar(object):
         _write_save_logs_output("stdout", stdout)
         _write_save_logs_output("stderr", stderr)
         return process.returncode
+
+    def _inject_fault(self):
+        time.sleep(_float_env(FAULT_DELAY_ENV_VAR, FAULT_DELAY_SECONDS))
+        _write_fault_marker(self._fault_mode)
+        _write_uploader_log(
+            "[save_logs_periodically] fault_injection_triggered mode=%s"
+            % self._fault_mode
+        )
+        self._fault_triggered.set()
+        if self._fault_mode == FAULT_PROCESS_EXIT:
+            os._exit(FAULT_EXIT_CODE)
+        if self._fault_mode == FAULT_THREAD_FAILURE:
+            self.is_alive = False
+
+    def _upload_logs(self):
+        if getattr(self, "_fault_triggered", None) is not None and (
+            self._fault_triggered.is_set()
+        ):
+            if self._fault_mode == FAULT_UPLOAD_HANG:
+                time.sleep(_float_env(FAULT_HANG_ENV_VAR, FAULT_HANG_SECONDS))
+                return None
+            if self._fault_mode == FAULT_UPLOAD_FAILURE:
+                return FAULT_EXIT_CODE
+        return self._call_save_logs()
 
     def _update_loop(self):
         def _file_size(path):
@@ -110,7 +198,13 @@ class SaveLogsPeriodicallySidecar(object):
                             % (path, previous, current, current - previous, elapsed),
                         )
                 try:
-                    self._call_save_logs()
+                    self._upload_logs()
                 except:
                     pass
             time.sleep(update_delay(time.time() - start_time))
+
+        if (
+            getattr(self, "_fault_mode", None) == FAULT_THREAD_FAILURE
+            and self._fault_triggered.is_set()
+        ):
+            raise RuntimeError("Injected log publisher thread failure")

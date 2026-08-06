@@ -1,10 +1,12 @@
 import json
 import subprocess
+from threading import Event
 from types import SimpleNamespace
 
 import pytest
 
 from metaflow._vendor.click.testing import CliRunner
+import metaflow.mflog.save_logs_periodically as save_logs_periodically
 from metaflow.mflog.save_logs_periodically import SaveLogsPeriodicallySidecar
 from metaflow.mflog.mflog import parse
 from metaflow.sidecar import Sidecar
@@ -122,6 +124,56 @@ def test_worker_without_options_uses_legacy_constructor():
 def test_log_publisher_rejects_invalid_options(options):
     with pytest.raises((TypeError, ValueError)):
         SaveLogsPeriodicallySidecar(options=options)
+
+
+def test_debug_fault_mode_requires_debug_log_transfer(monkeypatch):
+    monkeypatch.setenv(
+        save_logs_periodically.FAULT_MODE_ENV_VAR,
+        save_logs_periodically.FAULT_UPLOAD_FAILURE,
+    )
+    monkeypatch.delenv(save_logs_periodically.DEBUG_LOG_TRANSFER_ENV_VAR, raising=False)
+
+    assert save_logs_periodically._debug_fault_mode() is None
+
+    monkeypatch.setenv(save_logs_periodically.DEBUG_LOG_TRANSFER_ENV_VAR, "1")
+
+    assert (
+        save_logs_periodically._debug_fault_mode()
+        == save_logs_periodically.FAULT_UPLOAD_FAILURE
+    )
+
+
+def test_debug_fault_exits_publisher_process(mocker):
+    publisher = SaveLogsPeriodicallySidecar.__new__(SaveLogsPeriodicallySidecar)
+    publisher._fault_mode = save_logs_periodically.FAULT_PROCESS_EXIT
+    publisher._fault_triggered = Event()
+    publisher.is_alive = True
+    mocker.patch("metaflow.mflog.save_logs_periodically.time.sleep")
+    write_marker = mocker.patch(
+        "metaflow.mflog.save_logs_periodically._write_fault_marker"
+    )
+    write_log = mocker.patch("metaflow.mflog.save_logs_periodically._write_uploader_log")
+    exit_process = mocker.patch("metaflow.mflog.save_logs_periodically.os._exit")
+
+    publisher._inject_fault()
+
+    write_marker.assert_called_once_with(save_logs_periodically.FAULT_PROCESS_EXIT)
+    write_log.assert_called_once()
+    assert publisher._fault_triggered.is_set()
+    exit_process.assert_called_once_with(save_logs_periodically.FAULT_EXIT_CODE)
+
+
+def test_debug_upload_failure_skips_uploader(mocker):
+    publisher = SaveLogsPeriodicallySidecar.__new__(SaveLogsPeriodicallySidecar)
+    publisher._fault_mode = save_logs_periodically.FAULT_UPLOAD_FAILURE
+    publisher._fault_triggered = Event()
+    publisher._fault_triggered.set()
+    uploader = mocker.patch.object(publisher, "_call_save_logs")
+
+    return_code = publisher._upload_logs()
+
+    assert return_code == save_logs_periodically.FAULT_EXIT_CODE
+    uploader.assert_not_called()
 
 
 def test_log_publisher_writes_debug_logs_to_uploader_log(monkeypatch, mocker, tmp_path):
