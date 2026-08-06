@@ -193,9 +193,9 @@ class SaveLogsPeriodicallySidecar(object):
             if self._fault_mode == FAULT_UPLOAD_FAILURE:
                 _write_uploader_log(
                     "[save_logs_periodically] simulated upload_failure "
-                    "return_code=%d" % FAULT_EXIT_CODE
+                    "raising RuntimeError"
                 )
-                return FAULT_EXIT_CODE
+                raise RuntimeError("Injected periodic log upload failure")
         return self._call_save_logs()
 
     def _update_loop(self):
@@ -227,7 +227,12 @@ class SaveLogsPeriodicallySidecar(object):
                         )
                 try:
                     self._upload_logs()
-                except:
+                except BaseException as error:
+                    if self._enable_debug_logs:
+                        _write_uploader_log(
+                            "[save_logs_periodically] upload_exception error=%r"
+                            % error
+                        )
                     pass
             time.sleep(update_delay(time.time() - start_time))
 

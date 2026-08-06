@@ -171,13 +171,12 @@ def test_debug_upload_failure_skips_uploader(mocker):
     uploader = mocker.patch.object(publisher, "_call_save_logs")
     write_log = mocker.patch("metaflow.mflog.save_logs_periodically._write_uploader_log")
 
-    return_code = publisher._upload_logs()
+    with pytest.raises(RuntimeError, match="Injected periodic log upload failure"):
+        publisher._upload_logs()
 
-    assert return_code == save_logs_periodically.FAULT_EXIT_CODE
     uploader.assert_not_called()
     write_log.assert_called_once_with(
-        "[save_logs_periodically] simulated upload_failure return_code=%d"
-        % save_logs_periodically.FAULT_EXIT_CODE
+        "[save_logs_periodically] simulated upload_failure raising RuntimeError"
     )
 
 
@@ -197,6 +196,38 @@ def test_upload_fault_activates_before_next_upload(mocker):
 
     activate.assert_called_once_with()
     assert publisher._fault_triggered.is_set()
+
+
+def test_log_publisher_logs_caught_upload_exception(monkeypatch, mocker, tmp_path):
+    stdout = tmp_path / "stdout"
+    stderr = tmp_path / "stderr"
+    uploader_log = tmp_path / "periodical_uploader_log"
+    stdout.write_bytes(b"out\n")
+    stderr.write_bytes(b"err\n")
+    monkeypatch.setenv("MFLOG_STDOUT", str(stdout))
+    monkeypatch.setenv("MFLOG_STDERR", str(stderr))
+    monkeypatch.setenv("PERIODICAL_UPLOADER_LOG_PATH", str(uploader_log))
+    publisher = SaveLogsPeriodicallySidecar.__new__(SaveLogsPeriodicallySidecar)
+    publisher._enable_debug_logs = True
+    publisher._fault_mode = save_logs_periodically.FAULT_UPLOAD_FAILURE
+    publisher._fault_triggered = Event()
+    publisher._fault_triggered.set()
+    publisher.is_alive = True
+    mocker.patch(
+        "metaflow.mflog.save_logs_periodically.time.sleep",
+        side_effect=lambda _: setattr(publisher, "is_alive", False),
+    )
+    mocker.patch("metaflow.mflog.save_logs_periodically.time.time", return_value=100)
+
+    publisher._update_loop()
+
+    messages = [
+        parse(line).msg.decode()
+        for line in uploader_log.read_bytes().splitlines(keepends=True)
+        if line.startswith(b"[MFLOG|")
+    ]
+    assert any("simulated upload_failure raising RuntimeError" in m for m in messages)
+    assert any("upload_exception error=RuntimeError" in m for m in messages)
 
 
 def test_log_publisher_writes_debug_logs_to_uploader_log(monkeypatch, mocker, tmp_path):
