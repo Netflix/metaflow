@@ -515,15 +515,6 @@ CONDA_DEPENDENCY_RESOLVER = from_conf("CONDA_DEPENDENCY_RESOLVER", "conda")
 CONDA_USE_FAST_INIT = from_conf("CONDA_USE_FAST_INIT", False)
 
 ###
-# UV configuration
-###
-# Pinned uv release used to bootstrap `@environment=uv` on remote compute.
-# Kept as a plain constant (not from_conf) so the same trusted value is read
-# both locally and on the remote from the shipped code package, mirroring how
-# the micromamba version is pinned for the conda/pypi environments.
-UV_VERSION = "0.6.11"
-
-###
 # Escape hatch configuration
 ###
 # Print out warning if escape hatch is not used for the target packages

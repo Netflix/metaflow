@@ -13,6 +13,7 @@ from urllib.request import Request, urlopen
 from urllib.error import URLError
 
 _UV_BASE_URL = "https://github.com/astral-sh/uv/releases/download"
+_UV_VERSION = "0.6.11"
 
 _UV_TARGET_MAP = {
     ("linux", "x86_64"): "x86_64-unknown-linux-gnu",
@@ -40,7 +41,7 @@ def _get_uv_download_url():
         raise RuntimeError(
             f"Unsupported platform for UV: {system}/{machine}. Supported: {supported}"
         )
-    return f"{_UV_BASE_URL}/{UV_VERSION}/uv-{target}.tar.gz"
+    return f"{_UV_BASE_URL}/{_UV_VERSION}/uv-{target}.tar.gz"
 
 
 if __name__ == "__main__":

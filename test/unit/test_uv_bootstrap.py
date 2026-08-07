@@ -1,9 +1,9 @@
 import pytest
 
-from metaflow.metaflow_config import UV_VERSION
 from metaflow.plugins.uv.bootstrap import (
     _UV_BASE_URL,
     _UV_TARGET_MAP,
+    _UV_VERSION,
     _get_uv_download_url,
 )
 
@@ -42,7 +42,7 @@ def test_platform_cases_cover_target_map():
 def test_platform_resolves_to_expected_target(mocker, system, machine, target):
     mocker.patch(_SYSTEM, return_value=system)
     mocker.patch(_MACHINE, return_value=machine)
-    assert _get_uv_download_url() == _expected_url(UV_VERSION, target)
+    assert _get_uv_download_url() == _expected_url(_UV_VERSION, target)
 
 
 def test_unsupported_architecture_raises(mocker):
