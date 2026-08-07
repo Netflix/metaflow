@@ -38,8 +38,10 @@ def tenki():
 
 
 def _resolve_scope(flow_name, run_id, user, my_runs, echo):
-    # Mirror @kubernetes / @batch (parse_cli_options): an unscoped invocation
-    # resolves to the *latest run of the current flow*, never the whole project.
+    # Mirror @kubernetes / @batch (parse_cli_options) but harden the default:
+    # with no scope flags, resolve to the *current user's* latest run of this
+    # flow, never just "the flow's latest run". This keeps a destructive default
+    # `tenki kill` from ever touching another user's sandboxes on shared storage.
     # Replicated locally (as @batch does) to keep the plugin self-contained.
     if user and my_runs:
         raise CommandException("--user and --my-runs are mutually exclusive.")
@@ -47,9 +49,11 @@ def _resolve_scope(flow_name, run_id, user, my_runs, echo):
         raise CommandException("--run-id and --my-runs are mutually exclusive.")
     if my_runs:
         user = util.get_username()
-    # A user filter alone means "all of that user's runs of this flow"; only
-    # fall back to the latest run when neither a run id nor a user was given.
+    # A user filter alone means "all of that user's runs of this flow"; a run id
+    # alone targets exactly that run. With nothing specified, default to the
+    # current user's latest run (both the user and run-id scopes apply).
     if not run_id and not user:
+        user = util.get_username()
         run_id = util.get_latest_run_id(echo, flow_name)
         if run_id is None:
             raise CommandException("A previous run id was not found. Specify --run-id.")

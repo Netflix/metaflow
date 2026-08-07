@@ -230,9 +230,13 @@ def test_resolve_scope_semantics(monkeypatch):
     # A user filter alone -> that user's runs, no latest-run fallback.
     assert tenki_cli._resolve_scope("F", None, "bob", False, echo) == (None, "bob")
 
-    # No flags -> default to the latest run of this flow.
+    # No flags -> default to the CURRENT USER's latest run of this flow (a
+    # destructive default must not touch another user's sandboxes).
     monkeypatch.setattr(tenki_cli.util, "get_latest_run_id", lambda e, f: "run-9")
-    assert tenki_cli._resolve_scope("F", None, None, False, echo) == ("run-9", None)
+    assert tenki_cli._resolve_scope("F", None, None, False, echo) == ("run-9", "me")
+
+    # A run id alone targets exactly that run, regardless of owner (explicit).
+    assert tenki_cli._resolve_scope("F", "run-7", None, False, echo) == ("run-7", None)
 
     # No flags and no previous run -> clear error.
     monkeypatch.setattr(tenki_cli.util, "get_latest_run_id", lambda e, f: None)
