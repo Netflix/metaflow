@@ -187,10 +187,19 @@ def is_permanent_launch_error(err, client=None):
         return True
 
     def sdk(name):
-        # Resolve an SDK exception class by name via the client, or () when the
-        # client is unavailable (e.g. construction itself failed) so isinstance
-        # never matches. Mirrors TenkiClient.exception().
-        return client.exception(name) if client is not None else ()
+        # Resolve an SDK exception class by name. Prefer the client, but fall
+        # back to importing the SDK module directly so classification still
+        # works when client construction itself failed (self._client is None) —
+        # otherwise a retryable SDK error raised during TenkiClient() would be
+        # misread as permanent. Returns () when unresolvable so isinstance never
+        # matches. Mirrors TenkiClient.exception().
+        if client is not None:
+            return client.exception(name)
+        try:
+            import tenki
+        except Exception:
+            return ()
+        return getattr(tenki, name, ())
 
     # Transient, consistent with the wait-path classification: a client-side
     # deadline, or the SDK's command-timeout / session-lost errors.

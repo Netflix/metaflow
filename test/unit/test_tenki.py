@@ -1,7 +1,9 @@
 import base64
 import importlib.metadata
 import re
+import sys
 import time
+import types
 from collections import namedtuple
 
 import pytest
@@ -699,13 +701,32 @@ def test_is_permanent_launch_error_classification():
 
 
 def test_is_permanent_launch_error_without_client():
-    # If the client failed to construct, SDK names resolve to () and never
-    # match; our own signals and the unknown-default still classify correctly.
+    # Our own signals, a non-SDK error, and a builtin TimeoutError classify
+    # correctly even when no client is available (client construction failed).
     assert is_permanent_launch_error(TenkiException("guard"), None) is True
     assert is_permanent_launch_error(TenkiKilledException("x"), None) is True
     assert is_permanent_launch_error(RuntimeError("???"), None) is True
-    # A builtin TimeoutError is transient even with no client.
     assert is_permanent_launch_error(TimeoutError("x"), None) is False
+
+
+def test_is_permanent_launch_error_without_client_uses_sdk_module(monkeypatch):
+    # When client construction fails, the classifier must still resolve the SDK
+    # exception hierarchy (by importing the module) so a *retryable* SDK error
+    # raised during TenkiClient() is not misread as permanent.
+    fake_sdk = types.ModuleType("tenki")
+    fake_sdk.SandboxError = _FakeSandboxError
+    fake_sdk.CommandTimeoutError = _FakeCommandTimeout
+    fake_sdk.SessionNotFoundError = _FakeSessionNotFound
+    monkeypatch.setitem(sys.modules, "tenki", fake_sdk)
+
+    # Retryable SDK error with NO client -> transient (the bug being fixed).
+    rate_limited = _FakeSandboxError("slow down")
+    rate_limited.retryable = True
+    assert is_permanent_launch_error(rate_limited, None) is False
+    # Non-retryable SDK error with no client -> permanent.
+    assert is_permanent_launch_error(_FakeSandboxError("boom"), None) is True
+    # Timeout/session-lost still transient via the module fallback.
+    assert is_permanent_launch_error(_FakeCommandTimeout("slow"), None) is False
 
 
 def test_unknown_exit_code_is_retryable(monkeypatch):
