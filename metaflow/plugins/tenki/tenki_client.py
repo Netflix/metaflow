@@ -2,9 +2,9 @@ import sys
 
 from metaflow.exception import MetaflowException
 
-# The backend uses APIs introduced in tenki-sandbox 0.4.0 (Client(auth_token=),
-# project-scoped create, CommandResult fields). 0.4.0 requires Python >= 3.10.
-_MIN_TENKI_SANDBOX_VERSION = "0.4.0"
+# The backend uses APIs from the `tenki` SDK >= 0.5.4 (Client(auth_token=),
+# create, CommandResult fields). 0.5.4 requires Python >= 3.10.
+_MIN_TENKI_VERSION = "0.5.4"
 
 
 class TenkiException(MetaflowException):
@@ -15,23 +15,23 @@ class TenkiKilledException(MetaflowException):
     headline = "Tenki sandbox killed"
 
 
-def get_tenki_sandbox_module():
-    # The `tenki-sandbox` SDK is a soft dependency, imported lazily so that
-    # Metaflow can be installed and used without it (mirrors how the Kubernetes
-    # and AWS plugins treat their respective SDKs).
+def get_tenki_module():
+    # The `tenki` SDK is a soft dependency, imported lazily so that Metaflow can
+    # be installed and used without it (mirrors how the Kubernetes and AWS
+    # plugins treat their respective SDKs).
     try:
-        import tenki_sandbox
+        import tenki
     except (NameError, ImportError):
         raise TenkiException(
-            "Could not import module 'tenki_sandbox'.\n\n"
-            "Install the Tenki Sandbox SDK first (>= %s, needs Python >= 3.10):\n"
-            "    %s -m pip install 'tenki-sandbox>=%s'\n"
+            "Could not import module 'tenki'.\n\n"
+            "Install the Tenki SDK first (>= %s, needs Python >= 3.10):\n"
+            "    %s -m pip install 'tenki>=%s'\n"
             "or equivalent through your favorite Python package manager."
-            % (_MIN_TENKI_SANDBOX_VERSION, sys.executable, _MIN_TENKI_SANDBOX_VERSION)
+            % (_MIN_TENKI_VERSION, sys.executable, _MIN_TENKI_VERSION)
         )
 
     _check_min_version()
-    return tenki_sandbox
+    return tenki
 
 
 def _check_min_version():
@@ -43,7 +43,7 @@ def _check_min_version():
     except ImportError:
         return
     try:
-        installed = version("tenki-sandbox")
+        installed = version("tenki")
     except PackageNotFoundError:
         return
     try:
@@ -51,25 +51,25 @@ def _check_min_version():
     except ImportError:
         return
     try:
-        too_old = Version(installed) < Version(_MIN_TENKI_SANDBOX_VERSION)
+        too_old = Version(installed) < Version(_MIN_TENKI_VERSION)
     except InvalidVersion:
         return
     if too_old:
         raise TenkiException(
-            "The installed tenki-sandbox %s is too old; @tenki requires "
-            ">= %s (which needs Python >= 3.10). Upgrade with:\n"
-            "    %s -m pip install -U 'tenki-sandbox>=%s'"
+            "The installed tenki %s is too old; @tenki requires >= %s (which "
+            "needs Python >= 3.10). Upgrade with:\n"
+            "    %s -m pip install -U 'tenki>=%s'"
             % (
                 installed,
-                _MIN_TENKI_SANDBOX_VERSION,
+                _MIN_TENKI_VERSION,
                 sys.executable,
-                _MIN_TENKI_SANDBOX_VERSION,
+                _MIN_TENKI_VERSION,
             )
         )
 
 
 class TenkiClient(object):
-    """Thin wrapper around the ``tenki-sandbox`` SDK.
+    """Thin wrapper around the ``tenki`` SDK.
 
     Keeps the SDK a soft dependency (imported lazily) and centralizes the auth
     configuration so the runner does not have to know how the SDK is
@@ -79,7 +79,7 @@ class TenkiClient(object):
     """
 
     def __init__(self, api_key=None, base_url=None):
-        self._sdk = get_tenki_sandbox_module()
+        self._sdk = get_tenki_module()
         # Auth is configured on the Client. When auth_token is not passed, the
         # SDK resolves it from the environment (TENKI_AUTH_TOKEN / TENKI_API_KEY).
         client_kwargs = {}
@@ -94,20 +94,6 @@ class TenkiClient(object):
 
     def list_sandboxes(self, tags=None):
         return self._client.list(tags=tags) if tags else self._client.list()
-
-    def default_project_id(self, workspace_id=None):
-        # Resolve a project for this token when TENKI_PROJECT_ID is not set. When
-        # a workspace is requested, only consider that workspace so we never
-        # return a project from a different workspace than the one configured.
-        me = self._client.who_am_i()
-        workspaces = getattr(me, "workspaces", None) or []
-        for ws in workspaces:
-            if workspace_id and getattr(ws, "id", None) != workspace_id:
-                continue
-            projects = getattr(ws, "projects", None) or []
-            for proj in projects:
-                return proj.id
-        return None
 
     def exception(self, name):
         # Return an SDK exception class by name, or an empty tuple if the SDK

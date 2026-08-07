@@ -593,7 +593,7 @@ KUBERNETES_SANDBOX_INIT_SCRIPT = from_conf("KUBERNETES_SANDBOX_INIT_SCRIPT")
 ###
 # Tenki Sandbox microVM compute backend
 ###
-# API key for the Tenki Sandbox SDK. The SDK also reads TENKI_API_KEY /
+# API key for the Tenki SDK. The SDK also reads TENKI_API_KEY /
 # TENKI_AUTH_TOKEN directly from the environment; this is only used to forward
 # an explicit value configured via metaflow config.
 TENKI_API_KEY = from_conf("TENKI_API_KEY")
@@ -609,9 +609,8 @@ TENKI_CONTAINER_IMAGE = from_conf("TENKI_CONTAINER_IMAGE")
 # and no @resources value is larger).
 TENKI_CPU = from_conf("TENKI_CPU")
 TENKI_MEMORY = from_conf("TENKI_MEMORY")
-# Tenki project/workspace to create sandboxes in. If TENKI_PROJECT_ID is unset,
-# the backend auto-resolves the first project of the token's first workspace.
-TENKI_PROJECT_ID = from_conf("TENKI_PROJECT_ID")
+# Optional Tenki workspace to create sandboxes in; leave unset to use the
+# token's default.
 TENKI_WORKSPACE_ID = from_conf("TENKI_WORKSPACE_ID")
 # Optional init script run before anything else inside the sandbox (parity with
 # KUBERNETES_SANDBOX_INIT_SCRIPT). Useful for configuring egress/proxy.

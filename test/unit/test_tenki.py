@@ -115,38 +115,17 @@ def test_task_finished_local_fallback_does_not_crash(monkeypatch):
     deco.task_finished("start", None, None, True, 0, 0)
 
 
-def test_default_project_id_respects_workspace():
-    Proj = namedtuple("Proj", ["id"])
-    Ws = namedtuple("Ws", ["id", "projects"])
-    Identity = namedtuple("Identity", ["workspaces"])
-
-    class _RawClient:
-        def who_am_i(self):
-            return Identity(
-                workspaces=(
-                    Ws("ws-1", (Proj("proj-1a"),)),
-                    Ws("ws-2", (Proj("proj-2a"),)),
-                )
-            )
-
-    client = TenkiClient.__new__(TenkiClient)
-    client._client = _RawClient()
-    assert client.default_project_id() == "proj-1a"  # first workspace
-    assert client.default_project_id("ws-2") == "proj-2a"  # requested workspace
-    assert client.default_project_id("ws-missing") is None
-
-
 def test_sdk_min_version_enforced(monkeypatch):
     def _set_version(v):
         monkeypatch.setattr(importlib.metadata, "version", lambda dist: v)
 
     # Too old -> clear error.
-    _set_version("0.3.9")
+    _set_version("0.5.3")
     with pytest.raises(TenkiException, match="too old"):
         tenki_client._check_min_version()
 
     # At or above the minimum -> no error.
-    _set_version("0.4.0")
+    _set_version("0.5.4")
     tenki_client._check_min_version()
     _set_version("1.2.0")
     tenki_client._check_min_version()
@@ -427,7 +406,7 @@ class _FakeResult(object):
 
     @property
     def ok(self):
-        # Mirrors tenki_sandbox.models.CommandResult.ok.
+        # Mirrors tenki.models.CommandResult.ok.
         return self.exit_code == 0 and not self.signal
 
 
@@ -458,9 +437,6 @@ class _FakeClient(object):
 
     def exception(self, name):
         return _FAKE_EXC.get(name, ())
-
-    def default_project_id(self, workspace_id=None):
-        return "proj-test"
 
     def close(self):
         self.closed = True
@@ -514,7 +490,8 @@ def test_run_success(monkeypatch):
     assert sandbox.create_kwargs["allow_outbound"] is True
     assert sandbox.create_kwargs["cpu_cores"] == 2
     assert sandbox.create_kwargs["memory_mb"] == 4096
-    assert sandbox.create_kwargs["project_id"] == "proj-test"
+    # The SDK no longer takes a project_id; we must not send one.
+    assert "project_id" not in sandbox.create_kwargs
     # Sandbox is tagged with the flow (for flow-scoped `tenki list`/`kill`),
     # run, and user — all sanitized to Tenki's tag charset.
     assert sandbox.create_kwargs["tags"] == [

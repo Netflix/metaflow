@@ -37,7 +37,6 @@ from metaflow.metaflow_config import (
     SERVICE_URL,
     TENKI_API_KEY,
     TENKI_BASE_URL,
-    TENKI_PROJECT_ID,
     TENKI_SANDBOX_INIT_SCRIPT,
     TENKI_WORKSPACE_ID,
 )
@@ -170,16 +169,16 @@ def is_permanent_launch_error(err, client=None):
     """Classify a launch-path exception: True -> do not retry (DISALLOW_RETRY),
     False -> retryable (plain non-zero exit, so @retry relaunches).
 
-    launch_job does synchronous network I/O (Client auth, who_am_i project
-    discovery, create), so transient API/network failures are a real mode and
-    must stay retryable. The tenki-sandbox SDK already classifies its own errors
-    via a ``retryable`` attribute (e.g. an UNAVAILABLE service and rate limits
-    are retryable; auth / permission / quota / bad-image are not), so we defer
-    to it for SDK errors. Command/session timeouts and a client-side deadline
-    are also treated as transient, matching Tenki._interpret_result (the wait
-    path). Unknown / non-SDK errors default to PERMANENT: an unclassified launch
-    failure is more often a misconfig than a blip, and looping @retry on a
-    guaranteed failure wastes billed sandbox-create attempts.
+    launch_job does synchronous network I/O (Client auth, create), so transient
+    API/network failures are a real mode and must stay retryable. The tenki SDK
+    already classifies its own errors via a ``retryable`` attribute (e.g. an
+    UNAVAILABLE service and rate limits are retryable; auth / permission / quota
+    / bad-image are not), so we defer to it for SDK errors. Command/session
+    timeouts and a client-side deadline are also treated as transient, matching
+    Tenki._interpret_result (the wait path). Unknown / non-SDK errors default to
+    PERMANENT: an unclassified launch failure is more often a misconfig than a
+    blip, and looping @retry on a guaranteed failure wastes billed
+    sandbox-create attempts.
     """
     # Our own signals. TenkiKilledException is always non-retryable; a
     # TenkiException at launch comes from the SDK soft-import failing or the
@@ -458,12 +457,6 @@ class Tenki(object):
 
         self._client = TenkiClient(api_key=TENKI_API_KEY, base_url=TENKI_BASE_URL)
 
-        # The Tenki API requires a project to create a sandbox in. Use the
-        # configured project, else auto-resolve the token's first project.
-        project_id = TENKI_PROJECT_ID or self._client.default_project_id(
-            TENKI_WORKSPACE_ID
-        )
-
         # Outbound access is REQUIRED so the microVM can reach the datastore
         # (S3) and the metadata service.
         create_kwargs = dict(
@@ -491,8 +484,7 @@ class Tenki(object):
                 "metaflow.user": user,
             },
         )
-        if project_id:
-            create_kwargs["project_id"] = project_id
+        # A workspace is optional; pass it only when configured.
         if TENKI_WORKSPACE_ID:
             create_kwargs["workspace_id"] = TENKI_WORKSPACE_ID
         if image:

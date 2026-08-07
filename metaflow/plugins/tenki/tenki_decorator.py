@@ -114,9 +114,9 @@ class TenkiDecorator(StepDecorator):
 
     def package_init(self, flow, step_name, environment):
         # Fail early with an actionable message if the SDK is missing.
-        from .tenki_client import get_tenki_sandbox_module
+        from .tenki_client import get_tenki_module
 
-        get_tenki_sandbox_module()
+        get_tenki_module()
 
     def runtime_init(self, flow, graph, package, run_id):
         self.flow = flow
