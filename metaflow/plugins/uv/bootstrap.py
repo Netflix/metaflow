@@ -7,7 +7,7 @@ import time
 
 from metaflow.util import which
 from metaflow.meta_files import read_info_file
-from metaflow.metaflow_config import get_pinned_conda_libs, UV_VERSION
+from metaflow.metaflow_config import get_pinned_conda_libs
 from metaflow.packaging_sys import MetaflowCodeContent, ContentType
 from urllib.request import Request, urlopen
 from urllib.error import URLError
