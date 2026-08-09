@@ -376,7 +376,18 @@ class Batch(object):
         if attrs:
             for key, value in attrs.items():
                 job.parameter(key, value)
-        # Tags for AWS Batch job (for say cost attribution)
+        # Tags for AWS Batch job (for say cost attribution). Applying tags
+        # requires the Batch:TagResource IAM permission, which may not be
+        # granted in every deployment, so this whole block, including
+        # user-defined aws_batch_tags, is gated behind BATCH_EMIT_TAGS.
+        # A prior version of this code applied aws_batch_tags
+        # unconditionally, but that could turn a missing IAM permission
+        # into an outright job-submission failure for any deployment
+        # relying on BATCH_DEFAULT_TAGS, not just deployments that opted
+        # into tagging. See discussion on #3209 and PR #3210. Users are
+        # warned at flow-submission time in batch_decorator.py's
+        # step_init if tags were requested but BATCH_EMIT_TAGS is not
+        # set, so the drop is diagnosable rather than silent.
         if BATCH_EMIT_TAGS:
             job.tag("app", "metaflow")
             for key in [
@@ -397,12 +408,9 @@ class Batch(object):
                     k, v = sanitize_batch_tag(key, attrs.get(key))
                     job.tag(k, v)
 
-        # User-defined tags (e.g. for cost attribution or compliance) should
-        # always be applied, regardless of BATCH_EMIT_TAGS which controls
-        # Metaflow's internal observability tags.
-        if aws_batch_tags is not None:
-            for key, value in aws_batch_tags.items():
-                job.tag(key, value)
+            if aws_batch_tags is not None:
+                for key, value in aws_batch_tags.items():
+                    job.tag(key, value)
         return job
 
     def launch_job(
