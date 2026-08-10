@@ -208,6 +208,7 @@ if __name__ == "__main__":
     def download_pypi_packages(storage, packages, dest_dir):
         def process_pypi_package(args):
             key, tmpfile, dest_dir = args
+            # key (and path) might be url-encoded so we unquote this to get a usable filename for the package.
             dest = os.path.join(dest_dir, unquote(os.path.basename(key)))
             shutil.move(tmpfile, dest)
 
