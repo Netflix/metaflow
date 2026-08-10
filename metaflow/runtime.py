@@ -47,7 +47,7 @@ from .datastore import FlowDataStore, TaskDataStoreSet
 from .debug import debug
 from .decorators import flow_decorators
 from .flowspec import FlowStateItems
-from .graph import switch_case_target_lists
+from .graph import split_branch_for_node, switch_case_target_lists
 from .mflog import mflog, RUNTIME_LOG_SOURCE
 from .util import to_unicode, compress_list, unicode_type, get_latest_task_pathspec
 from .clone_util import clone_task_helper
@@ -1330,13 +1330,7 @@ class NativeRuntime(object):
 
     def _switch_case_targets_for_task(self, switch_node, step_name):
         node = self._graph[step_name]
-        branch_root = None
-        if (
-            node.split_parents
-            and node.split_parents[-1] == switch_node.name
-            and node.split_branches
-        ):
-            branch_root = node.split_branches[-1]
+        branch_root = split_branch_for_node(node, switch_node.name)
 
         for targets in switch_case_target_lists(switch_node.switch_cases):
             if branch_root in targets or step_name in targets:

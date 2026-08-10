@@ -1,6 +1,6 @@
 import re
 from .exception import MetaflowException
-from .graph import switch_case_target_lists
+from .graph import split_branch_for_node, switch_case_target_lists
 from .util import all_equal
 
 
@@ -320,13 +320,13 @@ def check_split_join_balance(graph):
         if node.type in ("start", "linear"):
             new_stack = split_stack
         elif node.type in ("split", "foreach"):
-            new_stack = split_stack + [("split", node.out_funcs)]
+            new_stack = split_stack + [(node.name, node.out_funcs)]
         elif node.type == "split-switch":
             # A switch selects exactly one case. A list-valued case then behaves
             # like a split, but only within that selected case.
             for targets in switch_case_target_lists(node.switch_cases):
                 case_stack = (
-                    split_stack + [("split", targets)]
+                    split_stack + [(node.name, targets)]
                     if len(targets) > 1
                     else split_stack
                 )
@@ -348,13 +348,19 @@ def check_split_join_balance(graph):
         elif node.type == "join":
             new_stack = split_stack
             if split_stack:
-                _, split_roots = split_stack[-1]
+                split_name, split_roots = split_stack[-1]
                 new_stack = split_stack[:-1]
 
                 # Resolve each incoming function to its root branch from the split.
-                resolved_branches = set(
-                    graph[n].split_branches[-1] for n in node.in_funcs
-                )
+                resolved_branches = {
+                    split_branch_for_node(graph[n], split_name) for n in node.in_funcs
+                }
+                resolved_branches.discard(None)
+                # A shared switch join has static predecessors from every case,
+                # though only the selected case runs. Validate this traversal's
+                # case against its own predecessors.
+                if graph[split_name].type == "split-switch":
+                    resolved_branches.intersection_update(split_roots)
 
                 # compares the set of resolved branches against the expected branches
                 # from the split.

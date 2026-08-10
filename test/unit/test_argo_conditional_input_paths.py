@@ -4,7 +4,10 @@ from math import inf
 import pytest
 
 from metaflow import FlowSpec, step
-from metaflow.plugins.argo.argo_workflows import ArgoWorkflows
+from metaflow.plugins.argo.argo_workflows import (
+    ArgoWorkflows,
+    ArgoWorkflowsException,
+)
 from metaflow.plugins.argo.conditional_input_paths import generate_input_paths
 from metaflow.util import compress_list, decompress_list
 
@@ -24,6 +27,32 @@ class ChainSkipReproFlow(FlowSpec):
 
     @step
     def step3(self):
+        self.next(self.end)
+
+    @step
+    def end(self):
+        pass
+
+
+class SwitchFanoutFlow(FlowSpec):
+    @step
+    def start(self):
+        self.route = "fanout"
+        self.next(
+            {"fanout": (self.left, self.right), "linear": self.end},
+            condition="route",
+        )
+
+    @step
+    def left(self):
+        self.next(self.join)
+
+    @step
+    def right(self):
+        self.next(self.join)
+
+    @step
+    def join(self, inputs):
         self.next(self.end)
 
     @step
@@ -114,3 +143,24 @@ def test_generate_input_paths_filters_by_exact_step_name(
     result = generate_input_paths(_encode_input_paths(paths), skippable_steps)
 
     assert _decode_input_paths(result) == expected
+
+
+def test_argo_rejects_multi_target_switch_case(mocker):
+    mocker.patch.object(ArgoWorkflows, "_compile_workflow_template", return_value=None)
+    mocker.patch.object(ArgoWorkflows, "_compile_sensor", return_value=None)
+    with pytest.raises(ArgoWorkflowsException, match="multi-target switch case"):
+        ArgoWorkflows(
+            name="switch-fanout",
+            graph=SwitchFanoutFlow._graph,
+            flow=SwitchFanoutFlow(use_cli=False),
+            code_package_metadata={},
+            code_package_sha="sha",
+            code_package_url="s3://metaflow/switch-fanout",
+            production_token="token",
+            metadata=None,
+            flow_datastore=None,
+            environment=None,
+            event_logger=None,
+            monitor=None,
+            username="test-user",
+        )

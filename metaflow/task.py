@@ -17,7 +17,7 @@ from .metadata_provider import MetaDatum
 from .metaflow_profile import from_start
 from .mflog import TASK_LOG_SOURCE
 from .datastore import Inputs, TaskDataStoreSet
-from .graph import switch_case_target_lists
+from .graph import split_branch_for_node, switch_case_target_lists
 from .exception import (
     MetaflowInternalError,
     MetaflowDataMissing,
@@ -830,12 +830,11 @@ class MetaflowTask(object):
                             branch_roots = set()
                             for in_func in node.in_funcs:
                                 in_node = self.flow._graph[in_func]
-                                if (
-                                    in_node.split_parents
-                                    and in_node.split_parents[-1] == split_node.name
-                                    and in_node.split_branches
-                                ):
-                                    branch_roots.add(in_node.split_branches[-1])
+                                branch_root = split_branch_for_node(
+                                    in_node, split_node.name
+                                )
+                                if branch_root is not None:
+                                    branch_roots.add(branch_root)
 
                             expected_counts = set(
                                 len(targets)

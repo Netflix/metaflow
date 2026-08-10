@@ -84,6 +84,15 @@ def flatten_switch_cases(switch_cases):
     return out_funcs
 
 
+def split_branch_for_node(node, split_name):
+    """Return the branch root for ``node`` at the named enclosing split."""
+    try:
+        split_index = node.split_parents.index(split_name)
+        return node.split_branches[split_index]
+    except (ValueError, IndexError):
+        return None
+
+
 # ---------------------------------------------------------------------------
 # Note on "sourceless" DAGNodes (used by FunctionSpec)
 # ---------------------------------------------------------------------------

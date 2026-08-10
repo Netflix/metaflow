@@ -1032,7 +1032,7 @@ class ArgoWorkflows(object):
                 for targets in switch_case_target_lists(node.switch_cases):
                     if len(targets) > 1:
                         raise ArgoWorkflowsException(
-                            "Step *%s* uses a list-valued switch case (fanout), "
+                            "Step *%s* uses a multi-target switch case (fanout), "
                             "which is not yet supported on Argo Workflows. "
                             "Use a dedicated step to fan out after the condition instead."
                             % node.name

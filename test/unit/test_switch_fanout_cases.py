@@ -1,8 +1,84 @@
+import os
+import subprocess
+import sys
+import textwrap
+
 import pytest
 
 from metaflow import FlowSpec, step
 from metaflow.flowspec import InvalidNextException
 from metaflow.lint import LintWarn, linter
+
+
+RUNTIME_FLOW = r"""
+from metaflow import FlowSpec, Parameter, step
+
+
+class SwitchFanoutRuntimeFlow(FlowSpec):
+    route = Parameter("route")
+
+    @step
+    def start(self):
+        self.next(
+            {"a": (self.a_split, self.a_foreach),
+             "b": [self.b_one, self.b_two, self.b_three]},
+            condition="route",
+        )
+
+    @step
+    def a_split(self):
+        self.next(self.a_left, self.a_right)
+
+    @step
+    def a_left(self):
+        self.next(self.a_split_join)
+
+    @step
+    def a_right(self):
+        self.next(self.a_split_join)
+
+    @step
+    def a_split_join(self, inputs):
+        self.next(self.shared_join)
+
+    @step
+    def a_foreach(self):
+        self.values = [1, 2]
+        self.next(self.a_worker, foreach="values")
+
+    @step
+    def a_worker(self):
+        self.next(self.a_foreach_join)
+
+    @step
+    def a_foreach_join(self, inputs):
+        self.next(self.shared_join)
+
+    @step
+    def b_one(self):
+        self.next(self.shared_join)
+
+    @step
+    def b_two(self):
+        self.next(self.shared_join)
+
+    @step
+    def b_three(self):
+        self.next(self.shared_join)
+
+    @step
+    def shared_join(self, inputs):
+        self.input_count = sum(1 for _ in inputs)
+        self.next(self.end)
+
+    @step
+    def end(self):
+        print("INPUT_COUNT=%d" % self.input_count)
+
+
+if __name__ == "__main__":
+    SwitchFanoutRuntimeFlow()
+"""
 
 
 class SwitchFanoutCaseFlow(FlowSpec):
@@ -107,3 +183,38 @@ def test_runtime_switch_fanout_rejects_empty_case():
 def test_switch_fanout_case_cannot_join_at_terminal_step():
     with pytest.raises(LintWarn, match="terminal step .* should not be a join step"):
         linter.run_checks(SwitchFanoutToEndJoinFlow._graph)
+
+
+@pytest.mark.parametrize("route, expected_count", [("a", 2), ("b", 3)])
+def test_switch_fanout_executes_nested_splits_and_shared_join(
+    tmp_path, route, expected_count
+):
+    flow_file = tmp_path / "switch_fanout_runtime_flow.py"
+    flow_file.write_text(textwrap.dedent(RUNTIME_FLOW))
+    env = os.environ.copy()
+    env["METAFLOW_USER"] = "switch-fanout-test"
+    repo_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
+    env["PYTHONPATH"] = os.pathsep.join(
+        path for path in (repo_root, env.get("PYTHONPATH")) if path
+    )
+
+    result = subprocess.run(
+        [
+            sys.executable,
+            str(flow_file),
+            "--datastore=local",
+            "--metadata=local",
+            "run",
+            "--route",
+            route,
+        ],
+        cwd=str(tmp_path),
+        env=env,
+        capture_output=True,
+        text=True,
+        timeout=60,
+    )
+
+    output = result.stdout + result.stderr
+    assert result.returncode == 0, output
+    assert "INPUT_COUNT=%d" % expected_count in output
