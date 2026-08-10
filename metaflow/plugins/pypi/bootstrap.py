@@ -10,6 +10,7 @@ import tarfile
 import time
 import platform
 from urllib.error import URLError
+from urllib.parse import unquote
 from urllib.request import urlopen
 from metaflow.metaflow_config import DATASTORE_LOCAL_DIR, CONDA_USE_FAST_INIT
 from metaflow.packaging_sys import MetaflowCodeContent, ContentType
@@ -207,7 +208,8 @@ if __name__ == "__main__":
     def download_pypi_packages(storage, packages, dest_dir):
         def process_pypi_package(args):
             key, tmpfile, dest_dir = args
-            dest = os.path.join(dest_dir, os.path.basename(key))
+            # key (and path) might be url-encoded so we unquote this to get a usable filename for the package.
+            dest = os.path.join(dest_dir, unquote(os.path.basename(key)))
             shutil.move(tmpfile, dest)
 
         os.makedirs(dest_dir, exist_ok=True)
