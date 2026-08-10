@@ -137,6 +137,43 @@ class SwitchFanoutToEndJoinFlow(FlowSpec):
         pass
 
 
+class SwitchFanoutOverlappingTargetsFlow(FlowSpec):
+    @step
+    def start(self):
+        self.route = "b"
+        self.next(
+            {
+                "a": [self.shared, self.a_only],
+                "b": [self.shared, self.b_one, self.b_two],
+            },
+            condition="route",
+        )
+
+    @step
+    def shared(self):
+        self.next(self.join_case)
+
+    @step
+    def a_only(self):
+        self.next(self.join_case)
+
+    @step
+    def b_one(self):
+        self.next(self.join_case)
+
+    @step
+    def b_two(self):
+        self.next(self.join_case)
+
+    @step
+    def join_case(self, inputs):
+        self.next(self.end)
+
+    @step
+    def end(self):
+        pass
+
+
 def test_graph_parses_switch_fanout_case():
     graph = SwitchFanoutCaseFlow._graph
 
@@ -183,6 +220,14 @@ def test_runtime_switch_fanout_rejects_empty_case():
 def test_switch_fanout_case_cannot_join_at_terminal_step():
     with pytest.raises(LintWarn, match="terminal step .* should not be a join step"):
         linter.run_checks(SwitchFanoutToEndJoinFlow._graph)
+
+
+def test_switch_fanout_cases_cannot_share_targets():
+    with pytest.raises(
+        LintWarn,
+        match="multi-target switch cases .* share target step.*shared",
+    ):
+        linter.run_checks(SwitchFanoutOverlappingTargetsFlow._graph)
 
 
 @pytest.mark.parametrize("route, expected_count", [("a", 2), ("b", 3)])

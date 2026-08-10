@@ -939,7 +939,8 @@ class FlowSpec(metaclass=FlowSpecMeta):
           class. The value of the condition variable determines which step to execute. If the
           value doesn't match any of the dictionary keys, a RuntimeError is raised.
           A case value may also be a non-empty list or tuple of step methods to fan out
-          after the condition has selected that case.
+          after the condition has selected that case. Multi-target cases must not share
+          target steps with other cases.
 
         Parameters
         ----------

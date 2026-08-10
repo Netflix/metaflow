@@ -410,6 +410,11 @@ def check_switch_splits(graph):
     )
     msg1 = "Step *{0.name}* is a switch split but has no condition variable."
     msg2 = "Step *{0.name}* is a switch split but has no switch cases defined."
+    msg3 = (
+        "Step *{0.name}* has multi-target switch cases *{case_a}* and "
+        "*{case_b}* that share target step(s) *{targets}*. Multi-target switch "
+        "cases must have disjoint targets."
+    )
 
     for node in graph:
         if node.type == "split-switch":
@@ -436,6 +441,27 @@ def check_switch_splits(graph):
                     node.func_lineno,
                     node.source_file,
                 )
+
+            cases = [
+                (case_value, set(targets))
+                for case_value, targets in zip(
+                    node.switch_cases, switch_case_target_lists(node.switch_cases)
+                )
+            ]
+            for case_index, (case_value, targets) in enumerate(cases):
+                for other_value, other_targets in cases[:case_index]:
+                    overlap = targets & other_targets
+                    if overlap and (len(targets) > 1 or len(other_targets) > 1):
+                        raise LintWarn(
+                            msg3.format(
+                                node,
+                                case_a=repr(other_value),
+                                case_b=repr(case_value),
+                                targets=", ".join(sorted(overlap)),
+                            ),
+                            node.func_lineno,
+                            node.source_file,
+                        )
 
 
 @linter.ensure_static_graph
