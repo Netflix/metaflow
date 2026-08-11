@@ -45,6 +45,17 @@ def _full_classname(obj):
     return name
 
 
+# Map class names that moved across library versions back to the canonical name
+# type detection keys on (e.g. pandas>=3.0 reports "pandas.DataFrame").
+_TYPE_NAME_ALIASES = {
+    "pandas.DataFrame": "pandas.core.frame.DataFrame",
+}
+
+
+def _normalize_type_name(name):
+    return _TYPE_NAME_ALIASES.get(name, name)
+
+
 class TaskToDict:
     def __init__(self, only_repr=False, runtime=False, max_artifact_size=None):
         # this dictionary holds all the supported functions
@@ -210,7 +221,7 @@ class TaskToDict:
     def _get_object_type(obj_val):
         """returns string or None"""
         try:
-            return _full_classname(obj_val)
+            return _normalize_type_name(_full_classname(obj_val))
         except AttributeError as e:
             pass
 
