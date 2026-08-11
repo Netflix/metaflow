@@ -1,4 +1,5 @@
 import os
+import platform
 import shutil
 import subprocess
 import sys
@@ -11,8 +12,37 @@ from metaflow.packaging_sys import MetaflowCodeContent, ContentType
 from urllib.request import Request, urlopen
 from urllib.error import URLError
 
-# TODO: support version/platform/architecture selection.
-UV_URL = "https://github.com/astral-sh/uv/releases/download/0.6.11/uv-x86_64-unknown-linux-gnu.tar.gz"
+_UV_BASE_URL = "https://github.com/astral-sh/uv/releases/download"
+_UV_VERSION = "0.6.11"
+
+_UV_TARGET_MAP = {
+    ("linux", "x86_64"): "x86_64-unknown-linux-gnu",
+    ("linux", "amd64"): "x86_64-unknown-linux-gnu",
+    ("linux", "aarch64"): "aarch64-unknown-linux-gnu",
+    ("linux", "arm64"): "aarch64-unknown-linux-gnu",
+    ("darwin", "x86_64"): "x86_64-apple-darwin",
+    ("darwin", "amd64"): "x86_64-apple-darwin",
+    ("darwin", "arm64"): "aarch64-apple-darwin",
+    ("darwin", "aarch64"): "aarch64-apple-darwin",
+}
+
+
+def _get_uv_download_url():
+    """Return the uv release tarball URL for the current platform.
+
+    Raises:
+        RuntimeError: if the host platform/arch combination is not in _UV_TARGET_MAP.
+    """
+    system = platform.system().lower()
+    machine = platform.machine().lower()
+    target = _UV_TARGET_MAP.get((system, machine))
+    if target is None:
+        supported = ", ".join(f"{s}/{m}" for s, m in sorted(_UV_TARGET_MAP))
+        raise RuntimeError(
+            f"Unsupported platform for UV: {system}/{machine}. Supported: {supported}"
+        )
+    return f"{_UV_BASE_URL}/{_UV_VERSION}/uv-{target}.tar.gz"
+
 
 if __name__ == "__main__":
 
@@ -40,6 +70,8 @@ if __name__ == "__main__":
 
         print("Installing uv...")
 
+        uv_url = _get_uv_download_url()
+
         # Prepare directory once
         os.makedirs(uv_install_path, exist_ok=True)
 
@@ -59,7 +91,7 @@ if __name__ == "__main__":
         max_retries = 3
         for attempt in range(max_retries):
             try:
-                req = Request(UV_URL, headers=headers)
+                req = Request(uv_url, headers=headers)
                 with urlopen(req) as response:
                     with tarfile.open(fileobj=response, mode="r:gz") as tar:
                         tar.extractall(uv_install_path, filter=_tar_filter)
