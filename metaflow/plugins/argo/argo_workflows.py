@@ -1230,6 +1230,20 @@ class ArgoWorkflows(object):
             reverse=True,
         )
 
+    def _input_path_ref(self, node_name):
+        sanitized = self._sanitize(node_name)
+        pred_node = self.graph[node_name]
+        if self._is_conditional_node(pred_node) or pred_node.type == "split-switch":
+            return (
+                "argo-{{workflow.name}}/%s/"
+                "{{=tasks['%s']?.outputs?.parameters['task-id'] ?? 'SKIPPED'}}"
+                % (node_name, sanitized)
+            )
+        return "argo-{{workflow.name}}/%s/{{tasks.%s.outputs.parameters.task-id}}" % (
+            node_name,
+            sanitized,
+        )
+
     def _is_recursive_node(self, node):
         return node.name in self.recursive_nodes
 
@@ -1383,11 +1397,7 @@ class ArgoWorkflows(object):
                 parameters = [
                     Parameter("input-paths").value(
                         compress_list(
-                            [
-                                "argo-{{workflow.name}}/%s/{{tasks.%s.outputs.parameters.task-id}}"
-                                % (n, self._sanitize(n))
-                                for n in node.in_funcs
-                            ],
+                            [self._input_path_ref(n) for n in node.in_funcs],
                             # NOTE: We set zlibmin to infinite because zlib compression for the Argo input-paths breaks template value substitution.
                             zlibmin=inf,
                         )
