@@ -218,7 +218,7 @@ def check_valid_transitions(graph):
         "  • Fan-out: self.next(self.step1, self.step2, ...)\n"
         "  • Foreach: self.next(self.step, foreach='variable')\n"
         '  • Switch: self.next({{"key": self.step, '
-        "\"fanout\": [self.step1, self.step2]}}, condition='variable')\n\n"
+        "\"key2\": [self.step1, self.step2]}}, condition='variable')\n\n"
         "For switch statements, keys must be string literals, numbers or config expressions "
         "(self.config.key_name), not variables."
     )
@@ -398,8 +398,6 @@ def check_split_join_balance(graph):
             new_stack = split_stack
 
         for n in node.out_funcs:
-            if node.type == "split-switch" and n == node.name:
-                continue
             traverse(graph[n], new_stack)
 
     traverse(graph[graph.start_step], [])
