@@ -1,84 +1,16 @@
 import os
-import subprocess
-import sys
-import textwrap
 
 import pytest
 
-from metaflow import FlowSpec, step
+from metaflow import FlowSpec, Runner, step
 from metaflow.flowspec import InvalidNextException
 from metaflow.lint import LintWarn, linter
+from metaflow.task import _switch_case_targets_for_input_steps
 
 
-RUNTIME_FLOW = r"""
-from metaflow import FlowSpec, Parameter, step
-
-
-class SwitchFanoutRuntimeFlow(FlowSpec):
-    route = Parameter("route")
-
-    @step
-    def start(self):
-        self.next(
-            {"a": (self.a_split, self.a_foreach),
-             "b": [self.b_one, self.b_two, self.b_three]},
-            condition="route",
-        )
-
-    @step
-    def a_split(self):
-        self.next(self.a_left, self.a_right)
-
-    @step
-    def a_left(self):
-        self.next(self.a_split_join)
-
-    @step
-    def a_right(self):
-        self.next(self.a_split_join)
-
-    @step
-    def a_split_join(self, inputs):
-        self.next(self.shared_join)
-
-    @step
-    def a_foreach(self):
-        self.values = [1, 2]
-        self.next(self.a_worker, foreach="values")
-
-    @step
-    def a_worker(self):
-        self.next(self.a_foreach_join)
-
-    @step
-    def a_foreach_join(self, inputs):
-        self.next(self.shared_join)
-
-    @step
-    def b_one(self):
-        self.next(self.shared_join)
-
-    @step
-    def b_two(self):
-        self.next(self.shared_join)
-
-    @step
-    def b_three(self):
-        self.next(self.shared_join)
-
-    @step
-    def shared_join(self, inputs):
-        self.input_count = sum(1 for _ in inputs)
-        self.next(self.end)
-
-    @step
-    def end(self):
-        print("INPUT_COUNT=%d" % self.input_count)
-
-
-if __name__ == "__main__":
-    SwitchFanoutRuntimeFlow()
-"""
+SWITCH_FANOUT_RUNTIME_FLOW_FILE = os.path.join(
+    os.path.dirname(__file__), "flows", "switch_fanout_runtime_flow.py"
+)
 
 
 class SwitchFanoutCaseFlow(FlowSpec):
@@ -86,24 +18,35 @@ class SwitchFanoutCaseFlow(FlowSpec):
     def start(self):
         self.route = "miss"
         self.next(
-            {"hit": self.finalize, "miss": [self.clip, self.face]},
+            {
+                "hit": [self.finalize, self.hit_second, self.hit_third],
+                "miss": [self.clip, self.face],
+            },
             condition="route",
         )
 
     @step
     def finalize(self):
-        self.next(self.end)
+        self.next(self.join_case)
+
+    @step
+    def hit_second(self):
+        self.next(self.join_case)
+
+    @step
+    def hit_third(self):
+        self.next(self.join_case)
 
     @step
     def clip(self):
-        self.next(self.join_miss)
+        self.next(self.join_case)
 
     @step
     def face(self):
-        self.next(self.join_miss)
+        self.next(self.join_case)
 
     @step
-    def join_miss(self, inputs):
+    def join_case(self, inputs):
         self.next(self.end)
 
     @step
@@ -134,6 +77,44 @@ class SwitchFanoutToEndJoinFlow(FlowSpec):
 
     @step
     def end(self, inputs):
+        pass
+
+
+class SwitchSharedScalarTargetFlow(FlowSpec):
+    @step
+    def start(self):
+        self.route = "a"
+        self.next({"a": self.shared, "b": self.shared}, condition="route")
+
+    @step
+    def shared(self):
+        self.next(self.end)
+
+    @step
+    def end(self):
+        pass
+
+
+class SingleCaseSwitchFanoutFlow(FlowSpec):
+    @step
+    def start(self):
+        self.route = "only"
+        self.next({"only": [self.left, self.right]}, condition="route")
+
+    @step
+    def left(self):
+        self.next(self.join)
+
+    @step
+    def right(self):
+        self.next(self.join)
+
+    @step
+    def join(self, inputs):
+        self.next(self.end)
+
+    @step
+    def end(self):
         pass
 
 
@@ -179,23 +160,29 @@ def test_graph_parses_switch_fanout_case():
 
     assert graph["start"].type == "split-switch"
     assert graph["start"].switch_cases == {
-        "hit": "finalize",
+        "hit": ["finalize", "hit_second", "hit_third"],
         "miss": ["clip", "face"],
     }
-    assert graph["start"].out_funcs == ["finalize", "clip", "face"]
+    assert graph["start"].out_funcs == [
+        "finalize",
+        "hit_second",
+        "hit_third",
+        "clip",
+        "face",
+    ]
     assert graph["clip"].split_parents == ["start"]
     assert graph["clip"].split_branches == ["clip"]
     assert graph["face"].split_parents == ["start"]
     assert graph["face"].split_branches == ["face"]
-    assert graph["join_miss"].type == "join"
-    assert graph["join_miss"].split_parents == ["start"]
+    assert graph["join_case"].type == "join"
+    assert graph["join_case"].split_parents == ["start"]
 
 
 def test_switch_fanout_case_passes_lint():
     linter.run_checks(SwitchFanoutCaseFlow._graph)
 
 
-def test_runtime_switch_fanout_transition_uses_selected_case_targets():
+def test_switch_fanout_transition_uses_selected_case_targets():
     flow = SwitchFanoutCaseFlow(use_cli=False)
     flow._current_step = "start"
     flow.route = "miss"
@@ -208,7 +195,7 @@ def test_runtime_switch_fanout_transition_uses_selected_case_targets():
     assert flow._transition == (["clip", "face"], None)
 
 
-def test_runtime_switch_fanout_rejects_empty_case():
+def test_switch_fanout_transition_rejects_empty_case():
     flow = SwitchFanoutCaseFlow(use_cli=False)
     flow._current_step = "start"
     flow.route = "miss"
@@ -220,6 +207,45 @@ def test_runtime_switch_fanout_rejects_empty_case():
 def test_switch_fanout_case_cannot_join_at_terminal_step():
     with pytest.raises(LintWarn, match="terminal step .* should not be a join step"):
         linter.run_checks(SwitchFanoutToEndJoinFlow._graph)
+
+
+def test_scalar_switch_cases_can_share_target():
+    linter.run_checks(SwitchSharedScalarTargetFlow._graph)
+
+
+def test_single_switch_case_is_rejected_even_when_it_has_multiple_targets():
+    with pytest.raises(LintWarn, match="1 found, at least 2 required"):
+        linter.run_checks(SingleCaseSwitchFanoutFlow._graph)
+
+
+@pytest.mark.parametrize(
+    "input_step_names, expected_targets",
+    [
+        (("clip",), ["clip", "face"]),
+        (("clip", "face"), ["clip", "face"]),
+        (("finalize", "hit_second"), ["finalize", "hit_second", "hit_third"]),
+        (("clip", "finalize"), None),
+        (("clip", "clip"), None),
+    ],
+    ids=[
+        "missing-branch",
+        "complete-case",
+        "partial-wider-case",
+        "mixed-cases",
+        "duplicate-branch",
+    ],
+)
+def test_task_resolves_switch_case_from_actual_input_branches(
+    input_step_names, expected_targets
+):
+    assert (
+        _switch_case_targets_for_input_steps(
+            SwitchFanoutCaseFlow._graph,
+            SwitchFanoutCaseFlow._graph["start"],
+            input_step_names,
+        )
+        == expected_targets
+    )
 
 
 def test_switch_fanout_cases_cannot_share_targets():
@@ -234,32 +260,22 @@ def test_switch_fanout_cases_cannot_share_targets():
 def test_switch_fanout_executes_nested_splits_and_shared_join(
     tmp_path, route, expected_count
 ):
-    flow_file = tmp_path / "switch_fanout_runtime_flow.py"
-    flow_file.write_text(textwrap.dedent(RUNTIME_FLOW))
-    env = os.environ.copy()
-    env["METAFLOW_USER"] = "switch-fanout-test"
     repo_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
-    env["PYTHONPATH"] = os.pathsep.join(
-        path for path in (repo_root, env.get("PYTHONPATH")) if path
-    )
-
-    result = subprocess.run(
-        [
-            sys.executable,
-            str(flow_file),
-            "--datastore=local",
-            "--metadata=local",
-            "run",
-            "--route",
-            route,
-        ],
+    env = {
+        "METAFLOW_USER": "switch-fanout-test",
+        "PYTHONPATH": os.pathsep.join(
+            path for path in (repo_root, os.environ.get("PYTHONPATH")) if path
+        ),
+    }
+    with Runner(
+        SWITCH_FANOUT_RUNTIME_FLOW_FILE,
+        show_output=False,
         cwd=str(tmp_path),
         env=env,
-        capture_output=True,
-        text=True,
-        timeout=60,
-    )
-
-    output = result.stdout + result.stderr
-    assert result.returncode == 0, output
-    assert "INPUT_COUNT=%d" % expected_count in output
+        datastore="local",
+        metadata="local",
+        file_read_timeout=60,
+    ).run(route=route) as running:
+        output = running.stdout + running.stderr
+        assert running.returncode == 0, output
+        assert "INPUT_COUNT=%d" % expected_count in output

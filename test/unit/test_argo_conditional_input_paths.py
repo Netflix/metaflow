@@ -4,9 +4,13 @@ from math import inf
 import pytest
 
 from metaflow import FlowSpec, step
+from metaflow.exception import MetaflowException
 from metaflow.plugins.argo.argo_workflows import (
     ArgoWorkflows,
     ArgoWorkflowsException,
+)
+from metaflow.plugins.argo.argo_workflows_decorator import (
+    ArgoWorkflowsInternalDecorator,
 )
 from metaflow.plugins.argo.conditional_input_paths import generate_input_paths
 from metaflow.util import compress_list, decompress_list
@@ -163,4 +167,22 @@ def test_argo_rejects_multi_target_switch_case(mocker):
             event_logger=None,
             monitor=None,
             username="test-user",
+        )
+
+
+def test_argo_runtime_rejects_multi_target_switch_case():
+    flow = SwitchFanoutFlow(use_cli=False)
+    flow._transition = (["left", "right"], None)
+
+    with pytest.raises(
+        MetaflowException,
+        match="selected a switch case that fans out to multiple targets",
+    ):
+        ArgoWorkflowsInternalDecorator().task_finished(
+            "start",
+            flow,
+            SwitchFanoutFlow._graph,
+            is_task_ok=True,
+            retry_count=0,
+            max_user_code_retries=0,
         )

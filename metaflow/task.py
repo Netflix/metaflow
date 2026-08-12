@@ -36,6 +36,28 @@ from metaflow.tuple_util import ForeachFrame
 MAX_FOREACH_PATH_LENGTH = 256
 
 
+def _switch_case_targets_for_input_steps(graph, switch_node, input_step_names):
+    """Resolve one switch case from the branch roots of actual join inputs."""
+    branch_roots = [
+        split_branch_for_node(graph[input_step_name], switch_node.name)
+        for input_step_name in input_step_names
+    ]
+    unique_roots = set(branch_roots)
+    if (
+        not branch_roots
+        or None in unique_roots
+        or len(branch_roots) != len(unique_roots)
+    ):
+        return None
+
+    matching_cases = [
+        targets
+        for targets in switch_case_target_lists(switch_node.switch_cases)
+        if unique_roots.issubset(targets)
+    ]
+    return matching_cases[0] if len(matching_cases) == 1 else None
+
+
 class MetaflowTask(object):
     """
     MetaflowTask prepares a Flow instance for execution of a single step.
@@ -823,50 +845,27 @@ class MetaflowTask(object):
                     if join_type != "foreach":
                         # Find the corresponding split node from the graph.
                         split_node = self.flow._graph[node.split_parents[-1]]
-                        expected_inputs = None
-                        expected_counts = None
 
                         if split_node.type == "split-switch":
-                            branch_roots = set()
-                            for in_func in node.in_funcs:
-                                in_node = self.flow._graph[in_func]
-                                branch_root = split_branch_for_node(
-                                    in_node, split_node.name
-                                )
-                                if branch_root is not None:
-                                    branch_roots.add(branch_root)
-
-                            expected_counts = set(
-                                len(targets)
-                                for targets in switch_case_target_lists(
-                                    split_node.switch_cases
-                                )
-                                if len(targets) > 1
-                                and set(targets).issubset(branch_roots)
+                            case_targets = _switch_case_targets_for_input_steps(
+                                self.flow._graph,
+                                split_node,
+                                (input_ds.step_name for input_ds in inputs),
                             )
-                            if not expected_counts:
-                                expected_inputs = len(split_node.out_funcs)
+                            if case_targets is None:
+                                raise MetaflowInternalError(
+                                    "Join *%s* could not determine exactly one "
+                                    "selected switch case of *%s* from its input "
+                                    "branches." % (step_name, split_node.name)
+                                )
+                            expected_inputs = len(case_targets)
                         else:
                             # The number of expected inputs is the number of branches
                             # from that split -- we can't use in_funcs because there may
                             # be more due to split-switch branches that all converge here.
                             expected_inputs = len(split_node.out_funcs)
 
-                        if expected_counts:
-                            if len(inputs) not in expected_counts:
-                                raise MetaflowDataMissing(
-                                    "Join *%s* expected one of %s inputs but only %d "
-                                    "inputs were found"
-                                    % (
-                                        step_name,
-                                        ", ".join(
-                                            str(count)
-                                            for count in sorted(expected_counts)
-                                        ),
-                                        len(inputs),
-                                    )
-                                )
-                        elif len(inputs) != expected_inputs:
+                        if len(inputs) != expected_inputs:
                             raise MetaflowDataMissing(
                                 "Join *%s* expected %d inputs but only %d inputs "
                                 "were found" % (step_name, expected_inputs, len(inputs))

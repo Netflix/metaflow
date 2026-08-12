@@ -1333,7 +1333,7 @@ class NativeRuntime(object):
         branch_root = split_branch_for_node(node, switch_node.name)
 
         for targets in switch_case_target_lists(switch_node.switch_cases):
-            if branch_root in targets or step_name in targets:
+            if branch_root in targets:
                 return targets
         return None
 

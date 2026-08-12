@@ -980,9 +980,8 @@ class FlowSpec(metaclass=FlowSpecMeta):
                 msg = (
                     "Step *{step}* has an invalid self.next() transition. "
                     "When using 'condition', the transition must be to a single, "
-                    "non-empty dictionary mapping condition values to step methods.".format(
-                        step=step
-                    )
+                    "non-empty dictionary mapping condition values to a step method "
+                    "or a non-empty list or tuple of step methods.".format(step=step)
                 )
                 raise InvalidNextException(msg)
 

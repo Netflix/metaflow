@@ -1,6 +1,10 @@
 import re
 from .exception import MetaflowException
-from .graph import split_branch_for_node, switch_case_target_lists
+from .graph import (
+    split_branch_for_node,
+    switch_case_targets,
+    switch_case_target_lists,
+)
 from .util import all_equal
 
 
@@ -213,7 +217,8 @@ def check_valid_transitions(graph):
         "  • Linear: self.next(self.step_name)\n"
         "  • Fan-out: self.next(self.step1, self.step2, ...)\n"
         "  • Foreach: self.next(self.step, foreach='variable')\n"
-        "  • Switch: self.next({{\"key\": self.step, ...}}, condition='variable')\n\n"
+        '  • Switch: self.next({{"key": self.step, '
+        "\"fanout\": [self.step1, self.step2]}}, condition='variable')\n\n"
         "For switch statements, keys must be string literals, numbers or config expressions "
         "(self.config.key_name), not variables."
     )
@@ -405,8 +410,8 @@ def check_split_join_balance(graph):
 def check_switch_splits(graph):
     """Check conditional split constraints"""
     msg0 = (
-        "Step *{0.name}* is a switch split but defines {num} transitions. "
-        "Switch splits must define at least 2 transitions."
+        "Step *{0.name}* is a switch split with too few cases: "
+        "{num} found, at least 2 required."
     )
     msg1 = "Step *{0.name}* is a switch split but has no condition variable."
     msg2 = "Step *{0.name}* is a switch split but has no switch cases defined."
@@ -418,10 +423,10 @@ def check_switch_splits(graph):
 
     for node in graph:
         if node.type == "split-switch":
-            # Check at least 2 outputs
-            if len(node.out_funcs) < 2:
+            # out_funcs contains unique graph edges, not switch choices.
+            if len(node.switch_cases) < 2:
                 raise LintWarn(
-                    msg0.format(node, num=len(node.out_funcs)),
+                    msg0.format(node, num=len(node.switch_cases)),
                     node.func_lineno,
                     node.source_file,
                 )
@@ -443,10 +448,8 @@ def check_switch_splits(graph):
                 )
 
             cases = [
-                (case_value, set(targets))
-                for case_value, targets in zip(
-                    node.switch_cases, switch_case_target_lists(node.switch_cases)
-                )
+                (case_value, set(switch_case_targets(case_targets)))
+                for case_value, case_targets in node.switch_cases.items()
             ]
             for case_index, (case_value, targets) in enumerate(cases):
                 for other_value, other_targets in cases[:case_index]:
