@@ -1054,6 +1054,9 @@ class ArgoWorkflows(object):
                     if not conditional_parents
                     else conditional_parents + [node.name]
                 )
+                existing = node_conditional_parents.get(node.name, [])
+                if len(conditional_parents) <= len(existing):
+                    return
                 node_conditional_parents[node.name] = conditional_parents
 
                 # check for recursion. this split is recursive if any of its out functions are itself.
@@ -1063,6 +1066,9 @@ class ArgoWorkflows(object):
                     self.recursive_nodes.add(node.name)
 
             if conditional_parents and not node.type == "split-switch":
+                existing = node_conditional_parents.get(node.name, [])
+                if len(conditional_parents) <= len(existing):
+                    return
                 node_conditional_parents[node.name] = conditional_parents
                 conditional_branch = conditional_branch + [node.name]
                 c_br = node_conditional_branches.get(node.name, [])
