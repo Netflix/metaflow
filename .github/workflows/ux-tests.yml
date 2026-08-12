@@ -209,6 +209,7 @@ jobs:
       - name: Set up minikube
         uses: medyagh/setup-minikube@aba8d5ff1666d19b9549133e3b92e70d4fc52cb7
         with:
+          minikube-version: "1.38.1"
           driver: docker
           cpus: 2
           memory: ${{ matrix.memory }}
@@ -243,15 +244,23 @@ jobs:
         id: tilt-cache
         uses: actions/cache@v4
         with:
-          path: /usr/local/bin/tilt
+          path: ~/.local/bin/tilt
           key: tilt-v0.33.11
 
       - name: Install Tilt
         if: steps.tilt-cache.outputs.cache-hit != 'true'
         run: |
+          mkdir -p "$HOME/.local/bin"
           for attempt in 1 2 3; do
-            curl -fsSL https://raw.githubusercontent.com/tilt-dev/tilt/master/scripts/install.sh \
-              | VERSION=v0.33.11 bash && break
+            if curl -fsSL -o /tmp/tilt.tar.gz \
+                https://github.com/tilt-dev/tilt/releases/download/v0.33.11/tilt.0.33.11.linux.x86_64.tar.gz \
+                && tar -xzf /tmp/tilt.tar.gz -C "$HOME/.local/bin" tilt; then
+              break
+            fi
+            if [ "$attempt" -eq 3 ]; then
+              echo "Tilt install failed after $attempt attempts"
+              exit 1
+            fi
             echo "Tilt install attempt $attempt failed, retrying in 10s..."
             sleep 10
           done
