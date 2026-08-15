@@ -625,7 +625,7 @@ class FlowGraph(object):
                 + [
                     {
                         "name": deco.decorator_name,
-                        "attributes": {"_args": deco._args, **deco._kwargs},
+                        "attributes": to_pod({"_args": deco._args, **deco._kwargs}),
                         "statically_defined": deco.statically_defined,
                         "inserted_by": deco.inserted_by,
                     }
