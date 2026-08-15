@@ -1054,9 +1054,7 @@ class ArgoWorkflows(object):
                     if not conditional_parents
                     else conditional_parents + [node.name]
                 )
-                existing = node_conditional_parents.get(node.name, [])
-                if len(conditional_parents) > len(existing):
-                    node_conditional_parents[node.name] = conditional_parents
+                node_conditional_parents[node.name] = conditional_parents
 
                 # check for recursion. this split is recursive if any of its out functions are itself.
                 if any(
@@ -1065,9 +1063,7 @@ class ArgoWorkflows(object):
                     self.recursive_nodes.add(node.name)
 
             if conditional_parents and not node.type == "split-switch":
-                existing = node_conditional_parents.get(node.name, [])
-                if len(conditional_parents) > len(existing):
-                    node_conditional_parents[node.name] = conditional_parents
+                node_conditional_parents[node.name] = conditional_parents
                 conditional_branch = conditional_branch + [node.name]
                 c_br = node_conditional_branches.get(node.name, [])
                 node_conditional_branches[node.name] = c_br + [
@@ -1083,8 +1079,13 @@ class ArgoWorkflows(object):
                         continue
                     _visit(child, conditional_branch, conditional_parents)
 
-        # First we visit all nodes to determine conditional parents and branches
+        # First we visit all nodes to determine conditional parents and branches.
+        # Skip split-switch nodes that were already visited as nested children
+        # of another split-switch (they already have correct conditional_parents
+        # from the recursive _visit call).
         for n in self.graph:
+            if n.type == "split-switch" and n.name in node_conditional_parents:
+                continue
             _visit(n, [])
 
         # helper to clean up conditional info for all children of a node, until a new split-switch is encountered.
