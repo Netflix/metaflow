@@ -437,6 +437,10 @@ KUBERNETES_MEMORY = from_conf("KUBERNETES_MEMORY", None)
 KUBERNETES_DISK = from_conf("KUBERNETES_DISK", None)
 # Default kubernetes QoS class
 KUBERNETES_QOS = from_conf("KUBERNETES_QOS", "burstable")
+# Default container security context (JSON) for kubernetes pods
+KUBERNETES_SECURITY_CONTEXT = from_conf("KUBERNETES_SECURITY_CONTEXT", "")
+# Default pod security context (JSON) for kubernetes pods
+KUBERNETES_POD_SECURITY_CONTEXT = from_conf("KUBERNETES_POD_SECURITY_CONTEXT", "")
 
 # Architecture of kubernetes nodes - used for @conda/@pypi in metaflow-dev
 KUBERNETES_CONDA_ARCH = from_conf("KUBERNETES_CONDA_ARCH")
