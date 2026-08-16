@@ -12,6 +12,7 @@ Covers:
 """
 
 import json
+import pytest
 
 from metaflow.plugins.cards.card_modules.basic import (
     DefaultCardJSON,
@@ -20,6 +21,7 @@ from metaflow.plugins.cards.card_modules.basic import (
 
 
 def _find_components_by_type(node, component_type):
+    """Recursively search for components of a specific type in a card JSON structure."""
     if isinstance(node, dict):
         if node.get("type") == component_type:
             yield node
@@ -31,12 +33,14 @@ def _find_components_by_type(node, component_type):
 
 
 # ---------------------------------------------------------------------------
-# transform_flow_graph: shape-detection unit tests
+# Fixtures
 # ---------------------------------------------------------------------------
 
 
-def test_transform_flow_graph_supports_explicit_endpoints():
-    graph = {
+@pytest.fixture
+def explicit_endpoints_graph():
+    """Provides a fresh graph definition with custom explicit start/end steps."""
+    return {
         "start_step": "begin",
         "end_step": "finish",
         "steps": {
@@ -46,7 +50,23 @@ def test_transform_flow_graph_supports_explicit_endpoints():
         },
     }
 
-    transformed = transform_flow_graph(graph)
+
+@pytest.fixture
+def legacy_graph():
+    """Provides a fresh legacy graph definition relying on hardcoded keys."""
+    return {
+        "start": {"type": "start", "next": ["end"], "doc": ""},
+        "end": {"type": "end", "next": [], "doc": ""},
+    }
+
+
+# ---------------------------------------------------------------------------
+# transform_flow_graph: shape-detection unit tests
+# ---------------------------------------------------------------------------
+
+
+def test_transform_flow_graph_supports_explicit_endpoints(explicit_endpoints_graph):
+    transformed = transform_flow_graph(explicit_endpoints_graph)
 
     assert transformed["start_step"] == "begin"
     assert transformed["end_step"] == "finish"
@@ -56,13 +76,8 @@ def test_transform_flow_graph_supports_explicit_endpoints():
     assert transformed["steps"]["finish"]["type"] == "end"
 
 
-def test_transform_flow_graph_keeps_legacy_start_end_detection():
-    graph = {
-        "start": {"type": "start", "next": ["end"], "doc": ""},
-        "end": {"type": "end", "next": [], "doc": ""},
-    }
-
-    transformed = transform_flow_graph(graph)
+def test_transform_flow_graph_keeps_legacy_start_end_detection(legacy_graph):
+    transformed = transform_flow_graph(legacy_graph)
 
     assert transformed["start_step"] == "start"
     assert transformed["end_step"] == "end"
