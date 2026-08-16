@@ -796,10 +796,76 @@ class CardComponentCollector:
 
     def refresh(self, *args, **kwargs):
         # FIXME: document
-        if self._default_editable_card is not None:
-            self._card_component_store[self._default_editable_card].refresh(
-                *args, **kwargs
-            )
+        if self._default_editable_card is None:
+            return
+        self._card_component_store[self._default_editable_card].refresh(*args, **kwargs)
+
+    def copy(self, source_pathspec, id=None, type=None, follow_resumed=True):
+        """
+        Copy a card from another pathspec to the current task. Like all other card related operations,
+        this will be best effort. If the card is not found or cannot be copied, this function will return
+        False but won't crash the metaflow task runtime.
+
+        Parameters
+        ----------
+        source_pathspec : str
+            Pathspec of the card to copy from.
+        id : str, optional
+            ID of the card to copy.
+        type : str, optional
+            Type of the card to copy.
+        follow_resumed : bool, default: True
+            Whether to follow the origin-task-id of resumed tasks to seek cards stored for resumed tasks.
+
+        Returns
+        -------
+        bool
+            True if the card was copied successfully, False otherwise.
+        """
+        from metaflow.metaflow_current import current
+        import subprocess
+        import sys
+        import os
+
+        # Get the current pathspec as the destination
+        if not current.pathspec:
+            return False
+
+        destination_pathspec = current.pathspec
+
+        # Build the command
+        executable = sys.executable
+        cmd = [
+            executable,
+            sys.argv[0],
+        ]
+
+        cmd += self._card_creator._top_level_options + [
+            "card",
+            "copy",
+            source_pathspec,
+            destination_pathspec,
+        ]
+
+        # Add optional arguments
+        if id:
+            cmd.extend(["--id", id])
+        if type:
+            cmd.extend(["--type", type])
+        if not follow_resumed:
+            cmd.append("--no-follow-resumed")
+
+        # Execute the command following the pattern in card_creator.py
+        env = os.environ.copy()
+        try:
+            subprocess.run(cmd, env=env, stderr=subprocess.PIPE, check=True)
+            return True
+        except subprocess.CalledProcessError as e:
+            self._warning("Error copying card: %s" % e.stderr.decode("utf-8"))
+            return False
+        except Exception as e:
+            self._warning("Error copying card: %s" % e)
+            return False
 
     def _get_latest_data(self, card_uuid, final=False, mode=None):
         """
