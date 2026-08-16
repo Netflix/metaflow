@@ -21,6 +21,9 @@ class SpotTerminationMonitorSidecar(object):
         self._token = None
         self._token_expiry = 0
 
+        # Due to nesting, os.getppid is not reliable for fetching the main task pid
+        self.main_pid = int(os.getenv("MF_MAIN_PID", os.getppid()))
+
         if self._is_aws_spot_instance():
             self._process = Process(target=self._monitor_loop)
             self._process.start()
@@ -71,7 +74,7 @@ class SpotTerminationMonitorSidecar(object):
                 if response.status_code == 200:
                     termination_time = response.text
                     self._emit_termination_metadata(termination_time)
-                    os.kill(os.getppid(), signal.SIGTERM)
+                    os.kill(self.main_pid, signal.SIGUSR1)
                     break
             except (requests.exceptions.RequestException, requests.exceptions.Timeout):
                 pass
