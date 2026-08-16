@@ -105,6 +105,7 @@ class SystemContext:
         self._flow_datastore = None
         self._metadata = None
         self._logger = None
+        self._echo = None
 
         # Inter-decorator shared state (keyed by step_name)
         self._shared = {}  # { step_name: { namespace: { key: value } } }
@@ -183,6 +184,11 @@ class SystemContext:
     def logger(self) -> Optional[Callable[..., Any]]:
         """The logger callable."""
         return self._logger
+
+    @property
+    def echo(self) -> Optional[Callable[..., Any]]:
+        """The echo callable for styled terminal output (available after ``flow_init``)."""
+        return self._echo
 
     @property
     def metadata(self) -> Optional[Any]:
