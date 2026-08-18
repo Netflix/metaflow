@@ -223,6 +223,91 @@ def inspect_spin(datastore_root: str = "."):
 
 MetaflowArtifacts = NamedTuple
 
+# Maps each MetaflowObject _NAME to (expected_parts, human_readable_format)
+_PATHSPEC_FORMATS = {
+    "flow": (1, "FlowName"),
+    "run": (2, "FlowName/RunID"),
+    "step": (3, "FlowName/RunID/StepName"),
+    "task": (4, "FlowName/RunID/StepName/TaskID"),
+    "artifact": (5, "FlowName/RunID/StepName/TaskID/ArtifactName"),
+}
+
+# Maps _NAME to the public class name used in error messages
+_CLASS_DISPLAY_NAMES = {
+    "flow": "Flow",
+    "run": "Run",
+    "step": "Step",
+    "task": "Task",
+    "artifact": "DataArtifact",
+}
+
+
+def _validate_pathspec(pathspec, obj_name):
+    """Validate that *pathspec* has the correct format for *obj_name*.
+
+    Parameters
+    ----------
+    pathspec : str
+        The pathspec string supplied by the user.
+    obj_name : str
+        The internal object name (``_NAME`` attribute), e.g. ``"flow"``,
+        ``"run"``, ``"task"``, etc.
+
+    Raises
+    ------
+    MetaflowInvalidPathspec
+        If *pathspec* is ``None``, empty, contains empty segments, or has
+        the wrong number of slash-separated parts for *obj_name*.
+    """
+    if obj_name not in _PATHSPEC_FORMATS:
+        # For types we don't validate (e.g. "base"), just return.
+        return
+
+    class_name = _CLASS_DISPLAY_NAMES.get(obj_name, obj_name)
+    expected_parts, fmt = _PATHSPEC_FORMATS[obj_name]
+
+    # Reject None
+    if pathspec is None:
+        raise MetaflowInvalidPathspec(
+            "pathspec for %s cannot be None; expected %s(%s)"
+            % (class_name, class_name, fmt)
+        )
+
+    # Reject empty string
+    if pathspec == "" or pathspec.strip("/") == "":
+        raise MetaflowInvalidPathspec(
+            "pathspec for %s cannot be empty; expected %s(%s)"
+            % (class_name, class_name, fmt)
+        )
+
+    # Strip a single trailing slash so "MyFlow/" == "MyFlow"
+    normalized = pathspec.rstrip("/")
+
+    parts = normalized.split("/")
+
+    # Reject empty segments (e.g. "MyFlow//1234")
+    if any(p == "" for p in parts):
+        raise MetaflowInvalidPathspec(
+            "Invalid pathspec '%s' for %s: pathspec contains empty segments. "
+            "Expected %s(%s)." % (pathspec, class_name, class_name, fmt)
+        )
+
+    # Reject wrong part count
+    if len(parts) != expected_parts:
+        raise MetaflowInvalidPathspec(
+            "Invalid pathspec '%s' for %s: expected %s(%s) (%d part%s), got %d part%s."
+            % (
+                pathspec,
+                class_name,
+                class_name,
+                fmt,
+                expected_parts,
+                "" if expected_parts == 1 else "s",
+                len(parts),
+                "" if len(parts) == 1 else "s",
+            )
+        )
+
 
 class MetaflowObject(object):
     """
@@ -318,27 +403,20 @@ class MetaflowObject(object):
             # distinguish between "attempt will happen" and "no such
             # attempt exists".
 
-        if pathspec and _object is None:
-            ids = pathspec.split("/")
-
-            if self._NAME == "flow" and len(ids) != 1:
-                raise MetaflowInvalidPathspec("Expects Flow('FlowName')")
-            elif self._NAME == "run" and len(ids) != 2:
-                raise MetaflowInvalidPathspec("Expects Run('FlowName/RunID')")
-            elif self._NAME == "step" and len(ids) != 3:
-                raise MetaflowInvalidPathspec("Expects Step('FlowName/RunID/StepName')")
-            elif self._NAME == "task" and len(ids) != 4:
-                raise MetaflowInvalidPathspec(
-                    "Expects Task('FlowName/RunID/StepName/TaskID')"
-                )
-            elif self._NAME == "artifact" and len(ids) != 5:
-                raise MetaflowInvalidPathspec(
-                    "Expects DataArtifact('FlowName/RunID/StepName/TaskID/ArtifactName')"
-                )
+        if pathspec is not None and _object is None:
+            # Validate format early; raises MetaflowInvalidPathspec on any error.
+            _validate_pathspec(pathspec, self._NAME)
+            # Strip trailing slash so "MyFlow/" and "MyFlow" behave identically.
+            ids = pathspec.rstrip("/").split("/")
 
             self.id = ids[-1]
-            self._pathspec = pathspec
+            self._pathspec = pathspec.rstrip("/")
             self._object = self._get_object(*ids)
+        elif pathspec is None and _object is None:
+            raise MetaflowInvalidPathspec(
+                "pathspec for %s cannot be None"
+                % _CLASS_DISPLAY_NAMES.get(self._NAME, self._NAME)
+            )
         else:
             self._object = _object
             self._pathspec = pathspec
