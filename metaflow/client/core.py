@@ -366,9 +366,10 @@ class MetaflowObject(object):
             raise MetaflowNamespaceMismatch(self._current_namespace)
 
     def _get_object(self, *path_components):
-        result = self._metaflow.metadata.get_object(
+        result_iter = self._metaflow.metadata.get_object(
             self._NAME, "self", None, self._attempt, *path_components
         )
+        result = next(result_iter, None)
         if not result:
             raise MetaflowNotFound("%s does not exist" % self)
         return result
