@@ -1,0 +1,64 @@
+load('ext://helm_remote', 'helm_remote')
+load('./_result.tiltfile', 'new_result')
+
+def setup_argo_events(ctx):
+    helm_remote(
+        'argo-events',
+        version=ctx.versions.argo_events_chart,
+        repo_name='argo',
+        repo_url='https://argoproj.github.io/argo-helm',
+        set=[
+            'crds.install=true',
+            'controller.metrics.enabled=true',
+            'controller.livenessProbe.initialDelaySeconds=1',
+            'controller.readinessProbe.initialDelaySeconds=1',
+            'controller.resources.requests.memory=64Mi',
+            'controller.resources.requests.cpu=25m',
+            'controller.resources.limits.memory=128Mi',
+            'controller.resources.limits.cpu=50m',
+            'configs.jetstream.streamConfig.maxAge=72h',
+            'configs.jetstream.streamConfig.replicas=1',
+            'controller.rbac.enabled=true',
+            'controller.rbac.namespaced=false',
+            'controller.serviceAccount.create=true',
+            'controller.serviceAccount.name=argo-events-events-controller-sa',
+            'configs.jetstream.versions[0].configReloaderImage=natsio/nats-server-config-reloader:latest',
+            'configs.jetstream.versions[0].metricsExporterImage=natsio/prometheus-nats-exporter:latest',
+            'configs.jetstream.versions[0].natsImage=nats:latest',
+            'configs.jetstream.versions[0].startCommand=/nats-server',
+            'configs.jetstream.versions[0].version=latest',
+            'configs.jetstream.versions[1].configReloaderImage=natsio/nats-server-config-reloader:latest',
+            'configs.jetstream.versions[1].metricsExporterImage=natsio/prometheus-nats-exporter:latest',
+            'configs.jetstream.versions[1].natsImage=nats:2.9.15',
+            'configs.jetstream.versions[1].startCommand=/nats-server',
+            'configs.jetstream.versions[1].version=2.9.15',
+            'global.image.tag=%s' % ctx.versions.argo_events_image,
+        ]
+    )
+
+    k8s_yaml(read_file('./tilt/k8s/argo-events-rbac.yaml'))
+    k8s_yaml(read_file('./tilt/k8s/argo-events-eventbus.yaml'))
+    k8s_yaml(read_file('./tilt/k8s/argo-events-eventsource.yaml'))
+    k8s_yaml(read_file('./tilt/k8s/argo-events-webhook-svc.yaml'))
+
+    local_resource(
+        name='argo-events-webhook-eventsource-svc',
+        serve_cmd='while ! kubectl get service/argo-events-webhook-eventsource-svc-tilt >/dev/null 2>&1 || ! kubectl get pods -l eventsource-name=argo-events-webhook -o jsonpath="{.items[*].status.phase}" | grep -q "Running"; do sleep 5; done && kubectl port-forward service/argo-events-webhook-eventsource-svc-tilt 12000:12000',
+        links=[link('http://localhost:12000/metaflow-event', 'Argo Events Webhook')],
+        labels=['argo-events'],
+    )
+
+    k8s_resource('argo-events-controller-manager', labels=['argo-events'])
+
+    return new_result(
+        config={
+            "METAFLOW_ARGO_EVENTS_EVENT": "metaflow-event",
+            "METAFLOW_ARGO_EVENTS_EVENT_BUS": "default",
+            "METAFLOW_ARGO_EVENTS_EVENT_SOURCE": "argo-events-webhook",
+            "METAFLOW_ARGO_EVENTS_SERVICE_ACCOUNT": "operate-workflow-sa",
+            "METAFLOW_ARGO_EVENTS_WEBHOOK_AUTH": "service",
+            "METAFLOW_ARGO_EVENTS_INTERNAL_WEBHOOK_URL": "http://argo-events-webhook-eventsource-svc:12000/metaflow-event",
+            "METAFLOW_ARGO_EVENTS_WEBHOOK_URL": "http://localhost:12000/metaflow-event",
+        },
+        config_resources=['argo-events-controller-manager', 'argo-events-webhook-eventsource-svc'],
+    )

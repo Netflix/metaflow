@@ -17,6 +17,8 @@ SERVICE_OPTIONS=(
     "metadata-service"
     "ui"
     "argo-workflows"
+    "argo-events"
+    "jobset"
     "localbatch"
     "ddb-local"
     "sfn-local"
