@@ -8,11 +8,11 @@ giving the full cross-product of orchestrator x compute backend.
 
 import os
 import uuid
-import pytest
 from dataclasses import dataclass
 from enum import Enum
 from typing import List, Optional
 
+import pytest
 from omegaconf import OmegaConf
 
 
@@ -41,6 +41,7 @@ def _load_config(rootdir=None):
     if rootdir:
         candidates.append(os.path.join(str(rootdir), "ux_test_config.yaml"))
     candidates.append(os.path.join(os.path.dirname(__file__), "ux_test_config.yaml"))
+
     for path in candidates:
         if os.path.exists(path):
             return OmegaConf.load(path)
@@ -57,10 +58,12 @@ def _enabled_backends(cfg):
         backend_name = compute.get("backend") or None
         image = compute.get("image") or None
         decospec = None
+
         if backend_name and image:
-            decospec = "%s:image=%s" % (backend_name, image)
+            decospec = f"{backend_name}:image={image}"
         elif backend_name:
             decospec = backend_name
+
         return [
             {
                 "name": "default",
@@ -258,7 +261,7 @@ def pytest_generate_tests(metafunc):
                 params.append(pytest.param(mode, marks=marks))
             else:
                 params.append(pytest.param(b, marks=marks))
-            ids.append("%s-%s" % (b["name"], mode))
+            ids.append(f"{b['name']}-{mode}")
 
     if needs_exec and needs_backend:
         metafunc.parametrize(["exec_mode", "backend"], params, ids=ids)
