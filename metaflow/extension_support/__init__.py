@@ -16,7 +16,6 @@ from typing import Any, Dict
 from metaflow.meta_files import read_info_file
 from metaflow.util import walk_without_cycles
 
-
 #
 # This file provides the support for Metaflow's extension mechanism which allows
 # a Metaflow developer to extend metaflow by providing a package `metaflow_extensions`.

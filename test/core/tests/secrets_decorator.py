@@ -1,6 +1,5 @@
 from metaflow_test import MetaflowTest, ExpectationFailed, steps, tag
 
-
 INLINE_SECRETS_VARS = [
     {
         "type": "inline",
