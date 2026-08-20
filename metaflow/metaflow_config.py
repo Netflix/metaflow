@@ -481,6 +481,13 @@ ARGO_WORKFLOWS_UI_URL = from_conf("ARGO_WORKFLOWS_UI_URL")
 # opt in by setting METAFLOW_ARGO_WORKFLOWS_USE_SCHEDULES=true.
 ARGO_WORKFLOWS_USE_SCHEDULES = from_conf("ARGO_WORKFLOWS_USE_SCHEDULES", False)
 
+# How long (in seconds) to keep completed Argo Workflows before auto-deletion.
+# Default: 7 days (same as Kubernetes jobs). Maps to Argo's ttlStrategy.
+# Set to 0 to disable TTL (workflows persist indefinitely).
+ARGO_WORKFLOWS_TTL_SECONDS_AFTER_COMPLETION = from_conf(
+    "ARGO_WORKFLOWS_TTL_SECONDS_AFTER_COMPLETION", 7 * 24 * 60 * 60
+)
+
 ##
 # Airflow Configuration
 ##
