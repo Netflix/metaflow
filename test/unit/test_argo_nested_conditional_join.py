@@ -195,9 +195,9 @@ class RecursiveSwitchJoinFlow(FlowSpec):
 
     @step
     def start(self):
-        self.use_shortcut = True
+        self.use_shortcut = "yes"
         self.next(
-            {True: self.shortcut, False: self.long_path},
+            {"yes": self.shortcut, "no": self.long_path},
             condition="use_shortcut",
         )
 
@@ -211,9 +211,9 @@ class RecursiveSwitchJoinFlow(FlowSpec):
 
     @step
     def step_b_loop(self):
-        self.should_continue = False
+        self.should_continue = "no"
         self.next(
-            {True: self.step_b_loop, False: self.step_c},
+            {"yes": self.step_b_loop, "no": self.step_c},
             condition="should_continue",
         )
 
