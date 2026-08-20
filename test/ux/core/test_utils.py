@@ -265,9 +265,15 @@ def verify_run_provenance(run: Run, decospecs: Any) -> None:
     start_task = run["start"].task
 
     ds_type = start_task.metadata_dict.get("ds-type")
-    # Only enforce the S3 check when the test environment uses a remote datastore.
+    # Only enforce the remote datastore check when the test environment uses one.
     # Local-only CI environments (METAFLOW_DEFAULT_DATASTORE=local) do not have MinIO.
-    if os.environ.get("METAFLOW_DEFAULT_DATASTORE", "") != "local":
+    default_ds = os.environ.get("METAFLOW_DEFAULT_DATASTORE", "")
+    if default_ds == "gs":
+        assert ds_type == "gs", (
+            f"Expected datastore type 'gs' (GCS), got {ds_type!r}. "
+            f"Artifacts may be stored locally — check METAFLOW_HOME / METAFLOW_PROFILE."
+        )
+    elif default_ds != "local":
         assert ds_type == "s3", (
             f"Expected datastore type 's3' (MinIO), got {ds_type!r}. "
             f"Artifacts may be stored locally — check METAFLOW_HOME / METAFLOW_PROFILE."

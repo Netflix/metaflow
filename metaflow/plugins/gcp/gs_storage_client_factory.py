@@ -12,12 +12,19 @@ def _get_gs_storage_client_default():
     cache_key = _get_cache_key()
     if cache_key not in _client_cache:
         from google.cloud import storage
-        import google.auth
 
-        credentials, project_id = google.auth.default(scopes=storage.Client.SCOPE)
-        _client_cache[cache_key] = storage.Client(
-            credentials=credentials, project=project_id
-        )
+        if os.environ.get("STORAGE_EMULATOR_HOST"):
+            # When a storage emulator is configured, create a plain Client()
+            # which auto-detects the emulator and uses anonymous credentials.
+            # Calling google.auth.default() would fail without real GCP creds.
+            _client_cache[cache_key] = storage.Client()
+        else:
+            import google.auth
+
+            credentials, project_id = google.auth.default(scopes=storage.Client.SCOPE)
+            _client_cache[cache_key] = storage.Client(
+                credentials=credentials, project=project_id
+            )
     return _client_cache[cache_key]
 
 
