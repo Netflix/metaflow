@@ -76,8 +76,7 @@ def validate_kube_labels(
     https://kubernetes.io/docs/concepts/overview/working-with-objects/labels/#syntax-and-character-set
     """
 
-    # Shared by label values and the "name" segment of a label key: alphanumeric,
-    # '-', '_' or '.', begins/ends with an alphanumeric character, max 63 chars.
+    # shared with the "name" segment of a label key
     segment_regex = r"[A-Za-z0-9]([-A-Za-z0-9_.]{0,61}[A-Za-z0-9])?"
 
     def validate_label(s: Optional[str]):

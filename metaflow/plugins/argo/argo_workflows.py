@@ -193,10 +193,8 @@ class ArgoWorkflows(object):
         self.triggers, self.trigger_options = self._process_triggers()
         self._schedule, self._timezone = self._get_schedule()
 
-        # _base_labels (internal-only) is used for pod/JobSet/Sensor metadata;
-        # _workflow_labels (internal + user-supplied ARGO_WORKFLOWS_LABELS) is
-        # used only at the WorkflowTemplate/Workflow level. Do not use
-        # _workflow_labels for per-task resources.
+        # _workflow_labels (unlike _base_labels) includes user-supplied ARGO_WORKFLOWS_LABELS
+        # and must stay scoped to the WorkflowTemplate/Workflow level, not per-task resources.
         self._base_labels = self._base_kubernetes_labels()
         self._workflow_labels = self._base_argo_labels()
         self._base_annotations = self._base_kubernetes_annotations()
@@ -1015,7 +1013,7 @@ class ArgoWorkflows(object):
                     )
                 )
                 # Set common pod metadata.
-                # Internal labels only - do not use _workflow_labels here.
+                # internal labels only
                 .pod_metadata(
                     Metadata()
                     .labels(self._base_labels)
@@ -2747,7 +2745,7 @@ class ArgoWorkflows(object):
                     "metaflow/argo-workflows-name": "{{workflow.name}}",
                     "workflows.argoproj.io/workflow": "{{workflow.name}}",
                 }
-                # Internal labels only - do not use _workflow_labels here.
+                # internal labels only
                 jobset.labels(
                     {
                         **resources["labels"],
@@ -3947,7 +3945,7 @@ class ArgoWorkflows(object):
             Sensor()
             .metadata(
                 # Sensor metadata.
-                # Internal labels only - do not use _workflow_labels here.
+                # internal labels only
                 ObjectMeta()
                 .name(ArgoWorkflows._sensor_name(self.name))
                 .namespace(ARGO_EVENTS_SENSOR_NAMESPACE)
