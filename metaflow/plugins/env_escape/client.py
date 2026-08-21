@@ -82,15 +82,25 @@ class Client(object):
             raise RuntimeError("Existing socket: %s" % self._socket_path)
         env = os.environ.copy()
         env["PYTHONPATH"] = pythonpath
-        # When coming from a conda environment, LD_LIBRARY_PATH may be set to
+
+        # If a bootstrap saved a host PYTHONHOME via MF_ORIG_PYTHONHOME,
+        # restore it. Otherwise leave any existing PYTHONHOME pass-through
+        # unchanged (preserves prior behavior for callers that do not
+        # participate in the MF_ORIG_* save/restore protocol).
+        if "MF_ORIG_PYTHONHOME" in env:
+            env["PYTHONHOME"] = env.pop("MF_ORIG_PYTHONHOME")
+        # When coming from a conda environment, LD_LIBRARY_PATH will be set to
         # first include the Conda environment's library. When breaking out to
         # the underlying python, we need to reset it to the original LD_LIBRARY_PATH
         ld_lib_path = env.get("LD_LIBRARY_PATH")
         orig_ld_lib_path = env.get("MF_ORIG_LD_LIBRARY_PATH")
-        if ld_lib_path is not None and orig_ld_lib_path is not None:
+        if orig_ld_lib_path is None and ld_lib_path is not None:
+            del env["LD_LIBRARY_PATH"]
+
+        if orig_ld_lib_path is not None:
             env["LD_LIBRARY_PATH"] = orig_ld_lib_path
-            if orig_ld_lib_path is not None:
-                del env["MF_ORIG_LD_LIBRARY_PATH"]
+            del env["MF_ORIG_LD_LIBRARY_PATH"]
+
         self._server_process = Popen(
             [
                 python_executable,
@@ -378,16 +388,16 @@ class Client(object):
         else:
             lookup_name = name
 
-        if name == "function":
-            # Special handling of pickled functions. We create a new class that
+        if name in ("function", "method"):
+            # Special handling of pickled functions and methods. We create a new class that
             # simply has a __call__ method that will forward things back to
             # the server side.
             if obj_id is None:
-                raise RuntimeError("Local function unpickling without an object ID")
+                raise RuntimeError("Local %s unpickling without an object ID" % name)
             if obj_id not in self._proxied_standalone_functions:
                 self._proxied_standalone_functions[obj_id] = create_class(
                     self,
-                    "__main__.__function_%s" % obj_id,
+                    "__main__.__%s_%s" % (name, obj_id),
                     {},
                     {},
                     {},

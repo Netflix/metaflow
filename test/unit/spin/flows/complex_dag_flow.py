@@ -23,7 +23,7 @@ class ComplexDAGFlow(FlowSpec):
         print("My output is: ", self.my_output)
         self.next(self.step_c, foreach="split_b")
 
-    @conda(libraries={"numpy": "2.1.1"})
+    @conda(libraries={"numpy": "2.2.0"})
     @step
     def step_c(self):
         import numpy as np
@@ -42,7 +42,7 @@ class ComplexDAGFlow(FlowSpec):
 
     @step
     def step_e(self):
-        print(f"I am step E. Input is: {self.input}")
+        print("I am step E.")
         self.split_e = [9, 10]
         print("My output is: ", self.my_output)
         self.next(self.step_f, foreach="split_e")
@@ -83,19 +83,19 @@ class ComplexDAGFlow(FlowSpec):
 
     @step
     def step_l(self):
-        print(f"I am step L. Input is: {self.input}")
+        print("I am step L.")
         self.my_output = self.my_output + [12]
         print("My output is: ", self.my_output)
         self.next(self.step_m)
 
-    @conda(libraries={"scikit-learn": "1.3.0"})
+    @conda(libraries={"numpy": "2.2.0"})
     @step
     def step_m(self, inputs):
-        import sklearn
+        import numpy as np
 
-        self.sklearn_version = sklearn.__version__
+        self.np_version_m = np.__version__
         self.my_output = sorted([inp.my_output for inp in inputs])[0]
-        print("Sklearn version: ", self.sklearn_version)
+        print("numpy version: ", self.np_version_m)
         print("My output is: ", self.my_output)
         self.next(self.step_n)
 

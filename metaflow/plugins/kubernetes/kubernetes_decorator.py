@@ -128,6 +128,9 @@ class KubernetesDecorator(StepDecorator):
         Only applicable when @parallel is used.
     qos: str, default: Burstable
         Quality of Service class to assign to the pod. Supported values are: Guaranteed, Burstable, BestEffort
+    extended_resources: Dict[str, str], optional, default {}
+        Extended resources to be requested for the pod.
+        https://kubernetes.io/docs/tasks/administer-cluster/extended-resource-node/
 
     security_context: Dict[str, Any], optional, default None
         Container security context. Applies to the task container. Allows the following keys:
@@ -167,6 +170,7 @@ class KubernetesDecorator(StepDecorator):
         "executable": None,
         "hostname_resolution_timeout": 10 * 60,
         "qos": KUBERNETES_QOS,
+        "extended_resources": {},
         "security_context": None,
     }
     package_metadata = None
@@ -366,6 +370,10 @@ class KubernetesDecorator(StepDecorator):
                     if k == "gpu" and v != None:
                         self.attributes["gpu"] = v
 
+                    # If shared memory is specified, explicitly set it in self.attributes.
+                    if k == "shared_memory" and v != None:
+                        self.attributes["shared_memory"] = v
+
                     if k in self.attributes:
                         if self.defaults[k] is None:
                             # skip if expected value isn't an int/float
@@ -495,6 +503,7 @@ class KubernetesDecorator(StepDecorator):
                     "persistent_volume_claims",
                     "labels",
                     "annotations",
+                    "extended_resources",
                     "security_context",
                 ]:
                     cli_args.command_options[k] = json.dumps(v)
@@ -636,7 +645,7 @@ class KubernetesDecorator(StepDecorator):
         try:
             self._save_logs_sidecar.terminate()
             self._spot_monitor_sidecar.terminate()
-        except:
+        except Exception:
             # Best effort kill
             pass
 

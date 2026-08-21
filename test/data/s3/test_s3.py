@@ -860,6 +860,8 @@ def test_put_exceptions(inject_failure_rate):
 
 @pytest.fixture
 def s3_server_side_encryption():
+    if os.environ.get("MINIO_TEST", "0") != "0":
+        return None
     return "AES256"
 
 

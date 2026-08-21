@@ -1,5 +1,8 @@
-from typing import Dict, Optional, Union, TYPE_CHECKING
+import json
+import re
+from typing import Any, Dict, List, Optional, Tuple, Union, TYPE_CHECKING
 
+from metaflow.debug import debug
 from metaflow.exception import MetaflowException
 from metaflow.user_configs.config_parameters import (
     resolve_delayed_evaluator,
@@ -99,7 +102,7 @@ class FlowMutatorMeta(type):
 
     @classmethod
     def _check_init(mcs):
-        # Delay importing STEP_DECORATORS until we actually need it
+        # Delay importing FLOW_DECORATORS until we actually need it
         if not mcs._all_registered_decorators.inited:
             from metaflow.plugins import FLOW_DECORATORS
 
@@ -137,6 +140,7 @@ class FlowMutator(metaclass=FlowMutatorMeta):
         # and used in _graph_info
         self._args = args
         self._kwargs = kwargs
+        self._ran_init = False  # For consistency with UserStepDecoratorBase
         if args and isinstance(args[0], (FlowMutator, FlowSpecMeta)):
             # This means the decorator is bare like @MyDecorator
             # and the first argument is the FlowSpec or another decorator (they
@@ -197,6 +201,47 @@ class FlowMutator(metaclass=FlowMutatorMeta):
     def __str__(self):
         return str(self.__class__)
 
+    @classmethod
+    def extract_args_kwargs_from_decorator_spec(
+        cls, deco_spec: str
+    ) -> Tuple[List[Any], Dict[str, Any]]:
+        if len(deco_spec) == 0:
+            return [], {}
+        args: List[Any] = []
+        kwargs: Dict[str, Any] = {}
+        for a in re.split(r""",(?=[\s\w]+=)""", deco_spec):
+            name, val = a.split("=", 1)
+            try:
+                val_parsed = json.loads(val.strip().replace('\\"', '"'))
+            except json.JSONDecodeError:
+                try:
+                    val_parsed = int(val.strip())
+                except ValueError:
+                    try:
+                        val_parsed = float(val.strip())
+                    except ValueError:
+                        val_parsed = val.strip()
+            try:
+                pos = int(name)
+            except ValueError:
+                kwargs[name.strip()] = val_parsed
+            else:
+                while len(args) <= pos:
+                    args.append(None)
+                args[pos] = val_parsed
+        debug.userconf_exec(
+            "Parsed decorator spec for %s: %s"
+            % (cls.decorator_name, str((args, kwargs)))
+        )
+        return args, kwargs
+
+    @classmethod
+    def parse_decorator_spec(cls, deco_spec: str) -> "FlowMutator":
+        if len(deco_spec) == 0:
+            return cls()
+        args, kwargs = cls.extract_args_kwargs_from_decorator_spec(deco_spec)
+        return cls(*args, **kwargs)
+
     def init(self, *args, **kwargs):
         """
         Implement this method if you wish for your FlowMutator to take in arguments.
@@ -213,6 +258,8 @@ class FlowMutator(metaclass=FlowMutatorMeta):
         pass
 
     def external_init(self):
+        if self._ran_init:
+            return
         # You can use config values in the arguments to a FlowMutator
         # so we resolve those as well
         self._args = [resolve_delayed_evaluator(arg) for arg in self._args]
@@ -227,6 +274,7 @@ class FlowMutator(metaclass=FlowMutatorMeta):
                 )
         if "init" in self.__class__.__dict__:
             self.init(*self._args, **self._kwargs)
+        self._ran_init = True
 
     def pre_mutate(
         self, mutable_flow: "metaflow.user_decorators.mutable_flow.MutableFlow"
@@ -262,3 +310,38 @@ class FlowMutator(metaclass=FlowMutatorMeta):
             A representation of this flow
         """
         return None
+
+    def add_to_package(self):
+        """
+        Called to add custom files needed by this flow mutator. This hook will be
+        called in the `MetaflowPackage` class where metaflow compiles the code package
+        tarball. This hook can return one of two things (the first is for backwards
+        compatibility -- generally use the second when you implement your mutator):
+          - a generator yielding a tuple of `(file_path, arcname)` to add files to
+            the code package. `file_path` is the path to the file on the local filesystem
+            and `arcname` is the path relative to the packaged code.
+          - a generator yielding a tuple of `(content, arcname, type)` where:
+            - type is one of
+            ContentType.{USER_CONTENT, CODE_CONTENT, MODULE_CONTENT, OTHER_CONTENT}
+            - for USER_CONTENT:
+              - the file will be included relative to the directory containing the
+                user's flow file.
+              - content: path to the file to include
+              - arcname: path relative to the directory containing the user's flow file
+            - for CODE_CONTENT:
+              - the file will be included relative to the code directory in the package.
+                This will be the directory containing `metaflow`.
+              - content: path to the file to include
+              - arcname: path relative to the code directory in the package
+            - for MODULE_CONTENT:
+              - the module will be added to the code package as a python module. It will
+                be accessible as usual (import <module_name>)
+              - content: name of the module
+              - arcname: None (ignored)
+            - for OTHER_CONTENT:
+              - the file will be included relative to any other configuration/metadata
+                files for the flow
+              - content: path to the file to include
+              - arcname: path relative to the config directory in the package
+        """
+        return []

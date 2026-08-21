@@ -1,0 +1,107 @@
+load('ext://helm_remote', 'helm_remote')
+load('./_result.tiltfile', 'new_result')
+
+def setup_airflow(ctx):
+    # Ensure the 'airflow' database exists in the shared PostgreSQL instance.
+    local_resource(
+        name="airflow-db-init",
+        cmd=(
+            "kubectl exec postgresql-0 -- " +
+            "sh -c \"PGPASSWORD=metaflow123 psql -h 127.0.0.1 -U metaflow -d metaflow " +
+            "-c 'CREATE DATABASE airflow OWNER metaflow' 2>&1 || true\" && " +
+            "kubectl exec postgresql-0 -- " +
+            "sh -c \"PGPASSWORD=metaflow123 psql -h 127.0.0.1 -U metaflow -d metaflow -lqt " +
+            "| cut -d'|' -f1 | grep -qw airflow\""
+        ),
+        resource_deps=["postgresql"],
+        labels=["airflow"],
+    )
+
+    # PVC for DAG files (shared between scheduler and workers)
+    k8s_yaml(encode_yaml({
+        'apiVersion': 'v1',
+        'kind': 'PersistentVolumeClaim',
+        'metadata': {'name': 'airflow-dags'},
+        'spec': {
+            'accessModes': ['ReadWriteOnce'],
+            'resources': {'requests': {'storage': '1Gi'}},
+        },
+    }))
+
+    AIRFLOW_FERNET_KEY = "81HqDtbqAywKSOumSha3BhWNOdQ26slT6K0YaZeZyPs="
+
+    helm_remote(
+        'airflow',
+        version=ctx.versions.airflow_chart,
+        repo_name='apache-airflow',
+        repo_url='https://airflow.apache.org',
+        set=[
+            'airflowVersion=%s' % ctx.versions.airflow_image,
+            'defaultAirflowTag=%s' % ctx.versions.airflow_image,
+            'executor=LocalExecutor',
+            'postgresql.enabled=false',
+            'data.metadataConnection.user=metaflow',
+            'data.metadataConnection.pass=metaflow123',
+            'data.metadataConnection.host=postgresql',
+            'data.metadataConnection.port=5432',
+            'data.metadataConnection.db=airflow',
+            'data.metadataConnection.protocol=postgresql',
+            'fernetKey=%s' % AIRFLOW_FERNET_KEY,
+            'flower.enabled=false',
+            'dags.persistence.enabled=true',
+            'dags.persistence.existingClaim=airflow-dags',
+            'dags.gitSync.enabled=false',
+            'scheduler.resources.requests.memory=256Mi',
+            'scheduler.resources.requests.cpu=100m',
+            'scheduler.resources.limits.memory=2Gi',
+            'scheduler.resources.limits.cpu=250m',
+            'scheduler.startupProbe.command={/bin/true}',
+            'scheduler.livenessProbe.command={/bin/true}',
+            'webserver.resources.requests.memory=256Mi',
+            'webserver.resources.requests.cpu=100m',
+            'webserver.resources.limits.memory=3Gi',
+            'webserver.resources.limits.cpu=500m',
+            'config.webserver.worker_refresh_batch_size=0',
+            'webserver.startupProbe.failureThreshold=60',
+            'webserver.startupProbe.periodSeconds=15',
+            'webserver.startupProbe.timeoutSeconds=30',
+            'webserver.livenessProbe.failureThreshold=10',
+            'webserver.livenessProbe.periodSeconds=30',
+            'webserver.livenessProbe.timeoutSeconds=30',
+            'config.api.auth_backends=airflow.api.auth.backend.basic_auth',
+            'config.scheduler.dag_dir_list_interval=10',
+            'config.scheduler.min_file_process_interval=5',
+            'webserver.defaultUser.enabled=true',
+            'webserver.defaultUser.username=admin',
+            'webserver.defaultUser.password=admin',
+            'webserver.defaultUser.email=admin@example.com',
+            'webserver.defaultUser.firstName=Admin',
+            'webserver.defaultUser.lastName=User',
+            'webserver.defaultUser.role=Admin',
+        ],
+    )
+
+    _airflow_db_deps = ctx.components['airflow'] + ['airflow-db-init']
+
+    k8s_resource(workload='airflow-run-airflow-migrations', labels=['airflow'], resource_deps=_airflow_db_deps)
+    k8s_resource(workload='airflow-create-user', labels=['airflow'], resource_deps=_airflow_db_deps + ['airflow-run-airflow-migrations'])
+    k8s_resource(workload='airflow-triggerer', labels=['airflow'], resource_deps=_airflow_db_deps)
+    k8s_resource(
+        workload='airflow-webserver',
+        port_forwards=['8090:8080'],
+        links=[link('http://localhost:8090', 'Airflow UI')],
+        labels=['airflow'],
+        resource_deps=_airflow_db_deps,
+    )
+    k8s_resource(workload='airflow-scheduler', labels=['airflow'], resource_deps=_airflow_db_deps)
+
+    return new_result(
+        config={
+            "METAFLOW_AIRFLOW_REST_API_URL": "http://localhost:8090/api/v1",
+            "METAFLOW_AIRFLOW_REST_API_USERNAME": "admin",
+            "METAFLOW_AIRFLOW_REST_API_PASSWORD": "admin",
+            "METAFLOW_AIRFLOW_KUBERNETES_DAGS_PATH": "/opt/airflow/dags",
+            "METAFLOW_AIRFLOW_KUBERNETES_NAMESPACE": "default",
+        },
+        config_resources=['airflow-webserver', 'airflow-scheduler'],
+    )

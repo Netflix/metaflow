@@ -81,7 +81,14 @@ class CardComponentRefreshTest(MetaflowTest):
 
         sleep_between_refreshes = 2  # Set based on the RUNTIME_CARD_MIN_REFRESH_INTERVAL which acts as a rate-limit to what is refreshed.
 
-        card_html = card.get()
+        # Retry card.get() until the reload token appears; the card refresh is
+        # async so the HTML may lag behind the in-memory state.
+        _html_deadline = time.time() + 60
+        while True:
+            card_html = card.get()
+            if _reload_tok in card_html or time.time() >= _html_deadline:
+                break
+            time.sleep(1)
         possible_reload_tokens.append(_reload_tok)
         # The reload token for card type `test_component_refresh_card` contains a hash of the component values.
         # The first assertion will check if this reload token exists is set to what we expect in the HTML page.

@@ -57,18 +57,39 @@ class Trigger(object):
     @classmethod
     def from_runs(cls, run_objs: List["metaflow.Run"]):
         run_objs.sort(key=lambda x: x.finished_at, reverse=True)
-        trigger = Trigger(
-            [
+        valid_runs = []
+        meta = []
+        for run_obj in run_objs:
+            end_task = run_obj.end_task
+            if end_task is None:
+                continue
+            valid_runs.append(run_obj)
+            end_step_name = end_task.parent.id
+            meta.append(
                 {
                     "type": "run",
                     "timestamp": run_obj.finished_at,
-                    "name": "metaflow.%s.%s" % (run_obj.parent.id, run_obj["end"].id),
-                    "id": run_obj.end_task.pathspec,
+                    "name": "metaflow.%s.%s" % (run_obj.parent.id, end_step_name),
+                    "id": end_task.pathspec,
                 }
-                for run_obj in run_objs
-            ]
-        )
-        trigger._runs = run_objs
+            )
+            # For custom-named end steps, also emit the well-known ".end"
+            # alias so downstream code that filters on "metaflow.<flow>.end"
+            # keeps matching. This mirrors the dual-emit in
+            # argo_workflows_decorator.py so the Argo publish path and the
+            # programmatic Trigger.from_runs path stay symmetric.
+            if end_step_name != "end":
+                meta.append(
+                    {
+                        "type": "run",
+                        "timestamp": run_obj.finished_at,
+                        "name": "metaflow.%s.end" % run_obj.parent.id,
+                        "id": end_task.pathspec,
+                    }
+                )
+
+        trigger = Trigger(meta)
+        trigger._runs = valid_runs
         return trigger
 
     @property

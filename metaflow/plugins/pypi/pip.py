@@ -37,7 +37,7 @@ class PipPackageNotFound(Exception):
             self.package_spec = re.search(
                 "ERROR: No matching distribution found for (.*)", self.error
             )[1]
-            self.package_name = re.match("\w*", self.package_spec)[0]
+            self.package_name = re.match(r"\w*", self.package_spec)[0]
         except Exception:
             pass
 
@@ -324,7 +324,9 @@ class Pip(object):
                 key, value = line.split("=", 1)
                 _, key = key.split(".")
                 if key in ("index-url", "extra-index-url"):
-                    values = map(lambda x: x.strip("'\""), re.split("\s+", value, re.M))
+                    values = map(
+                        lambda x: x.strip("'\""), re.split(r"\\n|\s+", value, re.M)
+                    )
                     (indices if key == "index-url" else extra_indices).extend(values)
         except Exception:
             pass

@@ -56,7 +56,7 @@ class ResumeRecursiveSwitchInsideForeachFlowTest(MetaflowTest):
             checker.assert_artifact("join", "results", expected)
 
             exit_steps = run["exit_item_loop"]
-            exit_steps_by_id = {s.data.item_id: s for s in exit_steps}
+            exit_steps_by_id = {step.data.item_id: step for step in exit_steps}
             assert_equals(3, len(list(exit_steps)))
 
             # Branch 'B' failed and was re-executed from the start of the branch.

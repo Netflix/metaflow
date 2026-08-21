@@ -10,7 +10,7 @@ digraph Metaflow {
     lightgoldenrod1: metadata
     lightpink2:      function call
     grey78:          event / change in control
-    
+
     */
 
     graph [fontsize=10, fontname="Noto Mono"]
@@ -145,7 +145,7 @@ digraph Metaflow {
     validate_env_deuce -> flow_init_deuce
     flow_init_deuce -> step_init_deuce
     step_init_deuce -> choose_command_deuce
-    
+
     /* package */
     validate_dag -> init_environment
     init_environment -> package_init

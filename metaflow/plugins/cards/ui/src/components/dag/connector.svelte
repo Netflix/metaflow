@@ -36,7 +36,7 @@
       width = Math.abs(right - left);
     }
     height = bottom - top;
-    
+
     if (height < 0) {
       isLoop = true;
       height = 5.5;

@@ -791,8 +791,8 @@ class S3(object):
         def _info(s3, tmp):
             resp = s3.head_object(Bucket=src.netloc, Key=src.path.lstrip('/"'))
             return {
-                "content_type": resp["ContentType"],
-                "metadata": resp["Metadata"],
+                "content_type": resp.get("ContentType"),
+                "metadata": resp.get("Metadata", {}),
                 "size": resp["ContentLength"],
                 "last_modified": get_timestamp(resp["LastModified"]),
                 "encryption": resp.get("ServerSideEncryption"),
@@ -867,9 +867,9 @@ class S3(object):
                         else:
                             raise MetaflowS3Exception("Got error: %d" % info["error"])
                     else:
-                        yield self._s3root, s3url, None, info["size"], info[
+                        yield self._s3root, s3url, None, info["size"], info.get(
                             "content_type"
-                        ], info["metadata"], None, info["last_modified"], info[
+                        ), info.get("metadata", {}), None, info["last_modified"], info[
                             "encryption"
                         ]
                 else:
@@ -952,14 +952,14 @@ class S3(object):
                     read_in_chunks(t, resp["Body"], sz, DOWNLOAD_MAX_CHUNK)
             if return_info:
                 return {
-                    "content_type": resp["ContentType"],
+                    "content_type": resp.get("ContentType"),
                     # Since Metaflow can also use S3-compatible storage like MinIO,
                     # there maybe some keys missing in the responses given by different S3-compatible object stores.
                     # MinIO is generally accessed via HTTPS, and so it's encrpytion scheme is
                     # TLS/SSL. This is why the `ServerSideEncryption` key is not present
                     # in the response from MinIO.
                     "encryption": resp.get("ServerSideEncryption"),
-                    "metadata": resp["Metadata"],
+                    "metadata": resp.get("Metadata", {}),
                     "range_result": range_result,
                     "last_modified": get_timestamp(resp["LastModified"]),
                 }
@@ -1043,9 +1043,9 @@ class S3(object):
                             )
                             yield self._s3root, s3url, os.path.join(
                                 self._tmpdir, fname
-                            ), None, info["content_type"], info[
-                                "metadata"
-                            ], range_info, info[
+                            ), None, info.get("content_type"), info.get(
+                                "metadata", {}
+                            ), range_info, info[
                                 "last_modified"
                             ], info.get(
                                 "encryption"
@@ -1107,7 +1107,9 @@ class S3(object):
                         )
                     yield self._s3root, s3url, os.path.join(
                         self._tmpdir, fname
-                    ), None, info["content_type"], info["metadata"], range_info, info[
+                    ), None, info.get("content_type"), info.get(
+                        "metadata", {}
+                    ), range_info, info[
                         "last_modified"
                     ], info.get(
                         "encryption"
@@ -1447,6 +1449,11 @@ class S3(object):
     # and url_unquote.
     def _read_many_files(self, op, prefixes_and_ranges, **options):
         prefixes_and_ranges = list(prefixes_and_ranges)
+        if not prefixes_and_ranges:
+            # Nothing to read. Return early to avoid calling s3op with an empty
+            # input file, which writes informational text to stderr causing the
+            # error handler below to crash with IndexError on prefixes_and_ranges[0].
+            return
         with NamedTemporaryFile(
             dir=self._tmpdir,
             mode="wb",
@@ -1487,6 +1494,12 @@ class S3(object):
 
     def _put_many_files(self, url_info, overwrite):
         url_info = list(url_info)
+        if not url_info:
+            # Nothing to upload (all blobs already exist in the content-addressed
+            # store). Return early to avoid calling s3op with an empty input file,
+            # which would write informational text to stderr and cause the error
+            # handler below to crash with IndexError on url_info[0].
+            return []
         url_dicts = [
             dict(
                 chain([("local", os.path.realpath(local)), ("url", url)], info.items())

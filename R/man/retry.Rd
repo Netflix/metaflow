@@ -32,7 +32,7 @@ information on how to use this decorator.
 start <- function(self){
   n <- rbinom(n=1, size=1, prob=0.5)
   if (n==0){
-    stop("Bad Luck!") 
+    stop("Bad Luck!")
   } else{
     print("Lucky you!")
   }
@@ -43,12 +43,12 @@ end <- function(self){
 }
 
 metaflow("RetryFlow") \%>\%
-  step(step="start", 
+  step(step="start",
        retry(times=3),
-       r_function=start, 
+       r_function=start,
        next_step="end") \%>\%
-  step(step="end", 
-       r_function=end) \%>\% 
+  step(step="end",
+       r_function=end) \%>\%
   run()
 }
 }

@@ -109,7 +109,7 @@ class TestTimeoutCard(MetaflowCard):
 
 REFRESHABLE_HTML_TEMPLATE = """
 <html>
-<script> 
+<script>
 var METAFLOW_RELOAD_TOKEN = "[METAFLOW_RELOAD_TOKEN]"
 
 window.metaflow_card_update = function(data) {

@@ -1,0 +1,52 @@
+load('ext://helm_remote', 'helm_remote')
+load('./_result.tiltfile', 'new_result')
+
+def setup_postgresql(ctx):
+    helm_remote(
+        'postgresql',
+        version='12.5.6',
+        repo_name='postgresql',
+        repo_url='https://charts.bitnami.com/bitnami',
+        set=[
+            'auth.username=metaflow',
+            'auth.password=metaflow123',
+            'auth.database=metaflow',
+            'auth.postgresPassword=devstackpostgres123',
+            'primary.initdb.scripts.create-airflow-db\\.sql=CREATE DATABASE airflow OWNER metaflow;',
+            'image.repository=bitnamilegacy/postgresql',
+            'primary.persistence.enabled=true',
+            'primary.persistence.size=1Gi',
+            'primary.persistence.storageClass=standard',
+            'primary.resources.requests.memory=256Mi',
+            'primary.resources.requests.cpu=50m',
+            'primary.resources.limits.memory=512Mi',
+            'primary.resources.limits.cpu=200m',
+            'primary.terminationGracePeriodSeconds=1',
+            'primary.podSecurityContext.enabled=false',
+            'primary.containerSecurityContext.enabled=false',
+            'volumePermissions.enabled=false',
+            'shmVolume.enabled=false',
+            'primary.extraVolumes=null',
+            'primary.extraVolumeMounts=null',
+            'primary.tolerations[0].key=node.kubernetes.io/not-ready',
+            'primary.tolerations[0].operator=Exists',
+            'primary.tolerations[0].effect=NoExecute',
+            'primary.tolerations[0].tolerationSeconds=3600',
+            'primary.tolerations[1].key=node.kubernetes.io/unreachable',
+            'primary.tolerations[1].operator=Exists',
+            'primary.tolerations[1].effect=NoExecute',
+            'primary.tolerations[1].tolerationSeconds=3600',
+            'primary.livenessProbe.failureThreshold=20',
+            'primary.readinessProbe.failureThreshold=20',
+        ]
+    )
+
+    k8s_resource(
+        'postgresql',
+        port_forwards=['5433:5432'],
+        links=[link('postgresql://metaflow:metaflow@localhost:5433/metaflow', 'PostgreSQL Connection')],
+        labels=['postgresql'],
+        resource_deps=ctx.components['postgresql'],
+    )
+
+    return new_result(config_resources=['postgresql'])

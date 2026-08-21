@@ -54,7 +54,6 @@ def before_run(obj, tags, decospecs, skip_decorators=False):
             # These decospecs are the ones from run/resume/spin PLUS the ones from the
             # environment (for example the @conda)
             decorators._attach_decorators(obj.flow, all_decospecs)
-            decorators._init(obj.flow)
             # Regenerate graph if we attached more decorators
             obj.flow.__class__._init_graph()
             obj.graph = obj.flow._graph
@@ -278,7 +277,7 @@ def resume(
         # be non-integers to avoid any clashes. This condition ensures this.
         try:
             int(run_id)
-        except:
+        except (TypeError, ValueError):
             pass
         else:
             raise CommandException("run-id %s cannot be an integer" % run_id)
@@ -361,7 +360,7 @@ def resume(
     "tags assigned to the objects produced by this run, just "
     "what existing objects are visible in the client API. You "
     "can enable the global namespace with an empty string."
-    "--namespace=",
+    " --namespace=",
 )
 @click.pass_obj
 def run(

@@ -1,5 +1,4 @@
 import os
-import platform
 import re
 import sys
 import tempfile
@@ -107,7 +106,7 @@ class CondaStepDecorator(StepDecorator):
             self.attributes["disabled"] = False
         # Set Python interpreter to user's Python if necessary.
         if not self.attributes["python"]:
-            self.attributes["python"] = platform.python_version()  # CPython!
+            self.attributes["python"] = "%d.%d.%d" % sys.version_info[:3]
 
         # @conda uses a conda environment to create a virtual environment.
         # The conda environment can be created through micromamba.
@@ -178,7 +177,15 @@ class CondaStepDecorator(StepDecorator):
             self.environment.interpreter(self.step)
             if not any(
                 decorator.name
-                in ["batch", "kubernetes", "nvidia", "snowpark", "slurm", "nvct"]
+                in [
+                    "batch",
+                    "kubernetes",
+                    "nvidia",
+                    "snowpark",
+                    "slurm",
+                    "nvct",
+                    "skypilot_step",
+                ]
                 for decorator in next(
                     step for step in self.flow if step.name == self.step
                 ).decorators
@@ -314,6 +321,8 @@ class CondaFlowDecorator(FlowDecorator):
         }
         # Keep because otherwise make_decorator_spec will fail
         self.attributes["libraries"] = {}
+        if self.attributes["packages"]:
+            self._attributes_with_user_values.add("packages")
         if self.attributes["python"]:
             self.attributes["python"] = str(self.attributes["python"])
 

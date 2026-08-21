@@ -48,14 +48,22 @@ def _execute_cmd(func, flow_name, run_id, user, my_runs, echo):
     func(flow_name, run_id, user, echo)
 
 
-@batch.command("list", help="List unfinished AWS Batch tasks of this flow")
+@batch.command(
+    "list",
+    help="\b\nList unfinished AWS Batch tasks of this flow.\n"
+    "By default, consider the latest run only.",
+)
 @click.option(
     "--my-runs",
     default=False,
     is_flag=True,
-    help="List all my unfinished tasks.",
+    help="List my unfinished tasks, across all runs.",
 )
-@click.option("--user", default=None, help="List unfinished tasks for the given user.")
+@click.option(
+    "--user",
+    default=None,
+    help="List unfinished tasks for the given user, across all runs.",
+)
 @click.option(
     "--run-id",
     default=None,
@@ -69,17 +77,20 @@ def _list(ctx, run_id, user, my_runs):
     )
 
 
-@batch.command(help="Terminate unfinished AWS Batch tasks of this flow.")
+@batch.command(
+    help="\b\nTerminate unfinished AWS Batch tasks of this flow.\n"
+    "By default, consider the latest run only.",
+)
 @click.option(
     "--my-runs",
     default=False,
     is_flag=True,
-    help="Kill all my unfinished tasks.",
+    help="Kill my unfinished tasks, across all runs.",
 )
 @click.option(
     "--user",
     default=None,
-    help="Terminate unfinished tasks for the given user.",
+    help="Terminate unfinished tasks for the given user, across all runs.",
 )
 @click.option(
     "--run-id",
