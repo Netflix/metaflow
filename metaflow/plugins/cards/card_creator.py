@@ -5,6 +5,7 @@ import json
 import sys
 import os
 from metaflow import current
+from metaflow.debug import debug
 from typing import Callable, Tuple, Dict
 
 
@@ -87,6 +88,10 @@ class CardCreator:
             component_strings = current.card._serialize_components(card_uuid)
             # Since the mode is a render, we can check if we need to write to the metadata store.
             save_metadata, metadata_dict = self._should_save_metadata(card_uuid)
+        debug.card_exec(
+            "create card_uuid=%s mode=%s final=%s sync=%s runtime_card=%s save_metadata=%s"
+            % (card_uuid, mode, final, sync, runtime_card, save_metadata)
+        )
         data = current.card._get_latest_data(card_uuid, final=final, mode=mode)
         runspec = "/".join([current.run_id, current.step_name, current.task_id])
         self._run_cards_subprocess(
@@ -179,6 +184,7 @@ class CardCreator:
         if save_metadata:
             cmd += ["--save-metadata", json.dumps(metadata_dict)]
 
+        debug.card_exec(cmd)
         response, fail = self._run_command(
             cmd,
             card_uuid,
@@ -219,9 +225,28 @@ class CardCreator:
             except subprocess.CalledProcessError as e:
                 rep = e.output
                 fail = True
+                if debug.card and rep is not None:
+                    debug.card_exec(
+                        "render subprocess for %s %s output:\n%s"
+                        % (
+                            card_uuid,
+                            "FAILED" if fail else "succeeded",
+                            rep.decode("utf-8"),
+                        )
+                    )
             except subprocess.TimeoutExpired as e:
                 rep = e.output
                 fail = True
+                if debug.card and rep is not None:
+                    debug.card_exec(
+                        "render subprocess for %s %s output:\n%s"
+                        % (
+                            card_uuid,
+                            "FAILED" if fail else "succeeded",
+                            rep.decode("utf-8"),
+                        )
+                    )
+
             return rep, fail
         else:
             _async_proc, _async_started = CardProcessManager._get_card_process(
@@ -238,8 +263,13 @@ class CardCreator:
                 else:
                     # silently refuse to run an async process if a previous one is still running
                     # and timeout hasn't been reached
+                    debug.card_exec(
+                        "skipping async render for %s: previous process still running"
+                        % card_uuid
+                    )
                     return "".encode(), False
             else:
+                debug.card_exec("launching async render for %s" % card_uuid)
                 CardProcessManager._register_card_process(
                     card_uuid,
                     subprocess.Popen(
