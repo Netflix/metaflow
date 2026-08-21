@@ -21,7 +21,7 @@ from metaflow.plugins.argo.argo_workflows import ArgoWorkflows
 
 class NestedSwitchAlphaFlow(FlowSpec):
     """Nested switches; inner switch (`a_branch_a`) sorts before outer
-    (`start`) — the ordering that triggered the bug."""
+    (`start`) — the ordering that always worked."""
 
     @step
     def start(self):
@@ -72,7 +72,7 @@ class NestedSwitchAlphaFlow(FlowSpec):
 
 class NestedSwitchReverseFlow(FlowSpec):
     """Same topology, opposite sort order: outer (`start`) before inner
-    (`z_branch_a`) — the direction that always worked."""
+    (`z_branch_a`) — the ordering that triggered the bug."""
 
     @step
     def start(self):
