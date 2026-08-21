@@ -12,8 +12,8 @@ allow_k8s_contexts('minikube')
 # ---------------------------------------------------------------------------
 # Version configuration
 # ---------------------------------------------------------------------------
-ARGO_WORKFLOWS_HELM_CHART_VERSION = os.getenv("ARGO_WORKFLOWS_HELM_CHART_VERSION", "0.45.2")
-ARGO_WORKFLOWS_IMAGE_TAG = os.getenv("ARGO_WORKFLOWS_IMAGE_TAG", "v3.6.0")
+ARGO_WORKFLOWS_HELM_CHART_VERSION = os.getenv("ARGO_WORKFLOWS_HELM_CHART_VERSION", "0.45.8")
+ARGO_WORKFLOWS_IMAGE_TAG = os.getenv("ARGO_WORKFLOWS_IMAGE_TAG", "v3.7.11")
 AIRFLOW_HELM_CHART_VERSION = os.getenv("AIRFLOW_HELM_CHART_VERSION", "1.15.0")
 AIRFLOW_IMAGE_TAG = os.getenv("AIRFLOW_IMAGE_TAG", "2.10.4")
 
