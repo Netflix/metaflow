@@ -321,6 +321,16 @@ class MetaflowObject(object):
         if pathspec and _object is None:
             ids = pathspec.split("/")
 
+            # Reject blank components (empty string or whitespace-only), e.g. "Flow//Step"
+            # or "Flow/ /Step".  Check before the length tests so the error is specific.
+            blank = [i for i, c in enumerate(ids) if not c.strip()]
+            if blank:
+                raise MetaflowInvalidPathspec(
+                    "Pathspec '%s' has an empty or blank component at position(s) %s. "
+                    "Each '/' must separate non-empty path parts."
+                    % (pathspec, ", ".join(str(p) for p in blank))
+                )
+
             if self._NAME == "flow" and len(ids) != 1:
                 raise MetaflowInvalidPathspec("Expects Flow('FlowName')")
             elif self._NAME == "run" and len(ids) != 2:
