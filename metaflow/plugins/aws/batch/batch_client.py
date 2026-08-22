@@ -4,6 +4,7 @@ import copy
 import random
 import time
 import hashlib
+import os
 
 try:
     unicode
@@ -19,7 +20,34 @@ class BatchClient(object):
     def __init__(self):
         from ..aws_client import get_aws_client
 
-        self._client = get_aws_client("batch")
+        # Prefer the task role by default when running inside AWS Batch containers
+        # by temporarily removing higher-precedence env credentials for this process.
+        # This avoids AMI-injected AWS_* env vars from overriding the task role.
+        # Outside of Batch, we leave env vars untouched unless explicitly opted-in.
+        if "AWS_BATCH_JOB_ID" in os.environ:
+            _aws_env_keys = [
+                "AWS_ACCESS_KEY_ID",
+                "AWS_SECRET_ACCESS_KEY",
+                "AWS_SESSION_TOKEN",
+                "AWS_PROFILE",
+                "AWS_DEFAULT_PROFILE",
+            ]
+            _present = [k for k in _aws_env_keys if k in os.environ]
+            print(
+                "[Metaflow] AWS credential-related env vars present before Batch client init:",
+                _present,
+            )
+            _saved_env = {
+                k: os.environ.pop(k) for k in _aws_env_keys if k in os.environ
+            }
+            try:
+                self._client = get_aws_client("batch")
+            finally:
+                # Restore prior env for the rest of the process
+                for k, v in _saved_env.items():
+                    os.environ[k] = v
+        else:
+            self._client = get_aws_client("batch")
 
     def active_job_queues(self):
         paginator = self._client.get_paginator("describe_job_queues")
@@ -96,6 +124,8 @@ class BatchJob(object):
             commands = self.payload["containerOverrides"]["command"][-1]
             # add split-index as this worker is also an ubf_task
             commands = commands.replace("[multinode-args]", "--split-index 0")
+            # For main node, remove the placeholder since it keeps the original task ID
+            commands = commands.replace("[NODE-INDEX]", "")
             main_task_override["command"][-1] = commands
 
             # secondary tasks
@@ -103,18 +133,12 @@ class BatchJob(object):
                 self.payload["containerOverrides"]
             )
             secondary_commands = self.payload["containerOverrides"]["command"][-1]
-            # other tasks do not have control- prefix, and have the split id appended to the task -id
-            secondary_commands = secondary_commands.replace(
-                self._task_id,
-                self._task_id.replace("control-", "")
-                + "-node-$AWS_BATCH_JOB_NODE_INDEX",
-            )
-            secondary_commands = secondary_commands.replace(
-                "ubf_control",
-                "ubf_task",
-            )
-            secondary_commands = secondary_commands.replace(
-                "[multinode-args]", "--split-index $AWS_BATCH_JOB_NODE_INDEX"
+            # For secondary nodes: remove "control-" prefix and replace placeholders
+            secondary_commands = (
+                secondary_commands.replace("control-", "")
+                .replace("[NODE-INDEX]", "-node-$AWS_BATCH_JOB_NODE_INDEX")
+                .replace("ubf_control", "ubf_task")
+                .replace("[multinode-args]", "--split-index $AWS_BATCH_JOB_NODE_INDEX")
             )
 
             secondary_task_container_override["command"][-1] = secondary_commands
