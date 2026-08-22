@@ -1079,8 +1079,13 @@ class ArgoWorkflows(object):
                         continue
                     _visit(child, conditional_branch, conditional_parents)
 
-        # First we visit all nodes to determine conditional parents and branches
+        # First we visit all nodes to determine conditional parents and branches.
+        # Skip split-switch nodes that were already visited as nested children
+        # of another split-switch (they already have correct conditional_parents
+        # from the recursive _visit call).
         for n in self.graph:
+            if n.type == "split-switch" and n.name in node_conditional_parents:
+                continue
             _visit(n, [])
 
         # helper to clean up conditional info for all children of a node, until a new split-switch is encountered.
