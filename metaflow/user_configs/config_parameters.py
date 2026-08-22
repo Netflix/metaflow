@@ -301,17 +301,17 @@ class DelayEvaluator(collections.abc.Mapping):
         self._cached_expr = None
 
     def __copy__(self):
-        c = DelayEvaluator(self._config_expr)
+        # Keep caller globals by reference so config_expr("my_func()") still
+        # resolves after attribute/item access (which copies this object).
+        c = DelayEvaluator(self._config_expr, saved_globals=self._globals)
         c._access = self._access.copy() if self._access is not None else None
-        # Globals are not copied -- always kept as a reference
         return c
 
     def __deepcopy__(self, memo):
-        c = DelayEvaluator(self._config_expr)
+        c = DelayEvaluator(self._config_expr, saved_globals=self._globals)
         c._access = (
             copy.deepcopy(self._access, memo) if self._access is not None else None
         )
-        # Globals are not copied -- always kept as a reference
         return c
 
     def __iter__(self):
