@@ -33,6 +33,7 @@ from metaflow.metaflow_config import (
     SERVICE_HEADERS,
     SERVICE_INTERNAL_URL,
     AZURE_KEY_VAULT_PREFIX,
+    MAX_ATTEMPTS,
 )
 
 from metaflow.metaflow_config_funcs import config_values
@@ -388,6 +389,7 @@ class Airflow(object):
             "METAFLOW_KUBERNETES_WORKLOAD": str(
                 1
             ),  # This is used by kubernetes decorator.
+            "METAFLOW_MAX_ATTEMPTS": MAX_ATTEMPTS,
             "METAFLOW_RUNTIME_ENVIRONMENT": "kubernetes",
             "METAFLOW_CARD_S3ROOT": CARD_S3ROOT,
             "METAFLOW_RUN_ID": AIRFLOW_MACROS.RUN_ID,
