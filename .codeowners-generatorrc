@@ -1,0 +1,6 @@
+{
+  "output": ".github/CODEOWNERS",
+  "useMaintainers": false,
+  "includes": ["**/CODEOWNERS", "!.github/CODEOWNERS", "!node_modules"],
+  "groupSourceComments": true
+}
