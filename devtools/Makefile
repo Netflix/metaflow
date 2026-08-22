@@ -182,6 +182,8 @@ up: install-brew check-docker install-curl install-gum setup-minikube install-he
 	@echo '    echo "📝 Selecting services..."' >> "$(DEVTOOLS_DIR)/start.sh"
 	@echo '    SERVICES=$$($(PICK_SERVICES))' >> "$(DEVTOOLS_DIR)/start.sh"
 	@echo 'fi' >> "$(DEVTOOLS_DIR)/start.sh"
+	@echo 'echo "🔐 minikube tunnel requires sudo access to configure networking."' >> $(DEVTOOLS_DIR)/start.sh
+	@echo 'sudo -v' >> $(DEVTOOLS_DIR)/start.sh
 	@echo 'PATH="$(MINIKUBE_DIR):$(TILT_DIR):$$PATH" $(MINIKUBE) tunnel &' >> $(DEVTOOLS_DIR)/start.sh
 	@echo 'echo -e "🚀 Starting Tilt with selected services..."' >> $(DEVTOOLS_DIR)/start.sh
 	@echo 'echo -e "\033[1;38;5;46m\n🔥 \033[1;38;5;196mNext Steps:\033[0;38;5;46m Use \033[3mmetaflow-dev shell\033[23m to switch to the development\n   environment'\''s shell and start executing your Metaflow flows.\n\033[0m"' >> "$(DEVTOOLS_DIR)/start.sh"
