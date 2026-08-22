@@ -136,6 +136,10 @@ split_flags <- function(arguments) {
 }
 
 split_parameters <- function(flags) {
+  paste(split_parameter_args(flags), collapse = " ")
+}
+
+split_parameter_args <- function(flags) {
   parameters <- !names(flags) %in% c(
     "metaflow_path", "run",
     "batch", "datastore", "metadata",
@@ -154,13 +158,15 @@ split_parameters <- function(flags) {
   )
   parameters <- flags[parameters]
   if (length(parameters) == 0) {
-    valid_params <- ""
+    valid_params <- character()
   } else {
     valid_params <- unlist(lapply(seq_along(parameters), function(x) {
-      paste(paste0("--", names(parameters[x]), " ", unlist(parameters[x])), collapse = " ")
-    })) %>%
-      paste(collapse = " ")
+      name <- paste0("--", gsub("_", "-", names(parameters[x])))
+      values <- as.character(unlist(parameters[x], use.names = FALSE))
+      unlist(lapply(values, function(value) {
+        c(name, value)
+      }), use.names = FALSE)
+    }), use.names = FALSE)
   }
-  valid_params <- gsub("_", "-", valid_params)
   valid_params
 }

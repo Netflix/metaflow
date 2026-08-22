@@ -38,14 +38,18 @@ run <- function(flow = NULL, ...) {
     }
   )
 
-  cmd <- run_cmd(flow_file = flow_file, ...)
-  #message(paste0("Flow cli:\n", cmd))
-  status_code <- system(cmd)
+  args <- run_argv(flow_file = flow_file, ...)
+  #message(paste0("Flow cli:\n", run_cmd(flow_file = flow_file, ...)))
+  status_code <- system2("Rscript", args = shell_quote_args(args))
   invisible(file.remove(flow_file))
   return(invisible(status_code))
 }
 
 run_cmd <- function(flow_file, ...) {
+  paste(shell_quote_args(c("Rscript", run_argv(flow_file = flow_file, ...))), collapse = " ")
+}
+
+run_argv <- function(flow_file, ...) {
   run_options <- list(...)
   flags <- flags(...)
 
@@ -55,12 +59,14 @@ run_cmd <- function(flow_file, ...) {
     if (is.logical(flags$resume)) {
       if (flags$resume) {
         run <- "resume"
+      } else {
+        run <- "run"
       }
     } else {
-      run <- paste0("resume", " ", flags$resume)
+      run <- c("resume", as_cli_args(flags$resume))
     }
     if ("origin_run_id" %in% names(flags)) {
-      run <- paste0(run, " --origin-run-id=", flags$origin_run_id)
+      run <- c(run, paste0("--origin-run-id=", flags$origin_run_id))
     }
   } else {
     run <- "run"
@@ -69,36 +75,36 @@ run_cmd <- function(flow_file, ...) {
   if ("batch" %in% names(flags)) {
     if (is.logical(flags$batch)) {
       if (flags$batch) {
-        batch <- "--with batch"
+        batch <- c("--with", "batch")
       } else {
-        batch <- ""
+        batch <- character()
       }
     } else {
-      batch <- paste0("batch ", flags$batch)
-      run <- ""
+      batch <- c("batch", as_cli_args(flags$batch))
+      run <- character()
       if ("my_runs" %in% names(flags) && flags$my_runs) {
-        batch <- paste0(batch, " --my-runs")
+        batch <- c(batch, "--my-runs")
       }
       if ("run_id" %in% names(flags)) {
-        batch <- paste0(batch, " --run-id=", flags$run_id)
+        batch <- c(batch, paste0("--run-id=", flags$run_id))
       }
       if ("user" %in% names(flags)) {
-        batch <- paste0(batch, " --user=", flags$user)
+        batch <- c(batch, paste0("--user=", flags$user))
       }
     }
   } else {
-    batch <- ""
+    batch <- character()
   }
 
   if ("step_functions" %in% names(flags)) {
-    sfn_cmd <- paste("step-functions", flags$step_functions)
+    sfn_cmd <- c("step-functions", as_cli_args(flags$step_functions))
     # subcommands without an argument
     for (subcommand in c("generate_new_token",
                          "only_json", "running", "succeeded",
                          "failed", "timed_out", "aborted")){
       if (subcommand %in% names(flags)){
         subcommand_valid <- gsub("_", "-", subcommand)
-        sfn_cmd <- paste(sfn_cmd, paste0("--", subcommand_valid))
+        sfn_cmd <- c(sfn_cmd, paste0("--", subcommand_valid))
       }
     }
 
@@ -107,59 +113,57 @@ run_cmd <- function(flow_file, ...) {
                          "max_workers", "workflow_timeout")){
       if (subcommand %in% names(flags)){
         subcommand_valid <- gsub("_", "-", subcommand)
-        sfn_cmd <- paste(sfn_cmd, paste0("--", subcommand_valid), flags[[subcommand]])
+        sfn_cmd <- c(sfn_cmd, paste0("--", subcommand_valid), as_cli_args(flags[[subcommand]]))
       }
     }
   } else {
-    sfn_cmd <- ""
+    sfn_cmd <- character()
   }
 
   if ("max_workers" %in% names(flags)) {
     max_workers <- paste0("--max-workers=", flags$max_workers)
   } else {
-    max_workers <- ""
+    max_workers <- character()
   }
   if ("max_num_splits" %in% names(flags)) {
     max_num_splits <- paste0("--max-num-splits=", flags$max_num_splits)
   } else {
-    max_num_splits <- ""
+    max_num_splits <- character()
   }
 
   if ("other_args" %in% names(flags)) {
-    other_args <- paste(flags$other_args)
+    other_args <- as_cli_args(flags$other_args)
   } else {
-    other_args <- ""
+    other_args <- character()
   }
 
-  parameters <- split_parameters(flags)
+  parameters <- split_parameter_args(flags)
 
   if ("with" %in% names(flags)) {
     with <- unlist(lapply(seq_along(flags$with), function(x) {
-      paste(paste0("--with ", unlist(flags$with[x])), collapse = " ")
-    })) %>%
-      paste(collapse = " ")
+      c("--with", as_cli_args(flags$with[x]))
+    }), use.names = FALSE)
   } else {
-    with <- ""
+    with <- character()
   }
 
   if ("tag" %in% names(flags)) {
     tag <- unlist(lapply(seq_along(flags$tag), function(x) {
-      paste(paste0("--tag ", unlist(flags$tag[x])), collapse = " ")
-    })) %>%
-      paste(collapse = " ")
+      c("--tag", as_cli_args(flags$tag[x]))
+    }), use.names = FALSE)
   } else {
-    tag <- ""
+    tag <- character()
   }
 
   if ("package_suffixes" %in% names(flags)) {
     package_suffixes <- paste0("--package-suffixes=", paste(flags$package_suffixes, collapse = ","))
   } else {
-    package_suffixes <- ""
+    package_suffixes <- character()
   }
 
   flow_RDS <- paste0("--flowRDS=", flow_file)
-  cmd <- paste(
-    "Rscript", run_path,
+  args <- compact_args(c(
+    run_path,
     flow_RDS,
     "--no-pylint",
     package_suffixes,
@@ -171,26 +175,26 @@ run_cmd <- function(flow_file, ...) {
     max_workers,
     max_num_splits,
     other_args
-  )
+  ))
 
-  if (batch %in% c("batch list", "batch kill")) {
-    cmd <- paste("Rscript", run_path, flow_RDS, batch)
+  if (identical(batch, c("batch", "list")) || identical(batch, c("batch", "kill"))) {
+    args <- compact_args(c(run_path, flow_RDS, batch))
   }
 
   if ("logs" %in% names(flags)) {
-    logs <- paste("logs", flags$logs, sep = " ")
-    cmd <- paste("Rscript", run_path, flow_RDS, logs)
+    logs <- c("logs", as_cli_args(flags$logs))
+    args <- compact_args(c(run_path, flow_RDS, logs))
   }
 
   if ("show" %in% names(flags) && flags$show) {
     show <- "show"
-    cmd <- paste("Rscript", run_path, flow_RDS, show)
+    args <- compact_args(c(run_path, flow_RDS, show))
   }
 
   if ("step_functions" %in% names(flags)){
-    cmd <- paste("Rscript", run_path, flow_RDS,
-                 "--no-pylint", package_suffixes, sfn_cmd,
-                    parameters,  other_args)
+    args <- compact_args(c(run_path, flow_RDS,
+                           "--no-pylint", package_suffixes, sfn_cmd,
+                           parameters,  other_args))
   }
 
   if ("help" %in% names(flags) && flags$help) {
@@ -198,9 +202,22 @@ run_cmd <- function(flow_file, ...) {
     if ("help" %in% names(run_options) && run_options$help) {
       help_cmd <- "--help"
     } else { # if help is specified in command line
-      help_cmd <- paste(commandArgs(trailingOnly = TRUE), collapse = " ")
+      help_cmd <- commandArgs(trailingOnly = TRUE)
     }
-    cmd <- paste("Rscript", run_path, flow_RDS, "--no-pylint", help_cmd)
+    args <- compact_args(c(run_path, flow_RDS, "--no-pylint", help_cmd))
   }
-  cmd
+  args
+}
+
+as_cli_args <- function(x) {
+  as.character(unlist(x, use.names = FALSE))
+}
+
+compact_args <- function(args) {
+  args <- as_cli_args(args)
+  args[!is.na(args) & nzchar(args)]
+}
+
+shell_quote_args <- function(args) {
+  shQuote(compact_args(args))
 }
