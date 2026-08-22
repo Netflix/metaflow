@@ -27,6 +27,7 @@ from metaflow.metaflow_config import (
     ARGO_WORKFLOWS_CAPTURE_ERROR_SCRIPT,
     ARGO_WORKFLOWS_ENV_VARS_TO_SKIP,
     ARGO_WORKFLOWS_KUBERNETES_SECRETS,
+    ARGO_WORKFLOWS_LABELS,
     ARGO_WORKFLOWS_UI_URL,
     AWS_SECRETS_MANAGER_DEFAULT_REGION,
     AZURE_KEY_VAULT_PREFIX,
@@ -54,7 +55,11 @@ from metaflow.metaflow_config import (
 from metaflow.metaflow_config_funcs import config_values
 from metaflow.mflog import BASH_SAVE_LOGS, bash_capture_logs, export_mflog_env_vars
 from metaflow.parameters import deploy_time_eval
-from metaflow.plugins.kubernetes.kube_utils import qos_requests_and_limits
+from metaflow.plugins.kubernetes.kube_utils import (
+    qos_requests_and_limits,
+    parse_kube_keyvalue_list,
+    validate_kube_labels,
+)
 
 from metaflow.plugins.kubernetes.kubernetes_jobsets import KubernetesArgoJobSet
 from metaflow.unbounded_foreach import UBF_CONTROL, UBF_TASK
@@ -188,7 +193,10 @@ class ArgoWorkflows(object):
         self.triggers, self.trigger_options = self._process_triggers()
         self._schedule, self._timezone = self._get_schedule()
 
+        # _workflow_labels (unlike _base_labels) includes user-supplied ARGO_WORKFLOWS_LABELS
+        # and must stay scoped to the WorkflowTemplate/Workflow level, not per-task resources.
         self._base_labels = self._base_kubernetes_labels()
+        self._workflow_labels = self._base_argo_labels()
         self._base_annotations = self._base_kubernetes_annotations()
         self._workflow_template = self._compile_workflow_template()
         self._sensor = self._compile_sensor()
@@ -403,12 +411,35 @@ class ArgoWorkflows(object):
 
     def _base_kubernetes_labels(self):
         """
-        Get shared Kubernetes labels for Argo resources.
+        Get shared Kubernetes labels for all resources.
         """
-        # TODO: Add configuration through an environment variable or Metaflow config in the future if required.
-        labels = {"app.kubernetes.io/part-of": "metaflow"}
+        return {"app.kubernetes.io/part-of": "metaflow"}
 
-        return labels
+    def _custom_argo_labels(self):
+        """
+        Parse and validate custom labels from the METAFLOW_ARGO_WORKFLOWS_LABELS
+        env var. Format: comma-separated key=value pairs (e.g., "team=ml,env=prod").
+
+        Returns an empty dict if the env var is unset.
+        """
+        if not ARGO_WORKFLOWS_LABELS:
+            return {}
+
+        env_labels = parse_kube_keyvalue_list(
+            ARGO_WORKFLOWS_LABELS.split(","), requires_both=True
+        )
+        validate_kube_labels(env_labels, validate_keys=True)
+        return env_labels
+
+    def _base_argo_labels(self):
+        """
+        Get Kubernetes labels for WorkflowTemplate/Workflow-level Argo resources.
+
+        Merges custom labels from METAFLOW_ARGO_WORKFLOWS_LABELS with base
+        Kubernetes labels, with base (internal) labels taking precedence so
+        that they cannot be overridden by user-supplied custom labels.
+        """
+        return {**self._custom_argo_labels(), **self._base_kubernetes_labels()}
 
     def _base_kubernetes_annotations(self):
         """
@@ -903,7 +934,7 @@ class ArgoWorkflows(object):
                 .namespace(KUBERNETES_NAMESPACE)
                 .annotations(annotations)
                 .annotations(self._base_annotations)
-                .labels(self._base_labels)
+                .labels(self._workflow_labels)
                 .label("app.kubernetes.io/name", "metaflow-flow")
                 .annotations(dag_annotation)
             )
@@ -935,7 +966,7 @@ class ArgoWorkflows(object):
                 # Set workflow metadata
                 .workflow_metadata(
                     Metadata()
-                    .labels(self._base_labels)
+                    .labels(self._workflow_labels)
                     .label("app.kubernetes.io/name", "metaflow-run")
                     .annotations(
                         {
@@ -982,6 +1013,7 @@ class ArgoWorkflows(object):
                     )
                 )
                 # Set common pod metadata.
+                # internal labels only
                 .pod_metadata(
                     Metadata()
                     .labels(self._base_labels)
@@ -2718,6 +2750,7 @@ class ArgoWorkflows(object):
                     "metaflow/argo-workflows-name": "{{workflow.name}}",
                     "workflows.argoproj.io/workflow": "{{workflow.name}}",
                 }
+                # internal labels only
                 jobset.labels(
                     {
                         **resources["labels"],
@@ -3917,6 +3950,7 @@ class ArgoWorkflows(object):
             Sensor()
             .metadata(
                 # Sensor metadata.
+                # internal labels only
                 ObjectMeta()
                 .name(ArgoWorkflows._sensor_name(self.name))
                 .namespace(ARGO_EVENTS_SENSOR_NAMESPACE)
