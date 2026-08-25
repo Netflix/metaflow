@@ -180,6 +180,7 @@ DEPLOYER_IMPL_PROVIDERS_DESC = [
 ]
 
 TL_PLUGINS_DESC = [
+    ("package_sources", ".package_sources.package_sources"),
     ("yaml_parser", ".parsers.yaml_parser"),
     ("requirements_txt_parser", ".pypi.parsers.requirements_txt_parser"),
     ("namespaced_event_name", ".namespaced_events.namespaced_event_name"),
