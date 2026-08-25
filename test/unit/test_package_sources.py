@@ -1,4 +1,7 @@
+import importlib
 import os
+import shutil
+import sys
 from unittest import mock
 
 import pytest
@@ -45,6 +48,31 @@ def test_packages_sibling_source_relative_to_flow_file(tmp_path):
         os.path.join("shared", "helper.py"),
     }
     assert all(result[2] == ContentType.USER_CONTENT for result in results)
+
+
+def test_src_layout_package_is_importable_after_packaging(tmp_path, monkeypatch):
+    flow_file = tmp_path / "flows" / "flow.py"
+    source = tmp_path / "src" / "forecasting"
+    package_root = tmp_path / "package"
+    _write(flow_file)
+    _write(source / "__init__.py", "VALUE = 'packaged'\n")
+
+    mutator, getfile = _mutator("../src/forecasting", flow_file)
+    with getfile:
+        results = list(mutator.add_to_package())
+
+    for file_path, archive_path, _ in results:
+        destination = package_root / archive_path
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copyfile(file_path, destination)
+
+    monkeypatch.syspath_prepend(os.fspath(package_root))
+    sys.modules.pop("forecasting", None)
+    try:
+        module = importlib.import_module("forecasting")
+        assert module.VALUE == "packaged"
+    finally:
+        sys.modules.pop("forecasting", None)
 
 
 def test_supports_multiple_sources_arcnames_and_suffixes(tmp_path):
