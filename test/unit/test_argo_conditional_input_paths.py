@@ -50,6 +50,7 @@ def chain_skip_argo(mocker):
         event_logger=None,
         monitor=None,
         username="test-user",
+        enable_heartbeat_daemon=False,
     )
 
 
@@ -77,6 +78,20 @@ def _unresolved_task_path(step_name):
 
 def _skipped_task_path(step_name):
     return "%s/%s/SKIPPED" % (RUN_ID, step_name)
+
+
+def _depends(argo, node_name):
+    dag = argo._dag_templates()[-1].payload["dag"]
+    sanitized = ArgoWorkflows._sanitize(node_name)
+    return next(
+        task.get("depends", "") for task in dag["tasks"] if task["name"] == sanitized
+    )
+
+
+def test_chain_skip_dependencies_are_failure_barriers(chain_skip_argo):
+    assert _depends(chain_skip_argo, "end") == (
+        "start.Succeeded && step2.Succeeded && step3.Succeeded"
+    )
 
 
 def test_chain_skip_fallback_uses_latest_executed_split_switch(chain_skip_argo):

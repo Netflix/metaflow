@@ -5,16 +5,14 @@ See https://github.com/Netflix/metaflow/issues/3334. These tests assert
 on the actual generated Argo `depends` string, not just on the
 intermediate `conditional_nodes` / `conditional_join_nodes` /
 `matching_conditional_join_dict` bookkeeping — the bookkeeping can look
-right while the emitted `depends` field still uses `&&` between
-mutually exclusive branches, which is what actually breaks deployed
-workflows (the join gets stuck in `Omitted`).
+right while the emitted `depends` field does not match the wrapper
+contract used by the deployed workflow.
 """
 
 import pytest
 
 from metaflow import FlowSpec, step
 from metaflow.plugins.argo.argo_workflows import ArgoWorkflows
-
 
 # ── Flows ────────────────────────────────────────────────────────────────────
 
@@ -230,6 +228,30 @@ class RecursiveSwitchJoinFlow(FlowSpec):
         pass
 
 
+class RecursiveSwitchInForeachFlow(FlowSpec):
+    @step
+    def start(self):
+        self.items = ["item"]
+        self.next(self.loop, foreach="items")
+
+    @step
+    def loop(self):
+        self.route = "done"
+        self.next({"done": self.after_loop, "again": self.loop}, condition="route")
+
+    @step
+    def after_loop(self):
+        self.next(self.join)
+
+    @step
+    def join(self, inputs):
+        self.next(self.end)
+
+    @step
+    def end(self):
+        pass
+
+
 # ── Fixtures ─────────────────────────────────────────────────────────────────
 
 
@@ -292,6 +314,13 @@ def recursive_switch_argo(mocker):
     return _make_argo(mocker, RecursiveSwitchJoinFlow, "recursive-switch")
 
 
+@pytest.fixture
+def recursive_switch_in_foreach_argo(mocker):
+    return _make_argo(
+        mocker, RecursiveSwitchInForeachFlow, "recursive-switch-in-foreach"
+    )
+
+
 # ── Tests ────────────────────────────────────────────────────────────────────
 
 
@@ -307,8 +336,8 @@ def test_nested_switch_alpha_order(nested_alpha_argo):
     assert aw.matching_conditional_join_dict["start"] == "outer_join"
     assert aw.matching_conditional_join_dict["a_branch_a"] == "inner_join"
 
-    assert _depends(aw, "inner_join") == "b-sub-a.Succeeded || b-sub-b.Succeeded"
-    assert _depends(aw, "outer_join") == "a-branch-b.Succeeded || inner-join.Succeeded"
+    assert _depends(aw, "inner_join") == "b-sub-a.Succeeded && b-sub-b.Succeeded"
+    assert _depends(aw, "outer_join") == "a-branch-b.Succeeded && inner-join.Succeeded"
 
 
 def test_nested_switch_reverse_order(nested_reverse_argo):
@@ -323,8 +352,8 @@ def test_nested_switch_reverse_order(nested_reverse_argo):
     assert aw.matching_conditional_join_dict["start"] == "outer_join"
     assert aw.matching_conditional_join_dict["z_branch_a"] == "inner_join"
 
-    assert _depends(aw, "inner_join") == "x-sub-a.Succeeded || x-sub-b.Succeeded"
-    assert _depends(aw, "outer_join") == "inner-join.Succeeded || z-branch-b.Succeeded"
+    assert _depends(aw, "inner_join") == "x-sub-a.Succeeded && x-sub-b.Succeeded"
+    assert _depends(aw, "outer_join") == "inner-join.Succeeded && z-branch-b.Succeeded"
 
 
 def test_simple_switch_regression(simple_switch_argo):
@@ -336,7 +365,7 @@ def test_simple_switch_regression(simple_switch_argo):
     assert "join" in aw.conditional_join_nodes
     assert aw.matching_conditional_join_dict["start"] == "join"
 
-    assert _depends(aw, "join") == "left.Succeeded || right.Succeeded"
+    assert _depends(aw, "join") == "left.Succeeded && right.Succeeded"
 
 
 def test_sequential_switch_regression(sequential_switch_argo):
@@ -344,14 +373,87 @@ def test_sequential_switch_regression(sequential_switch_argo):
 
     assert aw.matching_conditional_join_dict["join1"] == "join2"
 
-    assert _depends(aw, "join1") == "left.Succeeded || right.Succeeded"
-    assert _depends(aw, "join2") == "down.Succeeded || up.Succeeded"
+    assert _depends(aw, "join1") == "left.Succeeded && right.Succeeded"
+    assert _depends(aw, "join2") == "down.Succeeded && up.Succeeded"
 
 
-def test_recursive_switch_join_depends_or(recursive_switch_argo):
+def test_recursive_switch_join_is_wrapped(recursive_switch_argo):
     aw = recursive_switch_argo
 
     assert "step_b_loop" in aw.recursive_nodes
     assert aw.matching_conditional_join_dict["start"] == "merge"
 
-    assert _depends(aw, "merge") == "shortcut.Succeeded || step-c.Succeeded"
+    assert _depends(aw, "merge") == "shortcut.Succeeded && step-c.Succeeded"
+
+    templates = aw._dag_templates()
+    by_name = {template.payload["name"]: template.payload for template in templates}
+    wrapper = by_name["step-b-loop"]
+    driver = by_name["cond-step-b-loop"]
+    assert wrapper["steps"][0][0]["template"] == "cond-step-b-loop"
+    assert driver["steps"][1][0]["template"] == "cond-step-b-loop"
+    assert driver["inputs"]["parameters"] == [{"name": "input-paths"}]
+    assert by_name["step-c"]["steps"][0][0]["when"] == (
+        "({{inputs.parameters.switch-step-value-step-b-loop}} == step_c && "
+        "{{inputs.parameters.should-run-step-b-loop}} == true)"
+    )
+
+    outputs = {
+        parameter["name"]: parameter["valueFrom"]["expression"]
+        for parameter in driver["outputs"]["parameters"]
+    }
+    assert outputs["task-id"] == (
+        "steps['step-b-loop-recursion']?.status == 'Succeeded'"
+        " ? steps['step-b-loop-recursion'].outputs.parameters['task-id']"
+        " : steps['step-b-loop-internal'].outputs.parameters['task-id']"
+    )
+    assert outputs["switch-step"] == (
+        "steps['step-b-loop-recursion']?.status == 'Succeeded'"
+        " ? steps['step-b-loop-recursion'].outputs.parameters['switch-step']"
+        " : steps['step-b-loop-internal'].outputs.parameters['switch-step']"
+    )
+
+
+def test_recursive_switch_in_foreach_driver_and_exit_condition(
+    recursive_switch_in_foreach_argo,
+):
+    templates = recursive_switch_in_foreach_argo._dag_templates()
+    by_name = {template.payload["name"]: template.payload for template in templates}
+    driver = by_name["loop"]
+
+    assert driver["inputs"]["parameters"] == [
+        {"name": "input-paths"},
+        {"name": "split-index"},
+    ]
+    assert driver["steps"][0][0]["arguments"]["parameters"] == [
+        {
+            "name": "input-paths",
+            "value": "{{inputs.parameters.input-paths}}",
+        },
+        {
+            "name": "split-index",
+            "value": "{{inputs.parameters.split-index}}",
+        },
+    ]
+    assert driver["steps"][1][0]["arguments"]["parameters"] == [
+        {
+            "name": "input-paths",
+            "value": (
+                "argo-{{workflow.name}}/loop/"
+                "{{steps.loop-internal.outputs.parameters.task-id}}"
+            ),
+        },
+        {
+            "name": "split-index",
+            "value": "{{inputs.parameters.split-index}}",
+        },
+    ]
+
+    foreach = by_name["start-foreach-items"]
+    after_loop = next(
+        task for task in foreach["dag"]["tasks"] if task["name"] == "after-loop"
+    )
+    assert after_loop["depends"] == "loop.Succeeded"
+    assert (
+        after_loop["when"]
+        == "{{tasks.loop.outputs.parameters.switch-step}}==after_loop"
+    )
