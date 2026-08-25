@@ -256,15 +256,34 @@ def _make_argo(mocker, flow_cls, name):
     )
 
 
-def _depends(aw, node_name):
-    """Return the Argo `depends` string generated for a given step name."""
+def _task(aw, node_name):
+    """Return the raw Argo DAG task dict generated for a given step name."""
     templates = aw._dag_templates()
     dag = templates[-1].payload["dag"]
     sanitized = ArgoWorkflows._sanitize(node_name)
     for task in dag["tasks"]:
         if task["name"] == sanitized:
-            return task.get("depends", "")
+            return task
     raise AssertionError(f"no DAG task found for step {node_name!r}")
+
+
+def _depends(aw, node_name):
+    """Return the Argo `depends` string generated for a given step name."""
+    return _task(aw, node_name).get("depends", "")
+
+
+def _when(aw, node_name):
+    """Return the Argo `when` string generated for a given step name."""
+    return _task(aw, node_name).get("when")
+
+
+def _param(aw, node_name, param_name):
+    """Return the value of an input parameter on a given step's DAG task."""
+    task = _task(aw, node_name)
+    for p in task["arguments"]["parameters"]:
+        if p["name"] == param_name:
+            return p["value"]
+    raise AssertionError(f"no parameter {param_name!r} found for step {node_name!r}")
 
 
 @pytest.fixture
@@ -355,3 +374,76 @@ def test_recursive_switch_join_depends_or(recursive_switch_argo):
     assert aw.matching_conditional_join_dict["start"] == "merge"
 
     assert _depends(aw, "merge") == "shortcut.Succeeded || step-c.Succeeded"
+
+
+# ── Regression tests ────────────────────────────────────────────────────────
+#
+# Conditional branch nodes are wrapped in a Steps template (see
+# `_build_conditional_wrapper`) so that their `task-id` output always
+# resolves, even when their branch is skipped. This means a wrapped node's
+# own DAGTask always completes with status 'Succeeded', regardless of
+# whether its `inner` step actually ran - so depends()'s `X.Succeeded`
+# checks can no longer tell a join whether a conditional branch was really
+# taken. A closing join whose conditional predecessors aren't themselves
+# split-switch nodes (so it never got a `when` clause from the
+# switch-based path) must instead gate on each predecessor's `should-run`
+# output.
+
+
+def test_nested_switch_alpha_closing_join_when_gate(nested_alpha_argo):
+    aw = nested_alpha_argo
+
+    assert _when(aw, "inner_join") is None  # gated inside its own wrapper instead
+    when = _when(aw, "outer_join")
+    assert when is not None
+    assert "tasks['a-branch-b']?.outputs?.parameters['should-run'] == 'true'" in when
+    assert "tasks['inner-join']?.outputs?.parameters['should-run'] == 'true'" in when
+
+
+def test_simple_switch_closing_join_when_gate(simple_switch_argo):
+    aw = simple_switch_argo
+
+    when = _when(aw, "join")
+    assert when is not None
+    assert "tasks['left']?.outputs?.parameters['should-run'] == 'true'" in when
+    assert "tasks['right']?.outputs?.parameters['should-run'] == 'true'" in when
+
+
+def test_sequential_switch_closing_join_when_gate(sequential_switch_argo):
+    aw = sequential_switch_argo
+
+    # join1 is itself a wrapped conditional node (it also starts a second
+    # split-switch), so it is gated inside its own wrapper's `inner` step.
+    assert _when(aw, "join1") is None
+    when = _when(aw, "join2")
+    assert when is not None
+    assert "tasks['down']?.outputs?.parameters['should-run'] == 'true'" in when
+    assert "tasks['up']?.outputs?.parameters['should-run'] == 'true'" in when
+
+
+def test_recursive_switch_closing_join_when_gate(recursive_switch_argo):
+    aw = recursive_switch_argo
+
+    when = _when(aw, "merge")
+    assert when is not None
+    assert "tasks['shortcut']?.outputs?.parameters['should-run'] == 'true'" in when
+    assert "tasks['step-c']?.outputs?.parameters['should-run'] == 'true'" in when
+
+
+def test_dual_join_switch_should_run_params_use_output_not_status(
+    sequential_switch_argo,
+):
+    """join1 both closes the first switch's branches and opens a second one,
+    so it is a wrapped conditional node whose `inner` step gating depends on
+    should-run-left/should-run-right input parameters. Regardless of which
+    of {left, right} the DAG walk finalizes join1's task from first, both
+    parameters must reference the predecessor's should-run *output*, not a
+    status fallback (which would be trivially true for wrapped nodes)."""
+    aw = sequential_switch_argo
+
+    assert _param(aw, "join1", "should-run-left") == (
+        "{{tasks.left.outputs.parameters.should-run}}"
+    )
+    assert _param(aw, "join1", "should-run-right") == (
+        "{{tasks.right.outputs.parameters.should-run}}"
+    )
