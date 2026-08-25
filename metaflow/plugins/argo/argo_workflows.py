@@ -1031,7 +1031,6 @@ class ArgoWorkflows(object):
         self.conditional_join_nodes = set()
         self.matching_conditional_join_dict = {}
         self.recursive_nodes = set()
-        self.wrapped_conditional_nodes = set()
 
         node_conditional_parents = {}
         node_conditional_branches = {}
@@ -1190,8 +1189,35 @@ class ArgoWorkflows(object):
                 ]:
                     _cleanup_conditional_status(node.name, [])
 
+        # Precompute which conditional nodes get wrapped in a Steps template
+        # (see _build_conditional_wrapper) up front, rather than relying on
+        # incremental registration during the _dag_templates() DAG walk.
+        # A node can be visited (and thus need to know whether one of its
+        # *own* in_funcs is wrapped) before that in_func's own wrapping
+        # decision has been recorded - e.g. a join step that also starts a
+        # new split-switch is fully processed via whichever incoming branch
+        # reaches it first in the traversal, which can happen before its
+        # other sibling branch(es) have been visited at all.
+        # Foreach joins are excluded: their DAGTask/template are built via
+        # the dedicated foreach-handling branch of _dag_templates(), which
+        # never calls _build_conditional_wrapper() for the join node - so
+        # there is no Steps wrapper template for the container-template
+        # rename below (see _container_templates()) to point to.
+        self.wrapped_conditional_nodes = {
+            node.name
+            for node in self.graph
+            if self._is_conditional_node(node)
+            and not self._is_recursive_node(node)
+            and not self._is_foreach_join_node(node)
+        }
+
     def _is_conditional_node(self, node):
         return node.name in self.conditional_nodes
+
+    def _is_foreach_join_node(self, node):
+        return node.type == "join" and self.graph[node.split_parents[-1]].type == (
+            "foreach"
+        )
 
     def _is_conditional_skip_node(self, node):
         return (
@@ -1244,6 +1270,22 @@ class ArgoWorkflows(object):
 
     def _is_recursive_node(self, node):
         return node.name in self.recursive_nodes
+
+    def _predecessor_ran_expr(self, in_func):
+        # Wrapped conditional nodes always run their wrapper template to
+        # completion (and thus always report DAGTask status 'Succeeded'),
+        # regardless of whether their `inner` step actually executed. So
+        # a wrapped predecessor's task status can no longer be used to
+        # determine whether its branch was actually taken - use its
+        # `should-run` output instead, which reflects the `inner` step's
+        # actual outcome. Non-wrapped predecessors (e.g. recursive nodes)
+        # retain their original Skipped/Succeeded task-status semantics.
+        sanitized = self._sanitize(in_func)
+        if in_func in self.wrapped_conditional_nodes:
+            return "tasks['%s']?.outputs?.parameters['should-run'] == 'true'" % (
+                sanitized
+            )
+        return "tasks['%s']?.status == 'Succeeded'" % sanitized
 
     def _matching_conditional_join(self, node):
         # If no earlier conditional join step is found during parsing,
@@ -1448,7 +1490,6 @@ class ArgoWorkflows(object):
                     Parameter("split-index").value("{{inputs.parameters.split-index}}"),
                 ]
                 if self._is_conditional_node(node):
-                    self.wrapped_conditional_nodes.add(node.name)
                     templates.append(self._build_conditional_wrapper(node, parameters))
                 dag_task = (
                     DAGTask(self._sanitize(node.name))
@@ -1656,122 +1697,157 @@ class ArgoWorkflows(object):
                                 )
                             )
 
-                conditional_deps = [
-                    "%s.Succeeded" % self._sanitize(in_func)
-                    for in_func in node.in_funcs
-                    if self._is_conditional_node(self.graph[in_func])
-                    or self.graph[in_func].type == "split-switch"
-                ]
-                required_deps = [
-                    "%s.Succeeded" % self._sanitize(in_func)
-                    for in_func in node.in_funcs
-                    if not self._is_conditional_node(self.graph[in_func])
-                    and self.graph[in_func].type != "split-switch"
-                ]
-                if self._is_conditional_skip_node(
-                    node
-                ) or self._many_in_funcs_all_conditional(node):
-                    # skip nodes need unique condition handling
+                def _build_dep_lists(leaf_fn):
                     conditional_deps = [
-                        "%s.Succeeded" % self._sanitize(in_func)
+                        leaf_fn(in_func)
                         for in_func in node.in_funcs
+                        if self._is_conditional_node(self.graph[in_func])
+                        or self.graph[in_func].type == "split-switch"
                     ]
-                    required_deps = []
-
-                # join steps in_funcs need special handling, as there can be disjoint sets of always-executing and conditional branches.
-                if node.type == "join" and any(
-                    self._is_conditional_node(self.graph[fn]) for fn in node.in_funcs
-                ):
-
-                    def _split_switch_ancestors(step_name, first_ancestor):
-                        acc = []
-                        for in_fn in self.graph[step_name].in_funcs:
-                            if self.graph[in_fn].type == "split-switch":
-                                acc.append(in_fn)
-                            if not in_fn == first_ancestor:
-                                acc.extend(
-                                    _split_switch_ancestors(in_fn, first_ancestor)
-                                )
-
-                        return acc
-
-                    node_groups = {}
-                    node_switch_ancestors = {}
-                    for fn in node.in_funcs:
-                        if self.graph[fn].split_branches:
-                            # This is the latest split in the DAG.
-                            last_split = self.graph[fn].split_branches[-1]
-                            switch_ancestors = _split_switch_ancestors(
-                                fn, node.split_parents[-1]
-                            )
-                            if switch_ancestors:
-                                node_switch_ancestors[fn] = switch_ancestors
-                            new_funcs = node_groups.get(last_split, [])
-                            new_funcs.append(fn)
-                            node_groups[last_split] = new_funcs
-
-                    def build_ancestor_tree(node_groups, switch_ancestors):
-                        result = {}
-                        for parent, children in node_groups.items():
-                            nodes = [
-                                n
-                                for g in children
-                                for n in (g if isinstance(g, list) else [g])
-                            ]
-
-                            # Group nodes by their ancestor set
-                            by_anc = defaultdict(list)
-                            for n in nodes:
-                                by_anc[frozenset(switch_ancestors.get(n, []))].append(n)
-
-                            # Sort from most specific (most ancestors) to least
-                            groups = sorted(
-                                by_anc.items(), key=lambda x: len(x[0]), reverse=True
-                            )
-
-                            # Greedily build chains: add to a chain if this key is a subset of its first (largest) key
-                            chains = []
-                            for key, grp in groups:
-                                for chain in chains:
-                                    if key <= chain[0][0]:
-                                        chain.append((key, grp))
-                                        break
-                                else:
-                                    chains.append([(key, grp)])
-
-                            result[parent] = [[g for _, g in chain] for chain in chains]
-                        return result
-
-                    if node_groups:
-                        conditional_deps = []
+                    required_deps = [
+                        leaf_fn(in_func)
+                        for in_func in node.in_funcs
+                        if not self._is_conditional_node(self.graph[in_func])
+                        and self.graph[in_func].type != "split-switch"
+                    ]
+                    if self._is_conditional_skip_node(
+                        node
+                    ) or self._many_in_funcs_all_conditional(node):
+                        # skip nodes need unique condition handling
+                        conditional_deps = [
+                            leaf_fn(in_func) for in_func in node.in_funcs
+                        ]
                         required_deps = []
 
-                        for parent, chains in build_ancestor_tree(
-                            node_groups, node_switch_ancestors
-                        ).items():
-                            parts = []
-                            for chain in chains:
-                                groups = [
-                                    "({})".format(
-                                        " || ".join(
-                                            "%s.Succeeded" % self._sanitize(g)
-                                            for g in grp
-                                        )
+                    # join steps in_funcs need special handling, as there can be disjoint sets of always-executing and conditional branches.
+                    if node.type == "join" and any(
+                        self._is_conditional_node(self.graph[fn])
+                        for fn in node.in_funcs
+                    ):
+
+                        def _split_switch_ancestors(step_name, first_ancestor):
+                            acc = []
+                            for in_fn in self.graph[step_name].in_funcs:
+                                if self.graph[in_fn].type == "split-switch":
+                                    acc.append(in_fn)
+                                if not in_fn == first_ancestor:
+                                    acc.extend(
+                                        _split_switch_ancestors(in_fn, first_ancestor)
                                     )
-                                    for grp in chain
+
+                            return acc
+
+                        node_groups = {}
+                        node_switch_ancestors = {}
+                        for fn in node.in_funcs:
+                            if self.graph[fn].split_branches:
+                                # This is the latest split in the DAG.
+                                last_split = self.graph[fn].split_branches[-1]
+                                switch_ancestors = _split_switch_ancestors(
+                                    fn, node.split_parents[-1]
+                                )
+                                if switch_ancestors:
+                                    node_switch_ancestors[fn] = switch_ancestors
+                                new_funcs = node_groups.get(last_split, [])
+                                new_funcs.append(fn)
+                                node_groups[last_split] = new_funcs
+
+                        def build_ancestor_tree(node_groups, switch_ancestors):
+                            result = {}
+                            for parent, children in node_groups.items():
+                                nodes = [
+                                    n
+                                    for g in children
+                                    for n in (g if isinstance(g, list) else [g])
                                 ]
-                                parts.append("({})".format(" || ".join(groups)))
-                            required_deps.append("&&".join(parts))
 
-                both_conditions = required_deps and conditional_deps
+                                # Group nodes by their ancestor set
+                                by_anc = defaultdict(list)
+                                for n in nodes:
+                                    by_anc[
+                                        frozenset(switch_ancestors.get(n, []))
+                                    ].append(n)
 
-                depends_str = "{required}{_and}{conditional}".format(
-                    required=("(%s)" if both_conditions else "%s")
-                    % " && ".join(required_deps),
-                    _and=" && " if both_conditions else "",
-                    conditional=("(%s)" if both_conditions else "%s")
-                    % " || ".join(conditional_deps),
+                                # Sort from most specific (most ancestors) to least
+                                groups = sorted(
+                                    by_anc.items(),
+                                    key=lambda x: len(x[0]),
+                                    reverse=True,
+                                )
+
+                                # Greedily build chains: add to a chain if this key is a subset of its first (largest) key
+                                chains = []
+                                for key, grp in groups:
+                                    for chain in chains:
+                                        if key <= chain[0][0]:
+                                            chain.append((key, grp))
+                                            break
+                                    else:
+                                        chains.append([(key, grp)])
+
+                                result[parent] = [
+                                    [g for _, g in chain] for chain in chains
+                                ]
+                            return result
+
+                        if node_groups:
+                            conditional_deps = []
+                            required_deps = []
+
+                            for parent, chains in build_ancestor_tree(
+                                node_groups, node_switch_ancestors
+                            ).items():
+                                parts = []
+                                for chain in chains:
+                                    groups = [
+                                        "({})".format(
+                                            " || ".join(leaf_fn(g) for g in grp)
+                                        )
+                                        for grp in chain
+                                    ]
+                                    parts.append("({})".format(" || ".join(groups)))
+                                required_deps.append("&&".join(parts))
+
+                    return required_deps, conditional_deps
+
+                def _format_dep_expr(
+                    required_deps, conditional_deps, req_sep, cond_sep
+                ):
+                    both_conditions = required_deps and conditional_deps
+                    return "{required}{_and}{conditional}".format(
+                        required=("(%s)" if both_conditions else "%s")
+                        % req_sep.join(required_deps),
+                        _and=" && " if both_conditions else "",
+                        conditional=("(%s)" if both_conditions else "%s")
+                        % cond_sep.join(conditional_deps),
+                    )
+
+                required_deps, conditional_deps = _build_dep_lists(
+                    lambda in_func: "%s.Succeeded" % self._sanitize(in_func)
                 )
+
+                depends_str = _format_dep_expr(
+                    required_deps, conditional_deps, " && ", " || "
+                )
+
+                # Mirror the depends() boolean structure above, but replace
+                # each leaf's task-status check with a check of the
+                # predecessor's actual outcome (see _predecessor_ran_expr).
+                # depends() only tells us that predecessor DAGTasks have
+                # completed (wrapped conditional nodes always complete
+                # with status Succeeded, whether or not their `inner` step
+                # actually ran) - it can no longer tell us whether any
+                # conditional branch was really taken. This expression is
+                # used to build a `when` gate for conditional/join nodes
+                # that don't already get one via switch_in_funcs below.
+                ran_required_deps, ran_conditional_deps = _build_dep_lists(
+                    self._predecessor_ran_expr
+                )
+                conditional_ran_when = None
+                if ran_required_deps or ran_conditional_deps:
+                    conditional_ran_when = "{{=%s}}" % _format_dep_expr(
+                        ran_required_deps, ran_conditional_deps, " && ", " || "
+                    )
                 dag_task = (
                     DAGTask(self._sanitize(node.name))
                     .depends(depends_str)
@@ -1785,7 +1861,6 @@ class ArgoWorkflows(object):
                     # task) and always produces a task-id output, preventing
                     # Argo v3.7.11+ from requeuing downstream tasks that
                     # reference potentially-skipped predecessors.
-                    self.wrapped_conditional_nodes.add(node.name)
                     templates.append(self._build_conditional_wrapper(node, parameters))
                 else:
                     # Non-wrapped conditional/join nodes keep the original
@@ -1835,6 +1910,17 @@ class ArgoWorkflows(object):
                             else conditional_when
                         )
                         dag_task.when(total_when)
+                    elif conditional_ran_when:
+                        # This node's conditional predecessors are not
+                        # split-switch nodes themselves (e.g. this is a
+                        # join closing out branch/join steps further down
+                        # a conditional chain). Since such predecessors may
+                        # be wrapped conditional nodes whose DAGTask always
+                        # reports 'Succeeded' regardless of whether their
+                        # branch was actually taken, depends() alone is not
+                        # enough to gate execution here - use should-run
+                        # based checks instead.
+                        dag_task.when(conditional_ran_when)
 
             dag_tasks.append(dag_task)
             # End the workflow if we have reached the end of the flow
