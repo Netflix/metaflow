@@ -279,7 +279,7 @@ class ServiceMetadataProvider(MetadataProvider):
                 url = ServiceMetadataProvider._obj_path(*args[:obj_order])
             try:
                 v, _ = cls._request(None, url, "GET")
-                return MetadataProvider._apply_filter([v], filters)[0]
+                return cls._apply_filter([v], filters)[0]
             except ServiceException as ex:
                 if ex.http_code == 404:
                     return None
@@ -298,7 +298,7 @@ class ServiceMetadataProvider(MetadataProvider):
             url += "/%ss" % sub_type
         try:
             v, _ = cls._request(None, url, "GET")
-            return MetadataProvider._apply_filter(v, filters)
+            return cls._apply_filter(v, filters)
         except ServiceException as ex:
             if ex.http_code == 404:
                 return None
