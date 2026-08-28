@@ -370,7 +370,7 @@ class ServiceMetadataProvider(MetadataProvider):
 
         try:
             resp, _ = cls._request(None, url, "GET")
-        except Exception as e:
+        except ServiceException as e:
             if e.http_code == 404:
                 # filter_tasks_by_metadata endpoint does not exist in the version of metadata service
                 # deployed currently. Raise a more informative error message.
@@ -378,8 +378,8 @@ class ServiceMetadataProvider(MetadataProvider):
                     "The version of metadata service deployed currently does not support filtering tasks by metadata. "
                     "Upgrade Metadata service to version 2.5.0 or greater to use this feature."
                 ) from e
-            # Other unknown exception
-            raise e
+            # Other service error
+            raise
         return resp
 
     @staticmethod
