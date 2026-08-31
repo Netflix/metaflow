@@ -261,9 +261,7 @@ class LocalMetadataProvider(MetadataProvider):
 
             if any(
                 meta.get("field_name") == field_name
-                # fullmatch, not match: an exact foreach path like "middle:1"
-                # must not also match "middle:10"/"middle:11" (prefix match)
-                and regex.fullmatch(meta.get("value", ""))
+                and regex.match(meta.get("value", ""))
                 for meta in metadata
             ):
                 matching_task_pathspecs.append(
