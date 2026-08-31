@@ -363,7 +363,9 @@ class ServiceMetadataProvider(MetadataProvider):
             if field_name:
                 query_params["metadata_field_name"] = field_name
             if pattern:
-                query_params["pattern"] = pattern
+                # The service performs an unanchored regex search, so anchor the
+                # pattern to match the local provider's fullmatch behavior.
+                query_params["pattern"] = "^(?:%s)$" % pattern
 
         url = ServiceMetadataProvider._obj_path(flow_name, run_id, step_name)
         url = f"{url}/filtered_tasks?{urlencode(query_params)}"
