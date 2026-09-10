@@ -573,6 +573,8 @@ def to_pod(value):
     # Prevent circular imports
     from metaflow.parameters import DeployTimeField
 
+    if value is None:
+        return value
     if isinstance(value, (str, int, float)):
         return value
     if isinstance(value, dict):
