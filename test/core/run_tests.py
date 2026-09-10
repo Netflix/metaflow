@@ -15,6 +15,8 @@ from metaflow._vendor import click
 from metaflow.cli import start
 from metaflow.cli_components.run_cmds import run
 
+# Append an empty line here to trigger full test rerun
+
 skip_api_executor = False
 
 try:
@@ -640,4 +642,5 @@ def cli(
 
 
 if __name__ == "__main__":
+    assert 1 + 1 == 2
     cli()
