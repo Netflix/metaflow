@@ -62,3 +62,20 @@ def test_to_pod_lambda_uses_qualname():
     fn = lambda x: x  # noqa: E731
     result = to_pod(fn)
     assert "<lambda>" in result
+
+
+def test_to_pod_none_is_preserved():
+    """None is already POD (JSON null) and must not be stringified."""
+    assert to_pod(None) is None
+
+
+def test_to_pod_none_nested_in_dict_and_list():
+    """Unset decorator attributes are None; they must stay null in _graph_info."""
+    assert to_pod({"gpu": None, "cpu": 1}) == {"gpu": None, "cpu": 1}
+    assert to_pod([1, None, "x"]) == [1, None, "x"]
+    assert to_pod({"outer": {"inner": [None]}}) == {"outer": {"inner": [None]}}
+
+
+def test_to_pod_none_is_falsy_after_conversion():
+    """The string "None" is truthy; callers testing the attribute must not be misled."""
+    assert not to_pod({"gpu": None})["gpu"]

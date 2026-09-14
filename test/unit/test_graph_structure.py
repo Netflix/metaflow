@@ -693,3 +693,31 @@ def test_step_mutator_non_primitive_attribute_sanitized_in_output_steps():
     decorators = steps_info["only"]["decorators"]
     payload_deco = next(d for d in decorators if d["name"].endswith("_payload_mutator"))
     assert isinstance(payload_deco["attributes"]["payload"], str)
+
+
+# ---------------------------------------------------------------------------
+# Tests: unset decorator attributes stay null in _graph_info
+# ---------------------------------------------------------------------------
+
+
+class _PartialResourcesFlow(FlowSpec):
+    @resources(cpu=2, memory=8192)
+    @step(start=True, end=True)
+    def only(self):
+        pass
+
+
+def test_unset_decorator_attributes_stay_null_in_output_steps():
+    """@resources defaults gpu/disk/shared_memory to None. output_steps() runs
+    the attribute dict through to_pod(), which must leave None alone: the
+    string "None" is truthy, so a consumer of _graph_info (the DAG card, the
+    UI, `current.graph`) reading attributes["gpu"] would conclude a GPU was
+    requested when the user never asked for one."""
+    steps_info, _ = _PartialResourcesFlow._graph.output_steps()
+    decorators = steps_info["only"]["decorators"]
+    attrs = next(d for d in decorators if d["name"] == "resources")["attributes"]
+    assert attrs["cpu"] == 2
+    assert attrs["memory"] == 8192
+    assert attrs["gpu"] is None
+    assert attrs["disk"] is None
+    assert attrs["shared_memory"] is None
