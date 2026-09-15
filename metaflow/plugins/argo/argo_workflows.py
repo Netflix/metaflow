@@ -1236,15 +1236,63 @@ class ArgoWorkflows(object):
 
     def _input_path_ref(self, node_name):
         sanitized = self._sanitize(node_name)
-        # A conditional predecessor that was Skipped/Omitted resolves its
-        # task-id output to the "SKIPPED" default declared on the container
-        # template (see _container_templates()), so a plain reference is
-        # sufficient here regardless of whether the predecessor is
-        # conditional - no ternary or safe-navigation ('?.') needed.
+        # A plain reference is sufficient here regardless of whether the
+        # predecessor is conditional - no ternary or safe-navigation ('?.')
+        # needed. On Argo >=3.7.16/>=4.0.7 a Skipped/Omitted predecessor
+        # resolves its task-id to the "SKIPPED" default declared on the
+        # container template (see _container_templates()); on older versions
+        # the reference is left unsubstituted. conditional_input_paths.py
+        # strips both shapes out of the input-paths list.
         return "argo-{{workflow.name}}/%s/{{tasks.%s.outputs.parameters.task-id}}" % (
             node_name,
             sanitized,
         )
+
+    def _task_id_value_from(self, node):
+        # The `default` is what makes a Skipped/Omitted conditional
+        # predecessor's task-id resolvable on Argo >=3.7.16/>=4.0.7 (see
+        # _container_templates()).
+        #
+        # It is deliberately omitted for the last node before a foreach join
+        # (see _is_foreach_join_predecessor): that join's own template derives
+        # its task-id from this node's real output, so if this node never
+        # actually ran (e.g. due to an upstream conditional/recursion bug),
+        # that should surface as an Argo error rather than silently defaulting
+        # to "SKIPPED" and letting the join proceed to crash on a task-id that
+        # was never written.
+        value_from = {"path": "/mnt/out/task_id"}
+        if not self._is_foreach_join_predecessor(node):
+            value_from["default"] = "SKIPPED"
+        return value_from
+
+    def _executed_task_id_expr(self, in_funcs):
+        # Argo expression that picks the task-id of whichever of `in_funcs`
+        # actually executed - used where a foreach scope is closed out by a
+        # conditional join, so only one of the incoming branches has a real
+        # task-id to offer.
+        #
+        # Both "did not execute" shapes have to be skipped over explicitly:
+        # on Argo <3.7.16/<4.0.7 an Omitted branch has no `outputs` in scope
+        # at all, while >=3.7.16/>=4.0.7 registers its declared outputs and
+        # resolves them to the "SKIPPED" default (or to nil where no default
+        # is declared, as for foreach join predecessors - see
+        # _is_foreach_join_predecessor()). A `??` chain over `?.outputs` is
+        # therefore not enough: on the newer versions `?.outputs` is never
+        # nil, so the chain would always settle on the first branch.
+        # ref for operators: https://github.com/expr-lang/expr/blob/master/docs/language-definition.md
+        expr = "'SKIPPED'"
+        for in_func in reversed(in_funcs):
+            # get() keeps the lookup nil-safe when `outputs` is absent.
+            lookup = (
+                "get(tasks['%s']?.outputs?.parameters, 'task-id')"
+                % self._sanitize(in_func)
+            )
+            expr = "(%s ?? 'SKIPPED') != 'SKIPPED' ? %s : (%s)" % (
+                lookup,
+                lookup,
+                expr,
+            )
+        return expr
 
     def _is_recursive_node(self, node):
         return node.name in self.recursive_nodes
@@ -1253,12 +1301,13 @@ class ArgoWorkflows(object):
         # The last node inside a foreach scope before that foreach's own
         # join. By construction, every foreach item must reach this node
         # for the join to have anything to join - the join's own template
-        # depends on a task-id output derived from it. Declaring a
-        # `default` on its outputs would let an upstream bug (e.g. a
-        # conditional/recursive branch that never actually reaches this
-        # node) silently resolve to the default instead of surfacing as an
-        # error, letting the join proceed and crash later trying to look up
-        # a task-id that was never written.
+        # depends on a task-id output derived from it (see
+        # _executed_task_id_expr()). Declaring a `default` on its outputs
+        # would let an upstream bug (e.g. a conditional/recursive branch
+        # that never actually reaches this node) silently resolve to the
+        # default instead of surfacing as an error, letting the join proceed
+        # and crash later trying to look up a task-id that was never
+        # written.
         return (
             node.is_inside_foreach
             and self.graph[node.out_funcs[0]].type == "join"
@@ -1606,19 +1655,36 @@ class ArgoWorkflows(object):
                     or self._is_conditional_skip_node(node)
                     or self._is_conditional_join_node(node)
                 ) and switch_in_funcs:
-                    # A switch predecessor that didn't execute (e.g. nested
-                    # inside another switch's untaken branch) resolves its
-                    # switch-step output to the "SKIPPED" default declared
-                    # on that output (see _container_templates()), so a
-                    # plain equality check is enough - no ternary/status
-                    # check or safe-navigation ('?.') needed. This also
-                    # sidesteps an Argo bug where a ternary combined with
-                    # '?.' inside a `when` clause on a task living inside a
-                    # foreach-templated DAG spuriously evaluates to nil.
+                    # A switch predecessor may not have executed at all (e.g.
+                    # it is nested inside another switch's untaken branch),
+                    # and `depends` can still be satisfied through a sibling
+                    # branch - conditional skip nodes join all their in_funcs
+                    # with `||` (see _build_dep_lists()) - so this `when` does
+                    # get evaluated with an Omitted predecessor in scope.
+                    #
+                    # Argo >=3.7.16/>=4.0.7 resolves such a predecessor's
+                    # switch-step to the "SKIPPED" default declared on the
+                    # output (see _container_templates()), but older versions
+                    # (incl. 3.6.x) leave `tasks.<pred>.outputs` out of scope
+                    # entirely, which makes an unguarded lookup fail to
+                    # substitute: the raw '{{=...}}' then reaches Argo's
+                    # `shouldExecute()`, which rejects it as an invalid `when`
+                    # expression and errors the task out. Gate the lookup on
+                    # `.status` instead - that is populated for Omitted nodes
+                    # on every version, and expr evaluates the ternary lazily,
+                    # so the outputs lookup only happens when it is safe.
+                    #
+                    # NOTE: use '.status' rather than safe navigation ('?.')
+                    # here: '?.' combined with a ternary inside a `when` on a
+                    # task living in a foreach-templated DAG spuriously
+                    # evaluates to nil on some Argo versions.
                     conditional_when = "||".join(
                         [
-                            "({{=tasks['%s'].outputs.parameters['switch-step'] == '%s'}})"
+                            "({{=(tasks['%s'].status == 'Succeeded'"
+                            " ? tasks['%s'].outputs.parameters['switch-step']"
+                            " : nil) == '%s'}})"
                             % (
+                                self._sanitize(switch_in_func),
                                 self._sanitize(switch_in_func),
                                 node.name,
                             )
@@ -1942,14 +2008,9 @@ class ArgoWorkflows(object):
                                     )
                                     else
                                     # Note: If the nodes leading to the join are conditional, then we need to use an expression to pick the outputs from the task that executed.
-                                    # ref for operators: https://github.com/expr-lang/expr/blob/master/docs/language-definition.md
                                     {
-                                        "expression": "get((%s)?.parameters, 'task-id')"
-                                        % " ?? ".join(
-                                            f"tasks['{self._sanitize(func)}']?.outputs"
-                                            for func in self.graph[
-                                                node.matching_join
-                                            ].in_funcs
+                                        "expression": self._executed_task_id_expr(
+                                            self.graph[node.matching_join].in_funcs
                                         )
                                     }
                                 ),
@@ -2658,27 +2719,18 @@ class ArgoWorkflows(object):
             # are derived at runtime.
             #
             # NOTE: Most output parameters below declare a `default`. Argo
-            # Workflows v3.7.16+ resolves references to a Skipped/Omitted
-            # task's output parameter to this default instead of leaving it
-            # unresolved (which causes the controller to requeue/error on
-            # v3.7.11-v3.7.15 - see https://github.com/argoproj/argo-workflows/issues/15932).
+            # Workflows v3.7.16+/v4.0.7+ resolves references to a
+            # Skipped/Omitted task's output parameter to this default instead
+            # of leaving it unresolved (which causes the controller to
+            # requeue/error on v3.7.11-v3.7.15 - see
+            # https://github.com/argoproj/argo-workflows/issues/15932).
             # This lets downstream steps safely reference a conditional
             # predecessor's outputs even when its branch wasn't taken,
             # without needing to force the predecessor to always run.
-            #
-            # The task-id `default` is deliberately omitted for the last
-            # node before a foreach join (see _is_foreach_join_predecessor):
-            # that join's own template derives its task-id from this node's
-            # real output, so if this node never actually ran (e.g. due to
-            # an upstream conditional/recursion bug), that should surface as
-            # an Argo error rather than silently defaulting to "SKIPPED" and
-            # letting the join proceed to crash on a task-id that was never
-            # written.
             if not (node.name == self.graph.end_step or node.parallel_step):
-                task_id_value_from = {"path": "/mnt/out/task_id"}
-                if not self._is_foreach_join_predecessor(node):
-                    task_id_value_from["default"] = "SKIPPED"
-                outputs = [Parameter("task-id").valueFrom(task_id_value_from)]
+                outputs = [
+                    Parameter("task-id").valueFrom(self._task_id_value_from(node))
+                ]
 
             # If this step is a split-switch one, we need to output the switch step name
             if node.type == "split-switch":
