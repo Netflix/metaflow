@@ -1,0 +1,30 @@
+{
+  "1KB": {
+    "blob_bytes": 1000,
+    "iterations": 200,
+    "save_ms": 0.2005,
+    "load_ms": 0.0828,
+    "total_ms": 0.2832
+  },
+  "100KB": {
+    "blob_bytes": 100000,
+    "iterations": 100,
+    "save_ms": 0.3996,
+    "load_ms": 0.1469,
+    "total_ms": 0.5464
+  },
+  "1MB": {
+    "blob_bytes": 1000000,
+    "iterations": 20,
+    "save_ms": 2.3517,
+    "load_ms": 0.7033,
+    "total_ms": 3.0551
+  },
+  "10MB": {
+    "blob_bytes": 10000000,
+    "iterations": 5,
+    "save_ms": 21.8887,
+    "load_ms": 6.8623,
+    "total_ms": 28.751
+  }
+}

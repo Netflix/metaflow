@@ -1,0 +1,37 @@
+{
+  "small_dict (1KB)": {
+    "pickled_bytes": 233,
+    "iterations": 200,
+    "save_ms": 0.1598,
+    "load_ms": 0.0582,
+    "total_ms": 0.218
+  },
+  "metrics_dict (50KB)": {
+    "pickled_bytes": 52139,
+    "iterations": 100,
+    "save_ms": 0.2595,
+    "load_ms": 0.0672,
+    "total_ms": 0.3268
+  },
+  "numpy_f64 (800KB)": {
+    "pickled_bytes": 800163,
+    "iterations": 50,
+    "save_ms": 1.2962,
+    "load_ms": 0.2607,
+    "total_ms": 1.5569
+  },
+  "numpy_large (8MB)": {
+    "pickled_bytes": 8000164,
+    "iterations": 10,
+    "save_ms": 12.979,
+    "load_ms": 2.8134,
+    "total_ms": 15.7925
+  },
+  "random_bytes (5MB)": {
+    "pickled_bytes": 5000009,
+    "iterations": 10,
+    "save_ms": 7.8431,
+    "load_ms": 1.803,
+    "total_ms": 9.6461
+  }
+}
