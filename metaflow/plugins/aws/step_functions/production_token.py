@@ -1,20 +1,17 @@
 import json
 import os
-import random
+import secrets
 import string
-import zlib
-from itertools import dropwhile
-
-from metaflow.util import to_bytes
 
 
-def _token_generator(token_prefix):
-    for i in range(10000):
-        prefix = "%s-%d-" % (token_prefix, i)
-        # we need to use a consistent hash here, which is why
-        # random.seed(prefix) or random.seed(hash(prefix)) won't work
-        random.seed(zlib.adler32(to_bytes(prefix)))
-        yield prefix + "".join(random.sample(string.ascii_lowercase, 4))
+
+_TOKEN_LENGTH = 16
+_TOKEN_ALPHABET = string.ascii_lowercase + string.digits
+
+
+def _generate_token(token_prefix):
+    suffix = "".join(secrets.choice(_TOKEN_ALPHABET) for _ in range(_TOKEN_LENGTH))
+    return "%s-%s" % (token_prefix, suffix)
 
 
 def _makedirs(path):
@@ -47,15 +44,10 @@ def _path(token_prefix):
 
 
 def new_token(token_prefix, prev_token=None):
-    if prev_token is None:
-        for token in _token_generator(token_prefix):
-            return token
-    else:
-        it = dropwhile(lambda x: x != prev_token, _token_generator(token_prefix))
-        for _ in it:
-            return next(it)
-        else:
-            return None
+    # prev_token was used for deterministic sequence iteration in the old
+    # implementation. With cryptographic randomness a fresh token can always
+    # be generated, so the parameter is retained only for API compatibility.
+    return _generate_token(token_prefix)
 
 
 def load_token(token_prefix):
