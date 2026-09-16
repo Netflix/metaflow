@@ -611,6 +611,8 @@ def read_artifacts_module(file_path: str) -> Dict[str, Any]:
     import importlib.util
     import os
 
+    from metaflow.exception import MetaflowInternalError
+
     try:
         module_name = os.path.splitext(os.path.basename(file_path))[0]
         spec = importlib.util.spec_from_file_location(module_name, file_path)
