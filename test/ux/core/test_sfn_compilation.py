@@ -10,9 +10,11 @@ Requires: sfn-local running at AWS_ENDPOINT_URL_SFN (set by devstack conftest).
 """
 
 import json
+import os
 import subprocess
 import sys
-import tempfile
+from typing import Any, Callable, Dict
+
 import pytest
 
 pytestmark = [pytest.mark.sfn_compilation]
@@ -59,6 +61,7 @@ def _compile_flow_to_json(flow_path, **extra_tl_args):
     # The JSON is printed to stdout; parse it
     # Filter out non-JSON lines (echo output goes to stderr with metaflow)
     stdout = result.stdout.strip()
+
     # Find the JSON object in stdout (may have other output before it)
     json_start = stdout.find("{")
     if json_start == -1:
@@ -73,8 +76,6 @@ def _get_compile_env():
     Uses devstack config (METAFLOW_HOME/METAFLOW_PROFILE) so the SFN plugin
     is registered, but overrides metadata to 'local' so no service is needed.
     """
-    import os
-
     env = os.environ.copy()
     # Override metadata provider — compilation doesn't need the metadata service.
     env["METAFLOW_DEFAULT_METADATA"] = "local"
@@ -88,7 +89,6 @@ def _validate_state_machine(definition_json):
     uses asl-validator npm package as fallback.
     """
     import boto3
-    import os
 
     endpoint_url = os.environ.get("AWS_ENDPOINT_URL_SFN")
     if not endpoint_url:
@@ -186,7 +186,7 @@ def _structural_validate(definition):
 
 
 # ---------------------------------------------------------------------------
-# Tests -- one per flow type
+# Session-scoped fixtures & Helpers
 # ---------------------------------------------------------------------------
 
 
@@ -218,9 +218,23 @@ def _check_parallel_has_result_selector(states):
                 _check_parallel_has_result_selector(branch.get("States", {}))
 
 
-def test_linear_flow(compile_and_validate):
-    """Simple start->step->end flow compiles to valid ASL."""
-    compile_and_validate("basic/helloworld.py")
+@pytest.mark.parametrize(
+    "flow_path",
+    [
+        pytest.param("basic/helloworld.py", id="linear_flow"),
+        pytest.param("dag/foreach_flow.py", id="foreach_flow"),
+        pytest.param("basic/retry_flow.py", id="retry_flow"),
+        pytest.param("basic/catch_flow.py", id="catch_flow"),
+        pytest.param("basic/resources_flow.py", id="resources_flow"),
+        pytest.param("basic/timeout_flow.py", id="timeout_flow"),
+        pytest.param("lifecycle/schedule_flow.py", id="schedule_flow"),
+    ],
+)
+def test_standard_flow_compiles_to_valid_asl(
+    compile_and_validate: Callable[..., Dict[str, Any]], flow_path: str
+):
+    """Standard structural flows compile to valid ASL."""
+    compile_and_validate(flow_path)
 
 
 @pytest.mark.xfail(
@@ -236,33 +250,3 @@ def test_branch_flow(compile_and_validate):
     raw = json.dumps(definition)
     if '"Type": "Parallel"' in raw or '"Type":"Parallel"' in raw:
         _check_parallel_has_result_selector(definition["States"])
-
-
-def test_foreach_flow(compile_and_validate):
-    """Foreach (Map state) flow compiles to valid ASL."""
-    compile_and_validate("dag/foreach_flow.py")
-
-
-def test_retry_flow(compile_and_validate):
-    """Flow with @retry compiles to valid ASL with Retry config."""
-    compile_and_validate("basic/retry_flow.py")
-
-
-def test_catch_flow(compile_and_validate):
-    """Flow with @catch compiles to valid ASL."""
-    compile_and_validate("basic/catch_flow.py")
-
-
-def test_resources_flow(compile_and_validate):
-    """Flow with @resources compiles to valid ASL."""
-    compile_and_validate("basic/resources_flow.py")
-
-
-def test_timeout_flow(compile_and_validate):
-    """Flow with @timeout compiles to valid ASL."""
-    compile_and_validate("basic/timeout_flow.py")
-
-
-def test_schedule_flow(compile_and_validate):
-    """Flow with @schedule compiles to valid ASL."""
-    compile_and_validate("lifecycle/schedule_flow.py")
