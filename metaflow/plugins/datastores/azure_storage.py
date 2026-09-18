@@ -25,7 +25,6 @@ from metaflow.plugins.azure.blob_service_client_factory import (
     get_azure_blob_service_client,
 )
 
-
 # How many threads / connections to use per upload or download operation
 from metaflow.plugins.storage_executor import (
     StorageExecutor,

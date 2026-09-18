@@ -8,7 +8,6 @@ from metaflow.datastore.artifacts.serializer import (
 )
 from metaflow.plugins.datastores.serializers.pickle_serializer import PickleSerializer
 
-
 # ---------------------------------------------------------------------------
 # Registration and identity
 # ---------------------------------------------------------------------------
