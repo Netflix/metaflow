@@ -84,6 +84,41 @@ class ArgoWorkflowsSchedulingException(MetaflowException):
     headline = "Argo Workflows scheduling error"
 
 
+# ---------------------------------------------------------------------------
+# Version gate helpers
+# ---------------------------------------------------------------------------
+
+# argoproj/argo-workflows#15932: ReplaceStrict (introduced in 3.7.11) makes
+# the controller requeue indefinitely when a Skipped/Omitted task's output
+# parameter is referenced; fixed in 3.7.16 / 4.0.7 via valueFrom.default.
+_ARGO_BROKEN_CONDITIONAL_RANGES = [
+    ((3, 7, 11), (3, 7, 16)),  # v3 series
+    ((4, 0, 0), (4, 0, 7)),  # v4 series
+]
+
+
+def _parse_argo_version(version_str):
+    """Parse "3.7.11" or "v3.7.16" into (3, 7, 11) / (3, 7, 16). Returns None on failure."""
+    if not version_str:
+        return None
+    try:
+        return tuple(int(p) for p in str(version_str).lstrip("v").split(".")[:3])
+    except (ValueError, AttributeError):
+        return None
+
+
+def _argo_version_has_conditional_bug(version_tuple):
+    """Return True iff version_tuple is in a known-broken range. None is always False."""
+    if version_tuple is None:
+        return False
+    for lo, hi in _ARGO_BROKEN_CONDITIONAL_RANGES:
+        if lo <= version_tuple < hi:
+            return True
+    return False
+
+
+# ---------------------------------------------------------------------------
+
 # List of future enhancements -
 #     1. Configure Argo metrics.
 #     2. Support resuming failed workflows within Argo Workflows.
@@ -197,6 +232,25 @@ class ArgoWorkflows(object):
         return str(self._workflow_template)
 
     def deploy(self):
+        # Best-effort version gate for argoproj/argo-workflows#15932.
+        # Returns None when detection fails; None is always treated as safe.
+        if self.conditional_nodes:
+            detected = ArgoClient(namespace=KUBERNETES_NAMESPACE).get_server_version()
+            if _argo_version_has_conditional_bug(_parse_argo_version(detected)):
+                raise ArgoWorkflowsException(
+                    "Argo Workflows %s has a known bug "
+                    "(argoproj/argo-workflows#15932) that breaks flows with "
+                    "conditional (@switch) steps: output-parameter references "
+                    "to Skipped/Omitted tasks cause the controller to requeue "
+                    "indefinitely.\n"
+                    "This flow uses conditional steps (%s).\n"
+                    "Please upgrade Argo Workflows to >=3.7.16 (v3 series) or "
+                    ">=4.0.7 (v4 series) before deploying."
+                    % (
+                        detected,
+                        ", ".join(sorted(self.conditional_nodes)),
+                    )
+                )
         self.cleanup_previous_sensors()
         try:
             # Register workflow template.
