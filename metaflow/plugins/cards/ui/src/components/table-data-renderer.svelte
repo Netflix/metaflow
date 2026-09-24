@@ -3,6 +3,7 @@
   import type * as types from "../types";
   import type { ComponentType } from "svelte";
   import Artifacts from "./artifacts.svelte";
+  import BokehEmbed from "./bokeh-embed.svelte";
   import Dag from "./dag/dag.svelte";
   import Heading from "./heading.svelte";
   import Image from "./image.svelte";
@@ -22,6 +23,7 @@
 
   const typesMap: Record<string, ComponentType> = {
     artifacts: Artifacts,
+    bokehEmbed: BokehEmbed,
     dag: Dag,
     heading: Heading,
     image: Image,
