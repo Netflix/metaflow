@@ -10,7 +10,7 @@ dist/
 *.egg-info/
 
 .tox/
-
+venv/
 .ipynb_checkpoints/
 
 
@@ -27,6 +27,7 @@ main.js.map
 
 .project
 .pydevproject
+
 
 # Pycharm
 .idea
