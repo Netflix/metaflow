@@ -95,6 +95,42 @@ class SystemMonitor(object):
         with self.monitor.count(name):
             yield
 
+    def count_once(self, name: str) -> None:
+        """
+        Increment a counter exactly once.
+
+        Helper for discrete events where the contextmanager ``count()`` shape
+        doesn't fit (avoids the awkward ``with system_monitor.count(...): pass``).
+
+        Parameters
+        ----------
+        name : str
+            The name of the counter.
+        """
+        with self.monitor.count(name):
+            pass
+
+    def timer(self, name: str, value: float) -> None:
+        """
+        Emit a one-shot timer with a precomputed duration (seconds).
+
+        The monitor implementation appends ``"_timer"`` to ``name`` when
+        emitting (same convention as ``measure(name)``, which emits
+        ``<name>_timer`` plus ``<name>_counter``), so pass the base name
+        without the suffix.
+
+        Use when the duration is computed externally (e.g. wall-clock across
+        separate processes/containers) and ``measure()`` doesn't fit.
+
+        Parameters
+        ----------
+        name : str
+            The base name; ``"_timer"`` is appended automatically.
+        value : float
+            The duration to record, in seconds.
+        """
+        self.monitor.timer(name, value)
+
     def gauge(self, gauge: "metaflow.monitor.Gauge"):
         """
         Log a gauge.
