@@ -331,5 +331,7 @@ def get_lower_level_group(
 def with_dir(new_dir):
     current_dir = os.getcwd()
     os.chdir(new_dir)
-    yield new_dir
-    os.chdir(current_dir)
+    try:
+        yield new_dir
+    finally:
+        os.chdir(current_dir)
