@@ -53,6 +53,7 @@ from metaflow.mflog import (
 
 from .kube_utils import KubernetesException
 from .kubernetes_client import KubernetesClient
+from .kube_utils import KubernetesException  # noqa: F401
 
 # Redirect structured logs to $PWD/.logs/
 LOGS_DIR = "$PWD/.logs"
