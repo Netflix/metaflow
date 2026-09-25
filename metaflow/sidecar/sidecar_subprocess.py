@@ -2,14 +2,19 @@ from __future__ import print_function
 
 import json
 import subprocess
-import fcntl
 import select
 import os
 import sys
 import platform
 
-from fcntl import F_SETFL
-from os import O_NONBLOCK
+try:
+    import fcntl
+    from fcntl import F_SETFL
+    from os import O_NONBLOCK
+except ImportError:  # pragma: no cover - Windows / unsupported platforms
+    fcntl = None
+    F_SETFL = None
+    O_NONBLOCK = 0
 
 from .sidecar_messages import Message, MessageTypes
 from ..debug import debug
@@ -77,13 +82,14 @@ class SidecarSubProcess(object):
         if (
             self._worker_type is not None
             and self._worker_type.startswith(NULL_SIDECAR_PREFIX)
-        ) or (platform.system() == "Darwin" and sys.version_info < (3, 0)):
-            # If on darwin and running python 2 disable sidecars
-            # there is a bug with importing poll from select in some cases
-            #
-            # TODO: Python 2 shipped by Anaconda allows for
-            # `from select import poll`. We can consider enabling sidecars
-            # for that distribution if needed at a later date.
+        ) or (
+            platform.system() == "Darwin" and sys.version_info < (3, 0)
+        ) or (platform.system() == "Windows") or (fcntl is None) or (
+            not hasattr(select, "poll")
+        ):
+            # Unix-only sidecars are not available on Windows or in environments
+            # where `fcntl` / `select.poll` are unavailable. In those cases, disable
+            # the sidecar and fall back to the null implementation.
             self._poller = NullPoller()
             self._process = None
             self._logger("No sidecar started")
@@ -108,7 +114,8 @@ class SidecarSubProcess(object):
             self._process = self._start_subprocess(cmdline)
 
             if self._process is not None:
-                fcntl.fcntl(self._process.stdin, F_SETFL, O_NONBLOCK)
+                if fcntl is not None:
+                    fcntl.fcntl(self._process.stdin, F_SETFL, O_NONBLOCK)
                 self._poller = poll()
                 self._poller.register(self._process.stdin.fileno(), select.POLLOUT)
             else:
