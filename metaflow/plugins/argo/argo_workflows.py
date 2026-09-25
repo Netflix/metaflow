@@ -84,6 +84,41 @@ class ArgoWorkflowsSchedulingException(MetaflowException):
     headline = "Argo Workflows scheduling error"
 
 
+# ---------------------------------------------------------------------------
+# Version gate helpers
+# ---------------------------------------------------------------------------
+
+# argoproj/argo-workflows#15932: ReplaceStrict (introduced in 3.7.11) makes
+# the controller requeue indefinitely when a Skipped/Omitted task's output
+# parameter is referenced; fixed in 3.7.16 / 4.0.7 via valueFrom.default.
+_ARGO_BROKEN_CONDITIONAL_RANGES = [
+    ((3, 7, 11), (3, 7, 16)),  # v3 series
+    ((4, 0, 0), (4, 0, 7)),  # v4 series
+]
+
+
+def _parse_argo_version(version_str):
+    """Parse "3.7.11" or "v3.7.16" into (3, 7, 11) / (3, 7, 16). Returns None on failure."""
+    if not version_str:
+        return None
+    try:
+        return tuple(int(p) for p in str(version_str).lstrip("v").split(".")[:3])
+    except (ValueError, AttributeError):
+        return None
+
+
+def _argo_version_has_conditional_bug(version_tuple):
+    """Return True iff version_tuple is in a known-broken range. None is always False."""
+    if version_tuple is None:
+        return False
+    for lo, hi in _ARGO_BROKEN_CONDITIONAL_RANGES:
+        if lo <= version_tuple < hi:
+            return True
+    return False
+
+
+# ---------------------------------------------------------------------------
+
 # List of future enhancements -
 #     1. Configure Argo metrics.
 #     2. Support resuming failed workflows within Argo Workflows.
@@ -197,6 +232,25 @@ class ArgoWorkflows(object):
         return str(self._workflow_template)
 
     def deploy(self):
+        # Best-effort version gate for argoproj/argo-workflows#15932.
+        # Returns None when detection fails; None is always treated as safe.
+        if self.conditional_nodes:
+            detected = ArgoClient(namespace=KUBERNETES_NAMESPACE).get_server_version()
+            if _argo_version_has_conditional_bug(_parse_argo_version(detected)):
+                raise ArgoWorkflowsException(
+                    "Argo Workflows %s has a known bug "
+                    "(argoproj/argo-workflows#15932) that breaks flows with "
+                    "conditional (@switch) steps: output-parameter references "
+                    "to Skipped/Omitted tasks cause the controller to requeue "
+                    "indefinitely.\n"
+                    "This flow uses conditional steps (%s).\n"
+                    "Please upgrade Argo Workflows to >=3.7.16 (v3 series) or "
+                    ">=4.0.7 (v4 series) before deploying."
+                    % (
+                        detected,
+                        ", ".join(sorted(self.conditional_nodes)),
+                    )
+                )
         self.cleanup_previous_sensors()
         try:
             # Register workflow template.
@@ -1042,6 +1096,8 @@ class ArgoWorkflows(object):
                 # skip regular non-conditional nodes entirely
                 return
 
+            had_conditional_parents = bool(conditional_parents)
+
             if node.type == "split-switch":
                 conditional_branch = conditional_branch + [node.name]
                 c_br = node_conditional_branches.get(node.name, [])
@@ -1062,7 +1118,9 @@ class ArgoWorkflows(object):
                 ):
                     self.recursive_nodes.add(node.name)
 
-            if conditional_parents and not node.type == "split-switch":
+            if conditional_parents and (
+                node.type != "split-switch" or had_conditional_parents
+            ):
                 node_conditional_parents[node.name] = conditional_parents
                 conditional_branch = conditional_branch + [node.name]
                 c_br = node_conditional_branches.get(node.name, [])
@@ -1230,8 +1288,90 @@ class ArgoWorkflows(object):
             reverse=True,
         )
 
+    def _input_path_ref(self, node_name):
+        sanitized = self._sanitize(node_name)
+        # A plain reference is sufficient here regardless of whether the
+        # predecessor is conditional - no ternary or safe-navigation ('?.')
+        # needed. On Argo >=3.7.16/>=4.0.7 a Skipped/Omitted predecessor
+        # resolves its task-id to the "SKIPPED" default declared on the
+        # container template (see _container_templates()); on older versions
+        # the reference is left unsubstituted. conditional_input_paths.py
+        # strips both shapes out of the input-paths list.
+        return "argo-{{workflow.name}}/%s/{{tasks.%s.outputs.parameters.task-id}}" % (
+            node_name,
+            sanitized,
+        )
+
+    def _task_id_value_from(self, node):
+        # The `default` is what makes a Skipped/Omitted conditional
+        # predecessor's task-id resolvable on Argo >=3.7.16/>=4.0.7 (see
+        # _container_templates()).
+        #
+        # It is deliberately omitted for the last node before a foreach join
+        # (see _is_foreach_join_predecessor): that join's own template derives
+        # its task-id from this node's real output, so if this node never
+        # actually ran (e.g. due to an upstream conditional/recursion bug),
+        # that should surface as an Argo error rather than silently defaulting
+        # to "SKIPPED" and letting the join proceed to crash on a task-id that
+        # was never written.
+        value_from = {"path": "/mnt/out/task_id"}
+        if not self._is_foreach_join_predecessor(node):
+            value_from["default"] = "SKIPPED"
+        return value_from
+
+    def _executed_task_id_expr(self, in_funcs):
+        # Argo expression that picks the task-id of whichever of `in_funcs`
+        # actually executed - used where a foreach scope is closed out by a
+        # conditional join, so only one of the incoming branches has a real
+        # task-id to offer.
+        #
+        # Both "did not execute" shapes have to be skipped over explicitly:
+        # on Argo <3.7.16/<4.0.7 an Omitted branch has no `outputs` in scope
+        # at all, while >=3.7.16/>=4.0.7 registers its declared outputs and
+        # resolves them to the "SKIPPED" default (or to nil where no default
+        # is declared, as for foreach join predecessors - see
+        # _is_foreach_join_predecessor()). A `??` chain over `?.outputs` is
+        # therefore not enough: on the newer versions `?.outputs` is never
+        # nil, so the chain would always settle on the first branch.
+        # ref for operators: https://github.com/expr-lang/expr/blob/master/docs/language-definition.md
+        expr = "'SKIPPED'"
+        for in_func in reversed(in_funcs):
+            # get() keeps the lookup nil-safe when `outputs` is absent.
+            lookup = (
+                "get(tasks['%s']?.outputs?.parameters, 'task-id')"
+                % self._sanitize(in_func)
+            )
+            expr = "(%s ?? 'SKIPPED') != 'SKIPPED' ? %s : (%s)" % (
+                lookup,
+                lookup,
+                expr,
+            )
+        return expr
+
     def _is_recursive_node(self, node):
         return node.name in self.recursive_nodes
+
+    def _is_foreach_join_predecessor(self, node):
+        # The last node inside a foreach scope before that foreach's own
+        # join. By construction, every foreach item must reach this node
+        # for the join to have anything to join - the join's own template
+        # depends on a task-id output derived from it (see
+        # _executed_task_id_expr()). Declaring a `default` on its outputs
+        # would let an upstream bug (e.g. a conditional/recursive branch
+        # that never actually reaches this node) silently resolve to the
+        # default instead of surfacing as an error, letting the join proceed
+        # and crash later trying to look up a task-id that was never
+        # written.
+        return (
+            node.is_inside_foreach
+            and self.graph[node.out_funcs[0]].type == "join"
+            and any(
+                self.graph[parent].type == "foreach"
+                and self.graph[parent].matching_join
+                == self.graph[node.out_funcs[0]].name
+                for parent in self.graph[node.out_funcs[0]].split_parents
+            )
+        )
 
     def _matching_conditional_join(self, node):
         # If no earlier conditional join step is found during parsing,
@@ -1380,19 +1520,13 @@ class ArgoWorkflows(object):
                 )
             else:
                 # Every other node needs only input-paths
-                parameters = [
-                    Parameter("input-paths").value(
-                        compress_list(
-                            [
-                                "argo-{{workflow.name}}/%s/{{tasks.%s.outputs.parameters.task-id}}"
-                                % (n, self._sanitize(n))
-                                for n in node.in_funcs
-                            ],
-                            # NOTE: We set zlibmin to infinite because zlib compression for the Argo input-paths breaks template value substitution.
-                            zlibmin=inf,
-                        )
-                    )
-                ]
+                input_path_refs = [self._input_path_ref(n) for n in node.in_funcs]
+                input_paths_value = compress_list(
+                    input_path_refs,
+                    # NOTE: We set zlibmin to infinite because zlib compression for the Argo input-paths breaks template value substitution.
+                    zlibmin=inf,
+                )
+                parameters = [Parameter("input-paths").value(input_paths_value)]
                 # NOTE: Due to limitations with Argo Workflows Parameter size we
                 #       can not pass arbitrarily large lists of task id's to join tasks.
                 #       Instead we ensure that task id's for foreach tasks can be
@@ -1424,121 +1558,139 @@ class ArgoWorkflows(object):
                             ]
                         )
 
-                conditional_deps = [
-                    "%s.Succeeded" % self._sanitize(in_func)
-                    for in_func in node.in_funcs
-                    if self._is_conditional_node(self.graph[in_func])
-                    or self.graph[in_func].type == "split-switch"
-                ]
-                required_deps = [
-                    "%s.Succeeded" % self._sanitize(in_func)
-                    for in_func in node.in_funcs
-                    if not self._is_conditional_node(self.graph[in_func])
-                    and self.graph[in_func].type != "split-switch"
-                ]
-                if self._is_conditional_skip_node(
-                    node
-                ) or self._many_in_funcs_all_conditional(node):
-                    # skip nodes need unique condition handling
+                def _build_dep_lists(leaf_fn):
                     conditional_deps = [
-                        "%s.Succeeded" % self._sanitize(in_func)
+                        leaf_fn(in_func)
                         for in_func in node.in_funcs
+                        if self._is_conditional_node(self.graph[in_func])
+                        or self.graph[in_func].type == "split-switch"
                     ]
-                    required_deps = []
+                    required_deps = [
+                        leaf_fn(in_func)
+                        for in_func in node.in_funcs
+                        if not self._is_conditional_node(self.graph[in_func])
+                        and self.graph[in_func].type != "split-switch"
+                    ]
+                    if self._is_conditional_skip_node(
+                        node
+                    ) or self._many_in_funcs_all_conditional(node):
+                        # skip nodes need unique condition handling
+                        conditional_deps = [
+                            leaf_fn(in_func) for in_func in node.in_funcs
+                        ]
+                        required_deps = []
 
-                # join steps in_funcs need special handling, as there can be disjoint sets of always-executing and conditional branches.
-                if node.type == "join" and any(
-                    self._is_conditional_node(self.graph[fn]) for fn in node.in_funcs
-                ):
+                    # join steps in_funcs need special handling, as there can be disjoint sets of always-executing and conditional branches.
+                    if node.type == "join" and any(
+                        self._is_conditional_node(self.graph[fn])
+                        for fn in node.in_funcs
+                    ):
 
-                    def _split_switch_ancestors(step_name, first_ancestor):
-                        acc = []
-                        for in_fn in self.graph[step_name].in_funcs:
-                            if self.graph[in_fn].type == "split-switch":
-                                acc.append(in_fn)
-                            if not in_fn == first_ancestor:
-                                acc.extend(
-                                    _split_switch_ancestors(in_fn, first_ancestor)
+                        def _split_switch_ancestors(step_name, first_ancestor):
+                            acc = []
+                            for in_fn in self.graph[step_name].in_funcs:
+                                if self.graph[in_fn].type == "split-switch":
+                                    acc.append(in_fn)
+                                if not in_fn == first_ancestor:
+                                    acc.extend(
+                                        _split_switch_ancestors(in_fn, first_ancestor)
+                                    )
+
+                            return acc
+
+                        node_groups = {}
+                        node_switch_ancestors = {}
+                        for fn in node.in_funcs:
+                            if self.graph[fn].split_branches:
+                                # This is the latest split in the DAG.
+                                last_split = self.graph[fn].split_branches[-1]
+                                switch_ancestors = _split_switch_ancestors(
+                                    fn, node.split_parents[-1]
+                                )
+                                if switch_ancestors:
+                                    node_switch_ancestors[fn] = switch_ancestors
+                                new_funcs = node_groups.get(last_split, [])
+                                new_funcs.append(fn)
+                                node_groups[last_split] = new_funcs
+
+                        def build_ancestor_tree(node_groups, switch_ancestors):
+                            result = {}
+                            for parent, children in node_groups.items():
+                                nodes = [
+                                    n
+                                    for g in children
+                                    for n in (g if isinstance(g, list) else [g])
+                                ]
+
+                                # Group nodes by their ancestor set
+                                by_anc = defaultdict(list)
+                                for n in nodes:
+                                    by_anc[
+                                        frozenset(switch_ancestors.get(n, []))
+                                    ].append(n)
+
+                                # Sort from most specific (most ancestors) to least
+                                groups = sorted(
+                                    by_anc.items(),
+                                    key=lambda x: len(x[0]),
+                                    reverse=True,
                                 )
 
-                        return acc
+                                # Greedily build chains: add to a chain if this key is a subset of its first (largest) key
+                                chains = []
+                                for key, grp in groups:
+                                    for chain in chains:
+                                        if key <= chain[0][0]:
+                                            chain.append((key, grp))
+                                            break
+                                    else:
+                                        chains.append([(key, grp)])
 
-                    node_groups = {}
-                    node_switch_ancestors = {}
-                    for fn in node.in_funcs:
-                        if self.graph[fn].split_branches:
-                            # This is the latest split in the DAG.
-                            last_split = self.graph[fn].split_branches[-1]
-                            switch_ancestors = _split_switch_ancestors(
-                                fn, node.split_parents[-1]
-                            )
-                            if switch_ancestors:
-                                node_switch_ancestors[fn] = switch_ancestors
-                            new_funcs = node_groups.get(last_split, [])
-                            new_funcs.append(fn)
-                            node_groups[last_split] = new_funcs
-
-                    def build_ancestor_tree(node_groups, switch_ancestors):
-                        result = {}
-                        for parent, children in node_groups.items():
-                            nodes = [
-                                n
-                                for g in children
-                                for n in (g if isinstance(g, list) else [g])
-                            ]
-
-                            # Group nodes by their ancestor set
-                            by_anc = defaultdict(list)
-                            for n in nodes:
-                                by_anc[frozenset(switch_ancestors.get(n, []))].append(n)
-
-                            # Sort from most specific (most ancestors) to least
-                            groups = sorted(
-                                by_anc.items(), key=lambda x: len(x[0]), reverse=True
-                            )
-
-                            # Greedily build chains: add to a chain if this key is a subset of its first (largest) key
-                            chains = []
-                            for key, grp in groups:
-                                for chain in chains:
-                                    if key <= chain[0][0]:
-                                        chain.append((key, grp))
-                                        break
-                                else:
-                                    chains.append([(key, grp)])
-
-                            result[parent] = [[g for _, g in chain] for chain in chains]
-                        return result
-
-                    if node_groups:
-                        conditional_deps = []
-                        required_deps = []
-                        for parent, chains in build_ancestor_tree(
-                            node_groups, node_switch_ancestors
-                        ).items():
-                            parts = []
-                            for chain in chains:
-                                groups = [
-                                    "({})".format(
-                                        " || ".join(
-                                            "%s.Succeeded" % self._sanitize(g)
-                                            for g in grp
-                                        )
-                                    )
-                                    for grp in chain
+                                result[parent] = [
+                                    [g for _, g in chain] for chain in chains
                                 ]
-                                parts.append("({})".format(" || ".join(groups)))
-                            required_deps.append("&&".join(parts))
+                            return result
 
-                both_conditions = required_deps and conditional_deps
+                        if node_groups:
+                            conditional_deps = []
+                            required_deps = []
 
-                depends_str = "{required}{_and}{conditional}".format(
-                    required=("(%s)" if both_conditions else "%s")
-                    % " && ".join(required_deps),
-                    _and=" && " if both_conditions else "",
-                    conditional=("(%s)" if both_conditions else "%s")
-                    % " || ".join(conditional_deps),
+                            for parent, chains in build_ancestor_tree(
+                                node_groups, node_switch_ancestors
+                            ).items():
+                                parts = []
+                                for chain in chains:
+                                    groups = [
+                                        "({})".format(
+                                            " || ".join(leaf_fn(g) for g in grp)
+                                        )
+                                        for grp in chain
+                                    ]
+                                    parts.append("({})".format(" || ".join(groups)))
+                                required_deps.append("&&".join(parts))
+
+                    return required_deps, conditional_deps
+
+                def _format_dep_expr(
+                    required_deps, conditional_deps, req_sep, cond_sep
+                ):
+                    both_conditions = required_deps and conditional_deps
+                    return "{required}{_and}{conditional}".format(
+                        required=("(%s)" if both_conditions else "%s")
+                        % req_sep.join(required_deps),
+                        _and=" && " if both_conditions else "",
+                        conditional=("(%s)" if both_conditions else "%s")
+                        % cond_sep.join(conditional_deps),
+                    )
+
+                required_deps, conditional_deps = _build_dep_lists(
+                    lambda in_func: "%s.Succeeded" % self._sanitize(in_func)
                 )
+
+                depends_str = _format_dep_expr(
+                    required_deps, conditional_deps, " && ", " || "
+                )
+
                 dag_task = (
                     DAGTask(self._sanitize(node.name))
                     .depends(depends_str)
@@ -1557,11 +1709,34 @@ class ArgoWorkflows(object):
                     or self._is_conditional_skip_node(node)
                     or self._is_conditional_join_node(node)
                 ) and switch_in_funcs:
-                    # It is possible that the some of the leading steps did not execute at all. In this case the switch-step output would be missing and needs to be accounted for.
-                    # NOTE: Due to an issue in Argo Workflows 'when' clauses, we can not use ternaries or 'safe' getters directly on a tasks['step-name'] due to this leading to errors when the step has not executed.
+                    # A switch predecessor may not have executed at all (e.g.
+                    # it is nested inside another switch's untaken branch),
+                    # and `depends` can still be satisfied through a sibling
+                    # branch - conditional skip nodes join all their in_funcs
+                    # with `||` (see _build_dep_lists()) - so this `when` does
+                    # get evaluated with an Omitted predecessor in scope.
+                    #
+                    # Argo >=3.7.16/>=4.0.7 resolves such a predecessor's
+                    # switch-step to the "SKIPPED" default declared on the
+                    # output (see _container_templates()), but older versions
+                    # (incl. 3.6.x) leave `tasks.<pred>.outputs` out of scope
+                    # entirely, which makes an unguarded lookup fail to
+                    # substitute: the raw '{{=...}}' then reaches Argo's
+                    # `shouldExecute()`, which rejects it as an invalid `when`
+                    # expression and errors the task out. Gate the lookup on
+                    # `.status` instead - that is populated for Omitted nodes
+                    # on every version, and expr evaluates the ternary lazily,
+                    # so the outputs lookup only happens when it is safe.
+                    #
+                    # NOTE: use '.status' rather than safe navigation ('?.')
+                    # here: '?.' combined with a ternary inside a `when` on a
+                    # task living in a foreach-templated DAG spuriously
+                    # evaluates to nil on some Argo versions.
                     conditional_when = "||".join(
                         [
-                            "({{=(tasks['%s'].status == 'Succeeded' ? tasks['%s'].outputs.parameters['switch-step'] : nil) == '%s'}})"
+                            "({{=(tasks['%s'].status == 'Succeeded'"
+                            " ? tasks['%s'].outputs.parameters['switch-step']"
+                            " : nil) == '%s'}})"
                             % (
                                 self._sanitize(switch_in_func),
                                 self._sanitize(switch_in_func),
@@ -1692,18 +1867,47 @@ class ArgoWorkflows(object):
                         .outputs(
                             # NOTE: We try to read the output parameters from the recursive template call first (<step>-recursion), and the internal step second (<step>-internal).
                             # This guarantees that we always get the output parameters of the last recursive step that executed.
+                            #
+                            # NOTE: A '?.'-guarded bracket lookup on `steps[...]`
+                            # (e.g. `steps['x']?.outputs`) does not reliably
+                            # resolve to the step's real output here - on a
+                            # template that calls itself recursively, Argo
+                            # seems to always treat the '?.'-guarded path as
+                            # absent, even for a step that actually
+                            # succeeded (verified: the plain, non-'?.'
+                            # reference used in split-work-recursion's own
+                            # `when` clause above correctly reads the real
+                            # value, but a '?.'-guarded expression here does
+                            # not). So we avoid '?.' entirely and branch on
+                            # `.status` instead, which is always safe since
+                            # both `-internal` and `-recursion` are declared
+                            # steps that always appear in the `steps` map
+                            # (Succeeded or Skipped) by the time this
+                            # template's own outputs are evaluated.
                             Outputs().parameters(
                                 [
                                     Parameter("task-id").valueFrom(
                                         {
-                                            "expression": "(steps['%s-recursion']?.outputs ?? steps['%s-internal']?.outputs).parameters['task-id']"
-                                            % (sanitized_name, sanitized_name)
+                                            "expression": "steps['%s-recursion'].status == 'Skipped'"
+                                            " ? steps['%s-internal'].outputs.parameters['task-id']"
+                                            " : steps['%s-recursion'].outputs.parameters['task-id']"
+                                            % (
+                                                sanitized_name,
+                                                sanitized_name,
+                                                sanitized_name,
+                                            )
                                         }
                                     ),
                                     Parameter("switch-step").valueFrom(
                                         {
-                                            "expression": "(steps['%s-recursion']?.outputs ?? steps['%s-internal']?.outputs).parameters['switch-step']"
-                                            % (sanitized_name, sanitized_name)
+                                            "expression": "steps['%s-recursion'].status == 'Skipped'"
+                                            " ? steps['%s-internal'].outputs.parameters['switch-step']"
+                                            " : steps['%s-recursion'].outputs.parameters['switch-step']"
+                                            % (
+                                                sanitized_name,
+                                                sanitized_name,
+                                                sanitized_name,
+                                            )
                                         }
                                     ),
                                 ]
@@ -1858,14 +2062,9 @@ class ArgoWorkflows(object):
                                     )
                                     else
                                     # Note: If the nodes leading to the join are conditional, then we need to use an expression to pick the outputs from the task that executed.
-                                    # ref for operators: https://github.com/expr-lang/expr/blob/master/docs/language-definition.md
                                     {
-                                        "expression": "get((%s)?.parameters, 'task-id')"
-                                        % " ?? ".join(
-                                            f"tasks['{self._sanitize(func)}']?.outputs"
-                                            for func in self.graph[
-                                                node.matching_join
-                                            ].in_funcs
+                                        "expression": self._executed_task_id_expr(
+                                            self.graph[node.matching_join].in_funcs
                                         )
                                     }
                                 ),
@@ -2042,6 +2241,10 @@ class ArgoWorkflows(object):
                         self._is_conditional_join_node(node)
                         or self._many_in_funcs_all_conditional(node)
                         or self._is_conditional_skip_node(node)
+                        or any(
+                            self._is_conditional_node(self.graph[in_func])
+                            for in_func in node.in_funcs
+                        )
                     )
                     and not (
                         node.type == "join"
@@ -2260,6 +2463,10 @@ class ArgoWorkflows(object):
                 self._is_conditional_join_node(node)
                 or self._many_in_funcs_all_conditional(node)
                 or self._is_conditional_skip_node(node)
+                or any(
+                    self._is_conditional_node(self.graph[in_func])
+                    for in_func in node.in_funcs
+                )
             ) and not (
                 node.type == "join"
                 and self.graph[node.split_parents[-1]].type == "foreach"
@@ -2564,23 +2771,39 @@ class ArgoWorkflows(object):
             outputs = []
             # @parallel steps will not have a task-id as an output parameter since task-ids
             # are derived at runtime.
+            #
+            # NOTE: Most output parameters below declare a `default`. Argo
+            # Workflows v3.7.16+/v4.0.7+ resolves references to a
+            # Skipped/Omitted task's output parameter to this default instead
+            # of leaving it unresolved (which causes the controller to
+            # requeue/error on v3.7.11-v3.7.15 - see
+            # https://github.com/argoproj/argo-workflows/issues/15932).
+            # This lets downstream steps safely reference a conditional
+            # predecessor's outputs even when its branch wasn't taken,
+            # without needing to force the predecessor to always run.
             if not (node.name == self.graph.end_step or node.parallel_step):
-                outputs = [Parameter("task-id").valueFrom({"path": "/mnt/out/task_id"})]
+                outputs = [
+                    Parameter("task-id").valueFrom(self._task_id_value_from(node))
+                ]
 
             # If this step is a split-switch one, we need to output the switch step name
             if node.type == "split-switch":
                 outputs.append(
-                    Parameter("switch-step").valueFrom({"path": "/mnt/out/switch_step"})
+                    Parameter("switch-step").valueFrom(
+                        {"path": "/mnt/out/switch_step", "default": "SKIPPED"}
+                    )
                 )
 
             if node.type == "foreach":
                 # Emit split cardinality from foreach task
                 outputs.append(
-                    Parameter("num-splits").valueFrom({"path": "/mnt/out/splits"})
+                    Parameter("num-splits").valueFrom(
+                        {"path": "/mnt/out/splits", "default": "[]"}
+                    )
                 )
                 outputs.append(
                     Parameter("split-cardinality").valueFrom(
-                        {"path": "/mnt/out/split_cardinality"}
+                        {"path": "/mnt/out/split_cardinality", "default": "0"}
                     )
                 )
 
@@ -2588,10 +2811,10 @@ class ArgoWorkflows(object):
                 outputs.extend(
                     [
                         Parameter("num-parallel").valueFrom(
-                            {"path": "/mnt/out/num_parallel"}
+                            {"path": "/mnt/out/num_parallel", "default": "0"}
                         ),
                         Parameter("task-id-entropy").valueFrom(
-                            {"path": "/mnt/out/task_id_entropy"}
+                            {"path": "/mnt/out/task_id_entropy", "default": ""}
                         ),
                     ]
                 )

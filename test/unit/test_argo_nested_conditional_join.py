@@ -256,15 +256,25 @@ def _make_argo(mocker, flow_cls, name):
     )
 
 
-def _depends(aw, node_name):
-    """Return the Argo `depends` string generated for a given step name."""
+def _task(aw, node_name):
+    """Return the raw Argo DAG task dict generated for a given step name."""
     templates = aw._dag_templates()
     dag = templates[-1].payload["dag"]
     sanitized = ArgoWorkflows._sanitize(node_name)
     for task in dag["tasks"]:
         if task["name"] == sanitized:
-            return task.get("depends", "")
+            return task
     raise AssertionError(f"no DAG task found for step {node_name!r}")
+
+
+def _depends(aw, node_name):
+    """Return the Argo `depends` string generated for a given step name."""
+    return _task(aw, node_name).get("depends", "")
+
+
+def _when(aw, node_name):
+    """Return the Argo `when` string generated for a given step name."""
+    return _task(aw, node_name).get("when")
 
 
 @pytest.fixture
@@ -355,3 +365,66 @@ def test_recursive_switch_join_depends_or(recursive_switch_argo):
     assert aw.matching_conditional_join_dict["start"] == "merge"
 
     assert _depends(aw, "merge") == "shortcut.Succeeded || step-c.Succeeded"
+
+
+# ── Regression tests ────────────────────────────────────────────────────────
+#
+# Conditional branch nodes are plain DAGTasks gated by a `when` clause, so
+# a skipped branch's task is genuinely Omitted (not forced to run via a
+# wrapper). Argo Workflows v3.7.16+ resolves references to an
+# Omitted/Skipped task's output parameters to the `default` declared on
+# that output (see _container_templates()) instead of erroring, so joins
+# don't need any extra `should-run`-style gating on top of depends() - a
+# closing join whose conditional predecessors aren't themselves
+# split-switch nodes just relies on the OR'd depends() string and gets no
+# extra `when` clause at all.
+
+
+def test_nested_switch_alpha_closing_join_no_extra_when_gate(nested_alpha_argo):
+    aw = nested_alpha_argo
+
+    assert _when(aw, "inner_join") is None
+    assert _when(aw, "outer_join") is None
+
+
+def test_simple_switch_closing_join_no_extra_when_gate(simple_switch_argo):
+    aw = simple_switch_argo
+
+    assert _when(aw, "join") is None
+
+
+def test_sequential_switch_closing_join_no_extra_when_gate(sequential_switch_argo):
+    aw = sequential_switch_argo
+
+    assert _when(aw, "join1") is None
+    assert _when(aw, "join2") is None
+
+
+def test_recursive_switch_closing_join_no_extra_when_gate(recursive_switch_argo):
+    aw = recursive_switch_argo
+
+    assert _when(aw, "merge") is None
+
+
+def test_conditional_predecessor_input_path_uses_plain_reference(simple_switch_argo):
+    """A downstream node referencing a conditional predecessor's task-id
+    (e.g. via input-paths) uses a plain reference - the 'SKIPPED' sentinel
+    comes from the `default` declared on the producer's own output (see
+    _container_templates()), not from a ternary/safe-navigation expression
+    here."""
+    aw = simple_switch_argo
+
+    assert aw._input_path_ref("left") == (
+        "argo-{{workflow.name}}/left/{{tasks.left.outputs.parameters.task-id}}"
+    )
+
+
+def test_no_should_run_params_on_closing_join(sequential_switch_argo):
+    """join1 closes the first switch's branches and opens a second one; with
+    the wrapper removed there should be no should-run-* input parameters -
+    depends()/when() alone (backed by valueFrom.default) are sufficient."""
+    aw = sequential_switch_argo
+
+    task = _task(aw, "join1")
+    param_names = {p["name"] for p in task["arguments"]["parameters"]}
+    assert not any(name.startswith("should-run-") for name in param_names)
