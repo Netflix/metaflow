@@ -304,14 +304,25 @@ def test_resolve_plugins_unknown_plugin_raises_value_error(monkeypatch):
         resolve_plugins("sidecar")
 
 
-def test_resolve_plugins_path_only_returns_class_paths(monkeypatch):
+@pytest.mark.parametrize(
+    "category, enabled_key, available_key",
+    [
+        ("sidecar", "ENABLED_SIDECAR", "_all_sidecars_dict"),
+        ("cli", "ENABLED_CLI", "_all_clis_dict"),
+    ],
+    ids=["sidecar", "cli"],
+)
+def test_resolve_plugins_path_only_returns_class_paths(
+    monkeypatch, category, enabled_key, available_key
+):
+    # `path_only=True` must return a name -> class-path dict even for categories
+    # with a name extractor (like `cli`); `get_plugin_cli_path` relies on that.
     class_path = "collections.OrderedDict"
     _with_plugin_globals(
         monkeypatch,
-        ENABLED_SIDECAR=["a"],
-        _all_sidecars_dict={"a": class_path},
+        **{enabled_key: ["a"], available_key: {"a": class_path}},
     )
-    assert resolve_plugins("sidecar", path_only=True) == {"a": class_path}
+    assert resolve_plugins(category, path_only=True) == {"a": class_path}
 
 
 def test_resolve_plugins_with_name_extractor_returns_list(monkeypatch):
