@@ -19,7 +19,9 @@ import json
 import pytest
 
 from metaflow import FlowSpec, step
-from metaflow.plugins.argo.argo_client import ArgoClient
+from metaflow.plugins.argo.argo_client import (
+    ArgoClient,
+)  # used by get_server_version tests
 from metaflow.plugins.argo.argo_workflows import (
     ArgoWorkflows,
     ArgoWorkflowsException,
@@ -327,7 +329,8 @@ def linear_argo(mocker):
 )
 def test_deploy_raises_for_broken_detected_version(mocker, conditional_argo, detected):
     """A conditional flow raises when a broken version is auto-detected."""
-    mocker.patch.object(ArgoClient, "get_server_version", return_value=detected)
+    mock_client = mocker.patch("metaflow.plugins.argo.argo_workflows.ArgoClient")
+    mock_client.return_value.get_server_version.return_value = detected
     mocker.patch.object(conditional_argo, "cleanup_previous_sensors")
 
     with pytest.raises(ArgoWorkflowsException, match="15932"):
@@ -351,7 +354,8 @@ def test_deploy_proceeds_for_safe_or_unknown_version(
     mocker, conditional_argo, detected
 ):
     """Safe or undetected versions must not trigger the version gate."""
-    mocker.patch.object(ArgoClient, "get_server_version", return_value=detected)
+    mock_client = mocker.patch("metaflow.plugins.argo.argo_workflows.ArgoClient")
+    mock_client.return_value.get_server_version.return_value = detected
     mocker.patch.object(conditional_argo, "cleanup_previous_sensors")
 
     try:
@@ -366,7 +370,7 @@ def test_deploy_proceeds_for_safe_or_unknown_version(
 
 def test_deploy_linear_flow_skips_version_check(mocker, linear_argo):
     """A flow with no conditional steps never calls get_server_version()."""
-    mock_gsv = mocker.patch.object(ArgoClient, "get_server_version")
+    mock_client = mocker.patch("metaflow.plugins.argo.argo_workflows.ArgoClient")
     mocker.patch.object(linear_argo, "cleanup_previous_sensors")
 
     try:
@@ -374,12 +378,13 @@ def test_deploy_linear_flow_skips_version_check(mocker, linear_argo):
     except Exception:
         pass
 
-    mock_gsv.assert_not_called()
+    mock_client.return_value.get_server_version.assert_not_called()
 
 
 def test_deploy_detection_failure_does_not_block(mocker, conditional_argo):
     """When get_server_version() returns None the gate is skipped entirely."""
-    mocker.patch.object(ArgoClient, "get_server_version", return_value=None)
+    mock_client = mocker.patch("metaflow.plugins.argo.argo_workflows.ArgoClient")
+    mock_client.return_value.get_server_version.return_value = None
     mocker.patch.object(conditional_argo, "cleanup_previous_sensors")
 
     try:
@@ -392,7 +397,8 @@ def test_deploy_detection_failure_does_not_block(mocker, conditional_argo):
 
 def test_deploy_error_message_names_broken_version(mocker, conditional_argo):
     """The error message must include the detected version string."""
-    mocker.patch.object(ArgoClient, "get_server_version", return_value="3.7.13")
+    mock_client = mocker.patch("metaflow.plugins.argo.argo_workflows.ArgoClient")
+    mock_client.return_value.get_server_version.return_value = "3.7.13"
     mocker.patch.object(conditional_argo, "cleanup_previous_sensors")
 
     with pytest.raises(ArgoWorkflowsException) as exc_info:
@@ -403,7 +409,8 @@ def test_deploy_error_message_names_broken_version(mocker, conditional_argo):
 
 def test_deploy_error_message_names_conditional_steps(mocker, conditional_argo):
     """The error message must mention at least one conditional step name."""
-    mocker.patch.object(ArgoClient, "get_server_version", return_value="3.7.11")
+    mock_client = mocker.patch("metaflow.plugins.argo.argo_workflows.ArgoClient")
+    mock_client.return_value.get_server_version.return_value = "3.7.11"
     mocker.patch.object(conditional_argo, "cleanup_previous_sensors")
 
     with pytest.raises(ArgoWorkflowsException) as exc_info:
