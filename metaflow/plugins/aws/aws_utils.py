@@ -75,9 +75,9 @@ def get_ec2_instance_metadata():
 def get_docker_registry(image_uri):
     """
     Explanation:
-        (.+?(?:[:.].+?)\\/)? - [GROUP 0] REGISTRY
-            .+?                  - A registry must start with at least one character
-            (?:[:.].+?)\\/       - A registry must have ":" or "." and end with "/"
+        ([^/]+?(?:[:.][^/]+?)\\/)? - [GROUP 0] REGISTRY
+            [^/]+?               - A registry must start with at least one character
+            (?:[:.][^/]+?)\\/    - A registry must have ":" or "." and end with the first "/"
             ?                    - Make a registry optional
         (.*?)                - [GROUP 1] REPOSITORY
             .*?                  - Get repository name until separator
@@ -116,7 +116,7 @@ def get_docker_registry(image_uri):
             - sha256:45b23dee0
     """
 
-    pattern = re.compile(r"^(.+?(?:[:.].+?)\/)?(.*?)(?:[@:])?((?<=[@:]).*)?$")
+    pattern = re.compile(r"^([^/]+?(?:[:.][^/]+?)\/)?(.*?)(?:[@:])?((?<=[@:]).*)?$")
     registry, repository, tag = pattern.match(image_uri).groups()
     if registry is not None:
         registry = registry.rstrip("/")
