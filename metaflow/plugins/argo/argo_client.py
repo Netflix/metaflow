@@ -109,7 +109,7 @@ class ArgoClient(object):
                 error_body = json.loads(e.body) if e.body else {}
                 error_message = error_body.get("message", e.reason)
                 if e.status == 404:
-                    return None
+                    raise ArgoClientException(error_message)
                 elif e.status == 410 and error_body.get("reason") == "Expired":
                     new_token = error_body.get("metadata", {}).get("continue")
                     if new_token:
