@@ -6,7 +6,11 @@ from collections import namedtuple
 from itertools import chain
 
 from typing import List
-from metaflow.exception import MetaflowInternalError, MetaflowTaggingError
+from metaflow.exception import (
+    MetaflowException,
+    MetaflowInternalError,
+    MetaflowTaggingError,
+)
 from metaflow.tagging_util import validate_tag
 from metaflow.util import get_username, resolve_identity_as_tuple, is_stringish
 
@@ -349,6 +353,37 @@ class MetadataProvider(object):
             self.sticky_sys_tags.update(sys_tags)
 
     @classmethod
+    def _validate_object_query(cls, obj_type, sub_type):
+        """Reject nonsensical obj_type/sub_type combinations.
+
+        Shared by get_object and the streaming listing paths so every access,
+        materialized or paginated, enforces the same rules. Returns the
+        (type_order, sub_order) pair for callers that need it.
+        """
+        type_order = ObjectOrder.type_to_order(obj_type)
+        sub_order = ObjectOrder.type_to_order(sub_type)
+
+        if type_order is None:
+            raise MetaflowInternalError(msg="Cannot find type %s" % obj_type)
+        if type_order >= ObjectOrder.type_to_order("metadata"):
+            raise MetaflowInternalError(msg="Type %s is not allowed" % obj_type)
+
+        if sub_order is None:
+            raise MetaflowInternalError(msg="Cannot find subtype %s" % sub_type)
+
+        if type_order >= sub_order:
+            raise MetaflowInternalError(
+                msg="Subtype %s not allowed for %s" % (sub_type, obj_type)
+            )
+
+        # Metadata is always only at the task level
+        if sub_type == "metadata" and obj_type != "task":
+            raise MetaflowInternalError(
+                msg="Metadata can only be retrieved at the task level"
+            )
+        return type_order, sub_order
+
+    @classmethod
     def get_object(cls, obj_type, sub_type, filters, attempt, *args):
         """Returns the requested object depending on obj_type and sub_type
 
@@ -397,27 +432,7 @@ class MetadataProvider(object):
             object or list :
                 Depending on the call, the type of object return varies
         """
-        type_order = ObjectOrder.type_to_order(obj_type)
-        sub_order = ObjectOrder.type_to_order(sub_type)
-
-        if type_order is None:
-            raise MetaflowInternalError(msg="Cannot find type %s" % obj_type)
-        if type_order >= ObjectOrder.type_to_order("metadata"):
-            raise MetaflowInternalError(msg="Type %s is not allowed" % obj_type)
-
-        if sub_order is None:
-            raise MetaflowInternalError(msg="Cannot find subtype %s" % sub_type)
-
-        if type_order >= sub_order:
-            raise MetaflowInternalError(
-                msg="Subtype %s not allowed for %s" % (sub_type, obj_type)
-            )
-
-        # Metadata is always only at the task level
-        if sub_type == "metadata" and obj_type != "task":
-            raise MetaflowInternalError(
-                msg="Metadata can only be retrieved at the task level"
-            )
+        type_order, sub_order = cls._validate_object_query(obj_type, sub_type)
 
         if attempt is not None:
             try:
@@ -438,6 +453,45 @@ class MetadataProvider(object):
         return MetadataProvider._reconstruct_metadata_for_attempt(
             pre_filter, attempt_int
         )
+
+    @classmethod
+    def iter_objects(cls, obj_type, sub_type, filters, attempt, *args, **kwargs):
+        """Iterate over a collection returned by ``get_object``.
+
+        Providers can override this method to stream records without materializing the
+        complete collection. ``query_filters`` and ``page_size`` are optional provider
+        hints; the default implementation supports only unfiltered iteration.
+        """
+        query_filters = kwargs.pop("query_filters", None)
+        page_size = kwargs.pop("page_size", None)
+        if kwargs:
+            raise TypeError("Unexpected iterator options: %s" % ", ".join(kwargs))
+        if query_filters:
+            raise MetaflowException(
+                "Server-side metadata filters are not supported by the %s provider"
+                % cls.TYPE
+            )
+        if page_size is not None:
+            if isinstance(page_size, bool) or not isinstance(page_size, int):
+                raise TypeError("page_size must be an integer")
+            if page_size <= 0:
+                raise ValueError("page_size must be positive")
+
+        objects = cls.get_object(obj_type, sub_type, filters, attempt, *args)
+        if isinstance(objects, dict):
+            objects = [objects]
+        # Yield newest-first (descending ts_epoch). This mirrors the order the
+        # metadata service returns for paginated listings, so callers see a
+        # consistent order whether records came from the service or a legacy /
+        # local provider. ts_epoch may be missing on some records, so fall back
+        # to 0 to keep the sort total.
+        objects = sorted(
+            objects or [],
+            key=lambda obj: obj.get("ts_epoch") or 0,
+            reverse=True,
+        )
+        for obj in objects:
+            yield obj
 
     @classmethod
     def mutate_user_tags_for_run(
