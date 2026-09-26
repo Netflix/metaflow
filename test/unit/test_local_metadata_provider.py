@@ -75,10 +75,9 @@ def test_filter_tasks_by_metadata_does_not_match_prefixes(monkeypatch):
 
 
 def test_dump_json_to_file_reports_the_real_error_when_temp_file_fails(tmp_path):
-    # _dump_json_to_file opens its temp file *inside* the try, so when the
-    # NamedTemporaryFile constructor is the thing that fails, `f` is never
-    # bound and the finally clause raises UnboundLocalError over the top of
-    # the real OSError. The caller then has no idea what actually went wrong.
+    # Regression: `f` used to be bound only by the `with` inside the try, so
+    # when the NamedTemporaryFile constructor failed, the finally clause read
+    # an unbound `f` and raised UnboundLocalError over the real OSError.
     target = tmp_path / "missing_dir" / "_self.json"
     with pytest.raises(OSError) as excinfo:
         LocalMetadataProvider._dump_json_to_file(str(target), {"a": 1})
@@ -86,9 +85,9 @@ def test_dump_json_to_file_reports_the_real_error_when_temp_file_fails(tmp_path)
 
 
 def test_dump_json_to_file_reports_permission_error(tmp_path, mocker):
-    # The same masking happens for an unwritable metadata directory, which is
-    # the case a user is most likely to hit (read-only mount, .metaflow owned
-    # by another account).
+    # Regression: the same masking hit an unwritable metadata directory, the
+    # case a user is most likely to see (read-only mount, .metaflow owned by
+    # another account).
     mocker.patch(
         "metaflow.plugins.metadata_providers.local.tempfile.NamedTemporaryFile",
         side_effect=PermissionError(13, "Permission denied"),
