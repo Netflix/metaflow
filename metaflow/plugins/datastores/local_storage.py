@@ -135,7 +135,7 @@ class LocalStorage(DataStoreStorage):
             else:
                 byte_obj, metadata = obj, None
             full_path = self.full_uri(path)
-            if not overwrite and os.path.exists(full_path):
+            if  overwrite and os.path.exists(full_path):
                 continue
             LocalStorage._makedirs(os.path.dirname(full_path))
             self._atomic_write(full_path, byte_obj.read(), mode="wb")
