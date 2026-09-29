@@ -388,6 +388,14 @@ class ConfigInput:
                                 % (name, e)
                             )
                             continue
+                        if read_value is not None and not isinstance(
+                            read_value, Mapping
+                        ):
+                            msgs.append(
+                                "configuration value for '%s' must be a mapping (got type %s)"
+                                % (name, type(read_value))
+                            )
+                            continue
                         # TODO: Support YAML
                 flow_cls._flow_state.self_data[FlowStateItems.CONFIGS][name] = (
                     read_value,
