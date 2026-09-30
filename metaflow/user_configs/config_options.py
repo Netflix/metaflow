@@ -393,7 +393,7 @@ class ConfigInput:
                         ):
                             msgs.append(
                                 "configuration value for '%s' must be a mapping (got type %s)"
-                                % (name, type(read_value))
+                                % (name, type(read_value).__name__)
                             )
                             continue
                         # TODO: Support YAML

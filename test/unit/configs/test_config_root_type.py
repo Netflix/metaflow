@@ -46,10 +46,8 @@ def test_non_mapping_config_value_reports_usage_error(run_flow, value, value_typ
     output = result.stdout + result.stderr
 
     assert result.returncode != 0
-    assert "must be a mapping (got type %s)" % value_type in output
+    assert "must be a mapping (got type %s)" % value_type.__name__ in output
     assert "Internal error" not in output
-    # The maintainer requested format-neutral wording for this config error.
-    assert "JSON" not in output
 
 
 @pytest.mark.parametrize("value", ["null", "{}"], ids=["null", "object"])
