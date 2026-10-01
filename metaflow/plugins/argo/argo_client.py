@@ -1,13 +1,8 @@
 import json
-import re
-import ssl
-import urllib.request
 
 from metaflow.metaflow_config import (
     ARGO_EVENTS_SENSOR_NAMESPACE,
-    ARGO_WORKFLOWS_UI_URL,
     ARGO_WORKFLOWS_USE_SCHEDULES,
-    KUBERNETES_NAMESPACE,
 )
 from metaflow.exception import MetaflowException
 from metaflow.plugins.kubernetes.kubernetes_client import KubernetesClient
@@ -496,50 +491,6 @@ class ArgoClient(object):
             if e.status == 404:
                 return None
             raise wrap_api_error(e)
-
-    def get_server_version(self):
-        """Detect the running Argo Workflows controller version. Returns None on failure.
-
-        Tries in order:
-        1. GET {ARGO_WORKFLOWS_UI_URL}/api/v1/version  (Argo Server REST API)
-        2. workflow-controller Deployment image tag in KUBERNETES_NAMESPACE,
-           "argo", and "argo-system" (first hit wins)
-
-        None is returned when both strategies fail; callers must never block
-        a deployment on None - unknown version is treated as safe.
-        """
-        # Strategy 1: Argo Server REST API
-        if ARGO_WORKFLOWS_UI_URL:
-            try:
-                url = ARGO_WORKFLOWS_UI_URL.rstrip("/") + "/api/v1/version"
-                ctx = ssl.create_default_context()
-                ctx.check_hostname = False
-                ctx.verify_mode = ssl.CERT_NONE  # tolerate self-signed certs
-                with urllib.request.urlopen(url, timeout=5, context=ctx) as resp:
-                    data = json.loads(resp.read())
-                    version = data.get("version") or data.get("gitTag")
-                    if version:
-                        return version
-            except Exception:
-                pass
-
-        # Strategy 2: workflow-controller Deployment image tag
-        client = self._client.get()
-        for ns in filter(None, [KUBERNETES_NAMESPACE, "argo", "argo-system"]):
-            try:
-                deployment = client.AppsV1Api().read_namespaced_deployment(
-                    name="workflow-controller", namespace=ns
-                )
-                for container in deployment.spec.template.spec.containers:
-                    tag_match = re.search(r":([^:@]+)$", container.image or "")
-                    if tag_match:
-                        tag = tag_match.group(1)
-                        if re.match(r"^v?\d+\.\d+\.\d+", tag):
-                            return tag
-            except Exception:
-                continue
-
-        return None
 
 
 def wrap_api_error(error):
