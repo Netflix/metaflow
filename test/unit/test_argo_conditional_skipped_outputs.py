@@ -1,21 +1,29 @@
 """Cross-version regression tests for how conditional steps reference the
 outputs of a predecessor that never executed.
 
-Argo resolves such a reference in two incompatible ways:
+Argo's treatment of such a reference has changed twice:
 
-* `<3.7.16` / `<4.0.7` (incl. 3.6.x): a Skipped/Omitted node contributes no
-  `outputs` to the scope at all. Simple `{{...}}` tags are left unsubstituted
-  (`<3.7.11`) or make the controller requeue (`3.7.11`+, which introduced
-  `ReplaceStrict`), and an expression that dereferences the missing `outputs`
-  fails to substitute - the raw `{{=...}}` then reaches `shouldExecute()`,
-  which rejects it as an invalid `when` expression and errors the task out.
-* `>=3.7.16` / `>=4.0.7` (argoproj/argo-workflows#15932, #16223): a
-  Skipped/Omitted node's *declared* output parameters are populated in scope,
-  resolving to `valueFrom.default` when one is declared and to nil otherwise.
+* `<3.7.11`: a Skipped/Omitted node contributes no `outputs` to the scope.
+  An unresolved `{{...}}` tag is passed through to the container literally.
+* `3.7.11`-`3.7.15`: `ReplaceStrict` makes the controller **requeue
+  indefinitely** on an unresolved tag, so the downstream task never starts
+  (argoproj/argo-workflows#15932). `valueFrom.default` is not yet honoured
+  for Omitted nodes.
+* `>=3.7.16` / `>=4.0.7`: a Skipped/Omitted node's *declared* output
+  parameters are populated in scope, resolving to `valueFrom.default` when
+  one is declared and to nil otherwise.
 
-The generated templates therefore have to stay readable to both generations:
-declare a `default` for every output a conditional successor may reference,
-and never dereference a possibly-absent `outputs` unguarded.
+The generated templates sidestep all three by never emitting a bare
+`{{tasks.X.outputs...}}` tag for a possibly-Omitted `X`. Every such access
+lives inside a `{{=...}}` expression, lazily gated on a **positive**
+`.status == 'Succeeded'` check - `.status` is populated for Omitted nodes on
+every version, and expr evaluates ternaries lazily, so the `.outputs` access
+never happens for a branch that did not run.
+
+Two operators are therefore banned from these expressions:
+* `?.` - misbehaves for tasks inside foreach-templated DAGs.
+* `??` - on `>=3.7.16` an Omitted node's outputs are in scope, so a `??`
+  chain never falls through and always settles on the first branch.
 """
 
 import pytest
@@ -107,13 +115,24 @@ def _make_argo(mocker, flow_cls, name):
     )
 
 
-def _when(aw, node_name):
+def _dag_task(aw, node_name):
     templates = aw._dag_templates()
     sanitized = ArgoWorkflows._sanitize(node_name)
     for task in templates[-1].payload["dag"]["tasks"]:
         if task["name"] == sanitized:
-            return task.get("when")
+            return task
     raise AssertionError("no DAG task found for step %r" % node_name)
+
+
+def _when(aw, node_name):
+    return _dag_task(aw, node_name).get("when")
+
+
+def _param(aw, node_name, param_name):
+    for parameter in _dag_task(aw, node_name)["arguments"]["parameters"]:
+        if parameter["name"] == param_name:
+            return parameter["value"]
+    raise AssertionError("no %r parameter on step %r" % (param_name, node_name))
 
 
 def _template(aw, template_name):
@@ -163,25 +182,63 @@ def test_switch_when_guards_predecessor_status(
         assert when.count("tasks['%s'].outputs" % sanitized) == when.count(guarded)
 
 
+# ── input-paths ──────────────────────────────────────────────────────────────
+
+
+def test_conditional_input_paths_use_status_gated_expression(chain_skip_argo):
+    """`end` has conditional predecessors, so its input-paths must be a single
+    status-gated expression rather than bare per-predecessor tags. A bare tag
+    for an Omitted predecessor is exactly what makes the controller requeue
+    forever on Argo 3.7.11-3.7.15."""
+    value = _param(chain_skip_argo, "end", "input-paths")
+
+    assert value.startswith("{{=sprig.trimSuffix(',',")
+    for in_func in ("start", "step2", "step3"):
+        sanitized = ArgoWorkflows._sanitize(in_func)
+        assert (
+            "(tasks['%s'].status == 'Succeeded'"
+            " ? 'argo-' + workflow.name + '/%s/'"
+            " + tasks['%s'].outputs.parameters['task-id'] + ','"
+            " : '')" % (sanitized, in_func, sanitized)
+        ) in value
+
+
+def test_non_conditional_input_paths_stay_plain(chain_skip_argo):
+    """A step whose predecessors always run keeps the cheaper bare-tag form -
+    there is nothing to guard against."""
+    value = _param(chain_skip_argo, "step2", "input-paths")
+
+    assert value == chain_skip_argo._input_path_ref("start")
+    assert "status ==" not in value
+
+
+def test_input_paths_expression_bans_unsafe_operators(chain_skip_argo):
+    """Neither `?.` nor `??` may appear - both are version-dependent."""
+    value = _param(chain_skip_argo, "end", "input-paths")
+
+    assert "?." not in value
+    assert "??" not in value
+
+
 # ── foreach scopes closed out by a conditional join ──────────────────────────
 
 
-def test_executed_task_id_expr_skips_non_executed_branches(foreach_argo):
-    """Both "did not execute" shapes have to be skipped explicitly: an absent
-    `outputs` (older Argo) and a `SKIPPED`/nil declared output (newer Argo).
-    A plain `??` chain over `?.outputs` only handles the former - on
-    >=3.7.16/>=4.0.7 `?.outputs` is never nil, so the chain would always
-    settle on the first branch regardless of which one ran."""
+def test_executed_task_id_expr_uses_positive_status_chain(foreach_argo):
+    """The task-id of whichever branch ran is picked with a positive
+    `.status == 'Succeeded'` chain. The previous `?.`/`??` formulation broke on
+    >=3.7.16/>=4.0.7, where `?.outputs` is never nil so the chain always
+    settled on the first branch regardless of which one actually ran."""
     expr = foreach_argo._executed_task_id_expr(["b", "c"])
 
     assert expr == (
-        "(get(tasks['b']?.outputs?.parameters, 'task-id') ?? 'SKIPPED') != 'SKIPPED'"
-        " ? get(tasks['b']?.outputs?.parameters, 'task-id')"
-        " : ((get(tasks['c']?.outputs?.parameters, 'task-id') ?? 'SKIPPED') != 'SKIPPED'"
-        " ? get(tasks['c']?.outputs?.parameters, 'task-id')"
+        "tasks['b'].status == 'Succeeded'"
+        " ? tasks['b'].outputs.parameters['task-id']"
+        " : (tasks['c'].status == 'Succeeded'"
+        " ? tasks['c'].outputs.parameters['task-id']"
         " : ('SKIPPED'))"
     )
-    assert "?? tasks[" not in expr
+    assert "?." not in expr
+    assert "??" not in expr
 
 
 def test_foreach_template_task_id_output_uses_guarded_expression(foreach_argo):
@@ -191,33 +248,3 @@ def test_foreach_template_task_id_output_uses_guarded_expression(foreach_argo):
     assert task_id["valueFrom"]["expression"] == foreach_argo._executed_task_id_expr(
         ["b", "c"]
     )
-
-
-# ── declared output defaults ─────────────────────────────────────────────────
-
-
-@pytest.mark.parametrize(
-    "node_name", ["start", "step2", "step3"], ids=["switch", "nested_switch", "linear"]
-)
-def test_conditional_task_id_declares_skipped_default(chain_skip_argo, node_name):
-    """The `default` is what makes a Skipped/Omitted predecessor's task-id
-    resolvable on Argo >=3.7.16/>=4.0.7 instead of requeuing forever."""
-    node = chain_skip_argo.graph[node_name]
-
-    assert chain_skip_argo._task_id_value_from(node) == {
-        "path": "/mnt/out/task_id",
-        "default": "SKIPPED",
-    }
-
-
-def test_foreach_join_predecessor_omits_task_id_default(foreach_argo):
-    """The last node before a foreach join deliberately declares no default,
-    so a branch that never ran surfaces as an Argo error instead of feeding a
-    bogus task-id into the join (see _is_foreach_join_predecessor)."""
-    branch = foreach_argo.graph["b"]
-
-    assert foreach_argo._is_foreach_join_predecessor(branch)
-    assert foreach_argo._task_id_value_from(branch) == {"path": "/mnt/out/task_id"}
-    # ... while the switch feeding it, which is not a join predecessor, does
-    # declare one.
-    assert "default" in foreach_argo._task_id_value_from(foreach_argo.graph["fan"])
