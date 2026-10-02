@@ -96,7 +96,7 @@ class Pip(object):
             cmd = [
                 "install",
                 "--dry-run",
-                "--only-binary=:all:",  # only wheels
+                "--prefer-binary",
                 "--upgrade-strategy=only-if-needed",
                 "--target=%s" % tmp_dir,
                 "--report=%s" % report,
@@ -105,11 +105,18 @@ class Pip(object):
                 *(["--index-url", custom_index_url] if custom_index_url else []),
                 *(
                     chain.from_iterable(
-                        product(["--extra-index-url"], set(extra_index_urls))
+                        product(
+                            ["--extra-index-url"], iter(dict.fromkeys(extra_index_urls))
+                        )
                     )
                 ),
-                *(chain.from_iterable(product(["--abi"], set(abis)))),
-                *(chain.from_iterable(product(["--platform"], set(platforms)))),
+                # Ordered dedup so pip command sees the `--platform abc` options in deterministic order every time.
+                *(chain.from_iterable(product(["--abi"], iter(dict.fromkeys(abis))))),
+                *(
+                    chain.from_iterable(
+                        product(["--platform"], iter(dict.fromkeys(platforms)))
+                    )
+                ),
                 # *(chain.from_iterable(product(["--implementations"], set(implementations)))),
             ]
             for package, version in packages.items():
@@ -159,6 +166,19 @@ class Pip(object):
                     # used to deduplicate the storage location in case wheel does not
                     # build with enough unique identifiers.
                     res["hash"] = vcs_info["commit_id"]
+                # Handle non-VCS sources
+                else:
+                    archive_info = dl_info.get("archive_info")
+                    # Extracting hash from archive_info or generating from URL
+                    if archive_info:
+                        hash_value = archive_info.get("hash")
+                        if hash_value:
+                            res["hash"] = hash_value.split("=", 1)[-1]
+                    else:
+                        import hashlib
+
+                        hash_obj = hashlib.sha256(res["url"].encode())
+                        res["hash"] = hash_obj.hexdigest()
                 return res
 
             with open(report, mode="r", encoding="utf-8") as f:
@@ -265,11 +285,18 @@ class Pip(object):
             *(["--index-url", custom_index_url] if custom_index_url else []),
             *(
                 chain.from_iterable(
-                    product(["--extra-index-url"], set(extra_index_urls))
+                    product(
+                        ["--extra-index-url"], iter(dict.fromkeys(extra_index_urls))
+                    )
                 )
             ),
-            *(chain.from_iterable(product(["--abi"], set(abis)))),
-            *(chain.from_iterable(product(["--platform"], set(platforms)))),
+            # Ordered dedup so pip command sees the `--platform abc` options in deterministic order every time.
+            *(chain.from_iterable(product(["--abi"], iter(dict.fromkeys(abis))))),
+            *(
+                chain.from_iterable(
+                    product(["--platform"], iter(dict.fromkeys(platforms)))
+                )
+            ),
             # *(chain.from_iterable(product(["--implementations"], set(implementations)))),
         ]
         packages = [package for package in packages if not package["require_build"]]
