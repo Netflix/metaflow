@@ -3147,6 +3147,13 @@ class ArgoWorkflows(object):
                         + ARGO_WORKFLOWS_KUBERNETES_SECRETS.split(",")
                         if k
                     ],
+                    security_context=(
+                        kubernetes_sdk.V1SecurityContext(
+                            **resources["security_context"]
+                        )
+                        if resources.get("security_context")
+                        else None
+                    ),
                     resources=kubernetes_sdk.V1ResourceRequirements(
                         requests={
                             "cpu": str(kube_defaults["cpu"]),
@@ -3305,6 +3312,13 @@ class ArgoWorkflows(object):
                             + ARGO_WORKFLOWS_KUBERNETES_SECRETS.split(",")
                             if k
                         ],
+                        security_context=(
+                            kubernetes_sdk.V1SecurityContext(
+                                **resources["security_context"]
+                            )
+                            if resources.get("security_context")
+                            else None
+                        ),
                         resources=kubernetes_sdk.V1ResourceRequirements(
                             # NOTE: base resources for this are kept to a minimum to save on running costs.
                             # This has an adverse effect on startup time for the daemon, which can be completely
@@ -3796,6 +3810,13 @@ class ArgoWorkflows(object):
                             + ARGO_WORKFLOWS_KUBERNETES_SECRETS.split(",")
                             if k
                         ],
+                        security_context=(
+                            kubernetes_sdk.V1SecurityContext(
+                                **resources["security_context"]
+                            )
+                            if resources.get("security_context")
+                            else None
+                        ),
                         resources=kubernetes_sdk.V1ResourceRequirements(
                             # NOTE: base resources for this are kept to a minimum to save on running costs.
                             # This has an adverse effect on startup time for the daemon, which can be completely
