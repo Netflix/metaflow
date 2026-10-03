@@ -1,15 +1,20 @@
 from __future__ import print_function
 
 import json
-import subprocess
-import fcntl
-import select
 import os
-import sys
 import platform
+import select
+import subprocess
+import sys
 
-from fcntl import F_SETFL
-from os import O_NONBLOCK
+try:
+    import fcntl
+    from fcntl import F_SETFL
+    from os import O_NONBLOCK
+except ImportError:
+    fcntl = None
+    F_SETFL = None
+    O_NONBLOCK = None
 
 from .sidecar_messages import Message, MessageTypes
 from ..debug import debug
