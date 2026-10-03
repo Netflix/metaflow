@@ -449,7 +449,9 @@ class BatchJob(object):
         job_definition["jobDefinitionName"] = def_name
         try:
             response = self._client.register_job_definition(**job_definition)
+            print(f'BatchJob.register_job_definition response: {response}')
         except Exception as ex:
+            print(f'Exception on BatchJob.register_job_definition: {ex}')
             if type(ex).__name__ == "ParamValidationError" and (
                 platform == "FARGATE" or platform == "FARGATE_SPOT"
             ):
