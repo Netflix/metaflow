@@ -222,6 +222,13 @@ def output_dot(obj):
     echo_always(obj.graph.output_dot(), err=False)
 
 
+@cli.command(help="Visualize the flow with Mermaid.")
+@click.pass_obj
+def output_mermaid(obj):
+    echo_always("Visualizing the flow as a Mermaid flowchart", fg="magenta", bold=False)
+    echo_always(obj.graph.output_mermaid(), err=False)
+
+
 @cli.command(help="Print the Metaflow version")
 @click.pass_obj
 def version(obj):

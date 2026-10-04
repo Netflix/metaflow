@@ -123,6 +123,25 @@ class SplitStartFlow(FlowSpec):
         pass
 
 
+class SwitchFlow(FlowSpec):
+    @step
+    def start(self):
+        self.route = "fast"
+        self.next({"fast": self.quick, "slow": self.thorough}, condition="route")
+
+    @step
+    def quick(self):
+        self.next(self.end)
+
+    @step
+    def thorough(self):
+        self.next(self.end)
+
+    @step
+    def end(self):
+        pass
+
+
 # ---------------------------------------------------------------------------
 # Flow classes: single-step flows composed with configs, decorators, mutators
 # ---------------------------------------------------------------------------
@@ -309,6 +328,43 @@ def test_steps_info_has_next():
     assert steps_info["begin"]["next"] == ["middle"]
     assert steps_info["middle"]["next"] == ["finish"]
     assert steps_info["finish"]["next"] == []
+
+
+# ---------------------------------------------------------------------------
+# Tests: output_mermaid
+# ---------------------------------------------------------------------------
+
+
+def test_mermaid_linear():
+    assert StandardFlow._graph.output_mermaid().splitlines() == [
+        "flowchart TD",
+        '    s_start["start"]',
+        '    s_end["end"]',
+        "    s_start --> s_end",
+    ]
+
+
+def test_mermaid_single_step():
+    assert SingleStepFlow._graph.output_mermaid().splitlines() == [
+        "flowchart TD",
+        '    s_only["only"]',
+    ]
+
+
+def test_mermaid_branch_edges():
+    lines = CustomNamedBranchFlow._graph.output_mermaid().splitlines()
+    assert "    s_entry --> s_a" in lines
+    assert "    s_entry --> s_b" in lines
+    assert "    s_a --> s_merge" in lines
+    assert "    s_b --> s_merge" in lines
+    assert "    s_merge --> s_done" in lines
+
+
+def test_mermaid_switch_labels_edges():
+    lines = SwitchFlow._graph.output_mermaid().splitlines()
+    assert '    s_start{{"start"}}' in lines
+    assert '    s_start -->|"fast"| s_quick' in lines
+    assert '    s_start -->|"slow"| s_thorough' in lines
 
 
 # ---------------------------------------------------------------------------
