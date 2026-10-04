@@ -254,7 +254,6 @@ def get_cards(
         A list-like object that holds `Card` objects.
     """
     from metaflow.client import Task
-    from metaflow import namespace
 
     card_id = id
     if isinstance(task, str):
@@ -262,9 +261,9 @@ def get_cards(
         if len(task_str.split("/")) != 4:
             # Exception that pathspec is not of correct form
             raise IncorrectPathspecException(task_str)
-        # set namespace as None so that we don't face namespace mismatch error.
-        namespace(None)
-        task = Task(task_str)
+        # Skip the namespace check for this lookup only; calling namespace(None)
+        # here would silently change the caller's global namespace.
+        task = Task(task_str, _namespace_check=False)
     elif not isinstance(task, Task):
         # Exception that the task argument should be of form `Task` or `str`
         raise IncorrectArgumentException(_TYPE(task))
@@ -273,7 +272,7 @@ def get_cards(
     if follow_resumed:
         origin_taskpathspec = resumed_info(task)
         if origin_taskpathspec:
-            task = Task(origin_taskpathspec)
+            task = Task(origin_taskpathspec, _namespace_check=False)
 
     card_paths, card_ds = resolve_paths_from_task(
         _get_flow_datastore(task), pathspec=task.pathspec, type=type, card_id=card_id
