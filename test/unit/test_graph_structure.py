@@ -142,6 +142,35 @@ class SwitchFlow(FlowSpec):
         pass
 
 
+class QuotedSwitchFlow(FlowSpec):
+    @step
+    def start(self):
+        self.route = 'say "hi"'
+        self.next({'say "hi"': self.quick, "two\nlines": self.end}, condition="route")
+
+    @step
+    def quick(self):
+        self.next(self.end)
+
+    @step
+    def end(self):
+        pass
+
+
+class UnreachableStepFlow(FlowSpec):
+    @step
+    def start(self):
+        self.next(self.end)
+
+    @step
+    def orphan(self):
+        self.next(self.end)
+
+    @step
+    def end(self):
+        pass
+
+
 # ---------------------------------------------------------------------------
 # Flow classes: single-step flows composed with configs, decorators, mutators
 # ---------------------------------------------------------------------------
@@ -365,6 +394,18 @@ def test_mermaid_switch_labels_edges():
     assert '    s_start{{"start"}}' in lines
     assert '    s_start -->|"fast"| s_quick' in lines
     assert '    s_start -->|"slow"| s_thorough' in lines
+
+
+def test_mermaid_switch_labels_escaped():
+    lines = QuotedSwitchFlow._graph.output_mermaid().splitlines()
+    assert '    s_start -->|"say #quot;hi#quot;"| s_quick' in lines
+    assert '    s_start -->|"two lines"| s_end' in lines
+
+
+def test_mermaid_includes_unreachable_steps():
+    lines = UnreachableStepFlow._graph.output_mermaid().splitlines()
+    assert '    s_orphan["orphan"]' in lines
+    assert "    s_orphan --> s_end" in lines
 
 
 # ---------------------------------------------------------------------------
