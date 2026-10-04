@@ -499,7 +499,9 @@ def pytest_put_blobs_case(meta=None):
 
 
 def ensure_test_data():
-    # update S3ROOT in __init__.py to get a fresh set of data
+    if S3ROOT is None:
+        print("S3ROOT is None. Skipping test data generation.")
+        return
     print("Ensuring that test data exists at %s" % S3ROOT)
     mark = urlparse(os.path.join(S3ROOT, "ALL_OK"))
     try:
