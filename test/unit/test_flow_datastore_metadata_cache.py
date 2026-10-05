@@ -1,10 +1,4 @@
-askDataStore)
-
-    fds = FlowDataStore.__new__(FlowDataStore)
-
-    fds._metadata_cache = cache
-
-    fds.TYPE = "lfrom metaflow.datastore import flow_datastore
+from metaflow.datastore import flow_datastore
 from metaflow.datastore.flow_datastore import FlowDataStore
 
 
