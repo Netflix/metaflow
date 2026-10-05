@@ -60,14 +60,24 @@ def test_normalize_exception_from_bare_string():
 
 
 def test_task_failure_summary_none_when_no_exception(mocker):
-    task = mocker.Mock()
-    task.exception = None
+    task = mocker.MagicMock(spec=Task)
+    task.__getitem__.return_value.data = None
+    assert Task.failure_summary.fget(task) is None
+
+
+def test_task_failure_summary_none_when_exception_artifact_is_missing(mocker):
+    task = mocker.MagicMock(spec=Task)
+    task.__getitem__.side_effect = KeyError("_exception")
     assert Task.failure_summary.fget(task) is None
 
 
 def test_task_failure_summary_builds_summary_from_exception(mocker):
-    task = mocker.Mock()
-    task.exception = {"type": "ValueError", "message": "boom", "stacktrace": "tb"}
+    task = mocker.MagicMock(spec=Task)
+    artifact = mocker.Mock(
+        _object={"attempt_id": "1"},
+        data={"type": "ValueError", "message": "boom", "stacktrace": "tb"},
+    )
+    task.__getitem__.return_value = artifact
     task.current_attempt = 2
 
     summary = Task.failure_summary.fget(task)
@@ -76,17 +86,18 @@ def test_task_failure_summary_builds_summary_from_exception(mocker):
     assert summary.exception_type == "ValueError"
     assert summary.message == "boom"
     assert summary.stacktrace == "tb"
-    assert summary.attempt == 2
+    assert summary.attempt == 1
+    task.__getitem__.assert_called_once_with("_exception")
 
 
-def test_task_failure_summary_propagates_read_errors():
-    class _Boom:
-        @property
-        def exception(self):
-            raise RuntimeError("exception artifact unavailable")
-
+def test_task_failure_summary_propagates_read_errors(mocker):
+    task = mocker.MagicMock(spec=Task)
+    artifact = task.__getitem__.return_value
+    type(artifact).data = mocker.PropertyMock(
+        side_effect=RuntimeError("exception artifact unavailable")
+    )
     with pytest.raises(RuntimeError, match="unavailable"):
-        Task.failure_summary.fget(_Boom())
+        Task.failure_summary.fget(task)
 
 
 # ---------------------------------------------------------------------------
@@ -94,34 +105,33 @@ def test_task_failure_summary_propagates_read_errors():
 # ---------------------------------------------------------------------------
 
 
-def _task(mocker, *, successful, finished, exception=None):
-    """A task as the client sees it through its persisted `_success`,
-    `_task_ok` and `_exception` artifacts."""
-    return mocker.Mock(successful=successful, finished=finished, exception=exception)
+def _task(mocker, metadata):
+    task = mocker.MagicMock(spec=Task)
+    task._metadata_read = mocker.PropertyMock(return_value=metadata)
+    type(task).metadata_dict = task._metadata_read
+    for name in ("successful", "finished", "exception"):
+        setattr(
+            type(task),
+            name,
+            mocker.PropertyMock(side_effect=AssertionError("Unexpected read: " + name)),
+        )
+    return task
 
 
 def _ok(mocker):
-    return _task(mocker, successful=True, finished=True)
+    return _task(mocker, {"attempt": "0", "attempt-done": "0", "attempt_ok": "True"})
 
 
 def _crashed(mocker):
-    # The task runner sets `_task_ok` to False when the step raises, so a
-    # crashed task is *not* finished as far as `Task.finished` is concerned.
-    return _task(
-        mocker, successful=False, finished=False, exception=RuntimeError("boom")
-    )
+    return _task(mocker, {"attempt": "1", "attempt-done": "1", "attempt_ok": "False"})
 
 
 def _handled(mocker):
-    # A failure handled by a decorator such as @catch: finished, not successful,
-    # and no exception recorded.
-    return _task(mocker, successful=False, finished=True)
+    return _task(mocker, {"attempt": "2", "attempt-done": "2", "attempt_ok": "True"})
 
 
 def _running(mocker):
-    # No artifacts persisted yet: reads exactly like a crashed task minus the
-    # exception.
-    return _task(mocker, successful=False, finished=False)
+    return _task(mocker, {"attempt": "0"})
 
 
 def _step(mocker, tasks):
@@ -153,11 +163,20 @@ def test_run_failed_task_scans_steps_in_order(mocker):
     assert Run.failed_task.fget(run) is bad
 
 
-def test_run_failed_task_includes_failures_handled_by_a_decorator(mocker):
+def test_run_failed_task_skips_failures_handled_by_catch(mocker):
     handled = _handled(mocker)
     run = _run(mocker, [_step(mocker, [_ok(mocker), handled])])
 
-    assert Run.failed_task.fget(run) is handled
+    assert Run.failed_task.fget(run) is None
+
+
+def test_run_failed_task_skips_retry_in_progress(mocker):
+    retrying = _task(
+        mocker, {"attempt": "2", "attempt-done": "1", "attempt_ok": "False"}
+    )
+    run = _run(mocker, [_step(mocker, [retrying])])
+
+    assert Run.failed_task.fget(run) is None
 
 
 def test_run_failed_task_skips_tasks_that_have_not_finished(mocker):
@@ -171,6 +190,30 @@ def test_run_failed_task_none_when_nothing_has_failed(mocker):
     run = _run(mocker, [_step(mocker, [_ok(mocker), _running(mocker)])])
 
     assert Run.failed_task.fget(run) is None
+
+
+def test_run_failed_task_reads_metadata_once_and_loads_only_returned_exception(mocker):
+    tasks = [_ok(mocker), _handled(mocker), _running(mocker), _crashed(mocker)]
+    later = _crashed(mocker)
+    run = _run(mocker, [_step(mocker, tasks + [later])])
+    artifact = tasks[-1].__getitem__.return_value
+    artifact._object = {"attempt_id": 1}
+    exception_read = mocker.PropertyMock(return_value={"message": "boom"})
+    type(artifact).data = exception_read
+
+    failed = Run.failed_task.fget(run)
+
+    assert failed is tasks[-1]
+    for task in tasks:
+        task._metadata_read.assert_called_once_with()
+        task.__getitem__.assert_not_called()
+    later._metadata_read.assert_not_called()
+
+    assert Task.failure_summary.fget(failed).message == "boom"
+    failed.__getitem__.assert_called_once_with("_exception")
+    exception_read.assert_called_once_with()
+    for task in tasks[:-1] + [later]:
+        task.__getitem__.assert_not_called()
 
 
 # ---------------------------------------------------------------------------

@@ -66,10 +66,9 @@ current_metadata = False
 @dataclass(frozen=True)
 class FailureSummary:
     """
-    Normalized description of the exception that failed a `Task`.
+    Exception details and the attempt that failed a `Task`.
 
-    Returned by `Task.failure_summary`. Any field may be None when the stored
-    exception artifact does not carry that particular detail.
+    Returned by `Task.failure_summary`. Unavailable details are None.
     """
 
     exception_type: Optional[str]
@@ -84,7 +83,7 @@ def _normalize_exception(data: Any) -> Dict[str, Optional[str]]:
 
     Handles both mapping-shaped exception records and exception-like objects,
     falling back to ``str(data)`` for the message so there is always something
-    human (or agent) readable.
+    readable.
     """
     if isinstance(data, Mapping):
         exception_type = data.get("type")
@@ -1679,21 +1678,19 @@ class Task(MetaflowObject):
         """
         Returns a normalized summary of the exception that failed this task.
 
-        This is a convenience over `exception` that flattens the stored
-        exception artifact into ``exception_type``, ``message``, ``stacktrace``,
-        and ``attempt`` fields, so callers (including agents summarizing a
-        failure) do not need to know how the exception was serialized.
-
-        Returns None when the task recorded no exception (for example a task
-        that succeeded or has not failed). Errors while reading the underlying
-        exception or attempt are allowed to propagate.
+        Includes the exception type, message, stacktrace, and failed attempt.
+        Returns None when the task recorded no exception.
 
         Returns
         -------
         FailureSummary, optional
             Normalized failure details, or None if the task has no exception.
         """
-        exception = self.exception
+        try:
+            artifact = self["_exception"]
+            exception = artifact.data
+        except KeyError:
+            return None
         if exception is None:
             return None
         normalized = _normalize_exception(exception)
@@ -1701,7 +1698,7 @@ class Task(MetaflowObject):
             exception_type=normalized["type"],
             message=normalized["message"],
             stacktrace=normalized["stacktrace"],
-            attempt=self.current_attempt,
+            attempt=int(artifact._object["attempt_id"]),
         )
 
     @property
@@ -2409,27 +2406,10 @@ class Run(MetaflowObject):
     @property
     def failed_task(self) -> Optional[Task]:
         """
-        Returns the latest failed (unsuccessful) task in this run, if any.
+        Returns the latest failed task in this run, if any.
 
-        Steps and their tasks are scanned in iteration order, which is
-        newest-created first (see `MetaflowObject.__iter__`), so the first
-        match is the latest failed task; for a failed run this is typically
-        the task that caused the failure. A task counts as failed once it has
-        finished without success: either it raised (its `exception` is set)
-        or a decorator such as `@catch` handled the failure. Tasks that are
-        still running, or that never started, are skipped. Returns None when
-        no task in the run has failed.
-
-        Together with `Flow.failed_runs` and `Task.failure_summary` this lets
-        you investigate failures through the regular client:
-
-        ```
-        for run in Flow("MyFlow").failed_runs(max_runs=10):
-            task = run.failed_task
-            if task is not None:
-                summary = task.failure_summary
-                print(task.pathspec, summary and summary.exception_type)
-        ```
+        Tasks still running a retry and failures handled by `@catch` are skipped.
+        Returns None when no task in the run has failed.
 
         Returns
         -------
@@ -2438,15 +2418,12 @@ class Run(MetaflowObject):
         """
         for step in self:
             for task in step:
-                if task.successful:
-                    continue
-                # `finished` reads `_task_ok`, which the task runner sets to
-                # False when the step raises, so on its own it cannot tell a
-                # crashed task from one that is still running. A crashed task
-                # has recorded its exception; a task whose failure a decorator
-                # handled (e.g. @catch) is finished but not successful. A task
-                # that has not written its artifacts yet is neither.
-                if task.exception is not None or task.finished:
+                metadata = task.metadata_dict
+                if (
+                    metadata.get("attempt_ok") == "False"
+                    and metadata.get("attempt-done") is not None
+                    and metadata.get("attempt") == metadata.get("attempt-done")
+                ):
                     return task
         return None
 
@@ -2799,11 +2776,8 @@ class Flow(MetaflowObject):
         """
         Returns an iterator over the failed `Run`s of this flow, newest first.
 
-        This is a convenience wrapper over `runs` that applies the metadata
-        service's ``status:eq`` = ``failed`` filter server-side. Because it
-        relies on server-side filtering, it requires a metadata service with
-        pagination and filtering support; against the local metadata provider
-        or an older service it raises, exactly like ``runs(_filters=...)``.
+        Requires a metadata service with filtering support, like
+        ``runs(_filters=...)``.
 
         Parameters
         ----------
@@ -2811,8 +2785,8 @@ class Flow(MetaflowObject):
             Tags to match, exactly as for `runs`. If multiple tags are
             specified, only failed runs that have all of them are returned.
         since : int, optional
-            Inclusive lower bound on run start time as epoch milliseconds
-            (``ts_epoch``). Only runs at or after this time are returned.
+            Inclusive lower bound on run start time as epoch milliseconds.
+            Only runs at or after this time are returned.
         max_runs : int, optional
             Maximum number of failed runs to yield, newest first.
 
