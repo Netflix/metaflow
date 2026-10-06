@@ -86,3 +86,16 @@ def test_get_cards_with_pathspec_does_not_change_global_namespace(
     assert len(cards) == 1
     # get_cards must not leak a namespace(None) into the caller's session.
     assert get_namespace() == "user:someone-else"
+
+
+def test_get_cards_with_task_follows_resumed_origin_across_namespaces(local_client):
+    _, resumed_task_pathspec = local_client
+    # The resumed task is in the resumer's namespace, but its card lives with
+    # the origin task, which belongs to another user.
+    namespace("user:%s" % RESUMER)
+    task = client_core.Task(resumed_task_pathspec)
+
+    cards = get_cards(task)
+
+    assert len(cards) == 1
+    assert get_namespace() == "user:%s" % RESUMER
