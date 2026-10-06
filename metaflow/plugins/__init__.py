@@ -63,6 +63,7 @@ STEP_DECORATORS_DESC = [
     ("airflow_internal", ".airflow.airflow_decorator.AirflowInternalDecorator"),
     ("pypi", ".pypi.pypi_decorator.PyPIStepDecorator"),
     ("conda", ".pypi.conda_decorator.CondaStepDecorator"),
+    ("debugger", ".debugger_step_decorator.DebuggerStepDecorator"),
 ]
 
 # Add new flow decorators here
