@@ -1,0 +1,87 @@
+# Standalone MinIO for the devstack.
+#
+# We deploy plain manifests instead of the upstream chart from charts.min.io:
+# that chart defaults to quay.io/minio/minio, and MinIO's community images are
+# no longer anonymously pullable (registries report this as
+# "unauthorized: access to the requested resource is not authorized").
+#
+# bitnamilegacy/* is the frozen mirror Bitnami left behind when it moved its
+# catalog behind a subscription, so the tag below never moves. It is also the
+# last MinIO release line that still ships the embedded web console, which the
+# Tilt UI links to -- newer releases dropped it from the server.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: minio
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: minio
+  template:
+    metadata:
+      labels:
+        app: minio
+    spec:
+      securityContext:
+        fsGroup: 1001
+      containers:
+        - name: minio
+          # digest: sha256:50cec18ac4184af4671a78aedd5554942c8ae105d51a465fa82037949046da01
+          image: docker.io/bitnamilegacy/minio:2025.4.22-debian-12-r2
+          env:
+            - name: MINIO_ROOT_USER
+              value: rootuser
+            - name: MINIO_ROOT_PASSWORD
+              value: rootpass123
+            - name: MINIO_DEFAULT_BUCKETS
+              value: metaflow-test
+            - name: MINIO_SCHEME
+              value: http
+          ports:
+            - name: http
+              containerPort: 9000
+            - name: http-console
+              containerPort: 9001
+          readinessProbe:
+            httpGet:
+              path: /minio/health/live
+              port: http
+            initialDelaySeconds: 2
+            periodSeconds: 5
+          livenessProbe:
+            httpGet:
+              path: /minio/health/live
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 20
+          volumeMounts:
+            - name: data
+              mountPath: /bitnami/minio/data
+          resources:
+            requests:
+              cpu: 50m
+              memory: 128Mi
+            limits:
+              cpu: 100m
+              memory: 256Mi
+      volumes:
+        # Matches the chart's persistence.enabled=false: the devstack datastore
+        # is disposable and goes away with the pod.
+        - name: data
+          emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: minio
+spec:
+  selector:
+    app: minio
+  ports:
+    - name: http
+      port: 9000
+      targetPort: http
+    - name: http-console
+      port: 9001
+      targetPort: http-console
