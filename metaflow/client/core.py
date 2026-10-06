@@ -5,6 +5,7 @@ import os
 import tarfile
 from collections import namedtuple
 from collections.abc import Mapping
+from dataclasses import dataclass
 from datetime import datetime
 from tempfile import TemporaryDirectory
 from io import BytesIO
@@ -60,6 +61,47 @@ filecache = None
 current_namespace = False
 
 current_metadata = False
+
+
+@dataclass(frozen=True)
+class FailureSummary:
+    """
+    Exception details and the attempt that failed a `Task`.
+
+    Returned by `Task.failure_summary`. Unavailable details are None.
+    """
+
+    exception_type: Optional[str]
+    message: Optional[str]
+    stacktrace: Optional[str]
+    attempt: Optional[int]
+
+
+def _normalize_exception(data: Any) -> Dict[str, Optional[str]]:
+    """
+    Flatten a task's ``_exception`` artifact into type/message/stacktrace strings.
+
+    Handles both mapping-shaped exception records and exception-like objects,
+    falling back to ``str(data)`` for the message so there is always something
+    readable.
+    """
+    if isinstance(data, Mapping):
+        exception_type = data.get("type")
+        message = data.get("message") or data.get("exception")
+        stacktrace = data.get("stacktrace")
+    else:
+        exception_type = getattr(data, "type", None)
+        message = getattr(data, "message", None) or getattr(data, "exception", None)
+        stacktrace = getattr(data, "stacktrace", None)
+        if exception_type is None:
+            exception_type = "%s.%s" % (type(data).__module__, type(data).__name__)
+    if message is None:
+        message = str(data)
+    return {
+        "type": str(exception_type) if exception_type is not None else None,
+        "message": str(message),
+        "stacktrace": str(stacktrace) if stacktrace is not None else None,
+    }
 
 
 def metadata(ms: str) -> str:
@@ -1632,6 +1674,34 @@ class Task(MetaflowObject):
             return None
 
     @property
+    def failure_summary(self) -> Optional[FailureSummary]:
+        """
+        Returns a normalized summary of the exception that failed this task.
+
+        Includes the exception type, message, stacktrace, and failed attempt.
+        Returns None when the task recorded no exception.
+
+        Returns
+        -------
+        FailureSummary, optional
+            Normalized failure details, or None if the task has no exception.
+        """
+        try:
+            artifact = self["_exception"]
+            exception = artifact.data
+        except KeyError:
+            return None
+        if exception is None:
+            return None
+        normalized = _normalize_exception(exception)
+        return FailureSummary(
+            exception_type=normalized["type"],
+            message=normalized["message"],
+            stacktrace=normalized["stacktrace"],
+            attempt=int(artifact._object["attempt_id"]),
+        )
+
+    @property
     def finished_at(self) -> Optional[datetime]:
         """
         Returns the datetime object of when the task finished (successfully or not).
@@ -2334,6 +2404,30 @@ class Run(MetaflowObject):
             return False
 
     @property
+    def failed_task(self) -> Optional[Task]:
+        """
+        Returns the latest failed task in this run, if any.
+
+        Tasks still running a retry and failures handled by `@catch` are skipped.
+        Returns None when no task in the run has failed.
+
+        Returns
+        -------
+        Task, optional
+            The latest failed task, or None if no task in the run has failed.
+        """
+        for step in self:
+            for task in step:
+                metadata = task.metadata_dict
+                if (
+                    metadata.get("attempt_ok") == "False"
+                    and metadata.get("attempt-done") is not None
+                    and metadata.get("attempt") == metadata.get("attempt-done")
+                ):
+                    return task
+        return None
+
+    @property
     def finished(self) -> bool:
         """
         Indicates whether or not the run completed.
@@ -2672,6 +2766,39 @@ class Flow(MetaflowObject):
         if max_runs is None:
             return runs
         return islice(runs, max_runs)
+
+    def failed_runs(
+        self,
+        *tags: str,
+        since: Optional[int] = None,
+        max_runs: Optional[int] = None,
+    ) -> Iterator[Run]:
+        """
+        Returns an iterator over the failed `Run`s of this flow, newest first.
+
+        Requires a metadata service with filtering support, like
+        ``runs(_filters=...)``.
+
+        Parameters
+        ----------
+        tags : str
+            Tags to match, exactly as for `runs`. If multiple tags are
+            specified, only failed runs that have all of them are returned.
+        since : int, optional
+            Inclusive lower bound on run start time as epoch milliseconds.
+            Only runs at or after this time are returned.
+        max_runs : int, optional
+            Maximum number of failed runs to yield, newest first.
+
+        Yields
+        ------
+        Run
+            Failed `Run` objects in this flow, newest first.
+        """
+        filters = {"status:eq": "failed"}
+        if since is not None:
+            filters["ts_epoch:ge"] = int(since)
+        return self.runs(*tags, _filters=filters, max_runs=max_runs)
 
     def __iter__(self) -> Iterator[Task]:
         """
