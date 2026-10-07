@@ -43,7 +43,7 @@ def get_trace_id() -> str:
 def traced(name, attrs=None):
     if attrs is None:
         attrs = {}
-    yield
+    yield None
 
 
 def tracing(func):
