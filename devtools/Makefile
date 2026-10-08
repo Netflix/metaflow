@@ -166,14 +166,13 @@ dashboard:
 	@echo "🔗 Opening Minikube Dashboard..."
 	@$(MINIKUBE) dashboard
 
-# make shell is symlinked to metaflow-dev shell by metaflow
-up: install-brew check-docker install-curl install-gum setup-minikube install-helm setup-tilt
-	@echo "🚀 Starting up (may require sudo access)..."
+# Write start.sh without launching it. Used by `up` and by unit tests.
+generate-start-sh:
 	@mkdir -p $(DEVTOOLS_DIR)
 	@echo '#!/bin/bash' > $(DEVTOOLS_DIR)/start.sh
 	@echo 'set -e' >> $(DEVTOOLS_DIR)/start.sh
 	@echo 'trap "exit" INT TERM' >> $(DEVTOOLS_DIR)/start.sh
-	@echo 'trap "kill 0" EXIT' >> $(DEVTOOLS_DIR)/start.sh
+	@echo 'trap '"'"'kill $$(jobs -p) 2>/dev/null || true'"'"' EXIT' >> $(DEVTOOLS_DIR)/start.sh
 	@echo 'eval $$($(MINIKUBE) docker-env --shell bash)' >> $(DEVTOOLS_DIR)/start.sh
 	@echo 'if [ -n "$$SERVICES_OVERRIDE" ]; then' >> "$(DEVTOOLS_DIR)/start.sh"
 	@echo '    echo "🌐 Using user-provided list of services: $$SERVICES_OVERRIDE"' >> "$(DEVTOOLS_DIR)/start.sh"
@@ -182,12 +181,23 @@ up: install-brew check-docker install-curl install-gum setup-minikube install-he
 	@echo '    echo "📝 Selecting services..."' >> "$(DEVTOOLS_DIR)/start.sh"
 	@echo '    SERVICES=$$($(PICK_SERVICES))' >> "$(DEVTOOLS_DIR)/start.sh"
 	@echo 'fi' >> "$(DEVTOOLS_DIR)/start.sh"
+	@echo 'echo "🔐 minikube tunnel requires sudo to configure host networking."' >> "$(DEVTOOLS_DIR)/start.sh"
+	@echo 'if ! sudo -v; then' >> "$(DEVTOOLS_DIR)/start.sh"
+	@echo '    echo "❌ Failed to obtain sudo privileges for minikube tunnel."' >> "$(DEVTOOLS_DIR)/start.sh"
+	@echo '    echo "   Authentication was cancelled or failed. Re-run '\''metaflow-dev up'\'' to try again."' >> "$(DEVTOOLS_DIR)/start.sh"
+	@echo '    echo "   You can also run '\''metaflow-dev tunnel'\'' in a separate terminal, then retry."' >> "$(DEVTOOLS_DIR)/start.sh"
+	@echo '    exit 1' >> "$(DEVTOOLS_DIR)/start.sh"
+	@echo 'fi' >> "$(DEVTOOLS_DIR)/start.sh"
 	@echo 'PATH="$(MINIKUBE_DIR):$(TILT_DIR):$$PATH" $(MINIKUBE) tunnel &' >> $(DEVTOOLS_DIR)/start.sh
 	@echo 'echo -e "🚀 Starting Tilt with selected services..."' >> $(DEVTOOLS_DIR)/start.sh
 	@echo 'echo -e "\033[1;38;5;46m\n🔥 \033[1;38;5;196mNext Steps:\033[0;38;5;46m Use \033[3mmetaflow-dev shell\033[23m to switch to the development\n   environment'\''s shell and start executing your Metaflow flows.\n\033[0m"' >> "$(DEVTOOLS_DIR)/start.sh"
 	@echo 'PATH="$(HELM_DIR):$(MINIKUBE_DIR):$(TILT_DIR):$$PATH" SERVICES="$$SERVICES" tilt up -f $(TILTFILE)' >> $(DEVTOOLS_DIR)/start.sh
 	@echo 'wait' >> $(DEVTOOLS_DIR)/start.sh
 	@chmod +x $(DEVTOOLS_DIR)/start.sh
+
+# make shell is symlinked to metaflow-dev shell by metaflow
+up: install-brew check-docker install-curl install-gum setup-minikube install-helm setup-tilt generate-start-sh
+	@echo "🚀 Starting up (may require sudo access)..."
 	@$(DEVTOOLS_DIR)/start.sh
 
 all-up:
@@ -346,6 +356,6 @@ ui: setup-tilt
 	@echo "🔗 Opening Metaflow UI at http://localhost:3000"
 	@open http://localhost:3000
 
-.PHONY: install-helm check-docker install-brew install-curl install-gum setup-minikube setup-tilt tunnel teardown-minikube dashboard up all-up down shell wait-until-ready create-dev-shell ui help
+.PHONY: install-helm check-docker install-brew install-curl install-gum setup-minikube setup-tilt tunnel teardown-minikube dashboard generate-start-sh up all-up down shell wait-until-ready create-dev-shell ui help
 
 .DEFAULT_GOAL := help
