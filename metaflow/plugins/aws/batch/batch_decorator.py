@@ -11,6 +11,7 @@ from metaflow.metaflow_config import (
     BATCH_CONTAINER_IMAGE,
     BATCH_CONTAINER_REGISTRY,
     BATCH_DEFAULT_TAGS,
+    BATCH_EMIT_TAGS,
     BATCH_JOB_QUEUE,
     DATASTORE_LOCAL_DIR,
     ECS_FARGATE_EXECUTION_ROLE,
@@ -201,6 +202,14 @@ class BatchDecorator(StepDecorator):
         else:
             self.attributes["aws_batch_tags"] = {}
 
+        # Captured before the BATCH_DEFAULT_TAGS merge below overwrites
+        # aws_batch_tags, so step_init can later tell whether tags came
+        # from this step's own @batch(aws_batch_tags=...) versus only
+        # from the BATCH_DEFAULT_TAGS config default. Used to give a
+        # more specific warning if BATCH_EMIT_TAGS is False, see
+        # step_init.
+        self._explicit_aws_batch_tags = bool(self.attributes["aws_batch_tags"])
+
         if BATCH_DEFAULT_TAGS:
             self.attributes["aws_batch_tags"] = {
                 **BATCH_DEFAULT_TAGS,
@@ -243,6 +252,41 @@ class BatchDecorator(StepDecorator):
         if self.attributes["aws_batch_tags"]:
             for key, val in self.attributes["aws_batch_tags"].items():
                 validate_aws_tag(key, val)
+
+            self._warn_if_tags_will_be_dropped(logger)
+
+    def _warn_if_tags_will_be_dropped(self, logger):
+        """Warn if aws_batch_tags were requested but won't be applied.
+
+        Applying tags requires the Batch:TagResource IAM permission,
+        which may not be granted in every deployment, so
+        METAFLOW_BATCH_EMIT_TAGS defaults to False and tags are silently
+        dropped when it is unset. That silence is exactly what made
+        this hard to diagnose in enterprise deployments with mandatory
+        tagging policies (see #3209), so warn here, at
+        flow-submission time on the user's own machine, rather than let
+        the drop happen invisibly downstream on Batch.
+
+        Callers must only invoke this when self.attributes["aws_batch_tags"]
+        is truthy; this method does not check that itself so it can be
+        unit tested directly with a minimal, non-__init__-constructed
+        instance (only self.attributes and self._explicit_aws_batch_tags
+        need to be set).
+        """
+        if BATCH_EMIT_TAGS:
+            return
+        if self._explicit_aws_batch_tags:
+            source = "the aws_batch_tags argument on this step's @batch decorator"
+        else:
+            source = "the BATCH_DEFAULT_TAGS configuration default"
+        logger(
+            "aws_batch_tags were set via %s, but they will NOT be "
+            "applied to the AWS Batch job because "
+            "METAFLOW_BATCH_EMIT_TAGS is not set to true. Set "
+            "METAFLOW_BATCH_EMIT_TAGS=true to apply these tags, "
+            "or unset aws_batch_tags to silence this warning." % source,
+            system_msg=True,
+        )
 
     def runtime_init(self, flow, graph, package, run_id):
         # Set some more internal state.
