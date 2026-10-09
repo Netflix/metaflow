@@ -90,7 +90,7 @@ def test_argo_version_breaks_conditionals(version, broken):
     assert _argo_version_breaks_conditionals(version) is broken
 
 
-# ── ArgoClient.get_server_version() ──────────────────────────────────────────
+# ── ArgoClient.get_argo_version() ──────────────────────────────────────────
 
 
 class _Response:
@@ -107,11 +107,21 @@ class _Response:
         pass
 
 
-def _deployment(mocker, image):
+def _container(mocker, name, image):
     container = mocker.MagicMock(image=image)
+    # `name` is reserved by the MagicMock constructor, so set it afterwards.
+    container.name = name
+    return container
+
+
+def _deployment(mocker, *containers):
     deployment = mocker.MagicMock()
-    deployment.spec.template.spec.containers = [container]
+    deployment.spec.template.spec.containers = list(containers)
     return deployment
+
+
+def _controller(mocker, image, name="workflow-controller"):
+    return _deployment(mocker, _container(mocker, name, image))
 
 
 @pytest.fixture
@@ -119,23 +129,59 @@ def client(mocker):
     argo_client = ArgoClient.__new__(ArgoClient)
     argo_client._client = mocker.MagicMock()
     mocker.patch("metaflow.plugins.argo.argo_client.KUBERNETES_NAMESPACE", "default")
+    mocker.patch("metaflow.plugins.argo.argo_client.ARGO_WORKFLOWS_UI_URL", None)
     return argo_client
+
+
+@pytest.fixture
+def server_api(mocker):
+    mocker.patch(
+        "metaflow.plugins.argo.argo_client.ARGO_WORKFLOWS_UI_URL", "https://argo/"
+    )
+
+    def _serve(version):
+        return mocker.patch(
+            "urllib.request.urlopen",
+            return_value=_Response(json.dumps({"version": version})),
+        )
+
+    return _serve
 
 
 def _apps(client):
     return client._client.get().AppsV1Api()
 
 
-def test_version_from_server_api(mocker, client):
-    mocker.patch(
-        "metaflow.plugins.argo.argo_client.ARGO_WORKFLOWS_UI_URL", "https://argo/"
-    )
-    urlopen = mocker.patch(
-        "urllib.request.urlopen",
-        return_value=_Response(json.dumps({"version": "v3.7.11"})),
+def _no_controller(client):
+    apps = _apps(client)
+    apps.read_namespaced_deployment.side_effect = Exception("not found")
+    apps.list_namespaced_deployment.side_effect = Exception("forbidden")
+
+
+@pytest.mark.parametrize(
+    "server, controller",
+    [("v3.7.12", "v3.7.18"), ("v3.7.18", "v3.7.12")],
+    ids=["broken_server_working_controller", "working_server_broken_controller"],
+)
+def test_controller_version_wins_over_server(
+    mocker, client, server_api, server, controller
+):
+    """The controller executes workflows, so its version is authoritative even
+    when the Argo Server runs a different one."""
+    urlopen = server_api(server)
+    _apps(client).read_namespaced_deployment.return_value = _controller(
+        mocker, "quay.io/argoproj/workflow-controller:" + controller
     )
 
-    assert client.get_server_version() == "v3.7.11"
+    assert client.get_argo_version() == controller
+    urlopen.assert_not_called()
+
+
+def test_falls_back_to_server_api(client, server_api):
+    urlopen = server_api("v3.7.11")
+    _no_controller(client)
+
+    assert client.get_argo_version() == "v3.7.11"
     # call_args.args/.kwargs need Python 3.8+; unpack the tuple instead.
     args, kwargs = urlopen.call_args
     assert args[0] == "https://argo/api/v1/version"
@@ -143,27 +189,20 @@ def test_version_from_server_api(mocker, client):
     assert "context" not in kwargs
 
 
-def test_falls_back_to_deployment_by_name(mocker, client):
-    mocker.patch(
-        "metaflow.plugins.argo.argo_client.ARGO_WORKFLOWS_UI_URL", "https://argo"
-    )
-    mocker.patch("urllib.request.urlopen", side_effect=OSError("unreachable"))
-    _apps(client).read_namespaced_deployment.return_value = _deployment(
-        mocker, "quay.io/argoproj/workflow-controller:v3.7.12"
-    )
-
-    assert client.get_server_version() == "v3.7.12"
-
-
 def test_finds_helm_deployment_by_label(mocker, client):
-    mocker.patch("metaflow.plugins.argo.argo_client.ARGO_WORKFLOWS_UI_URL", None)
     apps = _apps(client)
     apps.read_namespaced_deployment.side_effect = Exception("not found")
 
     def _list(namespace, label_selector):
         assert label_selector == "app.kubernetes.io/component=workflow-controller"
         items = (
-            [_deployment(mocker, "quay.io/argoproj/workflow-controller:v4.0.3")]
+            [
+                _controller(
+                    mocker,
+                    "quay.io/argoproj/workflow-controller:v4.0.3",
+                    name="controller",
+                )
+            ]
             if namespace == "argo"
             else []
         )
@@ -171,7 +210,38 @@ def test_finds_helm_deployment_by_label(mocker, client):
 
     apps.list_namespaced_deployment.side_effect = _list
 
-    assert client.get_server_version() == "v4.0.3"
+    assert client.get_argo_version() == "v4.0.3"
+
+
+@pytest.mark.parametrize(
+    "sidecar_version, controller_version",
+    [("v3.7.12", "v3.7.18"), ("v3.7.18", "v3.7.12")],
+    ids=["broken_sidecar_tag", "working_sidecar_tag"],
+)
+def test_ignores_sidecar_listed_before_controller(
+    mocker, client, sidecar_version, controller_version
+):
+    _apps(client).read_namespaced_deployment.return_value = _deployment(
+        mocker,
+        _container(mocker, "proxy", "example.com/auth-proxy:" + sidecar_version),
+        _container(
+            mocker,
+            "controller",
+            "quay.io/argoproj/workflow-controller:" + controller_version,
+        ),
+    )
+
+    assert client.get_argo_version() == controller_version
+
+
+def test_recognises_renamed_container_by_image(mocker, client):
+    _apps(client).read_namespaced_deployment.return_value = _controller(
+        mocker,
+        "registry:5000/mirror/argoproj/workflow-controller:v3.7.13",
+        name="main",
+    )
+
+    assert client.get_argo_version() == "v3.7.13"
 
 
 @pytest.mark.parametrize(
@@ -184,21 +254,17 @@ def test_finds_helm_deployment_by_label(mocker, client):
     ids=["latest", "digest", "registry_port_no_tag"],
 )
 def test_ignores_non_semver_image_tags(mocker, client, image):
-    mocker.patch("metaflow.plugins.argo.argo_client.ARGO_WORKFLOWS_UI_URL", None)
     apps = _apps(client)
-    apps.read_namespaced_deployment.return_value = _deployment(mocker, image)
+    apps.read_namespaced_deployment.return_value = _controller(mocker, image)
     apps.list_namespaced_deployment.return_value = mocker.MagicMock(items=[])
 
-    assert client.get_server_version() is None
+    assert client.get_argo_version() is None
 
 
-def test_returns_none_when_undetectable(mocker, client):
-    mocker.patch("metaflow.plugins.argo.argo_client.ARGO_WORKFLOWS_UI_URL", None)
-    apps = _apps(client)
-    apps.read_namespaced_deployment.side_effect = Exception("forbidden")
-    apps.list_namespaced_deployment.side_effect = Exception("forbidden")
+def test_returns_none_when_undetectable(client):
+    _no_controller(client)
 
-    assert client.get_server_version() is None
+    assert client.get_argo_version() is None
 
 
 # ── deploy() gate ────────────────────────────────────────────────────────────
@@ -210,7 +276,7 @@ def _make_argo(mocker, flow_cls, version):
     mocker.patch.object(ArgoWorkflows, "cleanup_previous_sensors")
     # Patch at the call site so no kubeconfig is needed.
     argo_client = mocker.patch("metaflow.plugins.argo.argo_workflows.ArgoClient")
-    argo_client.return_value.get_server_version.return_value = version
+    argo_client.return_value.get_argo_version.return_value = version
     aw = ArgoWorkflows(
         name="flow",
         graph=flow_cls._graph,
@@ -259,5 +325,5 @@ def test_deploy_skips_check_without_conditionals(mocker):
 
     aw.deploy()
 
-    client.get_server_version.assert_not_called()
+    client.get_argo_version.assert_not_called()
     client.register_workflow_template.assert_called_once()
