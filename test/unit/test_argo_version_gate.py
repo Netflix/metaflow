@@ -136,9 +136,11 @@ def test_version_from_server_api(mocker, client):
     )
 
     assert client.get_server_version() == "v3.7.11"
-    assert urlopen.call_args.args[0] == "https://argo/api/v1/version"
+    # call_args.args/.kwargs need Python 3.8+; unpack the tuple instead.
+    args, kwargs = urlopen.call_args
+    assert args[0] == "https://argo/api/v1/version"
     # Default TLS verification - no custom (unverified) SSL context.
-    assert "context" not in urlopen.call_args.kwargs
+    assert "context" not in kwargs
 
 
 def test_falls_back_to_deployment_by_name(mocker, client):
