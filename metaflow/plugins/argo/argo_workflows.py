@@ -231,7 +231,7 @@ class ArgoWorkflows(object):
 
     def _check_argo_version_supports_conditionals(self):
         # Best-effort: an undetectable version is never blocked.
-        version = ArgoClient(namespace=KUBERNETES_NAMESPACE).get_server_version()
+        version = ArgoClient(namespace=KUBERNETES_NAMESPACE).get_argo_version()
         if not _argo_version_breaks_conditionals(_parse_argo_version(version)):
             return
         raise ArgoWorkflowsException(

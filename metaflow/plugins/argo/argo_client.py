@@ -496,23 +496,16 @@ class ArgoClient(object):
                 return None
             raise wrap_api_error(e)
 
-    def get_server_version(self):
+    def get_argo_version(self):
         """Best-effort detection of the Argo Workflows version; None if unknown.
 
-        Tries the Argo Server's /api/v1/version endpoint, then the
-        workflow-controller Deployment's image tag.
+        Prefers the workflow controller's image tag, since the controller is
+        what executes workflows; falls back to the Argo Server's
+        /api/v1/version endpoint, which may run a different version.
         """
-        if ARGO_WORKFLOWS_UI_URL:
-            try:
-                url = ARGO_WORKFLOWS_UI_URL.rstrip("/") + "/api/v1/version"
-                with urllib.request.urlopen(url, timeout=5) as resp:
-                    data = json.loads(resp.read())
-                version = data.get("version") or data.get("gitTag")
-                if version:
-                    return version
-            except Exception:
-                pass
+        return self._get_controller_version() or self._get_argo_server_version()
 
+    def _get_controller_version(self):
         try:
             apps = self._client.get().AppsV1Api()
         except Exception:
@@ -520,16 +513,42 @@ class ArgoClient(object):
         for namespace in filter(None, [KUBERNETES_NAMESPACE, "argo", "argo-system"]):
             for deployment in _controller_deployments(apps, namespace):
                 for container in deployment.spec.template.spec.containers:
-                    tag = (container.image or "").rpartition(":")[2]
-                    if "/" not in tag and _SEMVER_TAG.match(tag):
+                    repository, tag = _split_image(container.image)
+                    is_controller = (
+                        container.name in _CONTROLLER_CONTAINER_NAMES
+                        or repository.rpartition("/")[2] == "workflow-controller"
+                    )
+                    if is_controller and _SEMVER_TAG.match(tag):
                         return tag
         return None
 
+    def _get_argo_server_version(self):
+        if not ARGO_WORKFLOWS_UI_URL:
+            return None
+        try:
+            url = ARGO_WORKFLOWS_UI_URL.rstrip("/") + "/api/v1/version"
+            with urllib.request.urlopen(url, timeout=5) as resp:
+                data = json.loads(resp.read())
+            return data.get("version") or data.get("gitTag")
+        except Exception:
+            return None
 
-# Upstream manifests name the Deployment `workflow-controller`; the Helm chart
-# names it `<release>-workflow-controller` and labels it with the component.
+
+# Upstream manifests name the Deployment and its container `workflow-controller`;
+# the Helm chart names them `<release>-workflow-controller` and `controller`, and
+# labels the Deployment with the component.
 _CONTROLLER_LABEL_SELECTOR = "app.kubernetes.io/component=workflow-controller"
+_CONTROLLER_CONTAINER_NAMES = ("workflow-controller", "controller")
 _SEMVER_TAG = re.compile(r"^v?\d+\.\d+\.\d+")
+
+
+def _split_image(image):
+    # "registry:5000/argoproj/workflow-controller:v3.7.18@sha256:..." ->
+    # ("registry:5000/argoproj/workflow-controller", "v3.7.18")
+    image = (image or "").split("@")[0]
+    prefix, _, name = image.rpartition("/")
+    name, _, tag = name.partition(":")
+    return (prefix + "/" + name if prefix else name), tag
 
 
 def _controller_deployments(apps, namespace):
