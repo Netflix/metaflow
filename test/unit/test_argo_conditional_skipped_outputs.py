@@ -1,29 +1,23 @@
-"""Cross-version regression tests for how conditional steps reference the
-outputs of a predecessor that never executed.
+"""Regression tests for how conditional steps reference the outputs of a
+predecessor that never executed.
 
-Argo's treatment of such a reference has changed twice:
+Argo's treatment of such a reference differs by version:
 
-* `<3.7.11`: a Skipped/Omitted node contributes no `outputs` to the scope.
-  An unresolved `{{...}}` tag is passed through to the container literally.
-* `3.7.11`-`3.7.15`: `ReplaceStrict` makes the controller **requeue
-  indefinitely** on an unresolved tag, so the downstream task never starts
-  (argoproj/argo-workflows#15932). `valueFrom.default` is not yet honoured
-  for Omitted nodes.
-* `>=3.7.16` / `>=4.0.7`: a Skipped/Omitted node's *declared* output
-  parameters are populated in scope, resolving to `valueFrom.default` when
-  one is declared and to nil otherwise.
+* `<3.7.11`: unresolved `{{...}}` tags are passed through literally.
+* `3.7.11`-`3.7.12` / `4.0.2`-`4.0.3`: the controller requeues forever when
+  any referenced variable is missing (argoproj/argo-workflows#15442), so the
+  downstream task is never created. Rejected at deploy time.
+* `>=3.7.13` / `>=4.0.4`: a skipped ancestor's outputs are in scope with
+  empty values (#15841).
 
-The generated templates sidestep all three by never emitting a bare
-`{{tasks.X.outputs...}}` tag for a possibly-Omitted `X`. Every such access
-lives inside a `{{=...}}` expression, lazily gated on a **positive**
-`.status == 'Succeeded'` check - `.status` is populated for Omitted nodes on
-every version, and expr evaluates ternaries lazily, so the `.outputs` access
-never happens for a branch that did not run.
+The generated templates never emit a bare `{{tasks.X.outputs...}}` tag for a
+possibly-Omitted `X`; every such access lives inside a `{{=...}}` expression
+gated on a **positive** `.status == 'Succeeded'` check.
 
-Two operators are therefore banned from these expressions:
+Two operators are banned from these expressions:
 * `?.` - misbehaves for tasks inside foreach-templated DAGs.
-* `??` - on `>=3.7.16` an Omitted node's outputs are in scope, so a `??`
-  chain never falls through and always settles on the first branch.
+* `??` - once an Omitted node's outputs are in scope, a `??` chain never
+  falls through and always settles on the first branch.
 """
 
 import pytest
@@ -165,7 +159,7 @@ def test_switch_when_guards_predecessor_status(
 ):
     """A `when` clause may only read a switch predecessor's `switch-step`
     behind a `.status == 'Succeeded'` check. Reading it unguarded breaks on
-    Argo <3.7.16/<4.0.7, where an Omitted predecessor has no `outputs` in
+    Argo <3.7.13, where an Omitted predecessor has no `outputs` in
     scope: substitution leaves the raw `{{=...}}`, which `shouldExecute()`
     then rejects with "Invalid token: '{{='" and errors the task out."""
     when = _when(chain_skip_argo, node_name)
@@ -188,8 +182,8 @@ def test_switch_when_guards_predecessor_status(
 def test_conditional_input_paths_use_status_gated_expression(chain_skip_argo):
     """`end` has conditional predecessors, so its input-paths must be a single
     status-gated expression rather than bare per-predecessor tags. A bare tag
-    for an Omitted predecessor is exactly what makes the controller requeue
-    forever on Argo 3.7.11-3.7.15."""
+    for an Omitted predecessor resolves to an empty task-id on Argo >=3.7.13,
+    producing a broken pathspec that crashes the step."""
     value = _param(chain_skip_argo, "end", "input-paths")
 
     assert value.startswith("{{=sprig.trimSuffix(',',")
@@ -225,9 +219,9 @@ def test_input_paths_expression_bans_unsafe_operators(chain_skip_argo):
 
 def test_executed_task_id_expr_uses_positive_status_chain(foreach_argo):
     """The task-id of whichever branch ran is picked with a positive
-    `.status == 'Succeeded'` chain. The previous `?.`/`??` formulation broke on
-    >=3.7.16/>=4.0.7, where `?.outputs` is never nil so the chain always
-    settled on the first branch regardless of which one actually ran."""
+    `.status == 'Succeeded'` chain. The previous `?.`/`??` formulation broke
+    once Omitted outputs are in scope (>=3.7.13), where `?.outputs` is never
+    nil so the chain always settled on the first branch."""
     expr = foreach_argo._executed_task_id_expr(["b", "c"])
 
     assert expr == (
