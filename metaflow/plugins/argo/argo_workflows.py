@@ -84,6 +84,27 @@ class ArgoWorkflowsSchedulingException(MetaflowException):
     headline = "Argo Workflows scheduling error"
 
 
+# Argo versions on which any reference to a Skipped/Omitted task's outputs makes
+# the controller requeue forever instead of creating the downstream task:
+# introduced by argoproj/argo-workflows#15442 (3.7.11, 4.0.2), fixed by #15841
+# (3.7.13, 4.0.4), which populates such outputs in scope with empty values.
+_ARGO_CONDITIONALS_BROKEN_RANGES = [
+    ((3, 7, 11), (3, 7, 13)),
+    ((4, 0, 2), (4, 0, 4)),
+]
+
+
+def _parse_argo_version(version):
+    match = re.match(r"^v?(\d+)\.(\d+)\.(\d+)", version or "")
+    return tuple(int(part) for part in match.groups()) if match else None
+
+
+def _argo_version_breaks_conditionals(version_tuple):
+    return version_tuple is not None and any(
+        low <= version_tuple < high for low, high in _ARGO_CONDITIONALS_BROKEN_RANGES
+    )
+
+
 # List of future enhancements -
 #     1. Configure Argo metrics.
 #     2. Support resuming failed workflows within Argo Workflows.
@@ -197,6 +218,8 @@ class ArgoWorkflows(object):
         return str(self._workflow_template)
 
     def deploy(self):
+        if self.conditional_nodes:
+            self._check_argo_version_supports_conditionals()
         self.cleanup_previous_sensors()
         try:
             # Register workflow template.
@@ -205,6 +228,19 @@ class ArgoWorkflows(object):
             )
         except Exception as e:
             raise ArgoWorkflowsException(str(e))
+
+    def _check_argo_version_supports_conditionals(self):
+        # Best-effort: an undetectable version is never blocked.
+        version = ArgoClient(namespace=KUBERNETES_NAMESPACE).get_server_version()
+        if not _argo_version_breaks_conditionals(_parse_argo_version(version)):
+            return
+        raise ArgoWorkflowsException(
+            "This flow uses conditional steps (%s), which do not work on Argo "
+            "Workflows %s: a step following a skipped branch is never started "
+            "and the workflow hangs (argoproj/argo-workflows#15442, fixed by "
+            "#15841). Upgrade Argo Workflows to 3.7.13+ (or 4.0.4+ on v4)."
+            % (", ".join(sorted(self.conditional_nodes)), version)
+        )
 
     def cleanup_previous_sensors(self):
         try:
@@ -1245,21 +1281,19 @@ class ArgoWorkflows(object):
 
     def _executed_input_paths_expr(self, in_funcs):
         # Single expression yielding the comma-joined pathspecs of only those
-        # predecessors that actually ran.
+        # predecessors that actually ran: `.outputs` is only read behind a
+        # positive `.status == 'Succeeded'` check (`.status` is populated for
+        # Omitted nodes on every version).
         #
-        # Reaching `.outputs` is gated behind a positive
-        # `.status == 'Succeeded'` check, which expr evaluates lazily, so an
-        # Omitted predecessor never has its `.outputs` dereferenced and the
-        # tag always resolves. That holds on every Argo version: <3.7.11
-        # (where an unresolved tag would be passed through literally),
-        # 3.7.11-3.7.15 (where it would make the controller requeue forever -
-        # argoproj/argo-workflows#15932) and >=3.7.16 alike. `.status` itself
-        # is populated for Omitted nodes on all versions.
+        # Argo still requires every variable the expression mentions to be in
+        # scope. That holds on <3.7.11 (lenient substitution) and on
+        # >=3.7.13/>=4.0.4, which populate a skipped ancestor's outputs with
+        # empty values. 3.7.11-3.7.12/4.0.2-4.0.3 requeue forever instead and
+        # are rejected at deploy time (see _ARGO_CONDITIONALS_BROKEN_RANGES).
         #
-        # NOTE: deliberately no safe-navigation ('?.') and no '??' - both are
-        # version-dependent. '?.' misbehaves for tasks inside
-        # foreach-templated DAGs, and on >=3.7.16 an Omitted node's declared
-        # outputs are in scope, so a '??' chain never falls through.
+        # NOTE: deliberately no '?.' and no '??': '?.' misbehaves for tasks in
+        # foreach-templated DAGs, and once an Omitted node's outputs are in
+        # scope a '??' chain never falls through.
         parts = " + ".join(
             "(tasks['%(task)s'].status == 'Succeeded'"
             " ? 'argo-' + workflow.name + '/%(step)s/'"
@@ -1275,7 +1309,7 @@ class ArgoWorkflows(object):
         # only one of the incoming branches has a real task-id to offer.
         #
         # Gated on a positive `.status == 'Succeeded'` check, for the same
-        # version-independence reasons as _executed_input_paths_expr().
+        # reasons as _executed_input_paths_expr().
         expr = "'SKIPPED'"
         for in_func in reversed(in_funcs):
             sanitized = self._sanitize(in_func)
@@ -1638,17 +1672,10 @@ class ArgoWorkflows(object):
                     # with `||` (see _build_dep_lists()) - so this `when` does
                     # get evaluated with an Omitted predecessor in scope.
                     #
-                    # Argo >=3.7.16/>=4.0.7 resolves such a predecessor's
-                    # switch-step to the "SKIPPED" default declared on the
-                    # output (see _container_templates()), but older versions
-                    # (incl. 3.6.x) leave `tasks.<pred>.outputs` out of scope
-                    # entirely, which makes an unguarded lookup fail to
-                    # substitute: the raw '{{=...}}' then reaches Argo's
-                    # `shouldExecute()`, which rejects it as an invalid `when`
-                    # expression and errors the task out. Gate the lookup on
-                    # `.status` instead - that is populated for Omitted nodes
-                    # on every version, and expr evaluates the ternary lazily,
-                    # so the outputs lookup only happens when it is safe.
+                    # An unguarded `switch-step` lookup on such a predecessor
+                    # fails to substitute on <3.7.13, and the raw '{{=...}}'
+                    # is then rejected by `shouldExecute()`. Gate it on
+                    # `.status` instead, as in _executed_input_paths_expr().
                     #
                     # NOTE: use '.status' rather than safe navigation ('?.')
                     # here: '?.' combined with a ternary inside a `when` on a
@@ -2180,9 +2207,8 @@ class ArgoWorkflows(object):
                         and self.graph[node.out_funcs[0]].type == "join"
                     )  # do not base64 encode the input-paths of a step inside a foreach that leads to a join, as this would not match the task-id generation logic that the join relies on.
                 ):
-                    # NOTE: Argo template expressions that fail to resolve, output the expression itself as a value.
-                    # With conditional steps, some of the input-paths are therefore 'broken' due to containing a nil expression
-                    # e.g. "{{ tasks['A'].outputs.parameters.task-id }}" when task A never executed.
+                    # NOTE: On Argo <3.7.11 template tags that fail to resolve are passed through literally,
+                    # e.g. "{{tasks.A.outputs.parameters.task-id}}" when task A never executed.
                     # We base64 encode the input-paths in order to not pollute the execution environment with templating expressions.
                     # NOTE: Adding conditionals that check if a key exists or not does not work either, due to an issue with how Argo
                     # handles tasks in a nested foreach (withParam template) leading to all such expressions getting evaluated as false.
@@ -2697,14 +2723,11 @@ class ArgoWorkflows(object):
             # @parallel steps will not have a task-id as an output parameter since task-ids
             # are derived at runtime.
             #
-            # NOTE: Correctness no longer depends on the `default`s declared
-            # below. Every reference to a possibly-Omitted task's outputs is
-            # lazily gated on `.status == 'Succeeded'` (see
-            # _executed_input_paths_expr() / _executed_task_id_expr()), so a
-            # skipped predecessor's outputs are never dereferenced on any Argo
-            # version. The remaining defaults are kept as defence-in-depth for
-            # the case where a step runs but fails before writing its output
-            # file; they are simply ignored on Argo <3.7.16/<4.0.7.
+            # NOTE: Correctness does not depend on the `default`s declared
+            # below: reads of a possibly-Omitted task's outputs are gated on
+            # `.status == 'Succeeded'` (see _executed_input_paths_expr() /
+            # _executed_task_id_expr()). The defaults are defence-in-depth for
+            # a step that runs but dies before writing its output file.
             if not (node.name == self.graph.end_step or node.parallel_step):
                 outputs = [Parameter("task-id").valueFrom({"path": "/mnt/out/task_id"})]
 

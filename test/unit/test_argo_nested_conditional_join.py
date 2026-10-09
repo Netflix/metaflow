@@ -416,8 +416,8 @@ def test_recursive_switch_closing_join_no_extra_when_gate(recursive_switch_argo)
 def test_conditional_join_input_paths_are_status_gated(simple_switch_argo):
     """`join`'s predecessors (`left`/`right`) are conditional, so its
     input-paths must be a single status-gated expression - never a bare
-    `{{tasks.X.outputs...}}` tag, which would requeue the controller forever on
-    Argo 3.7.11-3.7.15 when X was Omitted."""
+    `{{tasks.X.outputs...}}` tag, which yields a broken pathspec when X was
+    Omitted."""
     aw = simple_switch_argo
 
     value = _param(aw, "join", "input-paths")

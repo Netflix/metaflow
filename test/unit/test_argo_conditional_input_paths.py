@@ -96,12 +96,26 @@ def test_chain_skip_fallback_uses_latest_executed_split_switch(chain_skip_argo):
 
 
 def test_chain_skip_with_skipped_sentinel(chain_skip_argo):
-    """Same as above but with SKIPPED sentinel (Argo v3.7.11+ behavior)."""
+    """Same as above but with the legacy SKIPPED task-id sentinel."""
     node = chain_skip_argo.graph["end"]
     skippable_steps = chain_skip_argo._skippable_input_steps_in_dag_order(node)
 
     input_paths = _encode_input_paths(
         [_task_path("start"), _task_path("step2"), _skipped_task_path("step3")]
+    )
+
+    result = generate_input_paths(input_paths, skippable_steps)
+
+    assert _decode_input_paths(result) == [_task_path("step2")]
+
+
+def test_chain_skip_with_empty_task_id(chain_skip_argo):
+    """Argo >=3.7.13 resolves a skipped task's task-id to an empty string."""
+    node = chain_skip_argo.graph["end"]
+    skippable_steps = chain_skip_argo._skippable_input_steps_in_dag_order(node)
+
+    input_paths = _encode_input_paths(
+        [_task_path("start"), _task_path("step2"), "%s/step3/" % RUN_ID]
     )
 
     result = generate_input_paths(input_paths, skippable_steps)

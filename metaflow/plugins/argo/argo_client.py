@@ -1,8 +1,12 @@
 import json
+import re
+import urllib.request
 
 from metaflow.metaflow_config import (
     ARGO_EVENTS_SENSOR_NAMESPACE,
+    ARGO_WORKFLOWS_UI_URL,
     ARGO_WORKFLOWS_USE_SCHEDULES,
+    KUBERNETES_NAMESPACE,
 )
 from metaflow.exception import MetaflowException
 from metaflow.plugins.kubernetes.kubernetes_client import KubernetesClient
@@ -491,6 +495,56 @@ class ArgoClient(object):
             if e.status == 404:
                 return None
             raise wrap_api_error(e)
+
+    def get_server_version(self):
+        """Best-effort detection of the Argo Workflows version; None if unknown.
+
+        Tries the Argo Server's /api/v1/version endpoint, then the
+        workflow-controller Deployment's image tag.
+        """
+        if ARGO_WORKFLOWS_UI_URL:
+            try:
+                url = ARGO_WORKFLOWS_UI_URL.rstrip("/") + "/api/v1/version"
+                with urllib.request.urlopen(url, timeout=5) as resp:
+                    data = json.loads(resp.read())
+                version = data.get("version") or data.get("gitTag")
+                if version:
+                    return version
+            except Exception:
+                pass
+
+        try:
+            apps = self._client.get().AppsV1Api()
+        except Exception:
+            return None
+        for namespace in filter(None, [KUBERNETES_NAMESPACE, "argo", "argo-system"]):
+            for deployment in _controller_deployments(apps, namespace):
+                for container in deployment.spec.template.spec.containers:
+                    tag = (container.image or "").rpartition(":")[2]
+                    if "/" not in tag and _SEMVER_TAG.match(tag):
+                        return tag
+        return None
+
+
+# Upstream manifests name the Deployment `workflow-controller`; the Helm chart
+# names it `<release>-workflow-controller` and labels it with the component.
+_CONTROLLER_LABEL_SELECTOR = "app.kubernetes.io/component=workflow-controller"
+_SEMVER_TAG = re.compile(r"^v?\d+\.\d+\.\d+")
+
+
+def _controller_deployments(apps, namespace):
+    try:
+        yield apps.read_namespaced_deployment(
+            name="workflow-controller", namespace=namespace
+        )
+    except Exception:
+        pass
+    try:
+        yield from apps.list_namespaced_deployment(
+            namespace=namespace, label_selector=_CONTROLLER_LABEL_SELECTOR
+        ).items
+    except Exception:
+        pass
 
 
 def wrap_api_error(error):
