@@ -1,8 +1,12 @@
 import json
+import re
+import urllib.request
 
 from metaflow.metaflow_config import (
     ARGO_EVENTS_SENSOR_NAMESPACE,
+    ARGO_WORKFLOWS_UI_URL,
     ARGO_WORKFLOWS_USE_SCHEDULES,
+    KUBERNETES_NAMESPACE,
 )
 from metaflow.exception import MetaflowException
 from metaflow.plugins.kubernetes.kubernetes_client import KubernetesClient
@@ -491,6 +495,75 @@ class ArgoClient(object):
             if e.status == 404:
                 return None
             raise wrap_api_error(e)
+
+    def get_argo_version(self):
+        """Best-effort detection of the Argo Workflows version; None if unknown.
+
+        Prefers the workflow controller's image tag, since the controller is
+        what executes workflows; falls back to the Argo Server's
+        /api/v1/version endpoint, which may run a different version.
+        """
+        return self._get_controller_version() or self._get_argo_server_version()
+
+    def _get_controller_version(self):
+        try:
+            apps = self._client.get().AppsV1Api()
+        except Exception:
+            return None
+        for namespace in filter(None, [KUBERNETES_NAMESPACE, "argo", "argo-system"]):
+            for deployment in _controller_deployments(apps, namespace):
+                for container in deployment.spec.template.spec.containers:
+                    repository, tag = _split_image(container.image)
+                    is_controller = (
+                        container.name in _CONTROLLER_CONTAINER_NAMES
+                        or repository.rpartition("/")[2] == "workflow-controller"
+                    )
+                    if is_controller and _SEMVER_TAG.match(tag):
+                        return tag
+        return None
+
+    def _get_argo_server_version(self):
+        if not ARGO_WORKFLOWS_UI_URL:
+            return None
+        try:
+            url = ARGO_WORKFLOWS_UI_URL.rstrip("/") + "/api/v1/version"
+            with urllib.request.urlopen(url, timeout=5) as resp:
+                data = json.loads(resp.read())
+            return data.get("version") or data.get("gitTag")
+        except Exception:
+            return None
+
+
+# Upstream manifests name the Deployment and its container `workflow-controller`;
+# the Helm chart names them `<release>-workflow-controller` and `controller`, and
+# labels the Deployment with the component.
+_CONTROLLER_LABEL_SELECTOR = "app.kubernetes.io/component=workflow-controller"
+_CONTROLLER_CONTAINER_NAMES = ("workflow-controller", "controller")
+_SEMVER_TAG = re.compile(r"^v?\d+\.\d+\.\d+")
+
+
+def _split_image(image):
+    # "registry:5000/argoproj/workflow-controller:v3.7.18@sha256:..." ->
+    # ("registry:5000/argoproj/workflow-controller", "v3.7.18")
+    image = (image or "").split("@")[0]
+    prefix, _, name = image.rpartition("/")
+    name, _, tag = name.partition(":")
+    return (prefix + "/" + name if prefix else name), tag
+
+
+def _controller_deployments(apps, namespace):
+    try:
+        yield apps.read_namespaced_deployment(
+            name="workflow-controller", namespace=namespace
+        )
+    except Exception:
+        pass
+    try:
+        yield from apps.list_namespaced_deployment(
+            namespace=namespace, label_selector=_CONTROLLER_LABEL_SELECTOR
+        ).items
+    except Exception:
+        pass
 
 
 def wrap_api_error(error):
