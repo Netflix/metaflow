@@ -603,6 +603,8 @@ class FlowSpec(metaclass=FlowSpecMeta):
             # ...and cache it in the object for faster access
             setattr(self, name, x)
             return x
+        elif hasattr(type(self), name):
+            return object.__getattribute__(self, name)
         else:
             raise AttributeError("Flow %s has no attribute '%s'" % (self.name, name))
 
