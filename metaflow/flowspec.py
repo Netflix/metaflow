@@ -604,10 +604,7 @@ class FlowSpec(metaclass=FlowSpecMeta):
             setattr(self, name, x)
             return x
         elif hasattr(type(self), name):
-            raise AttributeError(
-                "Attribute '%s' on Flow %s raised an AttributeError during evaluation"
-                % (name, self.name)
-            )
+            return object.__getattribute__(self, name)
         else:
             raise AttributeError("Flow %s has no attribute '%s'" % (self.name, name))
 
