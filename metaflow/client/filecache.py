@@ -7,7 +7,12 @@ import time
 from tempfile import NamedTemporaryFile
 from hashlib import sha1
 
-from urllib.parse import urlparse
+try:
+    # Python 3
+    from urllib.parse import urlparse
+except ImportError:
+    # Python 2
+    from urlparse import urlparse
 
 from metaflow.datastore import FlowDataStore
 from metaflow.datastore.content_addressed_store import BlobCache
@@ -23,6 +28,22 @@ from metaflow.metaflow_profile import from_start
 from metaflow.plugins import DATASTORES
 
 NEW_FILE_QUARANTINE = 10
+
+if sys.version_info[0] >= 3:
+    _replace = os.replace
+else:
+    import errno
+
+    def _replace(src, dst):
+        try:
+            os.rename(src, dst)
+        except OSError as e:
+            if e.errno == errno.EEXIST or (os.name == "nt" and e.errno in (13, 17)):
+                os.remove(dst)
+                os.rename(src, dst)
+            else:
+                raise
+
 
 if sys.version_info[0] >= 3 and sys.version_info[1] >= 2:
 
@@ -113,7 +134,8 @@ class FileCache(object):
 
         log = task_ds.load_log_legacy(logtype, attempt_override=attempt)
         # Store this in the file cache as well
-        self.create_file(path, log)
+        if log is not None:
+            self.create_file(path, log)
         return log
 
     def get_legacy_log_size(
@@ -263,16 +285,22 @@ class FileCache(object):
         dirname = os.path.dirname(path)
         try:
             FileCache._makedirs(dirname)
-        except:  # noqa E722
+        except Exception:  # noqa E722
             raise FileCacheException("Could not create directory: %s" % dirname)
         tmpfile = NamedTemporaryFile(dir=dirname, prefix="dlobj", delete=False)
         # Now write out the file
         try:
             tmpfile.write(value)
             tmpfile.flush()
-            os.rename(tmpfile.name, path)
-        except:  # noqa E722
-            os.unlink(tmpfile.name)
+            os.fsync(tmpfile.fileno())
+            tmpfile.close()
+
+            _replace(tmpfile.name, path)
+
+        except Exception:  # noqa E722
+            tmpfile.close()
+            if os.path.exists(tmpfile.name):
+                os.unlink(tmpfile.name)
             raise
         size = os.path.getsize(path)
         self._total += size
@@ -305,8 +333,8 @@ class FileCache(object):
                         sha, ext = os.path.splitext(obj)
                         if ext in ["cached", "blob"]:
                             path = os.path.join(root, obj)
-                            objects.insert(
-                                0, (os.path.getctime(path), os.path.getsize(path), path)
+                            objects.append(
+                                (os.path.getctime(path), os.path.getsize(path), path)
                             )
 
         self._total = sum(size for _, size, _ in objects)
