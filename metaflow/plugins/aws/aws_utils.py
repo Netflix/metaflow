@@ -123,6 +123,22 @@ def get_docker_registry(image_uri):
     return registry
 
 
+def _numeric_str(value):
+    """
+    Convert a numeric value to a clean string representation.
+
+    Handles int, float, and string inputs. Produces integer-style strings
+    when the value is a whole number (e.g. 1.0 -> "1", "4096.0" -> "4096")
+    and preserves fractional values (e.g. 0.5 -> "0.5").
+    """
+    f = float(value or 0)
+    # Return an integer-style string if the value is a whole number to avoid
+    # turning cpu=1 into "1.0" which can confuse downstream comparisons.
+    if f == int(f):
+        return str(int(f))
+    return str(f)
+
+
 def compute_resource_attributes(decos, compute_deco, resource_defaults):
     """
     Compute resource values taking into account defaults, the values specified
@@ -153,17 +169,14 @@ def compute_resource_attributes(decos, compute_deco, resource_defaults):
                     continue
                 if my_val is not None and v is not None:
                     try:
-                        # Use Decimals to compare and convert to string here so
-                        # that numbers that can't be exactly represented as
-                        # floats (e.g. 0.8) still look "nice". We don't care
-                        # about precision more that .001 for resources anyway.
-                        result[k] = str(max(float(my_val or 0), float(v or 0)))
-                    except ValueError:
-                        # Here we don't have ints, so we compare the value and raise
-                        # an exception if not equal
-                        if my_val != v:
-                            # TODO: Throw a better exception since the user has no
-                            #       knowledge of 'compute' decorator
+                        # Compare as floats to handle mixed int/float/string types
+                        # (e.g. @resources(cpu=0.5) with @batch(cpu=1)).
+                        # Use _numeric_str to produce clean output ("1" not "1.0").
+                        result[k] = _numeric_str(max(float(my_val or 0), float(v or 0)))
+                    except (ValueError, TypeError):
+                        # Here we don't have numeric values, so we compare
+                        # directly and raise an exception if not equal
+                        if str(my_val) != str(v):
                             raise MetaflowException(
                                 "'resources' and compute decorator have conflicting "
                                 "values for '%s'. Please use consistent values or "
