@@ -184,6 +184,20 @@ def compute_resource_attributes(decos, compute_deco, resource_defaults):
     return result
 
 
+def parse_aws_tags(items):
+    """
+    Parse ``key=value`` strings, as given to ``--aws-batch-tag``, into a dict.
+
+    Only the first ``=`` separates the key from the value, since ``=`` is a
+    permitted character in AWS tag values.
+    """
+    tags = {}
+    for item in items:
+        key, value = item.split("=", 1)
+        tags[key] = value
+    return tags
+
+
 def sanitize_batch_tag(key, value):
     """
     Sanitize a key and value for use as a Batch tag.
