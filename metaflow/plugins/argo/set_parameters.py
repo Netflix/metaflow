@@ -2,8 +2,9 @@ import sys
 import base64
 import json
 import os
-import shlex
 from typing import Dict
+
+from metaflow.util import shell_quote_value
 
 
 def parse_parameter_value(base64_value):
@@ -14,14 +15,6 @@ def parse_parameter_value(base64_value):
     except json.decoder.JSONDecodeError:
         # fallback to using the original value.
         return val
-
-
-def shell_quote_value(value):
-    # The export file is sourced by bash. Strings are written raw so the
-    # environment variable holds the value itself rather than its JSON form;
-    # everything else is JSON-serialized. Single-quoting keeps bash from
-    # word-splitting the value or expanding $(...), `...` and $VAR in it.
-    return shlex.quote(value if isinstance(value, str) else json.dumps(value))
 
 
 def export_parameters(output_file: str, params: Dict[str, str]) -> None:

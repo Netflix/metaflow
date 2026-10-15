@@ -1,17 +1,10 @@
 import json
 import os
-import shlex
 import sys
 
+from metaflow.util import shell_quote_value
+
 from .dynamo_db_client import DynamoDbClient
-
-
-def shell_quote_value(value):
-    # The export file is sourced by bash. Strings are written raw so the
-    # environment variable holds the value itself rather than its JSON form;
-    # everything else is JSON-serialized. Single-quoting keeps bash from
-    # word-splitting the value or expanding $(...), `...` and $VAR in it.
-    return shlex.quote(value if isinstance(value, str) else json.dumps(value))
 
 
 def export_parameters(output_file):
