@@ -53,6 +53,17 @@ class _Template(JsonSerializable):
         self.payload["serviceAccountName"] = service_account_name
         return self
 
+    def node_selectors(self, node_selectors):
+        if "nodeSelector" not in self.payload:
+            self.payload["nodeSelector"] = {}
+        if node_selectors:
+            self.payload["nodeSelector"].update(node_selectors)
+        return self
+
+    def tolerations(self, tolerations):
+        self.payload["tolerations"] = tolerations
+        return self
+
 
 class Hook(object):
     """
@@ -175,6 +186,8 @@ class ContainerHook(Hook):
         name: str,
         container: Dict,
         service_account_name: str = None,
+        node_selectors: Optional[Dict] = None,
+        tolerations: Optional[List] = None,
         on_success: bool = False,
         on_error: bool = False,
     ):
@@ -184,6 +197,12 @@ class ContainerHook(Hook):
             self.template.service_account_name(service_account_name)
 
         self.template.container(container)
+
+        if node_selectors is not None:
+            self.template.node_selectors(node_selectors)
+
+        if tolerations is not None:
+            self.template.tolerations(tolerations)
 
         self.lifecycle_hooks = []
 
