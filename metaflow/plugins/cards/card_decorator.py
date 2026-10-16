@@ -10,6 +10,7 @@ from metaflow.metaflow_current import current
 from metaflow.user_configs.config_options import ConfigInput
 from metaflow.user_configs.config_parameters import dump_config_values
 from metaflow.util import to_unicode
+from metaflow.debug import debug
 
 from .component_serializer import CardComponentCollector, get_card_class
 from .card_creator import CardCreator
@@ -241,6 +242,17 @@ class CardDecorator(StepDecorator):
                 self._is_editable = True
             self._is_runtime_card = card_class.RUNTIME_UPDATABLE
 
+        debug.card_exec(
+            "task_pre_step step=%s type=%s found=%s editable=%s runtime=%s"
+            % (
+                step_name,
+                card_type,
+                card_class is not None,
+                self._is_editable,
+                self._is_runtime_card,
+            )
+        )
+
         # We have a step counter to ensure that on calling the final card decorator's `task_pre_step`
         # we call a `finalize` function in the `CardComponentCollector`.
         # This can help ensure the behaviour of the `current.card` object is according to specification.
@@ -321,6 +333,16 @@ class CardDecorator(StepDecorator):
             decorator_attributes=self.attributes,
             card_options=self.card_options,
             logger=self._logger,
+        )
+        debug.card_exec(
+            "task_finished step=%s card_uuid=%s type=%s is_task_ok=%s -> %s"
+            % (
+                step_name,
+                self._card_uuid,
+                self.attributes["type"],
+                is_task_ok,
+                "rendering" if is_task_ok else "skipping (task failed)",
+            )
         )
         if is_task_ok:
             self.card_creator.create(mode="render", final=True, **create_options)
