@@ -75,6 +75,10 @@ def _unresolved_task_path(step_name):
     )
 
 
+def _skipped_task_path(step_name):
+    return "%s/%s/SKIPPED" % (RUN_ID, step_name)
+
+
 def test_chain_skip_fallback_uses_latest_executed_split_switch(chain_skip_argo):
     node = chain_skip_argo.graph["end"]
     assert node.in_funcs == ["start", "step2", "step3"]
@@ -84,6 +88,34 @@ def test_chain_skip_fallback_uses_latest_executed_split_switch(chain_skip_argo):
 
     input_paths = _encode_input_paths(
         [_task_path("start"), _task_path("step2"), _unresolved_task_path("step3")]
+    )
+
+    result = generate_input_paths(input_paths, skippable_steps)
+
+    assert _decode_input_paths(result) == [_task_path("step2")]
+
+
+def test_chain_skip_with_skipped_sentinel(chain_skip_argo):
+    """Same as above but with the legacy SKIPPED task-id sentinel."""
+    node = chain_skip_argo.graph["end"]
+    skippable_steps = chain_skip_argo._skippable_input_steps_in_dag_order(node)
+
+    input_paths = _encode_input_paths(
+        [_task_path("start"), _task_path("step2"), _skipped_task_path("step3")]
+    )
+
+    result = generate_input_paths(input_paths, skippable_steps)
+
+    assert _decode_input_paths(result) == [_task_path("step2")]
+
+
+def test_chain_skip_with_empty_task_id(chain_skip_argo):
+    """Argo >=3.7.13 resolves a skipped task's task-id to an empty string."""
+    node = chain_skip_argo.graph["end"]
+    skippable_steps = chain_skip_argo._skippable_input_steps_in_dag_order(node)
+
+    input_paths = _encode_input_paths(
+        [_task_path("start"), _task_path("step2"), "%s/step3/" % RUN_ID]
     )
 
     result = generate_input_paths(input_paths, skippable_steps)
@@ -105,8 +137,30 @@ def test_chain_skip_fallback_uses_latest_executed_split_switch(chain_skip_argo):
             [_task_path("branch")],
         ),
         ([_task_path("step"), _task_path("step2")], ["step"], [_task_path("step2")]),
+        (
+            [_task_path("start"), _skipped_task_path("branch")],
+            ["start"],
+            [_task_path("start")],
+        ),
+        (
+            [_task_path("start"), _task_path("step2"), _skipped_task_path("step3")],
+            ["step2", "start"],
+            [_task_path("step2")],
+        ),
+        (
+            [_skipped_task_path("left"), _task_path("right")],
+            [],
+            [_task_path("right")],
+        ),
     ],
-    ids=["normal_join", "non_skippable_executed", "exact_step_name"],
+    ids=[
+        "normal_join",
+        "non_skippable_executed",
+        "exact_step_name",
+        "skipped_non_skippable",
+        "skipped_with_skippable_fallback",
+        "skipped_no_skippable_steps",
+    ],
 )
 def test_generate_input_paths_filters_by_exact_step_name(
     paths, skippable_steps, expected
