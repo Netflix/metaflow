@@ -63,22 +63,27 @@ def qos_requests_and_limits(qos: str, cpu: int, memory: int, storage: int):
 
 def validate_kube_labels(
     labels: Optional[Dict[str, Optional[str]]],
+    validate_keys: bool = False,
 ) -> bool:
-    """Validate label values.
+    """Validate label values, and optionally keys.
 
-    This validates the kubernetes label values.  It does not validate the keys.
-    Ideally, keys should be static and also the validation rules for keys are
-    more complex than those for values.  For full validation rules, see:
+    This validates the kubernetes label values.  By default, it does not
+    validate the keys, since keys have historically been static/internal and
+    the validation rules for keys are more complex than those for values. Set
+    validate_keys=True to also validate label keys, e.g. when keys are
+    user-supplied. For full validation rules, see:
 
     https://kubernetes.io/docs/concepts/overview/working-with-objects/labels/#syntax-and-character-set
     """
 
+    # shared with the "name" segment of a label key
+    segment_regex = r"[A-Za-z0-9]([-A-Za-z0-9_.]{0,61}[A-Za-z0-9])?"
+
     def validate_label(s: Optional[str]):
-        regex_match = r"^(([A-Za-z0-9][-A-Za-z0-9_.]{0,61})?[A-Za-z0-9])?$"
         if not s:
             # allow empty label
             return True
-        if not re.search(regex_match, s):
+        if not re.search(r"^(%s)?$" % segment_regex, s):
             raise KubernetesException(
                 'Invalid value: "%s"\n'
                 "A valid label must be an empty string or one that\n"
@@ -88,7 +93,33 @@ def validate_kube_labels(
             )
         return True
 
-    return all([validate_label(v) for v in labels.values()]) if labels else True
+    def validate_label_key(key: str):
+        prefix, _, name = key.rpartition("/")
+        if prefix:
+            prefix_regex = r"^[A-Za-z0-9]([-A-Za-z0-9.]{0,251}[A-Za-z0-9])?$"
+            if not re.search(prefix_regex, prefix):
+                raise KubernetesException(
+                    'Invalid key: "%s"\n'
+                    "The prefix of a label key, if present, must be a DNS\n"
+                    "subdomain: a series of DNS labels separated by '.',\n"
+                    "not longer than 253 characters in total" % key
+                )
+        if not re.search(r"^%s$" % segment_regex, name):
+            raise KubernetesException(
+                'Invalid key: "%s"\n'
+                "The name segment of a label key must be non-empty and\n"
+                "  - Consist of alphanumeric, '-', '_' or '.' characters\n"
+                "  - Begin and end with an alphanumeric character\n"
+                "  - Be at most 63 characters" % key
+            )
+        return True
+
+    if not labels:
+        return True
+    if validate_keys:
+        for key in labels:
+            validate_label_key(key)
+    return all([validate_label(v) for v in labels.values()])
 
 
 def parse_kube_keyvalue_list(items: List[str], requires_both: bool = True):
