@@ -4,6 +4,7 @@ import os
 
 from metaflow import current
 from metaflow.decorators import StepDecorator
+from metaflow.exception import MetaflowException
 from metaflow.events import Trigger
 from metaflow.metadata_provider import MetaDatum
 from metaflow.graph import FlowGraph
@@ -128,6 +129,12 @@ class ArgoWorkflowsInternalDecorator(StepDecorator):
         if graph[step_name].type == "split-switch":
             # TODO: A nicer way to access the chosen step?
             _out_funcs, _ = flow._transition
+            if len(_out_funcs) > 1:
+                raise MetaflowException(
+                    "Step *%s* selected a switch case that fans out to multiple targets %s, "
+                    "which is not yet supported on Argo Workflows."
+                    % (step_name, _out_funcs)
+                )
             chosen_step = _out_funcs[0]
             with open("/mnt/out/switch_step", "w") as file:
                 file.write(chosen_step)

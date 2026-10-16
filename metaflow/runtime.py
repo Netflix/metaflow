@@ -47,6 +47,7 @@ from .datastore import FlowDataStore, TaskDataStoreSet
 from .debug import debug
 from .decorators import flow_decorators
 from .flowspec import FlowStateItems
+from .graph import split_branch_for_node, switch_case_target_lists
 from .mflog import mflog, RUNTIME_LOG_SOURCE
 from .util import to_unicode, compress_list, unicode_type, get_latest_task_pathspec
 from .clone_util import clone_task_helper
@@ -1304,7 +1305,19 @@ class NativeRuntime(object):
                     )
                 )
 
-                required_count = len(matching_split.out_funcs)
+                if matching_split.type == "split-switch":
+                    case_targets = self._switch_case_targets_for_task(
+                        matching_split, task.step
+                    )
+                    if case_targets is None:
+                        raise MetaflowInternalError(
+                            "Step *%s* is joining a switch fanout from *%s*, "
+                            "but the runtime could not determine the selected "
+                            "switch case." % (next_step, matching_split.name)
+                        )
+                    required_count = len(case_targets)
+                else:
+                    required_count = len(matching_split.out_funcs)
                 join_type = "linear"
                 index = self._translate_index(task, next_step, "linear")
             if len(required_tasks) == required_count:
@@ -1315,19 +1328,27 @@ class NativeRuntime(object):
                     index,
                 )
 
-    def _queue_task_switch(self, task, next_steps, is_recursive):
-        chosen_step = next_steps[0]
+    def _switch_case_targets_for_task(self, switch_node, step_name):
+        node = self._graph[step_name]
+        branch_root = split_branch_for_node(node, switch_node.name)
 
-        loop_mode = LoopBehavior.NONE
-        if is_recursive:
-            if chosen_step != task.step:
-                # We are exiting a loop
-                loop_mode = LoopBehavior.EXITING
-            else:
-                # We are staying in the loop
-                loop_mode = LoopBehavior.LOOPING
-        index = self._translate_index(task, chosen_step, "linear", None, loop_mode)
-        self._queue_push(chosen_step, {"input_paths": [task.path]}, index)
+        for targets in switch_case_target_lists(switch_node.switch_cases):
+            if branch_root in targets:
+                return targets
+        return None
+
+    def _queue_task_switch(self, task, next_steps, is_recursive):
+        for chosen_step in next_steps:
+            loop_mode = LoopBehavior.NONE
+            if is_recursive:
+                if chosen_step != task.step:
+                    # We are exiting a loop
+                    loop_mode = LoopBehavior.EXITING
+                else:
+                    # We are staying in the loop
+                    loop_mode = LoopBehavior.LOOPING
+            index = self._translate_index(task, chosen_step, "linear", None, loop_mode)
+            self._queue_push(chosen_step, {"input_paths": [task.path]}, index)
 
     def _queue_task_foreach(self, task, next_steps):
         # CHECK: this condition should be enforced by the linter but
@@ -1408,31 +1429,29 @@ class NativeRuntime(object):
 
             if self._graph[task.step].type == "split-switch":
                 is_recursive = task.step in self._graph[task.step].out_funcs
-                if len(next_steps) != 1:
-                    msg = (
-                        "Switch step *{step}* should transition to exactly "
-                        "one step at runtime, but got: {actual}"
-                    )
-                    raise MetaflowInternalError(
-                        msg.format(step=task.step, actual=", ".join(next_steps))
-                    )
-                if next_steps[0] not in expected:
+                expected_cases = switch_case_target_lists(
+                    self._graph[task.step].switch_cases
+                )
+                if next_steps not in expected_cases:
                     msg = (
                         "Switch step *{step}* transitioned to unexpected "
-                        "step *{actual}*. Expected one of: {expected}"
+                        "step(s) *{actual}*. Expected one of: {expected}"
                     )
                     raise MetaflowInternalError(
                         msg.format(
                             step=task.step,
-                            actual=next_steps[0],
-                            expected=", ".join(expected),
+                            actual=", ".join(next_steps),
+                            expected=", ".join(
+                                "[%s]" % ", ".join(targets)
+                                for targets in expected_cases
+                            ),
                         )
                     )
                 # When exiting a recursive loop, we mark that the loop itself has
                 # finished by adding a special entry in self._finished which has
                 # an iteration stack that is shorter (ie: we are out of the loop) so
                 # that we can then find it when looking at successor tasks to launch.
-                if is_recursive and next_steps[0] != task.step:
+                if is_recursive and task.step not in next_steps:
                     step_name, finished_tuple, iteration_tuple = task.finished_id
                     self._finished[
                         (step_name, finished_tuple, iteration_tuple[:-1])

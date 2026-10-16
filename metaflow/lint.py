@@ -1,5 +1,10 @@
 import re
 from .exception import MetaflowException
+from .graph import (
+    split_branch_for_node,
+    switch_case_targets,
+    switch_case_target_lists,
+)
 from .util import all_equal
 
 
@@ -212,7 +217,8 @@ def check_valid_transitions(graph):
         "  • Linear: self.next(self.step_name)\n"
         "  • Fan-out: self.next(self.step1, self.step2, ...)\n"
         "  • Foreach: self.next(self.step, foreach='variable')\n"
-        "  • Switch: self.next({{\"key\": self.step, ...}}, condition='variable')\n\n"
+        '  • Switch: self.next({{"key": self.step, '
+        "\"key2\": [self.step1, self.step2]}}, condition='variable')\n\n"
         "For switch statements, keys must be string literals, numbers or config expressions "
         "(self.config.key_name), not variables."
     )
@@ -319,13 +325,20 @@ def check_split_join_balance(graph):
         if node.type in ("start", "linear"):
             new_stack = split_stack
         elif node.type in ("split", "foreach"):
-            new_stack = split_stack + [("split", node.out_funcs)]
+            new_stack = split_stack + [(node.name, node.out_funcs)]
         elif node.type == "split-switch":
-            # For a switch, continue traversal down each path with the same stack
-            for n in node.out_funcs:
-                if node.type == "split-switch" and n == node.name:
-                    continue
-                traverse(graph[n], split_stack)
+            # A switch selects exactly one case. A list-valued case then behaves
+            # like a split, but only within that selected case.
+            for targets in switch_case_target_lists(node.switch_cases):
+                case_stack = (
+                    split_stack + [(node.name, targets)]
+                    if len(targets) > 1
+                    else split_stack
+                )
+                for n in targets:
+                    if n == node.name:
+                        continue
+                    traverse(graph[n], case_stack)
             return
         elif node.type == "end":
             new_stack = split_stack
@@ -340,13 +353,19 @@ def check_split_join_balance(graph):
         elif node.type == "join":
             new_stack = split_stack
             if split_stack:
-                _, split_roots = split_stack[-1]
+                split_name, split_roots = split_stack[-1]
                 new_stack = split_stack[:-1]
 
                 # Resolve each incoming function to its root branch from the split.
-                resolved_branches = set(
-                    graph[n].split_branches[-1] for n in node.in_funcs
-                )
+                resolved_branches = {
+                    split_branch_for_node(graph[n], split_name) for n in node.in_funcs
+                }
+                resolved_branches.discard(None)
+                # A shared switch join has static predecessors from every case,
+                # though only the selected case runs. Validate this traversal's
+                # case against its own predecessors.
+                if graph[split_name].type == "split-switch":
+                    resolved_branches.intersection_update(split_roots)
 
                 # compares the set of resolved branches against the expected branches
                 # from the split.
@@ -379,8 +398,6 @@ def check_split_join_balance(graph):
             new_stack = split_stack
 
         for n in node.out_funcs:
-            if node.type == "split-switch" and n == node.name:
-                continue
             traverse(graph[n], new_stack)
 
     traverse(graph[graph.start_step], [])
@@ -391,18 +408,23 @@ def check_split_join_balance(graph):
 def check_switch_splits(graph):
     """Check conditional split constraints"""
     msg0 = (
-        "Step *{0.name}* is a switch split but defines {num} transitions. "
-        "Switch splits must define at least 2 transitions."
+        "Step *{0.name}* is a switch split with too few cases: "
+        "{num} found, at least 2 required."
     )
     msg1 = "Step *{0.name}* is a switch split but has no condition variable."
     msg2 = "Step *{0.name}* is a switch split but has no switch cases defined."
+    msg3 = (
+        "Step *{0.name}* has multi-target switch cases *{case_a}* and "
+        "*{case_b}* that share target step(s) *{targets}*. Multi-target switch "
+        "cases must have disjoint targets."
+    )
 
     for node in graph:
         if node.type == "split-switch":
-            # Check at least 2 outputs
-            if len(node.out_funcs) < 2:
+            # out_funcs contains unique graph edges, not switch choices.
+            if len(node.switch_cases) < 2:
                 raise LintWarn(
-                    msg0.format(node, num=len(node.out_funcs)),
+                    msg0.format(node, num=len(node.switch_cases)),
                     node.func_lineno,
                     node.source_file,
                 )
@@ -422,6 +444,25 @@ def check_switch_splits(graph):
                     node.func_lineno,
                     node.source_file,
                 )
+
+            cases = [
+                (case_value, set(switch_case_targets(case_targets)))
+                for case_value, case_targets in node.switch_cases.items()
+            ]
+            for case_index, (case_value, targets) in enumerate(cases):
+                for other_value, other_targets in cases[:case_index]:
+                    overlap = targets & other_targets
+                    if overlap and (len(targets) > 1 or len(other_targets) > 1):
+                        raise LintWarn(
+                            msg3.format(
+                                node,
+                                case_a=repr(other_value),
+                                case_b=repr(case_value),
+                                targets=", ".join(sorted(overlap)),
+                            ),
+                            node.func_lineno,
+                            node.source_file,
+                        )
 
 
 @linter.ensure_static_graph

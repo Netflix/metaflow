@@ -17,6 +17,7 @@ from .metadata_provider import MetaDatum
 from .metaflow_profile import from_start
 from .mflog import TASK_LOG_SOURCE
 from .datastore import Inputs, TaskDataStoreSet
+from .graph import split_branch_for_node, switch_case_target_lists
 from .exception import (
     MetaflowInternalError,
     MetaflowDataMissing,
@@ -33,6 +34,28 @@ from metaflow.tuple_util import ForeachFrame
 
 # Maximum number of characters of the foreach path that we store in the metadata.
 MAX_FOREACH_PATH_LENGTH = 256
+
+
+def _switch_case_targets_for_input_steps(graph, switch_node, input_step_names):
+    """Resolve one switch case from the branch roots of actual join inputs."""
+    branch_roots = [
+        split_branch_for_node(graph[input_step_name], switch_node.name)
+        for input_step_name in input_step_names
+    ]
+    unique_roots = set(branch_roots)
+    if (
+        not branch_roots
+        or None in unique_roots
+        or len(branch_roots) != len(unique_roots)
+    ):
+        return None
+
+    matching_cases = [
+        targets
+        for targets in switch_case_target_lists(switch_node.switch_cases)
+        if unique_roots.issubset(targets)
+    ]
+    return matching_cases[0] if len(matching_cases) == 1 else None
 
 
 class MetaflowTask(object):
@@ -822,10 +845,25 @@ class MetaflowTask(object):
                     if join_type != "foreach":
                         # Find the corresponding split node from the graph.
                         split_node = self.flow._graph[node.split_parents[-1]]
-                        # The number of expected inputs is the number of branches
-                        # from that split -- we can't use in_funcs because there may
-                        # be more due to split-switch branches that all converge here.
-                        expected_inputs = len(split_node.out_funcs)
+
+                        if split_node.type == "split-switch":
+                            case_targets = _switch_case_targets_for_input_steps(
+                                self.flow._graph,
+                                split_node,
+                                (input_ds.step_name for input_ds in inputs),
+                            )
+                            if case_targets is None:
+                                raise MetaflowInternalError(
+                                    "Join *%s* could not determine exactly one "
+                                    "selected switch case of *%s* from its input "
+                                    "branches." % (step_name, split_node.name)
+                                )
+                            expected_inputs = len(case_targets)
+                        else:
+                            # The number of expected inputs is the number of branches
+                            # from that split -- we can't use in_funcs because there may
+                            # be more due to split-switch branches that all converge here.
+                            expected_inputs = len(split_node.out_funcs)
 
                         if len(inputs) != expected_inputs:
                             raise MetaflowDataMissing(
