@@ -185,6 +185,7 @@ class CondaStepDecorator(StepDecorator):
                     "slurm",
                     "nvct",
                     "skypilot_step",
+                    "tenki",
                 ]
                 for decorator in next(
                     step for step in self.flow if step.name == self.step
