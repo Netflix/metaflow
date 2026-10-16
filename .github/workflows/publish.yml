@@ -35,9 +35,9 @@ jobs:
     - name: Build metaflow-stubs package
       run: |
         cd ./stubs && python3 setup.py sdist bdist_wheel --universal && cd -
+    - name: Publish metaflow package
+      uses: pypa/gh-action-pypi-publish@ed0c53931b1dc9bd32cbe73a98c7f6766f8a527e #v1.13.0
     - name: Publish metaflow-stubs package
       uses: pypa/gh-action-pypi-publish@ed0c53931b1dc9bd32cbe73a98c7f6766f8a527e #v1.13.0
       with:
         packages-dir: ./stubs/dist
-    - name: Publish metaflow package
-      uses: pypa/gh-action-pypi-publish@ed0c53931b1dc9bd32cbe73a98c7f6766f8a527e #v1.13.0
