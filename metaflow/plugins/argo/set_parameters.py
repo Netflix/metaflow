@@ -4,35 +4,34 @@ import json
 import os
 from typing import Dict
 
+from metaflow.util import shell_quote_value
+
 
 def parse_parameter_value(base64_value):
     val = base64.b64decode(base64_value).decode("utf-8")
 
     try:
-        res = json.loads(val)
+        return json.loads(val)
     except json.decoder.JSONDecodeError:
         # fallback to using the original value.
-        res = val
-
-    # (re)serialize for storing in an environment variable
-    return json.dumps(res)
+        return val
 
 
 def export_parameters(output_file: str, params: Dict[str, str]) -> None:
-    with open(output_file, "w") as f:
+    with open(output_file, "w", encoding="utf-8") as f:
         for k, v in params.items():
             val, none_default = v
             # Replace `-` with `_` is parameter names since `-` isn't an
             # allowed character for environment variables. cli.py will
             # correctly translate the replaced `-`s.
             parsed_value = parse_parameter_value(val)
-            if none_default and parsed_value == "null":
+            if none_default and parsed_value is None:
                 continue
             f.write(
                 "export METAFLOW_INIT_%s=%s\n"
                 % (
                     k.upper().replace("-", "_"),
-                    parsed_value,
+                    shell_quote_value(parsed_value),
                 )
             )
     os.chmod(output_file, 509)
