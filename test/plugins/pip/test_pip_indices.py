@@ -24,3 +24,20 @@ def test_multiple_extra_index_urls_literal_newline(mocker):
         "https://extra1.example.com/simple",
         "https://extra2.example.com/simple",
     ]
+
+
+def test_more_than_nine_extra_index_urls(mocker):
+    """Every URL is split out, not just the first nine."""
+    pip = _make_pip()
+    urls = ["https://extra%d.example.com/simple" % i for i in range(12)]
+    config_output = (
+        "global.index-url='https://pypi.org/simple'\n"
+        "global.extra-index-url=" + r"\n".join("'%s'" % u for u in urls)
+    )
+
+    mocker.patch.object(pip, "_call", return_value=config_output)
+
+    index, extras = pip.indices("dummy")
+
+    assert index == "https://pypi.org/simple"
+    assert extras == urls
