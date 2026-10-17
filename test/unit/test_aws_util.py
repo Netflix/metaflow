@@ -1,7 +1,7 @@
 import pytest
 
 from metaflow.exception import MetaflowException
-from metaflow.plugins.aws.aws_utils import validate_aws_tag
+from metaflow.plugins.aws.aws_utils import parse_aws_tags, validate_aws_tag
 
 
 @pytest.mark.parametrize(
@@ -52,3 +52,14 @@ def test_validate_aws_tag_not_permitted_message(key, value, expected_prefix):
         validate_aws_tag(key, value)
 
     assert str(exc_info.value).startswith(expected_prefix)
+
+
+def test_parse_aws_tags_value_with_equals_sign():
+    # "=" is permitted in tag values, and the @batch decorator passes its tags
+    # to the CLI as "key=value" strings.
+    tags = {"query": "env=prod", "b64": "YWJj==", "plain": "value"}
+    for key, value in tags.items():
+        validate_aws_tag(key, value)
+
+    items = ["%s=%s" % (k, v) for k, v in tags.items()]
+    assert parse_aws_tags(items) == tags
