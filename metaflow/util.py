@@ -636,8 +636,11 @@ def walk_without_cycles(
     default_skip_dirs = ["__pycache__"]
 
     def _recurse(root, skip_dirs, seen):
+        is_top = True
         for parent, dirs, files in os.walk(root):
-            dirs[:] = [d for d in dirs if d not in skip_dirs]
+            current_skip = skip_dirs if is_top else default_skip_dirs
+            dirs[:] = [d for d in dirs if d not in current_skip]
+            is_top = False
             for d in dirs:
                 path = os.path.join(parent, d)
                 if os.path.islink(path):
@@ -662,5 +665,4 @@ def walk_without_cycles(
 
     skip_dirs = set(default_skip_dirs + (exclude_dirs or []))
     for x in _recurse(top_root, skip_dirs, set()):
-        skip_dirs = default_skip_dirs
         yield x
