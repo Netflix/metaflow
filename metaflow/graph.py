@@ -588,6 +588,33 @@ class FlowGraph(object):
             )
         )
 
+    def output_mermaid(self):
+        # Sorted steps first, then any steps unreachable from the start step
+        nodes = [self[n] for n in self.sorted_nodes]
+        nodes.extend(n for n in self.nodes.values() if n.name not in self.sorted_nodes)
+
+        # Prefix node ids, "end" is a reserved word in Mermaid
+        def edge_specs():
+            for node in nodes:
+                if node.type == "split-switch":
+                    for case_value, step_name in node.switch_cases.items():
+                        label = str(case_value).replace('"', "#quot;")
+                        yield '    s_{0} -->|"{2}"| s_{1}'.format(
+                            node.name, step_name, " ".join(label.split())
+                        )
+                else:
+                    for edge in node.out_funcs:
+                        yield "    s_%s --> s_%s" % (node.name, edge)
+
+        def node_specs():
+            for node in nodes:
+                if node.type == "split-switch":
+                    yield '    s_{0}{{{{"{0}"}}}}'.format(node.name)
+                else:
+                    yield '    s_{0}["{0}"]'.format(node.name)
+
+        return "\n".join(["flowchart TD"] + list(node_specs()) + list(edge_specs()))
+
     def output_steps(self):
         steps_info = {}
         graph_structure = []
