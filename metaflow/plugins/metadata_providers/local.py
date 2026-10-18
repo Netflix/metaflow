@@ -607,6 +607,7 @@ class LocalMetadataProvider(MetadataProvider):
     def _dump_json_to_file(cls, filepath, data, allow_overwrite=False):
         if os.path.isfile(filepath) and not allow_overwrite:
             return
+        f = None
         try:
             with tempfile.NamedTemporaryFile(
                 mode="w", dir=os.path.dirname(filepath), delete=False
