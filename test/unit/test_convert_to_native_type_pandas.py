@@ -103,3 +103,11 @@ class TestPandasMultiIndexConversion(unittest.TestCase):
             self._convert(["x", "x"])["data"],
             [[("a", 1), 10], [("b", 2), 20]],
         )
+
+    def test_integer_named_levels(self):
+        for names in ([1, 0], ["x", 0]):
+            with self.subTest(names=names):
+                self.assertEqual(
+                    self._convert(names)["data"],
+                    [[("a", 1), 10], [("b", 2), 20]],
+                )
