@@ -74,3 +74,32 @@ class TestPandasDataframeConversion(unittest.TestCase):
             any("not supported" in str(col) for col in rendered["columns"])
         )
         self.assertEqual(len(rendered["data"]), len(df))
+
+
+class TestPandasMultiIndexConversion(unittest.TestCase):
+    """MultiIndex levels must convert even when their names are None or repeated."""
+
+    def _convert(self, names):
+        df = pd.DataFrame(
+            {"value": [10, 20]},
+            index=pd.MultiIndex.from_tuples([("a", 1), ("b", 2)], names=names),
+        )
+        return TaskToDict()._parse_pandas_dataframe(df)
+
+    def test_named_levels(self):
+        self.assertEqual(
+            self._convert(["letter", "number"])["data"],
+            [[("a", 1), 10], [("b", 2), 20]],
+        )
+
+    def test_unnamed_levels(self):
+        self.assertEqual(
+            self._convert([None, None])["data"],
+            [[("a", 1), 10], [("b", 2), 20]],
+        )
+
+    def test_duplicate_named_levels(self):
+        self.assertEqual(
+            self._convert(["x", "x"])["data"],
+            [[("a", 1), 10], [("b", 2), 20]],
+        )
