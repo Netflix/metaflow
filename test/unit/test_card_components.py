@@ -29,3 +29,10 @@ def test_update_without_implementation_warns_only_once():
     component.update("second")
 
     assert len(logged) == 1
+
+
+def test_update_without_implementation_and_without_logger_is_a_no_op():
+    component = ComponentWithoutUpdate()
+
+    assert component._logger is None
+    component.update("new value")  # raised TypeError before the fix
