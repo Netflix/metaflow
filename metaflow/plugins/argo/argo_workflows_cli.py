@@ -374,8 +374,7 @@ def create(
             deployer_attribute_file,
             additional_info={"workflow_template": flow._workflow_template.to_json()},
         )
-        obj.echo_always(str(flow), err=False, no_bold=True)
-        # TODO: Support echo-ing Argo Events Sensor template
+        obj.echo_always(flow.export_all_json(), err=False, no_bold=True)
     else:
         flow.deploy()
         obj.echo(
