@@ -299,7 +299,11 @@ def _get_flow_datastore(task):
         raise UnresolvableDatastoreException(task)
 
     ds_root = meta_dict.get("ds-root", None)
-    if ds_root:
+    if ds_type == "local" or ds_type == "spin":
+        # Local/spin card roots must follow the same precedence as writers:
+        # explicit CARD_LOCALROOT, then <ds-root>/mf.cards, then legacy lookup.
+        ds_root = CardDatastore.get_storage_root(ds_type, datastore_root=ds_root)
+    elif ds_root:
         ds_root = os.path.join(ds_root, CARD_SUFFIX)
     else:
         ds_root = CardDatastore.get_storage_root(ds_type)
