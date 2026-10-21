@@ -288,7 +288,7 @@ def get_latest_task_pathspec(
     try:
         task = Step(f"{flow_name}/{run_id}/{step_name}").task
         return task
-    except:
+    except Exception:
         raise MetaflowNotFound(f"No task found for step {step_name} in run {run_id}")
 
 
