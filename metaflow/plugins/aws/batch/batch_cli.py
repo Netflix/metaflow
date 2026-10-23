@@ -12,7 +12,7 @@ from metaflow.metaflow_config import DATASTORE_LOCAL_DIR
 from metaflow.mflog import TASK_LOG_SOURCE
 from metaflow.unbounded_foreach import UBF_CONTROL, UBF_TASK
 from .batch import Batch, BatchKilledException
-from ..aws_utils import validate_aws_tag
+from ..aws_utils import parse_aws_tag, validate_aws_tag
 
 
 @click.group()
@@ -307,7 +307,7 @@ def step(
         # as they come supplied by the batch decorator which already performed validation.
         batch_tags = {}
         for item in list(aws_batch_tags):
-            key, value = item.split("=")
+            key, value = parse_aws_tag(item) 
             batch_tags[key] = value
 
     env_deco = [deco for deco in node.decorators if deco.name == "environment"]
