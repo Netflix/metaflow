@@ -2,7 +2,7 @@ from collections import namedtuple
 import os
 from typing import Any, Optional, TYPE_CHECKING
 
-from metaflow.metaflow_config import TEMPDIR
+from metaflow.metaflow_config import TEMPDIR, CURRENT_RUNTIME
 
 Parallel = namedtuple(
     "Parallel", ["main_ip", "num_nodes", "node_index", "control_task_id"]
@@ -25,6 +25,7 @@ class Current(object):
         self._metadata_str = None
         self._is_running = False
         self._tempdir = TEMPDIR
+        self._compute = "local"
 
         def _raise(ex):
             raise ex
@@ -46,6 +47,7 @@ class Current(object):
         metadata_str=None,
         is_running=True,
         tags=None,
+        compute="local",
     ):
         if flow is not None:
             self._flow_name = flow.name
@@ -61,6 +63,7 @@ class Current(object):
         self._metadata_str = metadata_str
         self._is_running = is_running
         self._tags = tags
+        self._compute = compute
 
     def _update_env(self, env):
         for k, v in env.items():
@@ -282,6 +285,29 @@ class Current(object):
             Temporary director.
         """
         return self._tempdir
+
+    @property
+    def is_local(self) -> bool:
+        """
+        Is the current execution environment local
+        """
+
+        return self.runtime == "local"
+
+    @property
+    def runtime(self) -> str:
+        """
+        Name of the current runtime.
+        """
+
+        return CURRENT_RUNTIME
+
+    @property
+    def compute(self) -> str:
+        """
+        Name of the compute implementation
+        """
+        return self._compute
 
 
 # instantiate the Current singleton. This will be populated
