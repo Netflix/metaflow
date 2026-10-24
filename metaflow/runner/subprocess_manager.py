@@ -265,6 +265,7 @@ class CommandManager(object):
         self.run_called: bool = False
         self.timeout: bool = False
         self.log_files: Dict[str, str] = {}
+        self._log_file_handles: List = []
 
     async def __aenter__(self) -> "CommandManager":
         return self
@@ -402,6 +403,9 @@ class CommandManager(object):
             stdout_logfile = os.path.join(self.temp_dir, "stdout.log")
             stderr_logfile = os.path.join(self.temp_dir, "stderr.log")
 
+            stdout_fh = open(stdout_logfile, "w", encoding="utf-8")
+            stderr_fh = open(stderr_logfile, "w", encoding="utf-8")
+
             try:
                 # returns when process has been started,
                 # not when it is finished...
@@ -409,16 +413,19 @@ class CommandManager(object):
                     *self.command,
                     cwd=self.cwd,
                     env=self.env,
-                    stdout=open(stdout_logfile, "w", encoding="utf-8"),
-                    stderr=open(stderr_logfile, "w", encoding="utf-8"),
+                    stdout=stdout_fh,
+                    stderr=stderr_fh,
                 )
 
+                self._log_file_handles = [stdout_fh, stderr_fh]
                 self.log_files["stdout"] = stdout_logfile
                 self.log_files["stderr"] = stderr_logfile
 
                 self.run_called = True
                 return self.process.pid
             except Exception as e:
+                stdout_fh.close()
+                stderr_fh.close()
                 print("Error starting subprocess: %s" % e)
                 self.cleanup()
         else:
@@ -535,6 +542,12 @@ class CommandManager(object):
         """Clean up log files for a running subprocesses."""
 
         if self.run_called:
+            for fh in self._log_file_handles:
+                try:
+                    fh.close()
+                except Exception:
+                    pass
+            self._log_file_handles = []
             shutil.rmtree(self.temp_dir, ignore_errors=True)
 
     def kill(self, termination_timeout: float = 2):

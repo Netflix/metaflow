@@ -53,5 +53,7 @@ def suffix_filter(suffixes: List[str]) -> Callable[[str], bool]:
 def with_dir(new_dir):
     current_dir = os.getcwd()
     os.chdir(new_dir)
-    yield new_dir
-    os.chdir(current_dir)
+    try:
+        yield new_dir
+    finally:
+        os.chdir(current_dir)
