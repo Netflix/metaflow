@@ -74,3 +74,32 @@ class TestPandasDataframeConversion(unittest.TestCase):
             any("not supported" in str(col) for col in rendered["columns"])
         )
         self.assertEqual(len(rendered["data"]), len(df))
+
+
+class TestFromDataframeDoesNotMutateInput(unittest.TestCase):
+    """Table.from_dataframe must not modify the caller's DataFrame."""
+
+    def _build_df(self):
+        import numpy as np
+
+        return pd.DataFrame(
+            {
+                "int_nullable": pd.array([1, 2, None, 4, 5], dtype="Int64"),
+                "float_with_nan": [1.1, np.nan, 3.3, 4.4, 5.5],
+                "str_with_none": pd.array(
+                    ["alpha", None, "charlie", "delta", "echo"], dtype="string"
+                ),
+                "categorical": pd.Categorical(["a", "b", "a", "c", "b"]),
+            }
+        )
+
+    def _assert_not_mutated(self, df, truncate):
+        original = df.copy()
+        Table.from_dataframe(df, truncate=truncate)
+        pd.testing.assert_frame_equal(df, original)
+
+    def test_truncate_false_preserves_input(self):
+        self._assert_not_mutated(self._build_df(), truncate=False)
+
+    def test_truncate_true_preserves_input(self):
+        self._assert_not_mutated(self._build_df(), truncate=True)
