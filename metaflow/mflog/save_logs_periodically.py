@@ -5,6 +5,7 @@ import subprocess
 from threading import Thread
 
 from metaflow.sidecar import MessageTypes
+from metaflow.tracing import traced
 from metaflow.util import to_unicode
 from . import update_delay, BASH_SAVE_LOGS_ARGS, TASK_LOG_SOURCE
 from .mflog import decorate
@@ -109,8 +110,34 @@ class SaveLogsPeriodicallySidecar(object):
                             "current_size=%d delta=%d elapsed_seconds=%.3f"
                             % (path, previous, current, current - previous, elapsed),
                         )
-                try:
-                    self._call_save_logs()
-                except:
-                    pass
+
+                upload_start_time = time.time()
+                returncode = None
+                exception = None
+                attrs = {
+                    "total_bytes": str(sum(new_sizes)),
+                    "files_changed": str(
+                        len([s for s, ps in zip(new_sizes, previous_sizes) if s != ps])
+                    ),
+                }
+                with traced("save_logs_periodically.upload", attrs=attrs) as span:
+                    try:
+                        returncode = self._call_save_logs()
+                    except BaseException as e:
+                        # Upload failures are intentionally non-fatal to the
+                        # sidecar, as they were before tracing was added.
+                        exception = e
+
+                    attrs["elapsed_seconds"] = "%.3f" % (
+                        time.time() - upload_start_time
+                    )
+                    if returncode is not None:
+                        attrs["returncode"] = str(returncode)
+                        attrs["success"] = str(returncode == 0)
+                    if exception is not None:
+                        attrs["exception"] = str(type(exception).__name__)
+
+                    if span is not None:
+                        for key, value in attrs.items():
+                            span.set_attribute(key, value)
             time.sleep(update_delay(time.time() - start_time))

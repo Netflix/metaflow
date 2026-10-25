@@ -125,7 +125,7 @@ def traced(name: str, attrs: Optional[Dict] = None):
         if attrs:
             for k, v in attrs.items():
                 span.set_attribute(k, v)
-        yield
+        yield span
 
 
 def tracing(func):
