@@ -1,26 +1,7 @@
-load('ext://helm_remote', 'helm_remote')
 load('./_result.tiltfile', 'new_result')
 
 def setup_minio(ctx):
-    helm_remote(
-        'minio',
-        repo_name='minio-s3',
-        repo_url='https://charts.min.io/',
-        set=[
-            'rootUser=rootuser',
-            'rootPassword=rootpass123',
-            'buckets[0].name=metaflow-test',
-            'buckets[0].policy=none',
-            'buckets[0].purge=false',
-            'mode=standalone',
-            'replicas=1',
-            'persistence.enabled=false',
-            'resources.requests.memory=128Mi',
-            'resources.requests.cpu=50m',
-            'resources.limits.memory=256Mi',
-            'resources.limits.cpu=100m',
-        ]
-    )
+    k8s_yaml(read_file('./tilt/k8s/minio.yaml'))
 
     k8s_resource(
         'minio',
@@ -31,8 +12,6 @@ def setup_minio(ctx):
         ],
         labels=['minio'],
     )
-
-    k8s_resource("minio-post-job", labels=['minio'])
 
     local_resource(
         name="minio-create-bucket",
