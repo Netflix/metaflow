@@ -31,7 +31,7 @@ concurrency:
 jobs:
   unit-tests:
     name: "Unit Tests"
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
 
     steps:
       - uses: actions/checkout@v4
@@ -98,7 +98,7 @@ jobs:
 
   spin-tests:
     name: "Spin Tests"
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
 
     steps:
       - uses: actions/checkout@v4
@@ -173,7 +173,7 @@ jobs:
             memory: 6144
             timeout: 900
 
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
 
     steps:
       - uses: actions/checkout@v4
@@ -394,7 +394,7 @@ jobs:
     name: "Coverage Report"
     needs: [unit-tests, spin-tests, ux-tests]
     if: always()
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
 
     steps:
       - uses: actions/checkout@v4
