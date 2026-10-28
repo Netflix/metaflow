@@ -11,7 +11,7 @@ def setup_metadata_service(ctx):
             'metadatadb.password=metaflow123',
             'metadatadb.database=metaflow',
             'metadatadb.host=postgresql',
-            'image.repository=public.ecr.aws/outerbounds/metaflow_metadata_service',
+            'image.repository=%s' % ctx.versions.metaflow_service_repository,
             'image.tag=%s' % ctx.versions.metaflow_service_image,
             'resources.requests.cpu=25m',
             'resources.requests.memory=256Mi',

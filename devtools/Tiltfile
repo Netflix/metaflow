@@ -16,8 +16,17 @@ ARGO_WORKFLOWS_HELM_CHART_VERSION = os.getenv("ARGO_WORKFLOWS_HELM_CHART_VERSION
 ARGO_WORKFLOWS_IMAGE_TAG = os.getenv("ARGO_WORKFLOWS_IMAGE_TAG", "v3.6.0")
 AIRFLOW_HELM_CHART_VERSION = os.getenv("AIRFLOW_HELM_CHART_VERSION", "1.15.0")
 AIRFLOW_IMAGE_TAG = os.getenv("AIRFLOW_IMAGE_TAG", "2.10.4")
-# Used by both the metadata service and the UI backend.
-METAFLOW_SERVICE_IMAGE_TAG = os.getenv("METAFLOW_SERVICE_IMAGE_TAG", "2.6.1")
+# Used by both the metadata service and the UI backend. ECR Public has
+# multi-arch images; CI (x86 only) uses the amd64 Docker Hub image to avoid
+# ECR Public's anonymous pull quota. Docker Hub tags carry a "v" prefix.
+METAFLOW_SERVICE_VERSION = "2.6.1"
+if os.getenv("CI", "").lower() == "true":
+    METAFLOW_SERVICE_IMAGE_REPOSITORY = "docker.io/netflixoss/metaflow_metadata_service"
+    _service_tag = "v" + METAFLOW_SERVICE_VERSION
+else:
+    METAFLOW_SERVICE_IMAGE_REPOSITORY = "public.ecr.aws/outerbounds/metaflow_metadata_service"
+    _service_tag = METAFLOW_SERVICE_VERSION
+METAFLOW_SERVICE_IMAGE_TAG = os.getenv("METAFLOW_SERVICE_IMAGE_TAG", _service_tag)
 METAFLOW_UI_IMAGE_TAG = os.getenv("METAFLOW_UI_IMAGE_TAG", "v1.3.14")
 
 # ---------------------------------------------------------------------------
@@ -120,6 +129,7 @@ ctx = struct(
         argo_workflows_image=ARGO_WORKFLOWS_IMAGE_TAG,
         airflow_chart=AIRFLOW_HELM_CHART_VERSION,
         airflow_image=AIRFLOW_IMAGE_TAG,
+        metaflow_service_repository=METAFLOW_SERVICE_IMAGE_REPOSITORY,
         metaflow_service_image=METAFLOW_SERVICE_IMAGE_TAG,
         metaflow_ui_image=METAFLOW_UI_IMAGE_TAG,
     ),

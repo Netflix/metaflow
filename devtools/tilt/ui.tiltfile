@@ -13,7 +13,7 @@ def setup_ui(ctx):
             'uiBackend.metadatadb.host=postgresql',
             'uiBackend.metaflowDatastoreSysRootS3=s3://metaflow-test',
             'uiBackend.metaflowS3EndpointURL=http://minio.default.svc.cluster.local:9000',
-            'uiBackend.image.name=public.ecr.aws/outerbounds/metaflow_metadata_service',
+            'uiBackend.image.name=%s' % ctx.versions.metaflow_service_repository,
             'uiBackend.image.tag=%s' % ctx.versions.metaflow_service_image,
             'uiBackend.env[0].name=AWS_ACCESS_KEY_ID',
             'uiBackend.env[0].value=rootuser',
