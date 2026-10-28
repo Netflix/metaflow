@@ -27,11 +27,42 @@ jobs:
           python -m pip install --upgrade pip
           pip install . kubernetes
 
+      # Start minikube on its own (all-up reuses a running cluster) so cached
+      # images can be loaded before Tilt deploys anything.
+      - name: Start minikube
+        run: |
+          MINIKUBE_CPUS=2 metaflow-dev setup-minikube
+          devtools_dir=$(python -c "from metaflow.cmd.make_wrapper import find_makefile; print(find_makefile().parent)")
+          echo "${devtools_dir}/.devtools/minikube" >> "$GITHUB_PATH"
+
+      - name: Restore minikube image cache
+        id: image-cache
+        uses: actions/cache/restore@v4
+        with:
+          path: /tmp/minikube-image-cache
+          key: minikube-images-full-stack-${{ hashFiles('devtools/Tiltfile') }}
+          restore-keys: minikube-images-full-stack-
+
+      - name: Pre-load cached images into minikube
+        if: steps.image-cache.outputs.cache-hit == 'true'
+        run: devtools/ci/load-minikube-images.sh
+
       - name: Bring up the environment
         run: |
           echo "Starting environment in the background..."
           MINIKUBE_CPUS=2 metaflow-dev all-up &
           WAIT_TIMEOUT=900 metaflow-dev wait-until-ready
+
+      - name: Save minikube images to cache
+        if: steps.image-cache.outputs.cache-hit != 'true'
+        run: devtools/ci/save-minikube-images.sh
+
+      - name: Store minikube image cache
+        if: steps.image-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: /tmp/minikube-image-cache
+          key: minikube-images-full-stack-${{ hashFiles('devtools/Tiltfile') }}
 
       - name: Wait & run flow
         run: |
