@@ -16,6 +16,9 @@ ARGO_WORKFLOWS_HELM_CHART_VERSION = os.getenv("ARGO_WORKFLOWS_HELM_CHART_VERSION
 ARGO_WORKFLOWS_IMAGE_TAG = os.getenv("ARGO_WORKFLOWS_IMAGE_TAG", "v3.6.0")
 AIRFLOW_HELM_CHART_VERSION = os.getenv("AIRFLOW_HELM_CHART_VERSION", "1.15.0")
 AIRFLOW_IMAGE_TAG = os.getenv("AIRFLOW_IMAGE_TAG", "2.10.4")
+# Used by both the metadata service and the UI backend.
+METAFLOW_SERVICE_IMAGE_TAG = os.getenv("METAFLOW_SERVICE_IMAGE_TAG", "2.6.1")
+METAFLOW_UI_IMAGE_TAG = os.getenv("METAFLOW_UI_IMAGE_TAG", "v1.3.14")
 
 # ---------------------------------------------------------------------------
 # Component dependency graph
@@ -117,6 +120,8 @@ ctx = struct(
         argo_workflows_image=ARGO_WORKFLOWS_IMAGE_TAG,
         airflow_chart=AIRFLOW_HELM_CHART_VERSION,
         airflow_image=AIRFLOW_IMAGE_TAG,
+        metaflow_service_image=METAFLOW_SERVICE_IMAGE_TAG,
+        metaflow_ui_image=METAFLOW_UI_IMAGE_TAG,
     ),
 )
 
