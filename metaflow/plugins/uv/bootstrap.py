@@ -92,7 +92,7 @@ if __name__ == "__main__":
         for attempt in range(max_retries):
             try:
                 req = Request(uv_url, headers=headers)
-                with urlopen(req) as response:
+                with urlopen(req, timeout=60) as response:
                     with tarfile.open(fileobj=response, mode="r:gz") as tar:
                         tar.extractall(uv_install_path, filter=_tar_filter)
                 break
