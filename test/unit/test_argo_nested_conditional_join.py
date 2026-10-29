@@ -256,15 +256,33 @@ def _make_argo(mocker, flow_cls, name):
     )
 
 
-def _depends(aw, node_name):
-    """Return the Argo `depends` string generated for a given step name."""
+def _task(aw, node_name):
+    """Return the raw Argo DAG task dict generated for a given step name."""
     templates = aw._dag_templates()
     dag = templates[-1].payload["dag"]
     sanitized = ArgoWorkflows._sanitize(node_name)
     for task in dag["tasks"]:
         if task["name"] == sanitized:
-            return task.get("depends", "")
+            return task
     raise AssertionError(f"no DAG task found for step {node_name!r}")
+
+
+def _depends(aw, node_name):
+    """Return the Argo `depends` string generated for a given step name."""
+    return _task(aw, node_name).get("depends", "")
+
+
+def _when(aw, node_name):
+    """Return the Argo `when` string generated for a given step name."""
+    return _task(aw, node_name).get("when")
+
+
+def _param(aw, node_name, param_name):
+    """Return a named input parameter's value from a step's DAGTask."""
+    for parameter in _task(aw, node_name)["arguments"]["parameters"]:
+        if parameter["name"] == param_name:
+            return parameter["value"]
+    raise AssertionError(f"no {param_name!r} parameter on step {node_name!r}")
 
 
 @pytest.fixture
@@ -355,3 +373,78 @@ def test_recursive_switch_join_depends_or(recursive_switch_argo):
     assert aw.matching_conditional_join_dict["start"] == "merge"
 
     assert _depends(aw, "merge") == "shortcut.Succeeded || step-c.Succeeded"
+
+
+# ── Regression tests ────────────────────────────────────────────────────────
+#
+# Conditional branch nodes are plain DAGTasks gated by a `when` clause, so a
+# skipped branch's task is genuinely Omitted (not forced to run via a
+# wrapper). Downstream steps stay safe because every reference to a
+# possibly-Omitted task's outputs is lazily gated on `.status == 'Succeeded'`
+# (see _executed_input_paths_expr()), so joins need no extra
+# `should-run`-style gating on top of depends() - a closing join whose
+# conditional predecessors aren't themselves split-switch nodes just relies on
+# the OR'd depends() string and gets no extra `when` clause at all.
+
+
+def test_nested_switch_alpha_closing_join_no_extra_when_gate(nested_alpha_argo):
+    aw = nested_alpha_argo
+
+    assert _when(aw, "inner_join") is None
+    assert _when(aw, "outer_join") is None
+
+
+def test_simple_switch_closing_join_no_extra_when_gate(simple_switch_argo):
+    aw = simple_switch_argo
+
+    assert _when(aw, "join") is None
+
+
+def test_sequential_switch_closing_join_no_extra_when_gate(sequential_switch_argo):
+    aw = sequential_switch_argo
+
+    assert _when(aw, "join1") is None
+    assert _when(aw, "join2") is None
+
+
+def test_recursive_switch_closing_join_no_extra_when_gate(recursive_switch_argo):
+    aw = recursive_switch_argo
+
+    assert _when(aw, "merge") is None
+
+
+def test_conditional_join_input_paths_are_status_gated(simple_switch_argo):
+    """`join`'s predecessors (`left`/`right`) are conditional, so its
+    input-paths must be a single status-gated expression - never a bare
+    `{{tasks.X.outputs...}}` tag, which yields a broken pathspec when X was
+    Omitted."""
+    aw = simple_switch_argo
+
+    value = _param(aw, "join", "input-paths")
+
+    assert value.startswith("{{=sprig.trimSuffix(',',")
+    for in_func in ("left", "right"):
+        assert "tasks['%s'].status == 'Succeeded'" % in_func in value
+    # The unguarded per-predecessor form must not leak in.
+    assert aw._input_path_ref("left") not in value
+
+
+def test_input_path_ref_remains_plain_for_always_run_predecessors(simple_switch_argo):
+    """_input_path_ref() is still the cheaper form used when every predecessor
+    always runs."""
+    aw = simple_switch_argo
+
+    assert aw._input_path_ref("left") == (
+        "argo-{{workflow.name}}/left/{{tasks.left.outputs.parameters.task-id}}"
+    )
+
+
+def test_no_should_run_params_on_closing_join(sequential_switch_argo):
+    """join1 closes the first switch's branches and opens a second one; with
+    the wrapper removed there should be no should-run-* input parameters -
+    depends()/when() plus status-gated input-paths are sufficient."""
+    aw = sequential_switch_argo
+
+    task = _task(aw, "join1")
+    param_names = {p["name"] for p in task["arguments"]["parameters"]}
+    assert not any(name.startswith("should-run-") for name in param_names)
