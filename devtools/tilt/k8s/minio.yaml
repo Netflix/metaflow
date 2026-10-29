@@ -55,6 +55,10 @@ spec:
               port: http
             initialDelaySeconds: 10
             periodSeconds: 20
+            # Parallel uploads (e.g. conda packages) can stall the health
+            # endpoint; a restart wipes the emptyDir and drops port-forwards.
+            timeoutSeconds: 5
+            failureThreshold: 6
           volumeMounts:
             - name: data
               mountPath: /bitnami/minio/data
@@ -63,8 +67,9 @@ spec:
               cpu: 50m
               memory: 128Mi
             limits:
-              cpu: 100m
-              memory: 256Mi
+              # No CPU limit and 1Gi memory: at 100m/256Mi MinIO restarted
+              # under parallel uploads.
+              memory: 1Gi
       volumes:
         # Matches the chart's persistence.enabled=false: the devstack datastore
         # is disposable and goes away with the pod.
