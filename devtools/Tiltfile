@@ -20,7 +20,8 @@ AIRFLOW_IMAGE_TAG = os.getenv("AIRFLOW_IMAGE_TAG", "2.10.4")
 # multi-arch images; CI (x86 only) uses the amd64 Docker Hub image to avoid
 # ECR Public's anonymous pull quota. Docker Hub tags carry a "v" prefix.
 METAFLOW_SERVICE_VERSION = "2.6.1"
-if os.getenv("CI", "").lower() == "true":
+IS_CI = os.getenv("CI", "").lower() == "true"
+if IS_CI:
     METAFLOW_SERVICE_IMAGE_REPOSITORY = "docker.io/netflixoss/metaflow_metadata_service"
     _service_tag = "v" + METAFLOW_SERVICE_VERSION
 else:
@@ -50,7 +51,9 @@ components = {
 services_env = os.getenv("SERVICES", "metadata-service,argo-workflows").strip().lower()
 
 if services_env == "all":
-    requested_components = list(components.keys())
+    # The UI image is only published on ECR Public, whose anonymous pull
+    # quota CI runners keep exhausting, so leave it out of CI stacks.
+    requested_components = [c for c in components.keys() if not (IS_CI and c == "ui")]
 else:
     requested_components = [s.strip() for s in services_env.split(",") if s.strip()]
 
