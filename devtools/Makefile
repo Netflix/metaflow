@@ -13,7 +13,9 @@ help:
 
 HELM_VERSION := v3.14.0
 MINIKUBE_VERSION := v1.32.0
-TILT_VERSION := v0.33.11
+# Older Tilt (e.g. v0.33.11) fails in helm() with Helm 4 ("Error in helm: exit
+# status 1"; Helm 4 removed `helm version -c`). v0.37.8 works with Helm 3 and 4.
+TILT_VERSION := v0.37.8
 GUM_VERSION := v0.15.2
 
 MKFILE_PATH := $(abspath $(lastword $(MAKEFILE_LIST)))
@@ -144,8 +146,9 @@ setup-minikube:
 	@echo "🎉 Minikube $(MINIKUBE_VERSION) cluster is ready!"
 
 setup-tilt:
-	@if [ ! -f "$(TILT)" ]; then \
+	@if [ ! -f "$(TILT)" ] || ! "$(TILT)" version 2>/dev/null | grep -q "^$(TILT_VERSION),"; then \
 		echo "📥 Installing Tilt $(TILT_VERSION)"; \
+		rm -rf $(TILT_DIR); \
 		mkdir -p $(TILT_DIR); \
 		(curl -L https://github.com/tilt-dev/tilt/releases/download/$(TILT_VERSION)/tilt.$(TILT_VERSION:v%=%).$(tilt_os).$(tilt_arch).tar.gz | tar -xz -C $(TILT_DIR)) && echo "✅ Tilt $(TILT_VERSION) installed successfully" || (echo "❌ Failed to install Tilt" && exit 1); \
 	fi
