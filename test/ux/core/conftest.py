@@ -47,9 +47,37 @@ def _set_devstack_env():
     os.environ.setdefault("AWS_ENDPOINT_URL_EVENTBRIDGE", "http://localhost:7777")
 
 
+def _setup_gcs_emulator():
+    """Configure the GCS client factory to use anonymous credentials.
+
+    When STORAGE_EMULATOR_HOST is set, the google-cloud-storage Client
+    automatically uses anonymous credentials and routes requests to the
+    emulator -- but only when no explicit credentials are passed.
+    Metaflow's default GCP client provider calls google.auth.default()
+    first, which fails without real GCP credentials. We monkey-patch
+    the factory to return a plain Client() that auto-detects the emulator.
+    """
+    if not os.environ.get("STORAGE_EMULATOR_HOST"):
+        return
+
+    try:
+        from google.cloud import storage
+        from metaflow.plugins.gcp import gs_storage_client_factory as factory
+
+        _emulator_client = storage.Client()
+
+        def _get_emulator_client():
+            return _emulator_client
+
+        factory.get_gs_storage_client = _get_emulator_client
+    except ImportError:
+        pass
+
+
 def pytest_configure(config):
     """
     Called early by pytest (before collection) so env vars are set before
     metaflow is imported at module level by the test files.
     """
     _set_devstack_env()
+    _setup_gcs_emulator()

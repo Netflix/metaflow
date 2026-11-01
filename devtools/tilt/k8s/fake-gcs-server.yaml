@@ -1,0 +1,40 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: fake-gcs-server
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: fake-gcs-server
+  template:
+    metadata:
+      labels:
+        app: fake-gcs-server
+    spec:
+      containers:
+        - name: fake-gcs-server
+          image: fsouza/fake-gcs-server:latest
+          # Port 4443 is the fake-gcs-server default; we keep it for
+          # compatibility even though we use -scheme http (not HTTPS).
+          args: ["-scheme", "http", "-host", "0.0.0.0", "-port", "4443"]
+          ports:
+            - containerPort: 4443
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 200m
+              memory: 128Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: fake-gcs-server
+spec:
+  selector:
+    app: fake-gcs-server
+  ports:
+    - port: 4443
+      targetPort: 4443
