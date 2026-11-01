@@ -32,8 +32,10 @@ test_that("parse arguments from R", {
 
 test_that("parse arguments from command line", {
   skip_if_no_metaflow()
-  cmd <- "Rscript test-command-args.R --alpha 100 --with catch --with retry"
-  system(cmd)
+  system2(
+    "Rscript",
+    args = c("test-command-args.R", "--alpha", "100", "--with", "catch", "--with", "retry")
+  )
   actual <- readRDS("flags.RDS")
   message(actual)
   expected <- list(
@@ -54,6 +56,30 @@ test_that("split parameters sets valid params", {
   flags <- flags()
   actual <- split_parameters(flags)
   expected <- ""
+  expect_equal(actual, expected)
+})
+
+test_that("split parameter args preserves shell-sensitive values", {
+  skip_if_no_metaflow()
+  arguments <- list(
+    alpha = "has spaces; and semicolon",
+    name = "quotes \" '",
+    label = "unicode \u2603"
+  )
+  actual <- split_parameter_args(arguments)
+  expected <- c(
+    "--alpha", "has spaces; and semicolon",
+    "--name", "quotes \" '",
+    "--label", "unicode \u2603"
+  )
+  expect_equal(actual, expected)
+})
+
+test_that("split parameter args repeats vector parameter flags", {
+  skip_if_no_metaflow()
+  arguments <- list(alpha = c("one", "two"))
+  actual <- split_parameter_args(arguments)
+  expected <- c("--alpha", "one", "--alpha", "two")
   expect_equal(actual, expected)
 })
 
