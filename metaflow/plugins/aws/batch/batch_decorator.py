@@ -92,7 +92,8 @@ class BatchDecorator(StepDecorator):
         Number of elastic fabric adapter network devices to attach to container
     ephemeral_storage : int, default None
         The total amount, in GiB, of ephemeral storage to set for the task, 21-200GiB.
-        This is only relevant for Fargate compute environments
+        This is only relevant for Fargate compute environments.
+        If `@resources` is also present, the maximum value from all decorators is used.
     log_driver: str, optional, default None
         The log driver to use for the Amazon ECS container.
     log_options: List[str], optional, default None
