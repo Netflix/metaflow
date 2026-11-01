@@ -11,13 +11,13 @@ from functools import wraps
 import contextlib
 from typing import Dict, List, Optional
 from opentelemetry import trace as trace_api, context
-from metaflow.metaflow_config import OTEL_SERVICE_NAME
+from metaflow.metaflow_config import OTEL_SERVICE_NAME, DEBUG_TRACING
 from .span_exporter import get_span_exporter
 
 tracer_provider: Optional[TracerProvider] = None
 
 
-def init_tracing():
+def init_tracing(exporter=None):
     global tracer_provider
     if tracer_provider is not None:
         return
@@ -26,7 +26,7 @@ def init_tracing():
 
     set_global_textmap(EnvPropagator(None))
 
-    span_exporter = get_span_exporter()
+    span_exporter = exporter if exporter is not None else get_span_exporter()
     if span_exporter is None:
         return
 
@@ -39,7 +39,15 @@ def init_tracing():
     )
     trace_api.set_tracer_provider(tracer_provider)
 
-    span_processor = BatchSpanProcessor(span_exporter)
+    from opentelemetry.sdk.trace.export import SimpleSpanProcessor
+
+    if (
+        hasattr(span_exporter, "export")
+        and "InMemorySpanExporter" in span_exporter.__class__.__name__
+    ):
+        span_processor = SimpleSpanProcessor(span_exporter)
+    else:
+        span_processor = BatchSpanProcessor(span_exporter)
     tracer_provider.add_span_processor(span_processor)
 
     try:
@@ -115,17 +123,74 @@ def get_trace_id() -> str:
         return ""
 
 
+def _sanitize_attr_value(val):
+    if isinstance(val, (str, bool, int, float)):
+        return val
+    elif isinstance(val, (list, tuple)):
+        if all(isinstance(x, (str, bool, int, float)) for x in val):
+            return val
+        return [str(x) for x in val]
+    return str(val)
+
+
+def get_current_span():
+    return trace_api.get_current_span()
+
+
+def add_span_event(name: str, attrs: Optional[Dict] = None):
+    if tracer_provider is None:
+        return
+    span = trace_api.get_current_span()
+    if span and span.is_recording():
+        attributes = {}
+        if attrs:
+            for k, v in attrs.items():
+                if v is not None:
+                    attributes[k] = _sanitize_attr_value(v)
+        span.add_event(name, attributes=attributes)
+
+
+def set_span_attributes(attrs: Dict):
+    if tracer_provider is None:
+        return
+    span = trace_api.get_current_span()
+    if span and span.is_recording():
+        for k, v in attrs.items():
+            if v is not None:
+                span.set_attribute(k, _sanitize_attr_value(v))
+
+
+def flush_tracing():
+    global tracer_provider
+    if tracer_provider:
+        try:
+            tracer_provider.force_flush()
+        except Exception as e:  # pylint: disable=broad-except
+            if DEBUG_TRACING:
+                print("TracerProvider failed to flush traces", e, file=sys.stderr)
+
+
 @contextlib.contextmanager
 def traced(name: str, attrs: Optional[Dict] = None):
+    global tracer_provider
     if tracer_provider is None:
-        yield
+        init_tracing()
+    if tracer_provider is None:
+        yield None
         return
     tracer = trace_api.get_tracer_provider().get_tracer(__name__)
     with tracer.start_as_current_span(name) as span:
         if attrs:
             for k, v in attrs.items():
-                span.set_attribute(k, v)
-        yield
+                if v is not None:
+                    span.set_attribute(k, _sanitize_attr_value(v))
+        try:
+            yield span
+        except Exception as e:
+            if span.is_recording():
+                span.record_exception(e)
+                span.set_status(trace_api.Status(trace_api.StatusCode.ERROR, str(e)))
+            raise
 
 
 def tracing(func):

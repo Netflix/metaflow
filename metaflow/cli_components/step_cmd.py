@@ -132,6 +132,15 @@ def step(
     if not func.is_step:
         raise CommandException("Function *%s* is not a step." % step_name)
     echo("Executing a step, *%s*" % step_name, fg="magenta", bold=False)
+    tracing.set_span_attributes(
+        {
+            "metaflow.flow_name": ctx.obj.flow.name,
+            "metaflow.run_id": str(run_id),
+            "metaflow.step_name": step_name,
+            "metaflow.task_id": str(task_id),
+            "metaflow.retry_count": retry_count,
+        }
+    )
 
     step_kwargs = ctx.params
     # Remove argument `step_name` from `step_kwargs`.
