@@ -596,7 +596,6 @@ class MetaflowTask(object):
             "metaflow.run_id": str(run_id),
             "metaflow.step_name": step_name,
             "metaflow.task_id": str(task_id),
-            "metaflow.retry_count": retry_count,
             "metaflow.attempt": retry_count,
         }
         if split_index is not None:
@@ -608,7 +607,14 @@ class MetaflowTask(object):
 
         with tracing.traced(f"task/{step_name}", attrs=task_attrs) as task_span:
             if retry_count > 0:
-                tracing.add_span_event("task_retry", {"metaflow.retry_count": retry_count})
+                tracing.add_span_event(
+                    "task_retry",
+                    {
+                        "metaflow.step_name": step_name,
+                        "metaflow.task_id": str(task_id),
+                        "metaflow.attempt": retry_count,
+                    },
+                )
             try:
                 return self._run_step(
                     step_name,

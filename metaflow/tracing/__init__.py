@@ -66,12 +66,14 @@ def flush_tracing():
     pass
 
 
-def _enable_tracing_modules(exporter=None):
+def _enable_tracing_modules(exporter=None, span_processor=None):
     try:
         from . import tracing_modules
 
-        if exporter is not None:
-            tracing_modules.init_tracing(exporter=exporter)
+        if exporter is not None or span_processor is not None:
+            tracing_modules.init_tracing(
+                exporter=exporter, span_processor=span_processor
+            )
         for name in (
             "init_tracing",
             "post_fork",
@@ -91,8 +93,8 @@ def _enable_tracing_modules(exporter=None):
             print(e.msg, file=sys.stderr)
 
 
-def init_tracing(exporter=None):
-    _enable_tracing_modules(exporter=exporter)
+def init_tracing(exporter=None, span_processor=None):
+    _enable_tracing_modules(exporter=exporter, span_processor=span_processor)
 
 
 if not DISABLE_TRACING and (CONSOLE_TRACE_ENABLED or OTEL_ENDPOINT or ZIPKIN_ENDPOINT):

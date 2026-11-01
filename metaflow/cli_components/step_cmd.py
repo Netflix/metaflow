@@ -138,7 +138,7 @@ def step(
             "metaflow.run_id": str(run_id),
             "metaflow.step_name": step_name,
             "metaflow.task_id": str(task_id),
-            "metaflow.retry_count": retry_count,
+            "metaflow.attempt": retry_count,
         }
     )
 

@@ -1,6 +1,7 @@
 import os
 import pytest
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
+from opentelemetry.sdk.trace.export import SimpleSpanProcessor
 from opentelemetry.trace import StatusCode
 import opentelemetry.trace as trace_api
 import opentelemetry.propagate as propagate
@@ -47,7 +48,9 @@ def test_tracing_disabled():
 
 def test_tracing_modules_in_memory_lifecycle():
     exporter = InMemorySpanExporter()
-    tracing.init_tracing(exporter=exporter)
+    tracing.init_tracing(
+        exporter=exporter, span_processor=SimpleSpanProcessor(exporter)
+    )
 
     with tracing_modules.traced("parent_span", {"flow": "test_flow"}) as parent:
         assert parent is not None
@@ -88,7 +91,9 @@ def test_tracing_modules_in_memory_lifecycle():
 
 def test_context_propagation_vars():
     exporter = InMemorySpanExporter()
-    tracing.init_tracing(exporter=exporter)
+    tracing.init_tracing(
+        exporter=exporter, span_processor=SimpleSpanProcessor(exporter)
+    )
 
     with tracing_modules.traced("trace_parent_span") as span:
         env = {}
@@ -119,7 +124,9 @@ def test_task_run_step_lifecycle_spans(tmp_path, monkeypatch):
     monkeypatch.setattr(LocalStorage, "SYSROOT_VAR", sysroot)
     monkeypatch.setattr(LocalStorage, "datastore_root", sysroot)
     exporter = InMemorySpanExporter()
-    tracing.init_tracing(exporter=exporter)
+    tracing.init_tracing(
+        exporter=exporter, span_processor=SimpleSpanProcessor(exporter)
+    )
 
     storage_root = str(tmp_path / "datastore")
     os.makedirs(storage_root, exist_ok=True)
@@ -196,7 +203,6 @@ def test_task_run_step_lifecycle_spans(tmp_path, monkeypatch):
     assert task_span.attributes["metaflow.run_id"] == "1001"
     assert task_span.attributes["metaflow.step_name"] == "start"
     assert task_span.attributes["metaflow.task_id"] == "1"
-    assert task_span.attributes["metaflow.retry_count"] == 0
     assert task_span.attributes["metaflow.attempt"] == 0
 
     # 2. Run end step with input_paths and retry_count=1
@@ -237,21 +243,37 @@ def test_task_run_step_lifecycle_spans(tmp_path, monkeypatch):
     load_inputs_span = next(s for s in end_spans if s.name == "task/load_inputs")
 
     assert load_inputs_span.parent.span_id == task_end_span.context.span_id
-    assert task_end_span.attributes["metaflow.retry_count"] == 1
+    assert task_end_span.attributes["metaflow.attempt"] == 1
     assert task_end_span.attributes["metaflow.is_retry"] is True
     assert task_end_span.attributes["metaflow.split_index"] == 0
     event_names = [e.name for e in task_end_span.events]
     assert "task_retry" in event_names
+    retry_event = next(e for e in task_end_span.events if e.name == "task_retry")
+    assert retry_event.attributes["metaflow.step_name"] == "end"
+    assert retry_event.attributes["metaflow.task_id"] == "2"
+    assert retry_event.attributes["metaflow.attempt"] == 1
 
 
 def test_runtime_flow_span_and_retry_event():
     exporter = InMemorySpanExporter()
-    tracing.init_tracing(exporter=exporter)
+    tracing.init_tracing(
+        exporter=exporter, span_processor=SimpleSpanProcessor(exporter)
+    )
 
     # Verify flow span around runtime execute
     flow = LifecycleFlow(use_cli=False)
-    with tracing_modules.traced(f"flow/{flow.name}", attrs={"metaflow.flow_name": flow.name, "metaflow.run_id": "r100"}):
-        tracing_modules.add_span_event("task_retry", {"metaflow.step_name": "start", "metaflow.retry_count": 1})
+    with tracing_modules.traced(
+        f"flow/{flow.name}",
+        attrs={"metaflow.flow_name": flow.name, "metaflow.run_id": "r100"},
+    ):
+        tracing_modules.add_span_event(
+            "task_retry",
+            {
+                "metaflow.step_name": "start",
+                "metaflow.task_id": "1",
+                "metaflow.attempt": 1,
+            },
+        )
 
     tracing_modules.flush_tracing()
     spans = exporter.get_finished_spans()
@@ -262,12 +284,15 @@ def test_runtime_flow_span_and_retry_event():
     assert "task_retry" in event_names
     retry_event = next(e for e in flow_span.events if e.name == "task_retry")
     assert retry_event.attributes["metaflow.step_name"] == "start"
-    assert retry_event.attributes["metaflow.retry_count"] == 1
+    assert retry_event.attributes["metaflow.task_id"] == "1"
+    assert retry_event.attributes["metaflow.attempt"] == 1
 
 
 def test_remote_plugins_trace_propagation():
     exporter = InMemorySpanExporter()
-    tracing.init_tracing(exporter=exporter)
+    tracing.init_tracing(
+        exporter=exporter, span_processor=SimpleSpanProcessor(exporter)
+    )
 
     class DummyJob(object):
         def __init__(self):

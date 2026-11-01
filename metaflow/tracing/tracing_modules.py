@@ -17,7 +17,7 @@ from .span_exporter import get_span_exporter
 tracer_provider: Optional[TracerProvider] = None
 
 
-def init_tracing(exporter=None):
+def init_tracing(exporter=None, span_processor=None):
     global tracer_provider
     if tracer_provider is not None:
         return
@@ -26,9 +26,13 @@ def init_tracing(exporter=None):
 
     set_global_textmap(EnvPropagator(None))
 
-    span_exporter = exporter if exporter is not None else get_span_exporter()
-    if span_exporter is None:
-        return
+    if span_processor is not None:
+        processor = span_processor
+    else:
+        span_exporter = exporter if exporter is not None else get_span_exporter()
+        if span_exporter is None:
+            return
+        processor = BatchSpanProcessor(span_exporter)
 
     tracer_provider = TracerProvider(
         resource=Resource.create(
@@ -38,17 +42,7 @@ def init_tracing(exporter=None):
         )
     )
     trace_api.set_tracer_provider(tracer_provider)
-
-    from opentelemetry.sdk.trace.export import SimpleSpanProcessor
-
-    if (
-        hasattr(span_exporter, "export")
-        and "InMemorySpanExporter" in span_exporter.__class__.__name__
-    ):
-        span_processor = SimpleSpanProcessor(span_exporter)
-    else:
-        span_processor = BatchSpanProcessor(span_exporter)
-    tracer_provider.add_span_processor(span_processor)
+    tracer_provider.add_span_processor(processor)
 
     try:
         from opentelemetry.instrumentation.requests import RequestsInstrumentor

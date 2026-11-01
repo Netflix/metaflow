@@ -290,7 +290,7 @@ class SpinRuntime(object):
     def execute(self):
         flow_attrs = {
             "metaflow.flow_name": self._flow.name,
-            "metaflow.run_id": str(getattr(self, "_run_id", getattr(self, "run_id", ""))),
+            "metaflow.run_id": str(self.run_id),
         }
         with tracing.traced(f"flow/{self._flow.name}", attrs=flow_attrs):
             try:
@@ -805,7 +805,7 @@ class NativeRuntime(object):
     def execute(self):
         flow_attrs = {
             "metaflow.flow_name": self._flow.name,
-            "metaflow.run_id": str(getattr(self, "_run_id", getattr(self, "run_id", ""))),
+            "metaflow.run_id": str(self._run_id),
         }
         with tracing.traced(f"flow/{self._flow.name}", attrs=flow_attrs):
             try:
@@ -1577,7 +1577,7 @@ class NativeRuntime(object):
             {
                 "metaflow.step_name": worker.task.step,
                 "metaflow.task_id": str(worker.task.task_id),
-                "metaflow.retry_count": worker.task.retries,
+                "metaflow.attempt": worker.task.retries,
             },
         )
         worker.task.new_attempt()
