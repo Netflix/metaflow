@@ -139,7 +139,11 @@ class CondaEnvironment(MetaflowEnvironment):
                         unquote(base), prefix, file
                     )
                 else:
-                    return urlparse(url).netloc + urlparse(url).path
+                    parsed_url = urlparse(url)
+                    base = os.path.dirname(parsed_url.path)
+                    # Using file extension from local_path instead of url
+                    file = os.path.basename(local_path)
+                    return parsed_url.netloc + os.path.join(base, file)
 
             local_packages = {
                 url: {
