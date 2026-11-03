@@ -1,5 +1,6 @@
 import os
 import sys
+import tempfile
 import types
 import uuid
 import datetime
@@ -176,7 +177,7 @@ DATATOOLS_S3ROOT = from_conf(
     ),
 )
 
-TEMPDIR = from_conf("TEMPDIR", ".")
+TEMPDIR = from_conf("TEMPDIR", tempfile.gettempdir())
 
 DATATOOLS_CLIENT_PARAMS = from_conf("DATATOOLS_CLIENT_PARAMS", {})
 if S3_ENDPOINT_URL:
