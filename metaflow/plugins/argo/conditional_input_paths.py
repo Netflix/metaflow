@@ -21,11 +21,15 @@ def generate_input_paths(input_paths, skippable_steps):
         decoded = input_paths
     paths = decompress_list(decoded)
 
-    # some of the paths are going to be malformed due to never having executed per conditional.
-    # strip these out of the list.
-
-    # all pathspecs of leading steps that executed.
-    trimmed = [path for path in paths if not "{{" in path]
+    # Input-paths normally list only predecessors that ran. Defensively drop
+    # pathspecs of predecessors that never executed: a literal '{{...}}' tag
+    # (Argo <3.7.11), the legacy 'SKIPPED' task-id, or an empty task-id
+    # (Argo >=3.7.13 resolves a skipped task's outputs to '').
+    trimmed = [
+        path
+        for path in paths
+        if "{{" not in path and not path.endswith("/SKIPPED") and not path.endswith("/")
+    ]
 
     skippable_steps = [step for step in skippable_steps if step]
     skippable_step_set = set(skippable_steps)
