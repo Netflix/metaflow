@@ -520,7 +520,6 @@ class S3(object):
     """
 
     TYPE = "s3"
-    SUPPORTS_SECRET_CLIENT_PARAMS = True
 
     @classmethod
     def get_root_from_config(cls, echo, create_on_absent=True):
