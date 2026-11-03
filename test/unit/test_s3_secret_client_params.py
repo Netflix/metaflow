@@ -145,6 +145,10 @@ def test_callers_without_secrets_keep_the_existing_subprocess_transport(
     assert "--s3clientparams" in run.call_args.args[0]
 
 
+def test_secret_transport_support_can_be_detected_by_extensions():
+    assert S3.SUPPORTS_SECRET_CLIENT_PARAMS is True
+
+
 def test_legacy_aws_credentials_are_redacted_in_debug_logs(
     tmp_path, secret_params, mocker
 ):
