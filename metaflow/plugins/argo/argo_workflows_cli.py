@@ -48,6 +48,19 @@ unsupported_decorators = {
 }
 
 
+def _write_deployer_attributes(obj, deployer_attribute_file, additional_info=None):
+    if deployer_attribute_file:
+        payload = {
+            "name": obj.workflow_name,
+            "flow_name": obj.flow.name,
+            "metadata": obj.metadata.metadata_str(),
+        }
+        if additional_info is not None:
+            payload["additional_info"] = additional_info
+        with open(deployer_attribute_file, "w", encoding="utf-8") as f:
+            json.dump(payload, f)
+
+
 class IncorrectProductionToken(MetaflowException):
     headline = "Incorrect production token"
 
@@ -278,16 +291,8 @@ def create(
 
     validate_tags(tags)
 
-    if deployer_attribute_file:
-        with open(deployer_attribute_file, "w", encoding="utf-8") as f:
-            json.dump(
-                {
-                    "name": obj.workflow_name,
-                    "flow_name": obj.flow.name,
-                    "metadata": obj.metadata.metadata_str(),
-                },
-                f,
-            )
+    if not only_json:
+        _write_deployer_attributes(obj, deployer_attribute_file)
 
     obj.echo("Deploying *%s* to Argo Workflows..." % obj.flow.name, bold=True)
 
@@ -364,6 +369,11 @@ def create(
     )
 
     if only_json:
+        _write_deployer_attributes(
+            obj,
+            deployer_attribute_file,
+            additional_info={"workflow_template": flow._workflow_template.to_json()},
+        )
         obj.echo_always(str(flow), err=False, no_bold=True)
         # TODO: Support echo-ing Argo Events Sensor template
     else:

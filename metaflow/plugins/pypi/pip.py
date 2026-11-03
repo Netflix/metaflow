@@ -37,7 +37,7 @@ class PipPackageNotFound(Exception):
             self.package_spec = re.search(
                 "ERROR: No matching distribution found for (.*)", self.error
             )[1]
-            self.package_name = re.match("\w*", self.package_spec)[0]
+            self.package_name = re.match(r"\w*", self.package_spec)[0]
         except Exception:
             pass
 

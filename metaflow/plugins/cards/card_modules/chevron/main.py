@@ -13,11 +13,9 @@ except (ValueError, SystemError):  # python 2
 
 def main(template, data=None, **kwargs):
     with io.open(template, "r", encoding="utf-8") as template_file:
-        yaml_loader = kwargs.pop("yaml_loader", None) or "SafeLoader"
-
         if data is not None:
             with io.open(data, "r", encoding="utf-8") as data_file:
-                data = _load_data(data_file, yaml_loader)
+                data = _load_data(data_file)
         else:
             data = {}
 
@@ -27,12 +25,11 @@ def main(template, data=None, **kwargs):
         return render(**args)
 
 
-def _load_data(file, yaml_loader):
+def _load_data(file):
     try:
         import yaml
 
-        loader = getattr(yaml, yaml_loader)  # not tested
-        return yaml.load(file, Loader=loader)  # not tested
+        return yaml.safe_load(file)
     except ImportError:
         import json
 
@@ -69,10 +66,6 @@ def cli_main():
         help="The json data file",
         type=is_file_or_pipe,
         default={},
-    )
-
-    parser.add_argument(
-        "-y", "--yaml-loader", dest="yaml_loader", help=argparse.SUPPRESS
     )
 
     parser.add_argument(

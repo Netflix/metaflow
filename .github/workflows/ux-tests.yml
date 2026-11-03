@@ -96,6 +96,56 @@ jobs:
           reporter: java-junit
           fail-on-error: false
 
+  spin-tests:
+    name: "Spin Tests"
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python 3.10
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+
+      - name: Install tox
+        run: python -m pip install tox
+
+      - name: Run spin tests
+        run: |
+          export CONDA_PKGS_DIRS="$RUNNER_TEMP/metaflow-micromamba-pkgs"
+          export MAMBA_ROOT_PREFIX="$RUNNER_TEMP/metaflow-micromamba-root"
+          export XDG_CACHE_HOME="$RUNNER_TEMP/metaflow-cache"
+          export METAFLOW_TOKEN_HOME="$RUNNER_TEMP/metaflowconfig"
+          tox -e spin -- --junit-xml=junit-spin.xml --cov=metaflow --cov-report=xml:coverage.xml --cov-branch
+      - name: Upload coverage data
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-spin
+          path: |
+            .coverage
+            coverage.xml
+          if-no-files-found: ignore
+          include-hidden-files: true
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: junit-spin
+          path: junit-spin.xml
+          if-no-files-found: ignore
+
+      - name: Publish test results
+        if: always()
+        continue-on-error: true
+        uses: dorny/test-reporter@d61b558e8df85cb60d09ca3e5b09653b4477cea7  # v1
+        with:
+          name: "Test Results — Spin"
+          path: junit-spin.xml
+          reporter: java-junit
+          fail-on-error: false
+
   ux-tests:
     name: "${{ matrix.backend }}"
     strategy:
@@ -342,7 +392,7 @@ jobs:
 
   coverage-report:
     name: "Coverage Report"
-    needs: [unit-tests, ux-tests]
+    needs: [unit-tests, spin-tests, ux-tests]
     if: always()
     runs-on: ubuntu-latest
 

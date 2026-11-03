@@ -88,14 +88,14 @@ class ComplexDAGFlow(FlowSpec):
         print("My output is: ", self.my_output)
         self.next(self.step_m)
 
-    @conda(libraries={"scikit-learn": "1.5.0"})
+    @conda(libraries={"numpy": "2.2.0"})
     @step
     def step_m(self, inputs):
-        import sklearn
+        import numpy as np
 
-        self.sklearn_version = sklearn.__version__
+        self.np_version_m = np.__version__
         self.my_output = sorted([inp.my_output for inp in inputs])[0]
-        print("Sklearn version: ", self.sklearn_version)
+        print("numpy version: ", self.np_version_m)
         print("My output is: ", self.my_output)
         self.next(self.step_n)
 

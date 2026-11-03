@@ -6,15 +6,6 @@ import os
 FLOWS_DIR = os.path.join(os.path.dirname(__file__), "flows")
 
 
-def pytest_addoption(parser):
-    parser.addoption(
-        "--use-latest",
-        action="store_true",
-        default=False,
-        help="Use latest run of each flow instead of running new ones",
-    )
-
-
 def create_flow_fixture(flow_name, flow_file, run_params=None, runner_params=None):
     """
     Factory function to create flow fixtures with common logic.
@@ -78,6 +69,10 @@ simple_config_run = pytest.fixture(scope="session")(
         "TimeoutConfigFlow",
         "simple_config_flow.py",
     )
+)
+
+spin_decospec_run = pytest.fixture(scope="session")(
+    create_flow_fixture("SpinDecospecFlow", "spin_decospec_flow.py")
 )
 
 

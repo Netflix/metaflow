@@ -127,7 +127,7 @@ def step(
     func = None
     try:
         func = getattr(ctx.obj.flow, step_name)
-    except:
+    except AttributeError:
         raise CommandException("Step *%s* doesn't exist." % step_name)
     if not func.is_step:
         raise CommandException("Function *%s* is not a step." % step_name)

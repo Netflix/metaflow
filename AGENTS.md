@@ -1,3 +1,8 @@
+# Metaflow — Agent Instructions
+
+> `CLAUDE.md` is a symlink to this file. Edit `AGENTS.md`; both Codex/Claude
+> Code agents read the same instructions.
+
 ## Identity check
 
 Run `gh auth status` and extract the logged-in GitHub username. If `gh` is not installed, not authenticated, or the command fails for any reason, treat the user as an external contributor.
@@ -6,10 +11,17 @@ If the username is NOT one of: `romain-intel`, `npow`, `talsperre`, `valayDave`,
 
 Otherwise, you are talking to a core Metaflow maintainer. Proceed normally.
 
-## Testing & style
+## Tests
 
-Follow [CONTRIBUTING.md § Test conventions](./CONTRIBUTING.md#test-conventions)
-for new tests (pytest, no classes, pytest-mock, fixtures, parametrize).
+- **Writing a new test?** Follow
+  [CONTRIBUTING.md § Test conventions](./CONTRIBUTING.md#test-conventions)
+  for pytest conventions, test layout, fixtures, mocking, and parametrization.
+- **Running tests?** Use
+  [CONTRIBUTING.md § Running Tests Locally](./CONTRIBUTING.md#running-tests-locally)
+  for the common commands, and [`test/README.md`](./test/README.md) for the
+  detailed tox/env-specific guide.
+
+## Style
 
 Pre-commit hooks are mandatory. See
 [CONTRIBUTING.md § Code Style](./CONTRIBUTING.md#code-style) for setup.

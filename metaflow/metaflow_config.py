@@ -474,7 +474,12 @@ ARGO_EVENTS_SENSOR_NAMESPACE = from_conf(
 # Prefix for namespaced events (used by @trigger with namespaced=True)
 NAMESPACED_EVENTS_PREFIX = from_conf("NAMESPACED_EVENTS_PREFIX", "mfns")
 
+# Additional argo workflows options
 ARGO_WORKFLOWS_UI_URL = from_conf("ARGO_WORKFLOWS_UI_URL")
+# `schedules` (list) requires Argo Workflows >= 3.6. Default to the legacy
+# singular `schedule` so existing deployments on older Argo are unaffected;
+# opt in by setting METAFLOW_ARGO_WORKFLOWS_USE_SCHEDULES=true.
+ARGO_WORKFLOWS_USE_SCHEDULES = from_conf("ARGO_WORKFLOWS_USE_SCHEDULES", False)
 
 ##
 # Airflow Configuration
@@ -588,6 +593,7 @@ KUBERNETES_SANDBOX_INIT_SCRIPT = from_conf("KUBERNETES_SANDBOX_INIT_SCRIPT")
 OTEL_ENDPOINT = from_conf("OTEL_ENDPOINT")
 ZIPKIN_ENDPOINT = from_conf("ZIPKIN_ENDPOINT")
 CONSOLE_TRACE_ENABLED = from_conf("CONSOLE_TRACE_ENABLED", False)
+OTEL_SERVICE_NAME = from_conf("OTEL_SERVICE_NAME", "metaflow")
 # internal env used for preventing the tracing module from loading during Conda bootstrapping.
 DISABLE_TRACING = bool(os.environ.get("DISABLE_TRACING", False))
 

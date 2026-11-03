@@ -321,6 +321,8 @@ class CondaFlowDecorator(FlowDecorator):
         }
         # Keep because otherwise make_decorator_spec will fail
         self.attributes["libraries"] = {}
+        if self.attributes["packages"]:
+            self._attributes_with_user_values.add("packages")
         if self.attributes["python"]:
             self.attributes["python"] = str(self.attributes["python"])
 

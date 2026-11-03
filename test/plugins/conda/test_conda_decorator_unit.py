@@ -1,51 +1,78 @@
 """
 Unit tests for CondaStepDecorator and CondaFlowDecorator.
 
-Pure logic tests — no conda/micromamba installation needed.
+Pure logic tests -- no conda/micromamba installation needed.
 """
 
-from metaflow.plugins.pypi.conda_decorator import CondaStepDecorator
+import pytest
+
+from metaflow.plugins.pypi.conda_decorator import CondaFlowDecorator, CondaStepDecorator
+
+DECORATOR_CLASSES = (CondaStepDecorator, CondaFlowDecorator)
 
 
-class TestCondaStepDecorator:
-    def test_default_attributes(self):
-        deco = CondaStepDecorator()
-        deco.init()
-        assert deco.attributes["packages"] == {}
-        assert deco.attributes["python"] is None
-        assert not deco.attributes["disabled"]
+@pytest.mark.parametrize("decorator_cls", DECORATOR_CLASSES)
+def test_default_attributes(decorator_cls):
+    deco = decorator_cls()
+    deco.init()
+    assert deco.attributes["packages"] == {}
+    assert deco.attributes["python"] is None
+    assert not deco.attributes["disabled"]
 
-    def test_user_defined_python(self):
-        deco = CondaStepDecorator(attributes={"python": "3.9"})
-        deco.init()
-        assert deco.is_attribute_user_defined("python")
-        assert not deco.is_attribute_user_defined("packages")
 
-    def test_user_defined_packages(self):
-        deco = CondaStepDecorator(attributes={"packages": {"numpy": "1.21"}})
-        deco.init()
-        assert deco.is_attribute_user_defined("packages")
-        assert not deco.is_attribute_user_defined("python")
+@pytest.mark.parametrize("decorator_cls", DECORATOR_CLASSES)
+def test_user_defined_python_is_tracked(decorator_cls):
+    deco = decorator_cls(attributes={"python": "3.9"})
+    deco.init()
+    assert deco.is_attribute_user_defined("python")
+    assert not deco.is_attribute_user_defined("packages")
+    assert deco.attributes["python"] == "3.9"
 
-    def test_libraries_backward_compat(self):
-        """Legacy 'libraries' attribute should be merged into 'packages'."""
-        deco = CondaStepDecorator(attributes={"libraries": {"scipy": "1.7"}})
-        deco.init()
-        assert deco.is_attribute_user_defined("packages")
-        assert deco.is_attribute_user_defined("libraries")
-        assert deco.attributes["packages"] == {"scipy": "1.7"}
 
-    def test_disabled_flag(self):
-        deco = CondaStepDecorator(attributes={"disabled": True})
-        deco.init()
-        assert deco.attributes["disabled"] is True
+@pytest.mark.parametrize("decorator_cls", DECORATOR_CLASSES)
+def test_user_defined_packages_are_tracked(decorator_cls):
+    deco = decorator_cls(attributes={"packages": {"numpy": "1.21"}})
+    deco.init()
+    assert deco.is_attribute_user_defined("packages")
+    assert not deco.is_attribute_user_defined("python")
+    assert deco.attributes["packages"] == {"numpy": "1.21"}
 
-    def test_packages_and_libraries_merged(self):
-        """When both packages and libraries are set, they should merge."""
-        deco = CondaStepDecorator(
-            attributes={"packages": {"numpy": "1.21"}, "libraries": {"scipy": "1.7"}}
-        )
-        deco.init()
-        # libraries should be merged into packages
-        assert "numpy" in deco.attributes["packages"]
-        assert "scipy" in deco.attributes["packages"]
+
+@pytest.mark.parametrize("decorator_cls", DECORATOR_CLASSES)
+def test_libraries_are_merged_into_packages_and_tracked(decorator_cls):
+    deco = decorator_cls(attributes={"libraries": {"scipy": "1.7"}})
+    deco.init()
+    assert deco.is_attribute_user_defined("packages")
+    assert deco.is_attribute_user_defined("libraries")
+    assert deco.attributes["packages"] == {"scipy": "1.7"}
+    assert deco.attributes["libraries"] == {}
+
+
+@pytest.mark.parametrize("decorator_cls", DECORATOR_CLASSES)
+def test_disabled_flag_is_preserved(decorator_cls):
+    deco = decorator_cls(attributes={"disabled": True})
+    deco.init()
+    assert deco.attributes["disabled"] is True
+
+
+@pytest.mark.parametrize("decorator_cls", DECORATOR_CLASSES)
+@pytest.mark.parametrize(
+    "attributes, expected_packages",
+    [
+        (
+            {"packages": {"numpy": "1.21"}, "libraries": {"scipy": "1.7"}},
+            {"numpy": "1.21", "scipy": "1.7"},
+        ),
+        (
+            {"packages": {"numpy": "2.4.3"}, "libraries": {"numpy": "2.4.1"}},
+            {"numpy": "2.4.3"},
+        ),
+    ],
+)
+def test_packages_and_libraries_merge_with_packages_precedence(
+    decorator_cls, attributes, expected_packages
+):
+    deco = decorator_cls(attributes=attributes)
+    deco.init()
+    assert deco.attributes["packages"] == expected_packages
+    assert deco.attributes["libraries"] == {}

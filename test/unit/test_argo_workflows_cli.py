@@ -4,6 +4,9 @@ import pytest
 
 from metaflow.plugins.argo.argo_workflows_cli import sanitize_for_argo
 from metaflow.plugins.argo.argo_workflows import ArgoWorkflows
+from metaflow.plugins.argo.argo_workflows_deployer_objects import (
+    ArgoWorkflowsDeployedFlow,
+)
 
 
 @pytest.mark.parametrize(
@@ -132,3 +135,29 @@ def test_trigger_explanation_active_schedule_claims_cronworkflow(
     assert result is not None
     assert "CronWorkflow" in result
     assert "myflow" in result
+
+
+def test_deployed_flow_workflow_template_returns_only_json_payload():
+    workflow_template = {"kind": "WorkflowTemplate", "metadata": {"name": "myflow"}}
+    deployer = types.SimpleNamespace(
+        name="myflow",
+        flow_name="MyFlow",
+        metadata="local@user:test",
+        additional_info={"workflow_template": workflow_template},
+    )
+
+    deployed_flow = ArgoWorkflowsDeployedFlow(deployer)
+
+    assert deployed_flow.workflow_template == workflow_template
+
+
+def test_deployed_flow_workflow_template_returns_none_without_payload():
+    deployer = types.SimpleNamespace(
+        name="myflow",
+        flow_name="MyFlow",
+        metadata="local@user:test",
+    )
+
+    deployed_flow = ArgoWorkflowsDeployedFlow(deployer)
+
+    assert deployed_flow.workflow_template is None

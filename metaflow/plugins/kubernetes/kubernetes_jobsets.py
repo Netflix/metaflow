@@ -563,6 +563,11 @@ class JobSetSpec(object):
             self._kwargs["memory"],
             self._kwargs["disk"],
         )
+
+        extended_resources = self._kwargs.get("extended_resources", {}) or {}
+        qos_requests = {**qos_requests, **extended_resources}
+        qos_limits = {**qos_limits, **extended_resources}
+
         security_context = self._kwargs.get("security_context", {})
         _security_context = {}
         if security_context is not None and len(security_context) > 0:
