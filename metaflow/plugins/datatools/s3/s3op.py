@@ -41,6 +41,7 @@ from metaflow.util import TempDir, url_quote, url_unquote
 from metaflow.multicore_utils import parallel_map
 from metaflow.plugins.datatools.s3.s3util import (
     aws_retry,
+    merge_client_params,
     read_in_chunks,
     get_timestamp,
     TRANSIENT_RETRY_LINE_CONTENT,
@@ -806,8 +807,28 @@ def common_options(func):
         required=False,
         help="Client parameters to set when getting the S3 client",
     )
+    @click.option(
+        "--secret-client-params-stdin",
+        is_flag=True,
+        hidden=True,
+        help="Read secret client parameters from stdin.",
+    )
     @wraps(func)
     def wrapper(*args, **kwargs):
+        if kwargs.pop("secret_client_params_stdin", False):
+            try:
+                secret_params = json.load(sys.stdin)
+                if not isinstance(secret_params, dict):
+                    raise ValueError()
+                client_params = kwargs.get("s3clientparams")
+                client_params = json.loads(client_params) if client_params else None
+                kwargs["s3clientparams"] = json.dumps(
+                    merge_client_params(client_params, secret_params)
+                )
+            except (ValueError, TypeError, MetaflowException):
+                raise click.ClickException(
+                    "Invalid or overlapping secret client parameters received on stdin."
+                ) from None
         return func(*args, **kwargs)
 
     return wrapper

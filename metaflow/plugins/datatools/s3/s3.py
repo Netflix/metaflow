@@ -45,6 +45,7 @@ except:
 
 from .s3util import (
     get_s3_client,
+    merge_client_params,
     read_in_chunks,
     get_timestamp,
     TRANSIENT_RETRY_START_LINE,
@@ -511,6 +512,11 @@ class S3(object):
         If `run` is not specified, use this as the S3 prefix.
     encryption : str, optional, default None
         Server-side encryption to use when uploading objects to S3.
+    secret_client_params : dict, optional, default None
+        Additional boto3 client parameters whose values must not appear in
+        command-line arguments or Metaflow S3 debug logs. Passed to bulk
+        transfer subprocesses through stdin. Keys must not overlap with
+        `client_params` (or configured defaults when those are used).
     """
 
     TYPE = "s3"
@@ -528,6 +534,7 @@ class S3(object):
         run: Optional[Union[FlowSpec, "metaflow.Run"]] = None,
         s3root: Optional[str] = None,
         encryption: Optional[str] = S3_SERVER_SIDE_ENCRYPTION,
+        secret_client_params: Optional[Dict] = None,
         **kwargs
     ):
         if run:
@@ -570,12 +577,16 @@ class S3(object):
         self._s3_role = kwargs.get("role", None)
         self._s3_session_vars = kwargs.get("session_vars", None)
         self._s3_client_params = kwargs.get("client_params", None)
+        self._s3_secret_client_params = secret_client_params
+        merged_client_params = merge_client_params(
+            self._s3_client_params, self._s3_secret_client_params
+        )
         self._s3_client = kwargs.get(
             "external_client",
             S3Client(
                 s3_role_arn=self._s3_role,
                 s3_session_vars=self._s3_session_vars,
-                s3_client_params=self._s3_client_params,
+                s3_client_params=merged_client_params,
             ),
         )
         self._s3_inject_failures = kwargs.get(
@@ -1595,6 +1606,30 @@ class S3(object):
             cmdline.extend(("--s3sessionvars", json.dumps(self._s3_session_vars)))
         if self._s3_client_params is not None:
             cmdline.extend(("--s3clientparams", json.dumps(self._s3_client_params)))
+        subprocess_input = {}
+        if self._s3_secret_client_params is not None:
+            cmdline.append("--secret-client-params-stdin")
+            subprocess_input["input"] = json.dumps(
+                self._s3_secret_client_params
+            ).encode("utf-8")
+        debug_cmdline = list(cmdline)
+        if self._s3_client_params is not None:
+            params_index = debug_cmdline.index("--s3clientparams") + 1
+            debug_cmdline[params_index] = json.dumps(
+                {
+                    key: (
+                        "[REDACTED]"
+                        if key
+                        in (
+                            "aws_access_key_id",
+                            "aws_secret_access_key",
+                            "aws_session_token",
+                        )
+                        else value
+                    )
+                    for key, value in self._s3_client_params.items()
+                }
+            )
 
         def _inject_failure_rate():
             # list mode does not do retries on transient failures (there is no
@@ -1708,7 +1743,7 @@ class S3(object):
                                 # retries
                                 inject_failures = min(90, int(inject_failures * 1.5))
                     try:
-                        debug.s3client_exec(cmdline + addl_cmdline)
+                        debug.s3client_exec(debug_cmdline + addl_cmdline)
                         # Run the operation.
                         env = os.environ.copy()
                         tracing.inject_tracing_vars(env)
@@ -1718,6 +1753,7 @@ class S3(object):
                             cwd=self._tmpdir,
                             stderr=stderr.file,
                             env=env,
+                            **subprocess_input
                         )
                         # Here we did not have any error -- transient or otherwise.
                         ok_lines = stdout.splitlines()

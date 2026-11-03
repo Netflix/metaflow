@@ -13,8 +13,23 @@ from metaflow.metaflow_config import (
     RETRY_WARNING_THRESHOLD,
 )
 
-
 TEST_S3_RETRY = "TEST_S3_RETRY" in os.environ
+
+
+def merge_client_params(client_params, secret_client_params):
+    """Merge secret parameters without changing the caller's dictionaries."""
+    if secret_client_params is None:
+        return client_params
+    if not isinstance(secret_client_params, dict):
+        raise MetaflowException("secret_client_params must be a dictionary.")
+    params = dict(client_params or DATATOOLS_CLIENT_PARAMS or {})
+    if params.keys() & secret_client_params.keys():
+        raise MetaflowException(
+            "client_params and secret_client_params must not contain overlapping keys."
+        )
+    params.update(secret_client_params)
+    return params
+
 
 TRANSIENT_RETRY_LINE_CONTENT = "<none>"
 TRANSIENT_RETRY_START_LINE = "### RETRY INPUTS ###"
