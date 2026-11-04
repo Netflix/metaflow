@@ -23,7 +23,7 @@ def test_heartbeat_post_passes_a_timeout():
         post.return_value.json.return_value = json.dumps({"wait_time_in_seconds": 10})
         hb._heartbeat()
 
-    timeout = post.call_args.kwargs.get("timeout")
+    timeout = post.call_args[1].get("timeout")
     assert timeout is not None, "heartbeat post must pass a timeout to requests"
 
     # accept either a single value or a (connect, read) pair, but both must be finite
