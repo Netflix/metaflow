@@ -31,7 +31,7 @@ concurrency:
 jobs:
   unit-tests:
     name: "Unit Tests"
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
 
     steps:
       - uses: actions/checkout@v4
@@ -98,7 +98,7 @@ jobs:
 
   spin-tests:
     name: "Spin Tests"
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
 
     steps:
       - uses: actions/checkout@v4
@@ -173,7 +173,7 @@ jobs:
             memory: 6144
             timeout: 900
 
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
 
     steps:
       - uses: actions/checkout@v4
@@ -244,14 +244,19 @@ jobs:
         uses: actions/cache@v4
         with:
           path: /usr/local/bin/tilt
-          key: tilt-v0.33.11
+          key: tilt-v0.37.8
 
       - name: Install Tilt
         if: steps.tilt-cache.outputs.cache-hit != 'true'
+        env:
+          # Keep in sync with TILT_VERSION in devtools/Makefile.
+          TILT_VERSION: 0.37.8
         run: |
+          # Download the pinned release directly: scripts/install.sh hardcodes
+          # its own VERSION and ignores the environment.
           for attempt in 1 2 3; do
-            curl -fsSL https://raw.githubusercontent.com/tilt-dev/tilt/master/scripts/install.sh \
-              | VERSION=v0.33.11 bash && break
+            curl -fsSL "https://github.com/tilt-dev/tilt/releases/download/v${TILT_VERSION}/tilt.${TILT_VERSION}.linux.x86_64.tar.gz" \
+              | sudo tar -xz -C /usr/local/bin tilt && break
             echo "Tilt install attempt $attempt failed, retrying in 10s..."
             sleep 10
           done
@@ -394,7 +399,7 @@ jobs:
     name: "Coverage Report"
     needs: [unit-tests, spin-tests, ux-tests]
     if: always()
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
 
     steps:
       - uses: actions/checkout@v4
