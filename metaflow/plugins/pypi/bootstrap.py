@@ -86,7 +86,7 @@ if __name__ == "__main__":
             for attempt in range(max_retries):
                 try:
                     req = Request(url, headers=headers)
-                    with urlopen(req) as response:
+                    with urlopen(req, timeout=60) as response:
                         with gzip.GzipFile(fileobj=response) as gz:
                             with open(fast_initializer_path, "wb") as f:
                                 f.write(gz.read())
@@ -140,7 +140,7 @@ if __name__ == "__main__":
                 try:
                     req = Request(url, headers=headers)
 
-                    with urlopen(req) as response:
+                    with urlopen(req, timeout=60) as response:
                         decompressor = bz2.BZ2Decompressor()
                         with warnings.catch_warnings():
                             warnings.filterwarnings(
