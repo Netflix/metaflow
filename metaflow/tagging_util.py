@@ -67,8 +67,8 @@ def validate_tag(tag):
             raise MetaflowTaggingError("Tags must be UTF-8 encodable")
     else:
         raise MetaflowTaggingError(
-            "Tags must be some kind of string (bytes or unicode), got %s",
-            str(type(tag)),
+            "Tags must be some kind of string (bytes or unicode), got %s"
+            % str(type(tag))
         )
     if not len(tag):
         raise MetaflowTaggingError("Tags must not be empty string")
