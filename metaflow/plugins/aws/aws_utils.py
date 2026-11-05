@@ -226,3 +226,12 @@ def validate_aws_tag(key: str, value: str):
             "Value *%s* is not permitted. Tags must match pattern: %s"
             % (value, PERMITTED)
         )
+
+
+def parse_aws_tag(item: str):
+    """
+    Parse a tag string formatted as 'key=value'.
+    Tag values may contain '=' characters.
+    """
+    return item.split("=", 1)
+
