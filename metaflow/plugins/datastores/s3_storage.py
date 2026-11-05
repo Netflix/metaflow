@@ -6,7 +6,6 @@ from metaflow.plugins.datatools.s3.s3 import S3, S3Client, S3PutObject, check_s3
 from metaflow.metaflow_config import DATASTORE_SYSROOT_S3, ARTIFACT_LOCALROOT
 from metaflow.datastore.datastore_storage import CloseAfterUse, DataStoreStorage
 
-
 try:
     # python2
     from urlparse import urlparse

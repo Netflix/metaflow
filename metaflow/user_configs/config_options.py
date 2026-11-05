@@ -13,7 +13,6 @@ from ..packaging_sys import MetaflowCodeContent
 from ..parameters import DeployTimeField, ParameterContext, current_flow
 from ..util import get_username
 
-
 _CONVERT_PREFIX = "@!c!@:"
 _DEFAULT_PREFIX = "@!d!@:"
 _NO_FILE = "@!n!@:"
