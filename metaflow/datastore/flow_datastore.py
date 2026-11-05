@@ -302,6 +302,10 @@ class FlowDataStore(object):
             )
 
         cache_hit = False
+        # Metadata supplied by the caller (e.g. the synthetic empty metadata used
+        # for log-size reads) does not describe the task's artifacts, so it must
+        # never be written to the cache.
+        caller_supplied_metadata = data_metadata is not None
         if (
             self._metadata_cache is not None
             and data_metadata is None
@@ -335,6 +339,7 @@ class FlowDataStore(object):
         # a non-None attempt
         if (
             not cache_hit
+            and not caller_supplied_metadata
             and self._metadata_cache is not None
             and allow_not_done is False
             and attempt is not None
