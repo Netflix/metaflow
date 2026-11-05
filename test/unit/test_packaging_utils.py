@@ -36,3 +36,24 @@ def test_walk_excludes_hidden_dirs_under_root():
         assert not any(
             "hidden.py" in r for r in results
         ), f"hidden.py should be excluded, got: {results}"
+
+
+def test_walk_exclude_tl_dirs_only_excludes_at_top_level():
+    """Ensure exclude_tl_dirs only excludes directories at the top level, not at nested depths."""
+    with tempfile.TemporaryDirectory() as base:
+        root = os.path.join(base, "project")
+        os.makedirs(root)
+        _make_file(os.path.join(root, "data", "big.csv"))
+        _make_file(os.path.join(root, "mypkg", "data", "loader.py"))
+        _make_file(os.path.join(root, "mypkg", "__init__.py"))
+
+        results = {rel.replace("\\", "/") for _, rel in walk(root, exclude_tl_dirs=["data"])}
+        assert not any(
+            "big.csv" in r for r in results
+        ), f"top-level data/big.csv should be excluded, got: {results}"
+        assert any(
+            "loader.py" in r for r in results
+        ), f"nested mypkg/data/loader.py should be included, got: {results}"
+        assert any(
+            "__init__.py" in r for r in results
+        ), f"mypkg/__init__.py should be included, got: {results}"
