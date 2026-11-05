@@ -39,6 +39,10 @@ conda install -c conda-forge metaflow
 
 Once installed, a great way to get started is by following our [tutorial](https://docs.metaflow.org/getting-started/tutorials). It walks you through creating and running your first Metaflow flow step by step.
 
+### Diagnosing your setup
+
+Run `metaflow doctor` to inspect your current Python environment, Metaflow installation, datastore, metadata provider, cloud credentials, Kubernetes, Docker, and available plugins. The command prints healthy, warning, error, and unavailable checks, and exits with a non-zero status when a critical configuration problem is found.
+
 For more details on Metaflow’s features and best practices, check out:
 - [How Metaflow works](https://docs.metaflow.org/metaflow/basics)
 - [Additional resources](https://docs.metaflow.org/introduction/metaflow-resources)
