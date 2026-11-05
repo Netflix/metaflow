@@ -407,9 +407,10 @@ class TaskToDict:
 
     def _parse_pandas_dataframe(self, data_object, truncate=True):
         headers = list(data_object.columns)
-        data = data_object
         if truncate:
             data = data_object.head()
+        else:
+            data = data_object.copy()
         index_column = data.index
 
         # We explicitly cast the `index_column` object to an `Index` or `MultiIndex` having JSON-castable values.
