@@ -1,39 +1,43 @@
-import os
-import subprocess
-import sys
-from pathlib import Path
-
 import pytest
 
+from metaflow import Config, FlowSpec, step
+from metaflow._vendor import click
+from metaflow.parameters import flow_context
+from metaflow.user_configs.config_options import ConfigInput, ConvertDictOrStr
+from metaflow.user_configs.config_parameters import ConfigValue
 
-FLOW_FILE = Path(__file__).parent / "flows" / "config_root_type_flow.py"
-REPO_ROOT = Path(__file__).resolve().parents[3]
+
+class ConfigRootTypeFlow(FlowSpec):
+    cfg = Config("cfg")
+    barecfg = Config("barecfg", default_value="", plain=True)
+
+    @step
+    def start(self):
+        self.next(self.end)
+
+    @step
+    def end(self):
+        pass
 
 
-@pytest.fixture
-def run_flow(tmp_path):
-    env = os.environ.copy()
-    env["PYTHONPATH"] = os.pathsep.join(
-        filter(None, (str(REPO_ROOT), env.get("PYTHONPATH")))
+def process(name, value):
+    config_input = ConfigInput(
+        req_configs=[],
+        defaults={"cfg": (None, False), "barecfg": ("", False)},
+        parsers={"cfg": (None, False), "barecfg": (None, True)},
     )
-
-    def invoke(value, config_name="cfg", command="show"):
-        return subprocess.run(
-            [
-                sys.executable,
-                str(FLOW_FILE),
-                "--config-value",
-                config_name,
-                value,
-                command,
-            ],
-            cwd=tmp_path,
-            env=env,
-            capture_output=True,
-            text=True,
+    flow_name = ConfigRootTypeFlow.__name__
+    with flow_context(ConfigRootTypeFlow):
+        # Click calls process_configs once for --config and once for
+        # --config-value; only the second call does the work.
+        config_input.process_configs(flow_name, "config", {}, True, "local")
+        return config_input.process_configs(
+            flow_name,
+            "config_value",
+            {name: ConvertDictOrStr.convert_value(value, False)},
+            True,
+            "local",
         )
-
-    return invoke
 
 
 @pytest.mark.parametrize(
@@ -41,26 +45,24 @@ def run_flow(tmp_path):
     [("[]", list), ("123", int), ('"text"', str), ("true", bool)],
     ids=["array", "number", "string", "boolean"],
 )
-def test_non_mapping_config_value_reports_usage_error(run_flow, value, value_type):
-    result = run_flow(value)
-    output = result.stdout + result.stderr
-
-    assert result.returncode != 0
-    assert "must be a mapping (got type %s)" % value_type.__name__ in output
-    assert "Internal error" not in output
-
-
-@pytest.mark.parametrize("value", ["null", "{}"], ids=["null", "object"])
-def test_null_or_object_config_value_is_accepted(run_flow, value):
-    result = run_flow(value)
-
-    assert result.returncode == 0, result.stdout + result.stderr
-    assert "Step start" in result.stdout + result.stderr
+def test_non_mapping_config_value_raises_usage_error(value, value_type):
+    with pytest.raises(
+        click.UsageError,
+        match=r"must be a mapping \(got type %s\)" % value_type.__name__,
+    ):
+        process("cfg", value)
 
 
-def test_plain_config_value_accepts_bare_string(run_flow):
-    result = run_flow("a bare testvalue", config_name="barecfg", command="run")
-    output = result.stdout + result.stderr
+def test_null_config_value_is_accepted():
+    assert process("cfg", "null")["cfg"] is None
 
-    assert result.returncode == 0, output
-    assert "BareCFG:  a bare testvalue" in output
+
+def test_object_config_value_is_accepted():
+    result = process("cfg", "{}")
+
+    assert isinstance(result["cfg"], ConfigValue)
+    assert result["cfg"] == {}
+
+
+def test_plain_config_value_accepts_bare_string():
+    assert process("barecfg", "a bare testvalue")["barecfg"] == "a bare testvalue"
