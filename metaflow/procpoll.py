@@ -53,7 +53,8 @@ class DarwinProcPoll(ProcPoll):
         self._kq.control([ev], 0, 0)
 
     def poll(self, timeout):
-        for event in self._kq.control(None, 100, timeout):
+        # timeout is in milliseconds, as in select.poll(), but kqueue takes seconds
+        for event in self._kq.control(None, 100, timeout / 1000.0):
             yield ProcPollEvent(
                 fd=event.ident,
                 can_read=True,
@@ -99,7 +100,7 @@ if __name__ == "__main__":
 
     n = 2
     while n > 0:
-        for event in poll.poll(0.5):
+        for event in poll.poll(500):
             name, fileobj = fds[event.fd]
             print("[%s] %s" % (name, fileobj.readline().strip()))
             if event.is_terminated:
