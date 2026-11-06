@@ -11,7 +11,7 @@ help:
 	@echo "  all-up        - Start the development environment with all services"
 	@echo "  help          - Show this help message"
 
-HELM_VERSION := v3.14.0
+HELM_VERSION := v3.22.1
 MINIKUBE_VERSION := v1.32.0
 # Older Tilt (e.g. v0.33.11) fails in helm() with Helm 4 ("Error in helm: exit
 # status 1"; Helm 4 removed `helm version -c`). v0.37.8 works with Helm 3 and 4.
