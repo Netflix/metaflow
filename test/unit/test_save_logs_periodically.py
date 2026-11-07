@@ -1,3 +1,4 @@
+import contextlib
 import os
 import sys
 import textwrap
@@ -13,6 +14,56 @@ def _new_sidecar(enable_debug_logs):
     sidecar = SaveLogsPeriodicallySidecar.__new__(SaveLogsPeriodicallySidecar)
     sidecar._enable_debug_logs = enable_debug_logs
     return sidecar
+
+
+@contextlib.contextmanager
+def _no_trace_context(name=None, attrs=None):
+    yield None
+
+
+class _RecordingSpan(object):
+    def __init__(self, attrs):
+        self.attributes = dict(attrs or {})
+
+    def set_attribute(self, key, value):
+        self.attributes[key] = value
+
+
+@contextlib.contextmanager
+def _recording_trace(events, spans, name, attrs=None):
+    assert name == "save_logs_periodically.upload"
+    events.append("trace_start")
+    span = _RecordingSpan(attrs)
+    spans.append(span)
+    try:
+        yield span
+    finally:
+        events.append("trace_end")
+
+
+def _run_single_upload_update(monkeypatch, mocker, tmp_path, traced_context, upload):
+    stdout = tmp_path / "stdout"
+    stderr = tmp_path / "stderr"
+    stdout.write_bytes(b"out\n")
+    stderr.write_bytes(b"err\n")
+    monkeypatch.setenv("MFLOG_STDOUT", str(stdout))
+    monkeypatch.setenv("MFLOG_STDERR", str(stderr))
+    sidecar = _new_sidecar(False)
+    sidecar.is_alive = True
+    mocker.patch(
+        "metaflow.mflog.save_logs_periodically.time.sleep",
+        side_effect=lambda _: setattr(sidecar, "is_alive", False),
+    )
+    mocker.patch("metaflow.mflog.save_logs_periodically.time.time", return_value=100)
+    traced_mock = mocker.patch(
+        "metaflow.mflog.save_logs_periodically.traced",
+        side_effect=traced_context,
+    )
+    call_mock = mocker.patch.object(sidecar, "_call_save_logs", side_effect=upload)
+
+    sidecar._update_loop()
+
+    return call_mock, traced_mock
 
 
 def _read_uploader_messages(path):
@@ -271,3 +322,85 @@ def test_call_save_logs_confirms_absence_of_logs_when_child_crashes(
     assert returncode == -9
     assert _read_uploader_messages(uploader_log) == []
     process.communicate.assert_called_once_with()
+
+
+def test_tracing_does_not_interfere_when_disabled(monkeypatch, mocker, tmp_path):
+    """Verify a disabled tracing context does not affect a normal upload."""
+    call_mock, traced_mock = _run_single_upload_update(
+        monkeypatch, mocker, tmp_path, _no_trace_context, lambda: 0
+    )
+
+    call_mock.assert_called_once()
+    traced_mock.assert_called_once()
+
+
+def test_upload_runs_inside_active_trace_and_records_attributes(
+    monkeypatch, mocker, tmp_path
+):
+    """Verify the upload is enclosed by tracing and outcome attributes are recorded."""
+    events = []
+    spans = []
+
+    def active_traced(name, attrs=None):
+        return _recording_trace(events, spans, name, attrs)
+
+    def upload():
+        events.append("upload_start")
+        assert events == ["trace_start", "upload_start"]
+        events.append("upload_end")
+        return 0
+
+    call_mock, _ = _run_single_upload_update(
+        monkeypatch, mocker, tmp_path, active_traced, upload
+    )
+
+    call_mock.assert_called_once()
+    assert events == ["trace_start", "upload_start", "upload_end", "trace_end"]
+    assert spans[0].attributes == {
+        "elapsed_seconds": "0.000",
+        "total_bytes": "8",
+        "files_changed": "2",
+        "returncode": "0",
+        "success": "True",
+    }
+
+
+def test_failed_upload_records_returncode_and_failure_status(
+    monkeypatch, mocker, tmp_path
+):
+    """Verify a non-zero upload result is recorded without changing sidecar behavior."""
+    spans = []
+
+    def active_traced(name, attrs=None):
+        return _recording_trace([], spans, name, attrs)
+
+    call_mock, _ = _run_single_upload_update(
+        monkeypatch, mocker, tmp_path, active_traced, lambda: 1
+    )
+
+    call_mock.assert_called_once()
+    assert spans[0].attributes["returncode"] == "1"
+    assert spans[0].attributes["success"] == "False"
+
+
+def test_upload_exception_closes_trace_and_remains_non_fatal(
+    monkeypatch, mocker, tmp_path
+):
+    """Verify upload exceptions remain swallowed after the trace is closed."""
+    events = []
+    spans = []
+
+    def active_traced(name, attrs=None):
+        return _recording_trace(events, spans, name, attrs)
+
+    def upload():
+        events.append("upload_start")
+        raise RuntimeError("upload failed")
+
+    call_mock, _ = _run_single_upload_update(
+        monkeypatch, mocker, tmp_path, active_traced, upload
+    )
+
+    call_mock.assert_called_once()
+    assert events == ["trace_start", "upload_start", "trace_end"]
+    assert spans[0].attributes["exception"] == "RuntimeError"
