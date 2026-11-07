@@ -416,11 +416,12 @@ class TaskToDict:
         if index_column.__class__.__name__ == "MultiIndex":
             from pandas import MultiIndex
 
+            # Look levels up by position: names can be None, repeated or
+            # integers, so drop them on a copy first and restore them below.
+            unnamed = index_column.set_names([None] * index_column.nlevels)
             cols = [
-                self._parse_pandas_column(
-                    index_column.get_level_values(name).to_series()
-                )
-                for name in index_column.names
+                self._parse_pandas_column(unnamed.get_level_values(i).to_series())
+                for i in range(index_column.nlevels)
             ]
             index_column = MultiIndex.from_arrays(cols, names=index_column.names)
         else:
