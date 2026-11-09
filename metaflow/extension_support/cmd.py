@@ -49,7 +49,7 @@ def process_cmds(module_globals):
     # override metaflow core)
     for name, class_path in _all_cmds:
         _ext_debug("    Adding command '%s' from '%s'" % (name, class_path))
-        _all_cmds_dict[name] = class_path
+        _all_cmds_dict.setdefault(name, []).append(class_path)
 
     # Resolve the ENABLED_CMD variable. The rules are the following:
     #  - if ENABLED_CMD is non None, it means it was either set directly by the user
@@ -83,33 +83,65 @@ def resolve_cmds():
     to_return = []
 
     for name in set_of_commands:
-        class_path = _all_cmds_dict.get(name, None)
-        if class_path is None:
+        class_paths = _all_cmds_dict.get(name, None)
+        if class_paths is None:
             raise ValueError(
                 "Configuration requested command '%s' but no such command is available"
                 % name
             )
-        path, cls_name = class_path.rsplit(".", 1)
-        try:
-            cmd_module = importlib.import_module(path)
-        except ImportError:
-            raise ValueError("Cannot locate command '%s' at '%s'" % (name, path))
 
-        cls = getattr(cmd_module, cls_name, None)
-        if cls is None:
-            raise ValueError(
-                "Cannot locate '%s' class for command at '%s'" % (cls_name, path)
+        def _load_cmd_cls(class_path, name):
+            path, cls_name = class_path.rsplit(".", 1)
+            try:
+                cmd_module = importlib.import_module(path)
+            except ImportError:
+                raise ValueError("Cannot locate command '%s' at '%s'" % (name, path))
+            cls = getattr(cmd_module, cls_name, None)
+            if cls is None:
+                raise ValueError(
+                    "Cannot locate '%s' class for command at '%s'" % (cls_name, path)
+                )
+            all_cmds = list(cls.commands)
+            if len(all_cmds) > 1:
+                raise ValueError(
+                    "%s defines more than one command -- use a group" % path
+                )
+            if all_cmds[0] != name:
+                raise ValueError(
+                    "%s: expected name to be '%s' but got '%s' instead"
+                    % (path, name, all_cmds[0])
+                )
+            return cls
+
+        if len(class_paths) == 1:
+            cls = _load_cmd_cls(class_paths[0], name)
+            to_return.append(cls)
+            _ext_debug("        Added command '%s' from '%s'" % (name, class_paths[0]))
+        else:
+            # Multiple providers for the same command name — merge subcommands.
+            # The last entry (extension) is the base; earlier entries contribute
+            # subcommands that don't collide with the base.
+            # This is effectively overriding anything in the previous extensions
+            # with later extensions.
+            base_cls = _load_cmd_cls(class_paths[-1], name)
+            base_group = base_cls.commands[name]
+
+            for earlier_path in class_paths[:-1]:
+                earlier_cls = _load_cmd_cls(earlier_path, name)
+                earlier_group = earlier_cls.commands[name]
+                for cmd_name, cmd in earlier_group.commands.items():
+                    if cmd_name not in base_group.commands:
+                        base_group.add_command(cmd, cmd_name)
+                        _ext_debug(
+                            "        Merged subcommand '%s' into '%s' from '%s'"
+                            % (cmd_name, name, earlier_path)
+                        )
+
+            to_return.append(base_cls)
+            _ext_debug(
+                "        Added merged command '%s' (base from '%s', %d providers)"
+                % (name, class_paths[-1], len(class_paths))
             )
-        all_cmds = list(cls.commands)
-        if len(all_cmds) > 1:
-            raise ValueError("%s defines more than one command -- use a group" % path)
-        if all_cmds[0] != name:
-            raise ValueError(
-                "%s: expected name to be '%s' but got '%s' instead"
-                % (path, name, all_cmds[0])
-            )
-        to_return.append(cls)
-        _ext_debug("        Added command '%s' from '%s'" % (name, class_path))
 
     return to_return
 
