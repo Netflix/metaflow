@@ -1,5 +1,8 @@
 import os
 import pytest
+
+pytest.importorskip("opentelemetry.sdk")
+
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 from opentelemetry.sdk.trace.export import SimpleSpanProcessor
 from opentelemetry.trace import StatusCode
@@ -17,9 +20,30 @@ from metaflow.plugins import MONITOR_SIDECARS
 from metaflow.task import MetaflowTask
 
 
+# Names that _enable_tracing_modules swaps onto the metaflow.tracing module
+# when tracing is turned on. They must be restored so a test that enables
+# tracing does not leak the live implementation into later tests.
+_SWAPPED_TRACING_NAMES = (
+    "init_tracing",
+    "post_fork",
+    "cli",
+    "inject_tracing_vars",
+    "get_trace_id",
+    "traced",
+    "tracing",
+    "add_span_event",
+    "set_span_attributes",
+    "get_current_span",
+    "flush_tracing",
+)
+
+
 @pytest.fixture(autouse=True)
 def clean_tracing_state(monkeypatch):
     monkeypatch.setenv("METAFLOW_CONSOLE_TRACE_ENABLED", "true")
+    original_tracing_attrs = {
+        name: getattr(tracing, name) for name in _SWAPPED_TRACING_NAMES
+    }
     trace_api._TRACER_PROVIDER = None
     trace_api._TRACER_PROVIDER_SET_ONCE._done = False
     propagate._HTTP_TEXT_FORMAT = None
@@ -29,6 +53,8 @@ def clean_tracing_state(monkeypatch):
     trace_api._TRACER_PROVIDER_SET_ONCE._done = False
     propagate._HTTP_TEXT_FORMAT = None
     tracing_modules.tracer_provider = None
+    for name, value in original_tracing_attrs.items():
+        setattr(tracing, name, value)
 
 
 def test_tracing_disabled():
