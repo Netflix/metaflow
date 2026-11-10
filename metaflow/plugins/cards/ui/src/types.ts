@@ -83,7 +83,7 @@ export interface DagStep {
   failed?: boolean;
   num_failed?: number;
   condition?: string;
-  switch_cases?: Record<string, string>;
+  switch_cases?: Record<string, string | string[]>;
   pathToStep?: string;
   connections?: string[];
 }
