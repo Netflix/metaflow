@@ -596,7 +596,25 @@ class FlowSpec(metaclass=FlowSpecMeta):
         """
         return iter(self._steps)
 
+    def __getattribute__(self, name: str):
+        try:
+            return super().__getattribute__(name)
+        except AttributeError as err:
+            for cls in type(self).__mro__:
+                if name in cls.__dict__:
+                    object.__getattribute__(self, "__dict__")[
+                        "_prop_attribute_error"
+                    ] = (name, err)
+                    break
+            raise err
+
     def __getattr__(self, name: str):
+        self_dict = object.__getattribute__(self, "__dict__")
+        if "_prop_attribute_error" in self_dict:
+            stored_name, err = self_dict.pop("_prop_attribute_error")
+            if stored_name == name:
+                raise err
+
         if self._datastore and name in self._datastore:
             # load the attribute from the datastore...
             x = self._datastore[name]
