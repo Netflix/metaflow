@@ -8,11 +8,9 @@ if _py_ver >= (3, 8):
 elif _py_ver >= (3, 7):
     from metaflow._vendor.v3_7.typeguard import TypeCheckError, check_type
 else:
-    raise RuntimeError(
-        """
+    raise RuntimeError("""
         The Metaflow Programmatic API is not supported for versions of Python less than 3.7
-    """
-    )
+    """)
 
 import functools
 import importlib

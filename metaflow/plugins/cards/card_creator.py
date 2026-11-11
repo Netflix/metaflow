@@ -7,7 +7,6 @@ import os
 from metaflow import current
 from typing import Callable, Tuple, Dict
 
-
 ASYNC_TIMEOUT = 30
 
 
