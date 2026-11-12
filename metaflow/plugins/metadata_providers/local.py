@@ -261,7 +261,7 @@ class LocalMetadataProvider(MetadataProvider):
 
             if any(
                 meta.get("field_name") == field_name
-                and regex.match(meta.get("value", ""))
+                and regex.fullmatch(meta.get("value", ""))
                 for meta in metadata
             ):
                 matching_task_pathspecs.append(

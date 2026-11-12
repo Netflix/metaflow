@@ -219,7 +219,7 @@ def validate_aws_tag(key: str, value: str):
 
     if not re.match(PERMITTED, key):
         raise MetaflowException(
-            "Key *s* is not permitted. Tags must match pattern: %s" % (key, PERMITTED)
+            "Key *%s* is not permitted. Tags must match pattern: %s" % (key, PERMITTED)
         )
     if not re.match(PERMITTED, value):
         raise MetaflowException(

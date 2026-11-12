@@ -1,5 +1,6 @@
 import pytest
 
+from metaflow.exception import MetaflowException
 from metaflow.plugins.aws.aws_utils import validate_aws_tag
 
 
@@ -37,3 +38,17 @@ def test_validate_aws_tag(key, value, should_raise):
         did_raise = True
 
     assert did_raise == should_raise
+
+
+@pytest.mark.parametrize(
+    "key, value, expected_prefix",
+    [
+        ("#not-permitted", "ok", "Key *#not-permitted* is not permitted."),
+        ("ok", "#not-permitted", "Value *#not-permitted* is not permitted."),
+    ],
+)
+def test_validate_aws_tag_not_permitted_message(key, value, expected_prefix):
+    with pytest.raises(MetaflowException) as exc_info:
+        validate_aws_tag(key, value)
+
+    assert str(exc_info.value).startswith(expected_prefix)
