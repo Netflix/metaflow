@@ -64,6 +64,55 @@ def test_argo_only_json_exposes_workflow_template(
     assert workflow_template["spec"]["templates"]
 
 
+def test_configured_labels_are_emitted_on_argo_workflows(
+    exec_mode, decospecs, compute_env, tag, scheduler_config
+):
+    if exec_mode != "deployer":
+        pytest.skip("Argo compilation tests require deployer mode")
+    if scheduler_config.scheduler_type != "argo-workflows":
+        pytest.skip("Argo compilation tests require the argo-workflows scheduler")
+
+    from metaflow import Deployer
+
+    from .test_utils import _resolve_flow_path, prepare_runner_deployer_args
+
+    env = dict(compute_env)
+    env["METAFLOW_ARGO_WORKFLOWS_LABELS"] = (
+        "team=ml-platform,environment=test,app.kubernetes.io/name=custom"
+    )
+
+    deployed_flow = (
+        Deployer(
+            flow_file=_resolve_flow_path("basic/helloworld.py"),
+            show_output=False,
+            **prepare_runner_deployer_args({"decospecs": decospecs, "env": env}),
+        )
+        .argo_workflows()
+        .create(
+            only_json=True,
+            tags=tag + ["test_configured_argo_labels"],
+            **(scheduler_config.deploy_args or {}),
+        )
+    )
+
+    workflow_template = deployed_flow.workflow_template
+    template_labels = workflow_template["metadata"]["labels"]
+    workflow_labels = workflow_template["spec"]["workflowMetadata"]["labels"]
+
+    assert template_labels["team"] == "ml-platform"
+    assert template_labels["environment"] == "test"
+    assert template_labels["app.kubernetes.io/name"] == "metaflow-flow"
+
+    assert workflow_labels["team"] == "ml-platform"
+    assert workflow_labels["environment"] == "test"
+    assert workflow_labels["app.kubernetes.io/name"] == "metaflow-run"
+
+    # Custom Argo labels are intentionally workflow-level only.
+    pod_labels = workflow_template["spec"]["podMetadata"]["labels"]
+    assert "team" not in pod_labels
+    assert "environment" not in pod_labels
+
+
 def test_foreach_split_switch_join_task_names_are_deduplicated(
     exec_mode, decospecs, tag, scheduler_config
 ):
