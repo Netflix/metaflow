@@ -396,6 +396,12 @@ def run(
     )
     write_latest_run_id(obj, runtime.run_id)
     write_file(run_id_file, runtime.run_id)
+    tracing.set_span_attributes(
+        {
+            "metaflow.flow_name": obj.flow.name,
+            "metaflow.run_id": str(runtime.run_id),
+        }
+    )
 
     obj.flow._set_constants(obj.graph, kwargs, obj.config_options)
     current._update_env(

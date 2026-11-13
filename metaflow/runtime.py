@@ -288,6 +288,17 @@ class SpinRuntime(object):
         )
 
     def execute(self):
+        flow_attrs = {
+            "metaflow.flow_name": self._flow.name,
+            "metaflow.run_id": str(self.run_id),
+        }
+        with tracing.traced(f"flow/{self._flow.name}", attrs=flow_attrs):
+            try:
+                return self._execute()
+            finally:
+                tracing.flush_tracing()
+
+    def _execute(self):
         exception = None
         with tempfile.NamedTemporaryFile(mode="w", encoding="utf-8") as config_file:
             config_value = dump_config_values(self._flow)
@@ -792,6 +803,17 @@ class NativeRuntime(object):
         self._params_task.mark_resume_done()
 
     def execute(self):
+        flow_attrs = {
+            "metaflow.flow_name": self._flow.name,
+            "metaflow.run_id": str(self._run_id),
+        }
+        with tracing.traced(f"flow/{self._flow.name}", attrs=flow_attrs):
+            try:
+                return self._execute()
+            finally:
+                tracing.flush_tracing()
+
+    def _execute(self):
         if len(self._cloned_tasks) > 0:
             # mutable list storing the cloned tasks.
             self._run_queue = []
@@ -1550,6 +1572,14 @@ class NativeRuntime(object):
                 "MAX_ATTEMPTS exceeded." % worker.task.retries
             )
 
+        tracing.add_span_event(
+            "task_retry",
+            {
+                "metaflow.step_name": worker.task.step,
+                "metaflow.task_id": str(worker.task.task_id),
+                "metaflow.attempt": worker.task.retries,
+            },
+        )
         worker.task.new_attempt()
         self._launch_worker(worker.task)
 
