@@ -8,7 +8,7 @@ def _chase_origin(task):
     ref_task = task
     while ref_task.origin_pathspec is not None:
         task_origin = ref_task.origin_pathspec
-        ref_task = Task(task_origin)
+        ref_task = Task(task_origin, _namespace_check=False)
     return task_origin
 
 
