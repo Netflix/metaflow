@@ -178,3 +178,23 @@ def get_validate_choice_fn(choices):
             )
 
     return _validate_choice
+
+
+def get_validate_positive_int_fn():
+    """Returns a validate_fn for use with from_conf().
+    The validate_fn will check that a value is a positive integer. Values read
+    from the environment arrive as strings, so this accepts anything int() can
+    parse and rejects the rest with a readable message.
+    """
+
+    def _validate_positive_int(name, value):
+        try:
+            parsed = int(value)
+        except (TypeError, ValueError):
+            raise MetaflowException("%s must be an integer. Got '%s'." % (name, value))
+        if parsed <= 0:
+            raise MetaflowException(
+                "%s must be a positive integer. Got '%s'." % (name, value)
+            )
+
+    return _validate_positive_int
