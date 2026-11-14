@@ -122,7 +122,7 @@ def step(
     if ubf_context == "none":
         ubf_context = None
     if opt_namespace is not None:
-        namespace(opt_namespace)
+        namespace(opt_namespace or None)
 
     func = None
     try:
@@ -276,7 +276,7 @@ def spin_step(
         echo = echo_always
 
     if opt_namespace is not None:
-        namespace(opt_namespace)
+        namespace(opt_namespace or None)
 
     input_paths = decompress_list(input_paths) if input_paths else []
 
