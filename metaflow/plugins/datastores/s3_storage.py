@@ -75,6 +75,15 @@ class S3Storage(DataStoreStorage):
                 for o in results
             ]
 
+    def delete_files(self, paths):
+    with S3(
+        s3root=self.datastore_root,
+        tmproot=ARTIFACT_LOCALROOT,
+        external_client=self.s3_client,
+    ) as s3:
+        s3.delete_many(paths)
+
+
     def save_bytes(self, path_and_bytes_iter, overwrite=False, len_hint=0):
         def _convert():
             # Output format is the same as what is needed for S3PutObject:
