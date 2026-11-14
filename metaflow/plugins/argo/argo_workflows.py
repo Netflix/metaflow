@@ -3998,8 +3998,8 @@ class ArgoWorkflows(object):
                                 "memory": "100Mi",
                             },
                         ),
-                    )
-                ).to_dict()
+                    ).to_dict()
+                )
             )
         )
 
