@@ -1,5 +1,6 @@
 import base64
 import json
+import math
 import os
 from .card import MetaflowCard, MetaflowCardComponent, with_default_component_id
 from .convert_to_native_type import TaskToDict, MAX_ARTIFACT_SIZE
@@ -180,6 +181,25 @@ class ImageComponent(DefaultComponent):
         return datadict
 
 
+def _sanitize_non_finite_floats(data):
+    """
+    Recursively replace non-finite floats (NaN, Infinity, -Infinity) with None.
+
+    `json.dumps` happily serializes these as the bare tokens `NaN`/`Infinity`/
+    `-Infinity`, which are not valid JSON. The card frontend loads its data
+    with `JSON.parse`, which raises on those tokens, so a single non-finite
+    float anywhere in a table silently breaks the whole card (see #1023).
+    `_parse_pandas_dataframe` already does the equivalent conversion for
+    DataFrame-backed tables; this covers tables built directly from
+    `Table(headers=..., data=...)` with raw Python floats.
+    """
+    if isinstance(data, list):
+        return [_sanitize_non_finite_floats(row) for row in data]
+    if isinstance(data, float) and not math.isfinite(data):
+        return None
+    return data
+
+
 class TableComponent(DefaultComponent):
     type = "table"
 
@@ -194,7 +214,7 @@ class TableComponent(DefaultComponent):
         if self._validate_header_type(headers):
             self._headers = headers
         if self._validate_row_type(data):
-            self._data = data
+            self._data = _sanitize_non_finite_floats(data)
 
     @classmethod
     def validate(cls, headers, data):
