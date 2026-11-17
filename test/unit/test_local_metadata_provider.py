@@ -1,3 +1,8 @@
+import json
+import os
+
+import pytest
+
 from metaflow.plugins.metadata_providers.local import LocalMetadataProvider
 
 
@@ -67,3 +72,40 @@ def test_filter_tasks_by_metadata_does_not_match_prefixes(monkeypatch):
     assert filter_for("middle:1,.*") == ["Flow/run/middle/4"]
     # and the match-all pattern keeps returning everything
     assert len(filter_for(".*")) == len(paths)
+
+
+def test_dump_json_to_file_reports_the_real_error_when_temp_file_fails(tmp_path):
+    # Regression: `f` used to be bound only by the `with` inside the try, so
+    # when the NamedTemporaryFile constructor failed, the finally clause read
+    # an unbound `f` and raised UnboundLocalError over the real OSError.
+    target = tmp_path / "missing_dir" / "_self.json"
+    with pytest.raises(OSError) as excinfo:
+        LocalMetadataProvider._dump_json_to_file(str(target), {"a": 1})
+    assert "missing_dir" in str(excinfo.value)
+
+
+def test_dump_json_to_file_reports_permission_error(tmp_path, mocker):
+    # Regression: the same masking hit an unwritable metadata directory, the
+    # case a user is most likely to see (read-only mount, .metaflow owned by
+    # another account).
+    mocker.patch(
+        "metaflow.plugins.metadata_providers.local.tempfile.NamedTemporaryFile",
+        side_effect=PermissionError(13, "Permission denied"),
+    )
+    with pytest.raises(PermissionError):
+        LocalMetadataProvider._dump_json_to_file(str(tmp_path / "_self.json"), {"a": 1})
+
+
+def test_dump_json_to_file_writes_and_leaves_no_temp_file(tmp_path):
+    target = tmp_path / "_self.json"
+    LocalMetadataProvider._dump_json_to_file(str(target), {"a": 1})
+    assert json.loads(target.read_text()) == {"a": 1}
+    assert os.listdir(str(tmp_path)) == ["_self.json"]
+
+
+def test_dump_json_to_file_does_not_overwrite_by_default(tmp_path):
+    target = tmp_path / "_self.json"
+    LocalMetadataProvider._dump_json_to_file(str(target), {"a": 1})
+    LocalMetadataProvider._dump_json_to_file(str(target), {"a": 2})
+    assert json.loads(target.read_text()) == {"a": 1}
+    assert os.listdir(str(tmp_path)) == ["_self.json"]
