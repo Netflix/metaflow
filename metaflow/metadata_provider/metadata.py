@@ -455,6 +455,15 @@ class MetadataProvider(object):
         )
 
     @classmethod
+    def supports_streaming_iteration(cls, obj_type, sub_type, attempt):
+        """Whether ``iter_objects`` streams this collection natively.
+
+        When False, client iteration materializes the collection through
+        ``get_object`` instead.
+        """
+        return False
+
+    @classmethod
     def iter_objects(cls, obj_type, sub_type, filters, attempt, *args, **kwargs):
         """Iterate over a collection returned by ``get_object``.
 

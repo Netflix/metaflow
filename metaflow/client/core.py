@@ -386,6 +386,12 @@ class MetaflowObject(object):
         MetaflowObject
             Children of this object
         """
+        child_name = _CLASSES[self._CHILD_CLASS]._NAME
+        if self._metaflow.metadata.supports_streaming_iteration(
+            self._NAME, child_name, self._attempt
+        ):
+            return self._iter_children()
+
         query_filter = {}
 
         # skip namespace filtering if _namespace_check is unset.
@@ -394,7 +400,7 @@ class MetaflowObject(object):
 
         unfiltered_children = self._metaflow.metadata.get_object(
             self._NAME,
-            _CLASSES[self._CHILD_CLASS]._NAME,
+            child_name,
             query_filter,
             self._attempt,
             *self.path_components,

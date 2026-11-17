@@ -415,10 +415,17 @@ class ServiceMetadataProvider(MetadataProvider):
                     # re-raise no matter which page 404'd, so the whole listing
                     # resolves to None and keeps legacy's atomic full-result-or-
                     # None contract (never a silently truncated partial list).
-                    # Streaming callers instead just end the stream here.
+                    # Streaming callers get an empty stream on a first-page 404.
                     if raise_on_missing:
                         raise
-                    return
+                    if first_page:
+                        return
+                    # Records were already yielded; a truncated listing must
+                    # not pass as complete (nor as "not found").
+                    raise ServiceException(
+                        "Metadata service returned 404 mid-listing for %s; "
+                        "the listing is incomplete." % path
+                    ) from ex
                 raise
             # Every page is checked, not just the first: during a rolling
             # deployment page 2 can land on an older instance that ignores our
@@ -507,12 +514,6 @@ class ServiceMetadataProvider(MetadataProvider):
         # large collections without materializing should go through
         # iter_objects() / _iter_paginated_records (e.g. Flow.runs()), which
         # yield page by page. Older services stay on the bulk GET.
-        #
-        # Possible follow-up (left for a future contributor): let the generic
-        # get_object / MetaflowObject.__iter__ path stream for new services too,
-        # so plain iteration is also memory-bounded. That requires changing
-        # get_object's object-or-list return contract, so it is intentionally
-        # out of scope here.
         if (
             cls._can_paginate_collection(sub_type, attempt)
             and cls._service_supports_cursor_pagination()
@@ -536,6 +537,13 @@ class ServiceMetadataProvider(MetadataProvider):
 
         return cls._legacy_get_collection(
             obj_type, obj_order, sub_type, filters, attempt, *args
+        )
+
+    @classmethod
+    def supports_streaming_iteration(cls, obj_type, sub_type, attempt):
+        return (
+            cls._can_paginate_collection(sub_type, attempt)
+            and cls._service_supports_cursor_pagination()
         )
 
     @classmethod
