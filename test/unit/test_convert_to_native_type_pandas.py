@@ -75,6 +75,24 @@ class TestPandasDataframeConversion(unittest.TestCase):
         )
         self.assertEqual(len(rendered["data"]), len(df))
 
+    def test_table_from_dataframe_handles_duplicate_column_labels(self):
+        df = pd.DataFrame(
+            [[10, 20], [30, 40]],
+            columns=["A", "A"],
+        )
+
+        converted = TaskToDict()._parse_pandas_dataframe(df)
+
+        self.assertEqual(converted["headers"], ["", "A", "A"])
+        self.assertEqual(
+            converted["data"],
+            [[0, 10, 20], [1, 30, 40]],
+        )
+
+        rendered = Table.from_dataframe(df).render()
+        self.assertEqual(rendered["type"], "table")
+        self.assertEqual(len(rendered["data"]), len(df))
+
 
 class TestFromDataframeDoesNotMutateInput(unittest.TestCase):
     """Table.from_dataframe must not modify the caller's DataFrame."""

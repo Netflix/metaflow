@@ -429,10 +429,18 @@ class TaskToDict:
 
             index_column = Index(self._parse_pandas_column(index_column.to_series()))
 
-        for col in data.columns:
-            data[col] = self._parse_pandas_column(data[col])
-
         data_vals = data.values.tolist()
+        for column_index in range(data.shape[1]):
+            parsed_column = self._parse_pandas_column(
+                data.iloc[:, column_index]
+            )
+            if isinstance(parsed_column, str):
+                parsed_values = [parsed_column] * len(data)
+            else:
+                parsed_values = parsed_column.tolist()
+
+            for row_index, value in enumerate(parsed_values):
+                data_vals[row_index][column_index] = value
         for row, idx in zip(data_vals, index_column.values.tolist()):
             row.insert(0, idx)
         return dict(
