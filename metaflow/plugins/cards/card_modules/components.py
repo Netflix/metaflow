@@ -35,7 +35,7 @@ class UserComponent(MetaflowCardComponent):
     def update(self, *args, **kwargs):
         cls_name = self.__class__.__name__
         msg = (
-            "MetaflowCardComponent doesn't have an `update` method implemented "
+            "%s doesn't have an `update` method implemented "
             "and is not compatible with realtime updates."
         ) % cls_name
         _warning_with_component(self, msg)
