@@ -8,16 +8,23 @@ Run with:
     pytest test/ux/core/test_lifecycle.py -m lifecycle -v
 """
 
-import pytest
+from typing import Any, Dict, List
 
-pytestmark = [pytest.mark.lifecycle, pytest.mark.scheduler_only]
+import pytest
 
 from .test_utils import deploy_flow_to_scheduler, wait_for_deployed_run
 
+# Apply markers to all tests in this module
+pytestmark = [pytest.mark.lifecycle, pytest.mark.scheduler_only]
 
-@pytest.mark.lifecycle
-@pytest.mark.scheduler_only
-def test_schedule_deploy(exec_mode, decospecs, compute_env, tag, scheduler_config):
+
+def test_schedule_deploy(
+    exec_mode: str,
+    decospecs: List[str],
+    compute_env: Dict[str, str],
+    tag: List[str],
+    scheduler_config: Any,
+):
     """Deploy a @schedule flow, verify deployment succeeds."""
     if exec_mode != "deployer":
         pytest.skip("lifecycle tests require deployer mode")
@@ -43,9 +50,13 @@ def test_schedule_deploy(exec_mode, decospecs, compute_env, tag, scheduler_confi
     assert deployed_flow.name, "Deployed flow has no name"
 
 
-@pytest.mark.lifecycle
-@pytest.mark.scheduler_only
-def test_deployed_flow_status(exec_mode, decospecs, compute_env, tag, scheduler_config):
+def test_deployed_flow_status(
+    exec_mode: str,
+    decospecs: List[str],
+    compute_env: Dict[str, str],
+    tag: List[str],
+    scheduler_config: Any,
+):
     """Deploy, trigger, verify status, then check run completed."""
     if exec_mode != "deployer":
         pytest.skip("lifecycle tests require deployer mode")
@@ -73,12 +84,17 @@ def test_deployed_flow_status(exec_mode, decospecs, compute_env, tag, scheduler_
     assert run.finished, "Run did not finish"
 
 
-@pytest.mark.lifecycle
-@pytest.mark.scheduler_only
-@pytest.mark.parametrize("use_schedules", [True, False], ids=["schedules", "schedule"])
+@pytest.mark.parametrize(
+    "use_schedules", [True, False], ids=["schedules_list", "legacy_schedule"]
+)
 def test_argo_schedule_uses_configured_field(
-    exec_mode, decospecs, compute_env, tag, scheduler_config, use_schedules
-):
+    exec_mode: str,
+    decospecs: List[str],
+    compute_env: Dict[str, str],
+    tag: List[str],
+    scheduler_config: Any,
+    use_schedules: bool,
+) -> None:
     """On Argo, the @schedule cron actually lands in the configured CronWorkflow
     field (`schedules` list vs legacy `schedule`) and the workflow is not
     suspended. Guards ARGO_WORKFLOWS_USE_SCHEDULES and the empty-list fix."""

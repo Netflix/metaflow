@@ -41,6 +41,7 @@ def _set_devstack_env():
     os.environ.setdefault("AWS_ENDPOINT_URL_BATCH", "http://localhost:8000")
     os.environ.setdefault("AWS_ENDPOINT_URL_SFN", "http://localhost:8082")
     os.environ.setdefault("AWS_ENDPOINT_URL_DYNAMODB", "http://localhost:8765")
+
     # EventBridge stub: handles the schedule() call from the SFN deployer.
     # The stub returns ResourceNotFoundException for DisableRule (ignored by
     # EventBridgeClient._disable) so that deploying unscheduled flows works.
