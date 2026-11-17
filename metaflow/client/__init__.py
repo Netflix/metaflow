@@ -13,4 +13,5 @@ from .core import (
     Step,
     Task,
     DataArtifact,
+    FailureSummary,
 )

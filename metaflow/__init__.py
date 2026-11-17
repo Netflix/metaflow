@@ -153,6 +153,7 @@ from .client import (
     Step,
     Task,
     DataArtifact,
+    FailureSummary,
 )
 
 # Import data class within tuple_util but not introduce new symbols.
