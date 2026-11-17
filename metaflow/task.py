@@ -28,7 +28,7 @@ from .clone_util import clone_task_helper
 from .metaflow_current import current
 from metaflow.user_configs.config_parameters import ConfigValue
 from metaflow.system import _system_logger, _system_monitor
-from metaflow.tracing import get_trace_id
+import metaflow.tracing as tracing
 from metaflow.tuple_util import ForeachFrame
 
 # Maximum number of characters of the foreach path that we store in the metadata.
@@ -520,17 +520,28 @@ class MetaflowTask(object):
                 payload={**task_payload, "msg": msg},
             )
         # If we actually have to do the clone ourselves, proceed...
-        clone_task_helper(
-            self.flow.name,
-            origin_run_id,
-            run_id,
-            step_name,
-            origin_task_id,
-            task_id,
-            self.flow_datastore,
-            self.metadata,
-            attempt_id=retry_count,
-        )
+        with tracing.traced(
+            "task/clone",
+            attrs={
+                "metaflow.flow_name": self.flow.name,
+                "metaflow.run_id": str(run_id),
+                "metaflow.step_name": step_name,
+                "metaflow.task_id": str(task_id),
+                "metaflow.origin_run_id": str(origin_run_id),
+                "metaflow.origin_task_id": str(origin_task_id),
+            },
+        ):
+            clone_task_helper(
+                self.flow.name,
+                origin_run_id,
+                run_id,
+                step_name,
+                origin_task_id,
+                task_id,
+                self.flow_datastore,
+                self.metadata,
+                attempt_id=retry_count,
+            )
 
     def _finalize_control_task(self):
         # Update `_transition` which is expected by the NativeRuntime.
@@ -568,6 +579,59 @@ class MetaflowTask(object):
                 )
 
     def run_step(
+        self,
+        step_name,
+        run_id,
+        task_id,
+        origin_run_id,
+        input_paths,
+        split_index,
+        retry_count,
+        max_user_code_retries,
+        whitelist_decorators=None,
+        persist=True,
+    ):
+        task_attrs = {
+            "metaflow.flow_name": self.flow.name,
+            "metaflow.run_id": str(run_id),
+            "metaflow.step_name": step_name,
+            "metaflow.task_id": str(task_id),
+            "metaflow.attempt": retry_count,
+        }
+        if split_index is not None:
+            task_attrs["metaflow.split_index"] = split_index
+        if origin_run_id is not None:
+            task_attrs["metaflow.origin_run_id"] = str(origin_run_id)
+        if retry_count > 0:
+            task_attrs["metaflow.is_retry"] = True
+
+        with tracing.traced(f"task/{step_name}", attrs=task_attrs) as task_span:
+            if retry_count > 0:
+                tracing.add_span_event(
+                    "task_retry",
+                    {
+                        "metaflow.step_name": step_name,
+                        "metaflow.task_id": str(task_id),
+                        "metaflow.attempt": retry_count,
+                    },
+                )
+            try:
+                return self._run_step(
+                    step_name,
+                    run_id,
+                    task_id,
+                    origin_run_id,
+                    input_paths,
+                    split_index,
+                    retry_count,
+                    max_user_code_retries,
+                    whitelist_decorators=whitelist_decorators,
+                    persist=persist,
+                )
+            finally:
+                tracing.flush_tracing()
+
+    def _run_step(
         self,
         step_name,
         run_id,
@@ -624,7 +688,7 @@ class MetaflowTask(object):
                 tags=metadata_tags,
             ),
         ]
-        trace_id = get_trace_id()
+        trace_id = tracing.get_trace_id()
         if trace_id:
             metadata.append(
                 MetaDatum(
@@ -660,7 +724,12 @@ class MetaflowTask(object):
 
         if input_paths:
             # 2. initialize input datastores
-            inputs = self._init_data(run_id, join_type, input_paths)
+            load_attrs = {
+                "metaflow.step_name": step_name,
+                "metaflow.num_inputs": len(input_paths),
+            }
+            with tracing.traced("task/load_inputs", attrs=load_attrs):
+                inputs = self._init_data(run_id, join_type, input_paths)
             from_start("MetaflowTask: input datastores initialized")
 
             # 3. initialize foreach state
@@ -932,10 +1001,16 @@ class MetaflowTask(object):
                             self.ubf_context,
                         )
                 from_start("MetaflowTask: finished decorator processing")
-                if join_type:
-                    self._exec_step_function(step_func, orig_step_func, input_obj)
-                else:
-                    self._exec_step_function(step_func, orig_step_func)
+                step_func_attrs = {
+                    "metaflow.step_name": step_name,
+                }
+                with tracing.traced(
+                    f"task/step_func/{step_name}", attrs=step_func_attrs
+                ):
+                    if join_type:
+                        self._exec_step_function(step_func, orig_step_func, input_obj)
+                    else:
+                        self._exec_step_function(step_func, orig_step_func)
                 from_start("MetaflowTask: step function executed")
                 for deco in decorators:
                     if deco.task_step_completed_ctx is not None:
@@ -978,6 +1053,9 @@ class MetaflowTask(object):
 
                 if exception_handled:
                     self.flow._task_ok = True
+                    tracing.add_span_event(
+                        "exception_handled", {"exception": str(ex)}
+                    )
                 else:
                     self.flow._task_ok = False
                     self.flow._exception = MetaflowExceptionWrapper(ex)
@@ -999,7 +1077,14 @@ class MetaflowTask(object):
                     )
                 try:
                     # persisting might fail due to unpicklable artifacts.
-                    output.persist(self.flow)
+                    with tracing.traced(
+                        "task/persist_output",
+                        attrs={
+                            "metaflow.step_name": step_name,
+                            "metaflow.task_id": str(task_id),
+                        },
+                    ):
+                        output.persist(self.flow)
                 except Exception as ex:
                     self.flow._task_ok = False
                     raise ex

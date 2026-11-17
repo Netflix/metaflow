@@ -42,6 +42,7 @@ from metaflow.metaflow_config import (
     SERVICE_INTERNAL_URL,
 )
 from metaflow.unbounded_foreach import UBF_CONTROL, UBF_TASK
+from metaflow.tracing import inject_tracing_vars
 from metaflow.metaflow_config_funcs import config_values
 from metaflow.mflog import (
     BASH_SAVE_LOGS,
@@ -309,6 +310,9 @@ class Kubernetes(object):
             # pod; this happens when METAFLOW_DATASTORE_SYSROOT_LOCAL is NOT set (
             # see get_datastore_root_from_config in datastore/local.py).
         )
+
+        for k, v in inject_tracing_vars({}).items():
+            jobset.environment_variable(k, v)
 
         for k in list(
             [] if not secrets else [secrets] if isinstance(secrets, str) else secrets
@@ -624,6 +628,9 @@ class Kubernetes(object):
             # pod; this happens when METAFLOW_DATASTORE_SYSROOT_LOCAL is NOT set (
             # see get_datastore_root_from_config in datastore/local.py).
         )
+
+        for k, v in inject_tracing_vars({}).items():
+            job.environment_variable(k, v)
 
         # Temporary passing of *some* environment variables. Do not rely on this
         # mechanism as it will be removed in the near future

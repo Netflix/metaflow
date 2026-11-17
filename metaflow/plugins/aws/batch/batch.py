@@ -10,6 +10,7 @@ from metaflow import util
 from metaflow.plugins.datatools.s3.s3tail import S3Tail
 from metaflow.plugins.aws.aws_utils import sanitize_batch_tag
 from metaflow.exception import MetaflowException
+from metaflow.tracing import inject_tracing_vars
 from metaflow.metaflow_config import (
     OTEL_ENDPOINT,
     OTEL_SERVICE_NAME,
@@ -337,6 +338,9 @@ class Batch(object):
             .environment_variable("METAFLOW_OTEL_SERVICE_NAME", OTEL_SERVICE_NAME)
             .environment_variable("METAFLOW_RUNTIME_ENVIRONMENT", "aws-batch")
         )
+
+        for k, v in inject_tracing_vars({}).items():
+            job.environment_variable(k, v)
 
         # Temporary passing of *some* environment variables. Do not rely on this
         # mechanism as it will be removed in the near future
