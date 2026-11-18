@@ -973,8 +973,14 @@ def fake_service(monkeypatch):
     def install(collections, version=PAGINATING_SERVICE_VERSION, honor_pagination=True):
         service = _FakeService(collections, honor_pagination=honor_pagination)
         _use_service_version(monkeypatch, version)
+
+        # A plain function, not classmethod(service.request): on Python 3.9 and
+        # 3.10, classmethod chains to the bound method's __get__ and drops cls.
+        def fake_request(cls, monitor, path, method, **kwargs):
+            return service.request(cls, monitor, path, method, **kwargs)
+
         monkeypatch.setattr(
-            ServiceMetadataProvider, "_request", classmethod(service.request)
+            ServiceMetadataProvider, "_request", classmethod(fake_request)
         )
         # Child objects resolve the provider through the module-level
         # current_metadata.
