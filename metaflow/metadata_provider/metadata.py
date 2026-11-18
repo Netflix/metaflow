@@ -454,18 +454,32 @@ class MetadataProvider(object):
             pre_filter, attempt_int
         )
 
-    @classmethod
-    def supports_streaming_iteration(cls, obj_type, sub_type, attempt):
-        """Whether ``iter_objects`` streams this collection natively.
+    @staticmethod
+    def _newest_first(objects):
+        """Return a materialized listing as a list sorted newest-first.
 
-        When False, client iteration materializes the collection through
-        ``get_object`` instead.
+        This is the order the metadata service uses for paginated listings
+        (descending ts_epoch), so callers see the same order whichever path
+        served the records. ``objects`` may be None, a single record (the local
+        provider returns a bare dict for a one-element listing) or an iterable
+        of records. ts_epoch may be missing on some records, so it falls back
+        to 0 to keep the sort total.
         """
-        return False
+        if isinstance(objects, dict):
+            objects = [objects]
+        return sorted(
+            objects or [],
+            key=lambda obj: obj.get("ts_epoch") or 0,
+            reverse=True,
+        )
 
     @classmethod
     def iter_objects(cls, obj_type, sub_type, filters, attempt, *args, **kwargs):
         """Iterate over a collection returned by ``get_object``.
+
+        The client lists children through this method (``MetaflowObject.__iter__``,
+        ``Flow.runs()``). Overrides must yield the records ``get_object`` would
+        return for the same arguments, newest first (descending ``ts_epoch``).
 
         Providers can override this method to stream records without materializing the
         complete collection. ``query_filters`` and ``page_size`` are optional provider
@@ -487,19 +501,7 @@ class MetadataProvider(object):
                 raise ValueError("page_size must be positive")
 
         objects = cls.get_object(obj_type, sub_type, filters, attempt, *args)
-        if isinstance(objects, dict):
-            objects = [objects]
-        # Yield newest-first (descending ts_epoch). This mirrors the order the
-        # metadata service returns for paginated listings, so callers see a
-        # consistent order whether records came from the service or a legacy /
-        # local provider. ts_epoch may be missing on some records, so fall back
-        # to 0 to keep the sort total.
-        objects = sorted(
-            objects or [],
-            key=lambda obj: obj.get("ts_epoch") or 0,
-            reverse=True,
-        )
-        for obj in objects:
+        for obj in MetadataProvider._newest_first(objects):
             yield obj
 
     @classmethod

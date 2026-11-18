@@ -381,50 +381,26 @@ class MetaflowObject(object):
         Note that only children present in the current namespace are returned if and
         only if _namespace_check is set.
 
+        Children are returned newest first. They are fetched lazily from the
+        metadata provider, so an error from the provider (for example, the
+        metadata service failing partway through a paginated listing) can be
+        raised after some children have already been yielded.
+
         Yields
         ------
         MetaflowObject
             Children of this object
         """
-        child_name = _CLASSES[self._CHILD_CLASS]._NAME
-        if self._metaflow.metadata.supports_streaming_iteration(
-            self._NAME, child_name, self._attempt
-        ):
-            return self._iter_children()
-
-        query_filter = {}
-
-        # skip namespace filtering if _namespace_check is unset.
-        if self._namespace_check and self._current_namespace:
-            query_filter = {"any_tags": self._current_namespace}
-
-        unfiltered_children = self._metaflow.metadata.get_object(
-            self._NAME,
-            child_name,
-            query_filter,
-            self._attempt,
-            *self.path_components,
-        )
-        unfiltered_children = unfiltered_children if unfiltered_children else []
-        children = filter(
-            lambda x: self._iter_filter(x),
-            (self._child_from_record(obj) for obj in unfiltered_children),
-        )
-
-        if children:
-            return iter(sorted(children, reverse=True, key=lambda x: x.created_at))
-        else:
-            return iter([])
+        # The metadata provider decides how the listing is fetched: the service
+        # streams it page by page when it can; otherwise it is materialized
+        # through get_object. See MetadataProvider.iter_objects.
+        return self._iter_children()
 
     def _iter_filter(self, x):
         return True
 
     def _child_from_record(self, obj):
-        """Build a child object from a raw metadata record.
-
-        Shared by __iter__ and _iter_children so the materialized and streaming
-        listing paths cannot drift apart.
-        """
+        """Build a child object from a raw metadata record."""
         return _CLASSES[self._CHILD_CLASS](
             attempt=self._attempt,
             _object=obj,
@@ -1932,6 +1908,9 @@ class Task(MetaflowObject):
         """
         Iterate over all children DataArtifact of this Task
 
+        Artifacts are returned newest first and fetched lazily, so a metadata
+        provider error can be raised after some artifacts have been yielded.
+
         Yields
         ------
         DataArtifact
@@ -2083,6 +2062,9 @@ class Step(MetaflowObject):
     def __iter__(self) -> Iterator[Task]:
         """
         Iterate over all children Task of this Step
+
+        Tasks are returned newest first and fetched lazily, so a metadata
+        provider error can be raised after some tasks have been yielded.
 
         Yields
         ------
@@ -2514,6 +2496,9 @@ class Run(MetaflowObject):
         """
         Iterate over all children Step of this Run
 
+        Steps are returned newest first and fetched lazily, so a metadata
+        provider error can be raised after some steps have been yielded.
+
         Yields
         ------
         Step
@@ -2632,6 +2617,9 @@ class Flow(MetaflowObject):
         If multiple tags are specified, only runs that have all the
         specified tags are returned.
 
+        Runs are returned newest first and fetched lazily, so a metadata
+        provider error can be raised after some runs have been yielded.
+
         Parameters
         ----------
         tags : str
@@ -2685,6 +2673,9 @@ class Flow(MetaflowObject):
 
         Note that only runs in the current namespace are returned unless
         _namespace_check is False
+
+        Runs are returned newest first and fetched lazily, so a metadata
+        provider error can be raised after some runs have been yielded.
 
         Yields
         ------
