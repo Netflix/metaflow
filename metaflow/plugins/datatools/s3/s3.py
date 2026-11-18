@@ -479,8 +479,9 @@ class S3(object):
     data = [obj.blob for obj in s3.get_many(urls)]
     s3.close()
     ```
-    You can customize the location of the temporary directory with `tmproot`. It
-    defaults to the current working directory.
+    You can customize the location of the temporary directory with `tmproot`, or
+    with the `METAFLOW_TEMPDIR` configuration variable. If neither is specified,
+    the system temporary directory returned by `tempfile.gettempdir()` is used.
 
     To make it easier to deal with object locations, the client can be initialized
     with an S3 path prefix. There are three ways to handle locations:
@@ -499,7 +500,7 @@ class S3(object):
 
     Parameters
     ----------
-    tmproot : str, default '.'
+    tmproot : str, default METAFLOW_TEMPDIR or tempfile.gettempdir()
         Where to store the temporary directory.
     bucket : str, optional, default None
         Override the bucket from `DATATOOLS_S3ROOT` when `run` is specified.

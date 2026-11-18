@@ -299,8 +299,9 @@ class BatchDecorator(StepDecorator):
         self.metadata = metadata
         self.task_datastore = task_datastore
 
-        # current.tempdir reflects the value of METAFLOW_TEMPDIR (the current working
-        # directory by default), or the value of tmpfs_path if tmpfs_tempdir=False.
+        # current.tempdir reflects the value of METAFLOW_TEMPDIR (the system
+        # temporary directory from tempfile.gettempdir() by default), or the
+        # value of tmpfs_path if tmpfs_tempdir=False.
         if not self.attributes["tmpfs_tempdir"]:
             current._update_env({"tempdir": self.attributes["tmpfs_path"]})
 
