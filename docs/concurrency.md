@@ -150,7 +150,7 @@ specific constructs optimized for this use case.
 
 In the case of Metaflow, data parallelism is most often related to
 Amazon S3 which is our main `datastore`. Luckily, Metaflow comes with
-[a built-in S3 client](https://docs.metaflow.org/metaflow/data#data-in-s-3-metaflow-s3)
+[a built-in S3 client](https://docs.metaflow.org/scaling/data#data-in-s3-metaflows3)
 that provides methods like `get_many` that handle concurrency automatically.
 
 #### Example Uses
@@ -237,7 +237,7 @@ to manage its internal worker processes.
 
 ### 6. `parallel_map`
 
-A close cousin of `multiprocessing` is [`metaflow.parallel_map`](https://docs.metaflow.org/metaflow/scaling#parallelization-over-multiple-cores).
+A close cousin of `multiprocessing` is [`metaflow.parallel_map`](https://docs.metaflow.org/scaling/remote-tasks/multicore#mapping-items-in-parallel).
 In contrast to `multiprocessing`, child processes are simply `fork`'ed
 instead of executed as subprocesses. The main upside of this approach
 is that passing data, including the function defining the task, has no
