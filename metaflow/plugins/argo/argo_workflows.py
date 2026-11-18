@@ -3338,6 +3338,8 @@ class ArgoWorkflows(object):
                 name=f"success-{success_fn_name.replace('_', '-')}",
                 container=_container(cmds=_cmd(success_fn_name)),
                 service_account_name=resources["service_account"],
+                node_selectors=resources.get("node_selector"),
+                tolerations=resources.get("tolerations"),
                 on_success=True,
             )
             hooks.append(hook)
@@ -3347,6 +3349,8 @@ class ArgoWorkflows(object):
                 name=f"error-{error_fn_name.replace('_', '-')}",
                 service_account_name=resources["service_account"],
                 container=_container(cmds=_cmd(error_fn_name)),
+                node_selectors=resources.get("node_selector"),
+                tolerations=resources.get("tolerations"),
                 on_error=True,
             )
             hooks.append(hook)
@@ -3502,7 +3506,9 @@ class ArgoWorkflows(object):
                         ),
                     ).to_dict()
                 )
-            ),
+            )
+            .node_selectors(resources.get("node_selector"))
+            .tolerations(resources.get("tolerations")),
             Template("capture-error-hook-fn-preflight").steps(
                 [
                     WorkflowStep()
