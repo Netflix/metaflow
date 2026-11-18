@@ -423,20 +423,27 @@ class MetaflowObject(object):
             if all(tag in child.tags for tag in tags):
                 yield child
 
-    def _iter_children(self, query_filters=None, page_size=None, required_tags=()):
-        """Stream child records through the active metadata provider."""
+    def _iter_children(self, query_filters=None, required_tags=()):
+        """Stream children through the active metadata provider.
+
+        ``required_tags`` are tags every child must have. They are handed to the
+        provider as a hint so it can filter server-side, and are always checked
+        here too, because a provider may ignore the hint or only apply part of it.
+        """
         namespace_filter = {}
         if self._namespace_check and self._current_namespace:
             namespace_filter = {"any_tags": self._current_namespace}
 
+        # Only pass the hints that are set, so plain iteration calls iter_objects
+        # with exactly the positional arguments of get_object.
+        hints = {"query_filters": query_filters, "required_tags": tuple(required_tags)}
         objects = self._metaflow.metadata.iter_objects(
             self._NAME,
             _CLASSES[self._CHILD_CLASS]._NAME,
             namespace_filter,
             self._attempt,
             *self.path_components,
-            query_filters=query_filters,
-            page_size=page_size,
+            **{name: value for name, value in hints.items() if value}
         )
         for obj in objects:
             child = self._child_from_record(obj)
@@ -2623,8 +2630,10 @@ class Flow(MetaflowObject):
         Parameters
         ----------
         tags : str
-            Tags to match. Applied locally after listing, so this works with
-            local metadata as well as the metadata service.
+            Tags to match. When the metadata service supports filtering, the
+            tags are sent to it so only matching runs are fetched; they are
+            always checked client-side as well, so this works with every
+            metadata provider, including local metadata.
         _filters : dict, optional
             Internal, unstable. Server-side run filters expressed in the metadata
             service's ``field:operator`` grammar, for example
@@ -2654,14 +2663,10 @@ class Flow(MetaflowObject):
             if max_runs == 0:
                 return iter(())
 
-        if _filters is None and max_runs is None:
-            return self._filtered_children(*tags)
-
         # Page size is a metadata-service transport detail, not a caller concern:
         # this returns an iterator either way. It comes from METAFLOW_SERVICE_PAGE_SIZE.
         runs = self._iter_children(
-            query_filters=dict(_filters) if _filters else None,
-            required_tags=tags,
+            query_filters=dict(_filters) if _filters else None, required_tags=tags
         )
         if max_runs is None:
             return runs

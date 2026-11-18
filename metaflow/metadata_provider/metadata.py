@@ -482,11 +482,16 @@ class MetadataProvider(object):
         return for the same arguments, newest first (descending ``ts_epoch``).
 
         Providers can override this method to stream records without materializing the
-        complete collection. ``query_filters`` and ``page_size`` are optional provider
-        hints; the default implementation supports only unfiltered iteration.
+        complete collection. ``query_filters``, ``page_size`` and ``required_tags`` are
+        optional provider hints; the default implementation supports only unfiltered
+        iteration. ``required_tags`` lists tags every record must have (in ``tags`` or
+        ``system_tags``). Providers may use it to filter server-side, but callers
+        always check it themselves, so ignoring it, as the default implementation
+        does, is correct.
         """
         query_filters = kwargs.pop("query_filters", None)
         page_size = kwargs.pop("page_size", None)
+        kwargs.pop("required_tags", None)
         if kwargs:
             raise TypeError("Unexpected iterator options: %s" % ", ".join(kwargs))
         if query_filters:

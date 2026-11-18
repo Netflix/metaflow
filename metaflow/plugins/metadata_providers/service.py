@@ -360,7 +360,9 @@ class ServiceMetadataProvider(MetadataProvider):
         )
 
     @classmethod
-    def _listing_query(cls, query_filters, filters, page_size, cursor):
+    def _listing_query(
+        cls, query_filters, filters, page_size, cursor, required_tags=()
+    ):
         query = {}
         for key, value in (query_filters or {}).items():
             key = str(key)
@@ -372,12 +374,19 @@ class ServiceMetadataProvider(MetadataProvider):
                 value = str(value)
             query[key] = value
 
+        # The namespace filter and the caller's required tags both become
+        # _tags:all, which the service matches against tags and system tags.
         tag_filters = []
         for value in (filters or {}).values():
             if isinstance(value, (list, tuple, set, frozenset)):
                 tag_filters.extend(str(v) for v in value)
             else:
                 tag_filters.append(str(value))
+        tag_filters.extend(str(tag) for tag in required_tags)
+        # The service splits _tags:all on commas, so a tag that contains one
+        # would turn into several and wrongly exclude runs. Leave such tags out;
+        # the records are filtered client-side as well, so this only fetches more.
+        tag_filters = [tag for tag in tag_filters if "," not in tag]
         if tag_filters:
             current_tags = query.get("_tags:all")
             if current_tags:
@@ -423,6 +432,7 @@ class ServiceMetadataProvider(MetadataProvider):
         query_filters=None,
         page_size=None,
         raise_on_missing=False,
+        required_tags=(),
     ):
         page_size = SERVICE_PAGE_SIZE if page_size is None else page_size
         if isinstance(page_size, bool) or not isinstance(page_size, int):
@@ -443,7 +453,9 @@ class ServiceMetadataProvider(MetadataProvider):
         # and the unpaginated fallback below sorts too, so ordering stays
         # consistent regardless of which path served the records.
         while True:
-            page_query = cls._listing_query(query_filters, filters, page_size, cursor)
+            page_query = cls._listing_query(
+                query_filters, filters, page_size, cursor, required_tags
+            )
             page_path = "%s?%s" % (path, urlencode(page_query, doseq=True))
             try:
                 records, headers = cls._request(
@@ -589,9 +601,14 @@ class ServiceMetadataProvider(MetadataProvider):
 
         Like the base implementation, this is a generator: argument validation
         and capability errors surface when iteration starts, not at call time.
+
+        ``required_tags`` is a hint: on the paginated path the tags are sent as
+        a server-side filter, elsewhere they are ignored. Callers must still
+        check them on the records they get back.
         """
         query_filters = kwargs.pop("query_filters", None) or {}
         page_size = kwargs.pop("page_size", None)
+        required_tags = kwargs.pop("required_tags", None) or ()
         if kwargs:
             raise TypeError("Unexpected iterator options: %s" % ", ".join(kwargs))
 
@@ -634,6 +651,7 @@ class ServiceMetadataProvider(MetadataProvider):
                 *args,
                 query_filters=query_filters,
                 page_size=page_size,
+                required_tags=required_tags,
             )
         for obj in records:
             yield obj

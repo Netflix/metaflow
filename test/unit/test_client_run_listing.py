@@ -651,12 +651,8 @@ def test_flow_runs_rejects_server_filters_on_local_metadata(local_flow):
 def test_flow_runs_forwards_filters_and_bounds_results(mocker):
     captured = {}
 
-    def fake_iter_children(query_filters=None, page_size=None, required_tags=()):
-        captured.update(
-            query_filters=query_filters,
-            page_size=page_size,
-            required_tags=required_tags,
-        )
+    def fake_iter_children(query_filters=None, required_tags=()):
+        captured.update(query_filters=query_filters, required_tags=required_tags)
         yield from range(4)
 
     flow = mocker.Mock()
@@ -673,9 +669,6 @@ def test_flow_runs_forwards_filters_and_bounds_results(mocker):
     assert runs == [0, 1]
     assert captured == {
         "query_filters": {"status:eq": "failed"},
-        # Page size is a service transport detail read from
-        # METAFLOW_SERVICE_PAGE_SIZE, never a per-call argument.
-        "page_size": None,
         "required_tags": ("prod",),
     }
 
@@ -708,7 +701,7 @@ def test_flow_runs_accepts_mapping_subclasses(mocker):
 
     captured = {}
 
-    def fake_iter_children(query_filters=None, page_size=None, required_tags=()):
+    def fake_iter_children(query_filters=None, required_tags=()):
         captured.update(query_filters=query_filters)
         yield from ()
 
@@ -926,12 +919,18 @@ class _FakeService(object):
     and answers paginated requests with the oldest-first bulk listing and no
     X-Limit header, like an older instance during a rolling deploy or a proxy
     that strips the header.
+
+    Paginated requests also honour ``_tags:all`` the way metaflow-service does:
+    the value is split on commas and a record must carry every resulting tag
+    in its tags or system tags. The value of each paginated request's
+    ``_tags:all`` (None when absent) is recorded in ``tag_filters``.
     """
 
     def __init__(self, collections, honor_pagination=True):
         self.collections = collections
         self.honor_pagination = honor_pagination
         self.calls = []
+        self.tag_filters = []
 
     def request(self, cls, monitor, path, method, **kwargs):
         base, _, query = path.partition("?")
@@ -947,6 +946,15 @@ class _FakeService(object):
         self.calls.append((base, offset))
         if not self.honor_pagination:
             return list(reversed(records)), {}
+        tag_filter = params.get("_tags:all", [None])[0]
+        self.tag_filters.append(tag_filter)
+        if tag_filter:
+            required = set(tag_filter.split(","))
+            records = [
+                r
+                for r in records
+                if required <= set(r.get("tags", []) + r.get("system_tags", []))
+            ]
         headers = {"X-Limit": str(limit)}
         if offset + limit < len(records):
             headers["X-Next-Cursor"] = str(offset + limit)
@@ -1028,7 +1036,9 @@ def test_flow_iter_uses_iter_objects_not_get_object(fake_service, monkeypatch):
 
 @pytest.mark.parametrize("provider", ["paginating", "legacy", "local"])
 def test_flow_iter_order_and_namespace_parity(provider, fake_service, request):
-    """Every provider yields newest-first and applies the namespace filter."""
+    """Every provider yields newest-first and applies the namespace filter and
+    runs() tag filters the same way, whether they are applied server-side
+    (paginating service) or only client-side (legacy service, local)."""
     if provider == "local":
         # local_flow serves runs 1..3 (prod, dev, prod) oldest-first.
         local_flow = request.getfixturevalue("local_flow")
@@ -1057,6 +1067,107 @@ def test_flow_iter_order_and_namespace_parity(provider, fake_service, request):
 
     assert [r.id for r in make_flow(_namespace_check=False)] == expected_all
     assert [r.id for r in make_flow(_current_namespace="prod")] == expected_prod
+
+    unchecked = make_flow(_namespace_check=False)
+    assert [r.id for r in unchecked.runs("prod")] == expected_prod
+    assert [r.id for r in unchecked.runs("prod", max_runs=1)] == expected_prod[:1]
+    # The namespace and the tags must both match.
+    assert list(make_flow(_current_namespace="prod").runs("dev")) == []
+
+
+def test_flow_runs_sends_tags_to_a_paginating_service(fake_service, monkeypatch):
+    """With a service that can filter, runs(*tags) asks it for matching runs
+    only, so finding a rare tag does not page through every run."""
+    service = fake_service(
+        {
+            "/flows/ExampleFlow/runs": [_record(1, tags=["rare"])]
+            + [_record(n) for n in range(2, 7)]
+        }
+    )
+    monkeypatch.setattr(service_module, "SERVICE_PAGE_SIZE", 2)
+    flow = Flow(_object=dict(_FLOW_RECORD), _namespace_check=False)
+
+    # Without the server-side filter this would take three pages of two.
+    assert [run.id for run in flow.runs("rare", max_runs=1)] == ["1"]
+    assert service.calls == [("/flows/ExampleFlow/runs", 0)]
+    assert service.tag_filters == ["rare"]
+
+
+def test_flow_runs_tags_with_commas_are_only_filtered_client_side(fake_service):
+    """The service splits _tags:all on commas, so a tag containing one is not
+    sent (it would exclude every run); the client still enforces it."""
+    service = fake_service(
+        {
+            "/flows/ExampleFlow/runs": [
+                _record(1, tags=["a,b", "prod"]),
+                _record(2, tags=["a", "b", "prod"]),
+            ]
+        }
+    )
+    flow = Flow(_object=dict(_FLOW_RECORD), _namespace_check=False)
+
+    assert [run.id for run in flow.runs("a,b", "prod")] == ["1"]
+    assert service.tag_filters == ["prod"]
+
+
+@pytest.mark.parametrize(
+    "filters, required_tags, query_filters, expected",
+    [
+        (None, (), None, None),
+        ({"any_tags": "user:alice"}, (), None, "user:alice"),
+        ({"any_tags": "user:alice"}, ("prod", "dev"), None, "user:alice,prod,dev"),
+        (None, ("prod",), {"_tags:all": "explicit"}, "explicit,prod"),
+        ({"any_tags": "team,a"}, ("a,b", "prod"), None, "prod"),
+        ({"any_tags": "team,a"}, ("a,b",), None, None),
+    ],
+    ids=[
+        "nothing",
+        "namespace",
+        "namespace-and-tags",
+        "explicit-query-filter-first",
+        "comma-tags-dropped",
+        "only-comma-tags",
+    ],
+)
+def test_listing_query_tag_filter(filters, required_tags, query_filters, expected):
+    query = ServiceMetadataProvider._listing_query(
+        query_filters, filters, 10, None, required_tags
+    )
+    assert query.get("_tags:all") == expected
+
+
+def test_default_provider_iterator_ignores_required_tags_hint(monkeypatch):
+    """Required tags are a hint the caller enforces itself; the default
+    provider must accept the hint without failing or filtering."""
+    monkeypatch.setattr(
+        LocalMetadataProvider,
+        "get_object",
+        classmethod(lambda cls, *args: [_record(1), _record(2, tags=["prod"])]),
+    )
+
+    records = LocalMetadataProvider.iter_objects(
+        "flow", "run", None, None, "Flow", required_tags=("prod",)
+    )
+
+    assert [record["run_number"] for record in records] == [2, 1]
+
+
+def test_plain_iteration_passes_no_iterator_options(monkeypatch):
+    """__iter__ calls iter_objects with get_object's positional arguments only,
+    so a provider override written without **kwargs keeps working."""
+
+    def narrow_iter_objects(cls, obj_type, sub_type, filters, attempt, *args):
+        return iter([_record(2), _record(1)])
+
+    monkeypatch.setattr(
+        LocalMetadataProvider, "iter_objects", classmethod(narrow_iter_objects)
+    )
+    monkeypatch.setattr(client_core, "current_metadata", LocalMetadataProvider)
+
+    flow = Flow(_object=dict(_FLOW_RECORD), _namespace_check=False)
+
+    assert [run.id for run in flow] == ["2", "1"]
+    assert [run.id for run in flow.runs()] == ["2", "1"]
 
 
 def test_attempt_scoped_task_artifacts_go_through_get_object(fake_service):
