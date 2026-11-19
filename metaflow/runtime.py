@@ -9,7 +9,10 @@ from __future__ import print_function
 import json
 import os
 import sys
-import fcntl
+try:
+    import fcntl
+except ImportError:  # pragma: no cover - Windows / unsupported platforms
+    fcntl = None
 import re
 import tempfile
 import time
@@ -2428,17 +2431,18 @@ class Worker(object):
         # the pipe may stay active due to subprocesses launched by
         # the worker, e.g. sidecars, so we can't rely on EOF. We try to
         # read just what's available in the pipe buffer
-        for fileobj, buf in self._logs.values():
-            fileno = fileobj.fileno()
-            fcntl.fcntl(fileno, fcntl.F_SETFL, os.O_NONBLOCK)
-            try:
-                while self.read_logline(fileno):
+        if fcntl is not None:
+            for fileobj, buf in self._logs.values():
+                fileno = fileobj.fileno()
+                fcntl.fcntl(fileno, fcntl.F_SETFL, os.O_NONBLOCK)
+                try:
+                    while self.read_logline(fileno):
+                        pass
+                except:
+                    # ignore "resource temporarily unavailable" etc. errors
+                    # caused due to non-blocking. Draining is done on a
+                    # best-effort basis.
                     pass
-            except:
-                # ignore "resource temporarily unavailable" etc. errors
-                # caused due to non-blocking. Draining is done on a
-                # best-effort basis.
-                pass
 
         # Return early if the task is cloned since we don't want to
         # perform any log collection.

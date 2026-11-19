@@ -65,6 +65,7 @@ def status():
 
 CMDS_DESC = [
     ("configure", ".configure_cmd.cli"),
+    ("doctor", ".doctor_cmd.cli"),
     ("tutorials", ".tutorials_cmd.cli"),
     ("develop", ".develop.cli"),
     ("code", ".code.cli"),

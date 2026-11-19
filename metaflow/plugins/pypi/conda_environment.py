@@ -1,6 +1,9 @@
 import copy
 import errno
-import fcntl
+try:
+    import fcntl
+except ImportError:  # pragma: no cover - Windows / unsupported platforms
+    fcntl = None
 import functools
 import io
 import json
@@ -28,6 +31,9 @@ class CondaEnvironmentException(MetaflowException):
 
     def __init__(self, msg):
         super(CondaEnvironmentException, self).__init__(msg)
+
+
+_environment_manifest_locks = {}
 
 
 class CondaEnvironment(MetaflowEnvironment):
@@ -537,26 +543,31 @@ class CondaEnvironment(MetaflowEnvironment):
         except OSError as x:
             if x.errno != errno.EEXIST:
                 raise
-        with os.fdopen(os.open(path, os.O_RDWR | os.O_CREAT), "r+") as f:
-            try:
-                fcntl.flock(f, fcntl.LOCK_EX)
-                d = {}
-                if os.path.getsize(path) > 0:
+
+        lock = _environment_manifest_locks.setdefault(path, threading.Lock())
+        with lock:
+            with os.fdopen(os.open(path, os.O_RDWR | os.O_CREAT), "r+") as f:
+                try:
+                    if fcntl is not None:
+                        fcntl.flock(f, fcntl.LOCK_EX)
+                    d = {}
+                    if os.path.getsize(path) > 0:
+                        f.seek(0)
+                        d = json.load(f)
+                    data = d
+                    for key in keys[:-1]:
+                        data = data.setdefault(key, {})
+                    data[keys[-1]] = value
                     f.seek(0)
-                    d = json.load(f)
-                data = d
-                for key in keys[:-1]:
-                    data = data.setdefault(key, {})
-                data[keys[-1]] = value
-                f.seek(0)
-                json.dump(d, f)
-                f.truncate()
-                return value
-            except IOError as e:
-                if e.errno != errno.EAGAIN:
-                    raise
-            finally:
-                fcntl.flock(f, fcntl.LOCK_UN)
+                    json.dump(d, f)
+                    f.truncate()
+                    return value
+                except IOError as e:
+                    if e.errno != errno.EAGAIN:
+                        raise
+                finally:
+                    if fcntl is not None:
+                        fcntl.flock(f, fcntl.LOCK_UN)
 
 
 class LazyOpen(BufferedIOBase):
