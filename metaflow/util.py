@@ -570,15 +570,26 @@ def to_pascalcase(obj):
 
 def tar_safe_extract(tar, path=".", members=None, *, numeric_owner=False):
     def is_within_directory(abs_directory, target):
-        prefix = os.path.commonpath([abs_directory, os.path.abspath(target)])
-        return prefix == abs_directory
+        return (
+            os.path.commonpath([abs_directory, os.path.abspath(target)])
+            == abs_directory
+        )
 
     abs_directory = os.path.abspath(path)
-    if any(
-        not is_within_directory(abs_directory, os.path.join(path, member.name))
-        for member in tar.getmembers()
-    ):
-        raise Exception("Attempted path traversal in TAR file")
+    for member in tar.getmembers():
+        member_target = os.path.join(abs_directory, member.name)
+        if not is_within_directory(abs_directory, member_target):
+            raise Exception("Attempted path traversal in TAR file")
+        if member.issym():
+            link_target = os.path.join(
+                os.path.dirname(os.path.abspath(member_target)), member.linkname
+            )
+            if not is_within_directory(abs_directory, link_target):
+                raise Exception("Attempted path traversal in TAR file")
+        elif member.islnk():
+            link_target = os.path.join(abs_directory, member.linkname)
+            if not is_within_directory(abs_directory, link_target):
+                raise Exception("Attempted path traversal in TAR file")
 
     tar.extractall(path, members, numeric_owner=numeric_owner)
 

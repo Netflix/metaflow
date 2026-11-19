@@ -12,6 +12,7 @@ Verifies that:
 from io import BytesIO
 import json
 import tarfile
+from typing import Dict
 
 import pytest
 
@@ -21,7 +22,7 @@ from metaflow.packaging_sys.tar_backend import TarPackagingBackend
 from metaflow.util import tar_safe_extract
 
 
-def _build_tgz_bytes(entries: dict[str, bytes]) -> BytesIO:
+def _build_tgz_bytes(entries: Dict[str, bytes]) -> BytesIO:
     buf = BytesIO()
     with tarfile.open(fileobj=buf, mode="w:gz") as tf:
         for arcname, payload in entries.items():
@@ -138,3 +139,32 @@ def test_valid_nested_package_extracts_cleanly(tmp_path):
     assert (
         dest_dir / "shared" / "helpers" / "math_util.py"
     ).read_text() == "def add(a, b):\n    return a + b\n"
+
+
+def test_tar_safe_extract_blocks_symlink_escape(tmp_path):
+    dest_dir = tmp_path / "pkg"
+    outside_dir = tmp_path / "outside"
+    dest_dir.mkdir()
+    outside_dir.mkdir()
+    escaped = outside_dir / "payload.txt"
+
+    buf = BytesIO()
+    with tarfile.open(fileobj=buf, mode="w:gz") as tf:
+        sym = tarfile.TarInfo(name="link")
+        sym.type = tarfile.SYMTYPE
+        sym.linkname = "../outside"
+        tf.addfile(sym)
+
+        payload = b"escaped via symlink\n"
+        reg = tarfile.TarInfo(name="link/payload.txt")
+        reg.size = len(payload)
+        tf.addfile(reg, BytesIO(payload))
+    buf.seek(0)
+
+    with TarPackagingBackend.cls_open(buf) as archive:
+        with pytest.raises(Exception, match="Attempted path traversal in TAR file"):
+            TarPackagingBackend.cls_extract_members(
+                archive, members=archive.getmembers(), dest_dir=str(dest_dir)
+            )
+
+    assert not escaped.exists(), f"Symlink Tar Slip wrote outside dest_dir: {escaped}"
