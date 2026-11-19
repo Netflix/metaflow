@@ -456,14 +456,9 @@ class MetadataProvider(object):
 
     @staticmethod
     def _newest_first(objects):
-        """Return a materialized listing as a list sorted newest-first.
+        """Sort a get_object listing newest first (descending ts_epoch).
 
-        This is the order the metadata service uses for paginated listings
-        (descending ts_epoch), so callers see the same order whichever path
-        served the records. ``objects`` may be None, a single record (the local
-        provider returns a bare dict for a one-element listing) or an iterable
-        of records. ts_epoch may be missing on some records, so it falls back
-        to 0 to keep the sort total.
+        ``objects`` may be None, a list, or a bare dict (local provider, one record).
         """
         if isinstance(objects, dict):
             objects = [objects]
@@ -475,19 +470,12 @@ class MetadataProvider(object):
 
     @classmethod
     def iter_objects(cls, obj_type, sub_type, filters, attempt, *args, **kwargs):
-        """Iterate over a collection returned by ``get_object``.
-
-        The client lists children through this method (``MetaflowObject.__iter__``,
-        ``Flow.runs()``). Overrides must yield the records ``get_object`` would
-        return for the same arguments, newest first (descending ``ts_epoch``).
+        """Iterate over a collection returned by ``get_object``, newest first.
 
         Providers can override this method to stream records without materializing the
         complete collection. ``query_filters``, ``page_size`` and ``required_tags`` are
         optional provider hints; the default implementation supports only unfiltered
-        iteration. ``required_tags`` lists tags every record must have (in ``tags`` or
-        ``system_tags``). Providers may use it to filter server-side, but callers
-        always check it themselves, so ignoring it, as the default implementation
-        does, is correct.
+        iteration and ignores ``required_tags``, which callers always re-check.
         """
         query_filters = kwargs.pop("query_filters", None)
         page_size = kwargs.pop("page_size", None)

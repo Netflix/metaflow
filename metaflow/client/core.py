@@ -381,19 +381,11 @@ class MetaflowObject(object):
         Note that only children present in the current namespace are returned if and
         only if _namespace_check is set.
 
-        Children are returned newest first. They are fetched lazily from the
-        metadata provider, so an error from the provider (for example, the
-        metadata service failing partway through a paginated listing) can be
-        raised after some children have already been yielded.
-
         Yields
         ------
         MetaflowObject
             Children of this object
         """
-        # The metadata provider decides how the listing is fetched: the service
-        # streams it page by page when it can; otherwise it is materialized
-        # through get_object. See MetadataProvider.iter_objects.
         return self._iter_children()
 
     def _iter_filter(self, x):
@@ -426,16 +418,14 @@ class MetaflowObject(object):
     def _iter_children(self, query_filters=None, required_tags=()):
         """Stream children through the active metadata provider.
 
-        ``required_tags`` are tags every child must have. They are handed to the
-        provider as a hint so it can filter server-side, and are always checked
-        here too, because a provider may ignore the hint or only apply part of it.
+        ``required_tags`` is passed to the provider as a hint and always
+        re-checked here.
         """
         namespace_filter = {}
         if self._namespace_check and self._current_namespace:
             namespace_filter = {"any_tags": self._current_namespace}
 
-        # Only pass the hints that are set, so plain iteration calls iter_objects
-        # with exactly the positional arguments of get_object.
+        # Pass only set hints so plain iteration matches get_object's signature.
         hints = {"query_filters": query_filters, "required_tags": tuple(required_tags)}
         objects = self._metaflow.metadata.iter_objects(
             self._NAME,
@@ -1915,9 +1905,6 @@ class Task(MetaflowObject):
         """
         Iterate over all children DataArtifact of this Task
 
-        Artifacts are returned newest first and fetched lazily, so a metadata
-        provider error can be raised after some artifacts have been yielded.
-
         Yields
         ------
         DataArtifact
@@ -2069,9 +2056,6 @@ class Step(MetaflowObject):
     def __iter__(self) -> Iterator[Task]:
         """
         Iterate over all children Task of this Step
-
-        Tasks are returned newest first and fetched lazily, so a metadata
-        provider error can be raised after some tasks have been yielded.
 
         Yields
         ------
@@ -2503,9 +2487,6 @@ class Run(MetaflowObject):
         """
         Iterate over all children Step of this Run
 
-        Steps are returned newest first and fetched lazily, so a metadata
-        provider error can be raised after some steps have been yielded.
-
         Yields
         ------
         Step
@@ -2624,16 +2605,11 @@ class Flow(MetaflowObject):
         If multiple tags are specified, only runs that have all the
         specified tags are returned.
 
-        Runs are returned newest first and fetched lazily, so a metadata
-        provider error can be raised after some runs have been yielded.
-
         Parameters
         ----------
         tags : str
-            Tags to match. When the metadata service supports filtering, the
-            tags are sent to it so only matching runs are fetched; they are
-            always checked client-side as well, so this works with every
-            metadata provider, including local metadata.
+            Tags to match. Filtered server-side when supported, and always
+            checked client-side.
         _filters : dict, optional
             Internal, unstable. Server-side run filters expressed in the metadata
             service's ``field:operator`` grammar, for example
@@ -2678,9 +2654,6 @@ class Flow(MetaflowObject):
 
         Note that only runs in the current namespace are returned unless
         _namespace_check is False
-
-        Runs are returned newest first and fetched lazily, so a metadata
-        provider error can be raised after some runs have been yielded.
 
         Yields
         ------

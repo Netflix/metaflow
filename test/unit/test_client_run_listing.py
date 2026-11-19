@@ -785,10 +785,8 @@ def test_get_object_internal_mid_page_404_returns_none(monkeypatch):
 
 
 def test_iter_objects_mid_page_404_raises_after_first_page(monkeypatch):
-    """A 404 after records were yielded is an incomplete listing, not "not
-    found": the stream yields the first page, then raises a ServiceException
-    that carries no 404 http_code so no caller mistakes it for a missing
-    collection."""
+    """A mid-listing 404 raises without a 404 http_code, so it is not
+    mistaken for a missing collection."""
     monkeypatch.setattr(
         ServiceMetadataProvider, "_version", classmethod(_paginating_version)
     )
@@ -908,22 +906,12 @@ def _artifact_record(name, ts):
 
 
 class _FakeService(object):
-    """An in-memory metadata service.
+    """In-memory metadata service.
 
-    Paginated requests (return_headers=True) are served newest-first in pages
-    of ``_limit`` with an offset cursor, like metaflow-service >= 2.6.1. Bulk
-    (legacy) GETs return the whole collection oldest-first, so any newest-first
-    order observed on that path must come from the client.
-
-    With ``honor_pagination=False`` the service ignores ``_limit``/``_cursor``
-    and answers paginated requests with the oldest-first bulk listing and no
-    X-Limit header, like an older instance during a rolling deploy or a proxy
-    that strips the header.
-
-    Paginated requests also honour ``_tags:all`` the way metaflow-service does:
-    the value is split on commas and a record must carry every resulting tag
-    in its tags or system tags. The value of each paginated request's
-    ``_tags:all`` (None when absent) is recorded in ``tag_filters``.
+    Paginated requests are served newest first with an offset cursor and honour
+    ``_tags:all`` (recorded in ``tag_filters``). Bulk GETs, and paginated
+    requests when ``honor_pagination=False``, get the whole collection oldest
+    first with no X-Limit header.
     """
 
     def __init__(self, collections, honor_pagination=True):
@@ -963,27 +951,21 @@ class _FakeService(object):
 
 @pytest.fixture
 def fake_service(monkeypatch):
-    """Point the client at ServiceMetadataProvider backed by _FakeService.
-
-    Returns a callable ``(collections, version=PAGINATING_SERVICE_VERSION,
-    honor_pagination=True)`` that installs the fake and returns it.
-    """
+    """Return an installer that backs ServiceMetadataProvider with _FakeService."""
     monkeypatch.setattr(ServiceMetadataProvider, "_INFO", "http://metadata")
 
     def install(collections, version=PAGINATING_SERVICE_VERSION, honor_pagination=True):
         service = _FakeService(collections, honor_pagination=honor_pagination)
         _use_service_version(monkeypatch, version)
 
-        # A plain function, not classmethod(service.request): on Python 3.9 and
-        # 3.10, classmethod chains to the bound method's __get__ and drops cls.
+        # Not classmethod(service.request): on Python 3.9/3.10 that drops cls.
         def fake_request(cls, monitor, path, method, **kwargs):
             return service.request(cls, monitor, path, method, **kwargs)
 
         monkeypatch.setattr(
             ServiceMetadataProvider, "_request", classmethod(fake_request)
         )
-        # Child objects resolve the provider through the module-level
-        # current_metadata.
+        # Child objects use the module-level current_metadata.
         monkeypatch.setattr(client_core, "current_metadata", ServiceMetadataProvider)
         return service
 
@@ -1003,8 +985,7 @@ def _runs_collection():
 
 
 def test_flow_iter_uses_iter_objects_not_get_object(fake_service, monkeypatch):
-    """Plain iteration streams page by page instead of materializing the
-    listing through get_object, so a newest-first peek fetches one page."""
+    """Plain iteration streams pages; peeking fetches only the first."""
     service = fake_service(_runs_collection())
     monkeypatch.setattr(service_module, "SERVICE_PAGE_SIZE", 2)
 
@@ -1042,9 +1023,7 @@ def test_flow_iter_uses_iter_objects_not_get_object(fake_service, monkeypatch):
 
 @pytest.mark.parametrize("provider", ["paginating", "legacy", "local"])
 def test_flow_iter_order_and_namespace_parity(provider, fake_service, request):
-    """Every provider yields newest-first and applies the namespace filter and
-    runs() tag filters the same way, whether they are applied server-side
-    (paginating service) or only client-side (legacy service, local)."""
+    """All providers agree on order, namespace and tag filtering."""
     if provider == "local":
         # local_flow serves runs 1..3 (prod, dev, prod) oldest-first.
         local_flow = request.getfixturevalue("local_flow")
@@ -1082,8 +1061,7 @@ def test_flow_iter_order_and_namespace_parity(provider, fake_service, request):
 
 
 def test_flow_runs_sends_tags_to_a_paginating_service(fake_service, monkeypatch):
-    """With a service that can filter, runs(*tags) asks it for matching runs
-    only, so finding a rare tag does not page through every run."""
+    """runs(*tags) filters server-side when the service supports it."""
     service = fake_service(
         {
             "/flows/ExampleFlow/runs": [_record(1, tags=["rare"])]
@@ -1100,8 +1078,7 @@ def test_flow_runs_sends_tags_to_a_paginating_service(fake_service, monkeypatch)
 
 
 def test_flow_runs_tags_with_commas_are_only_filtered_client_side(fake_service):
-    """The service splits _tags:all on commas, so a tag containing one is not
-    sent (it would exclude every run); the client still enforces it."""
+    """Tags containing commas are not sent to the service but still enforced."""
     service = fake_service(
         {
             "/flows/ExampleFlow/runs": [
@@ -1143,8 +1120,7 @@ def test_listing_query_tag_filter(filters, required_tags, query_filters, expecte
 
 
 def test_default_provider_iterator_ignores_required_tags_hint(monkeypatch):
-    """Required tags are a hint the caller enforces itself; the default
-    provider must accept the hint without failing or filtering."""
+    """The default provider accepts and ignores required_tags."""
     monkeypatch.setattr(
         LocalMetadataProvider,
         "get_object",
@@ -1159,8 +1135,7 @@ def test_default_provider_iterator_ignores_required_tags_hint(monkeypatch):
 
 
 def test_plain_iteration_passes_no_iterator_options(monkeypatch):
-    """__iter__ calls iter_objects with get_object's positional arguments only,
-    so a provider override written without **kwargs keeps working."""
+    """Plain iteration works with iter_objects overrides lacking **kwargs."""
 
     def narrow_iter_objects(cls, obj_type, sub_type, filters, attempt, *args):
         return iter([_record(2), _record(1)])
@@ -1177,8 +1152,7 @@ def test_plain_iteration_passes_no_iterator_options(monkeypatch):
 
 
 def test_attempt_scoped_task_artifacts_go_through_get_object(fake_service):
-    """The per-attempt artifact endpoint has no pagination, so iterating a Task
-    with an attempt uses the bulk GET and is still newest-first."""
+    """Per-attempt artifacts use the bulk GET and are still newest first."""
     path = "/flows/ExampleFlow/runs/12/steps/start/tasks/1/attempt/0/artifacts"
     service = fake_service(
         {
@@ -1230,8 +1204,7 @@ def test_run_and_task_iter_hide_private_children_when_streaming(fake_service):
 
 
 def test_legacy_service_iteration_is_one_bulk_get(fake_service):
-    """A service without cursor pagination is listed with a single bulk GET
-    (through get_object), and the client restores newest-first order."""
+    """Legacy services use one bulk GET; the client sorts newest first."""
     service = fake_service(_runs_collection(), version=LEGACY_SERVICE_VERSION)
 
     flow = Flow(_object=dict(_FLOW_RECORD), _namespace_check=False)
@@ -1241,10 +1214,8 @@ def test_legacy_service_iteration_is_one_bulk_get(fake_service):
 
 
 def test_iteration_stays_newest_first_when_service_stops_paginating(fake_service):
-    """The service reports cursor pagination, but the answer has no X-Limit
-    header, so the client falls back to the bulk listing. That listing has no
-    server-side order (the service's bulk endpoints do not ORDER BY), so
-    latest_run is only the newest run if the client sorts the fallback."""
+    """A response without X-Limit falls back to the unordered bulk listing,
+    which the client sorts newest first."""
     service = fake_service(_runs_collection(), honor_pagination=False)
     path = "/flows/ExampleFlow/runs"
 
@@ -1256,8 +1227,7 @@ def test_iteration_stays_newest_first_when_service_stops_paginating(fake_service
 
 
 def test_local_task_with_a_single_artifact_yields_it(monkeypatch):
-    """The local provider returns a bare dict instead of a list when a task
-    has exactly one artifact; iteration must yield that artifact."""
+    """The local provider returns a bare dict for a single artifact."""
     artifact = _artifact_record("only", 1000)
     monkeypatch.setattr(
         LocalMetadataProvider,
@@ -1322,11 +1292,9 @@ def test_overrides_materialized_listing(provider, expected):
 
 @pytest.fixture
 def recording_provider(monkeypatch):
-    """Factory for ServiceMetadataProvider subclasses that override the given
-    methods with pass-through wrappers recording which ones were called.
+    """Factory for subclasses whose overrides pass through and record calls.
 
-    The subclass becomes the client's current metadata provider, so call this
-    after ``fake_service``.
+    Call after ``fake_service``; it replaces the current metadata provider.
     """
 
     def make(*overrides):
@@ -1355,9 +1323,7 @@ def recording_provider(monkeypatch):
 def test_subclass_customising_reads_keeps_iteration_on_get_object(
     override, fake_service, recording_provider
 ):
-    """A subclass that customises get_object reads (to cache or reroute them,
-    say) predates streaming iteration and expects every listing to go through
-    its override, so plain iteration stays on the materialized path."""
+    """Subclasses overriding get_object reads keep plain iteration materialized."""
     fake_service(_runs_collection())
     provider = recording_provider(override)
 
@@ -1370,8 +1336,7 @@ def test_subclass_customising_reads_keeps_iteration_on_get_object(
 def test_subclass_customising_reads_still_paginates_filtered_listings(
     fake_service, recording_provider
 ):
-    """Server-side filters only exist on the paginated endpoints, so a filtered
-    listing keeps paginating even when the subclass customises reads."""
+    """Filtered listings paginate even when a subclass overrides reads."""
     service = fake_service(_runs_collection())
     provider = recording_provider("_get_object_internal")
 
@@ -1387,8 +1352,7 @@ def test_subclass_customising_reads_still_paginates_filtered_listings(
 def test_subclass_overriding_iter_objects_keeps_streaming(
     fake_service, recording_provider, monkeypatch
 ):
-    """Overriding iter_objects opts a subclass in to streaming, even if it also
-    customises get_object reads."""
+    """Overriding iter_objects opts a subclass back in to streaming."""
     service = fake_service(_runs_collection())
     monkeypatch.setattr(service_module, "SERVICE_PAGE_SIZE", 2)
     provider = recording_provider("_get_object_internal", "iter_objects")

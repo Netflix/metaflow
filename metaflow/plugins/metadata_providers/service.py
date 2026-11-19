@@ -323,9 +323,7 @@ class ServiceMetadataProvider(MetadataProvider):
     def _paginates(cls, sub_type, attempt):
         """Whether this collection is listed with cursor pagination.
 
-        The single routing predicate shared by get_object and iter_objects.
-        The endpoint check needs no network call and runs first, so "self" and
-        per-attempt lookups never trigger the version ping.
+        The endpoint check runs first so it can skip the version ping.
         """
         return (
             cls._can_paginate_collection(sub_type, attempt)
@@ -334,17 +332,10 @@ class ServiceMetadataProvider(MetadataProvider):
 
     @classmethod
     def _overrides_materialized_listing(cls):
-        """Whether a subclass customises get_object reads but not iter_objects.
+        """Whether a subclass overrides get_object reads but not iter_objects.
 
-        Such a subclass (for example one that caches or reroutes reads in
-        get_object or _get_object_internal) predates streaming iteration and
-        expects every listing, MetaflowObject.__iter__ included, to go through
-        its override. iter_objects keeps it on the materialized path. Overriding
-        iter_objects opts back in to streaming.
-
-        A method counts as overridden when its first definition in the MRO comes
-        before ServiceMetadataProvider, so mixins count too and staticmethod or
-        plain-function overrides are handled.
+        Such subclasses (mixins included) predate streaming and expect all
+        listings to go through their override, so they stay materialized.
         """
         mro = cls.__mro__
         service_index = mro.index(ServiceMetadataProvider)
@@ -374,8 +365,7 @@ class ServiceMetadataProvider(MetadataProvider):
                 value = str(value)
             query[key] = value
 
-        # The namespace filter and the caller's required tags both become
-        # _tags:all, which the service matches against tags and system tags.
+        # Namespace filter and required tags are both sent as _tags:all.
         tag_filters = []
         for value in (filters or {}).values():
             if isinstance(value, (list, tuple, set, frozenset)):
@@ -383,9 +373,8 @@ class ServiceMetadataProvider(MetadataProvider):
             else:
                 tag_filters.append(str(value))
         tag_filters.extend(str(tag) for tag in required_tags)
-        # The service splits _tags:all on commas, so a tag that contains one
-        # would turn into several and wrongly exclude runs. Leave such tags out;
-        # the records are filtered client-side as well, so this only fetches more.
+        # The service splits _tags:all on commas, so skip tags containing one;
+        # they are still checked client-side.
         tag_filters = [tag for tag in tag_filters if "," not in tag]
         if tag_filters:
             current_tags = query.get("_tags:all")
@@ -473,8 +462,7 @@ class ServiceMetadataProvider(MetadataProvider):
                         raise
                     if first_page:
                         return
-                    # Records were already yielded; a truncated listing must
-                    # not pass as complete (nor as "not found").
+                    # Records were already yielded, so the listing is incomplete.
                     raise ServiceException(
                         "Metadata service returned 404 mid-listing for %s; "
                         "the listing is incomplete." % path
@@ -508,9 +496,7 @@ class ServiceMetadataProvider(MetadataProvider):
                     *args,
                     raise_on_missing=raise_on_missing,
                 )
-                # Unpaginated listings have no guaranteed order (the service's
-                # bulk endpoints do not ORDER BY), and this one is fully
-                # materialized anyway, so sort it to keep newest-first.
+                # Bulk listings are unordered; sort to keep newest first.
                 for record in MetadataProvider._newest_first(legacy):
                     yield record
                 return
@@ -562,12 +548,9 @@ class ServiceMetadataProvider(MetadataProvider):
                     return None
                 raise
 
-        # Newer services can stream collections, but get_object's contract is a
-        # concrete object-or-list, so we materialize the pages here to keep every
-        # existing caller unchanged. The result is atomic: a full listing or None,
-        # never a silently truncated list. Client listings (MetaflowObject.__iter__,
-        # Flow.runs()) go through iter_objects() instead, which yields page by
-        # page. Older services stay on the bulk GET.
+        # get_object returns a concrete object-or-list, so materialize the pages
+        # (atomically: a full listing or None). Client listings stream through
+        # iter_objects() instead. Older services stay on the bulk GET.
         if cls._paginates(sub_type, attempt):
             try:
                 return list(
@@ -594,17 +577,12 @@ class ServiceMetadataProvider(MetadataProvider):
     def iter_objects(cls, obj_type, sub_type, filters, attempt, *args, **kwargs):
         """Stream collection listings using cursor pagination when the service supports it.
 
-        Collections the service cannot paginate (older services, "self" and
-        per-attempt artifact lookups), and plain listings on subclasses that
-        customise get_object reads, go through the materialized base
-        implementation, which is backed by get_object.
+        Unpaginated collections, and unfiltered listings on subclasses that
+        override get_object reads, use the get_object-backed base implementation.
+        ``required_tags`` is only sent to the service on the paginated path.
 
         Like the base implementation, this is a generator: argument validation
         and capability errors surface when iteration starts, not at call time.
-
-        ``required_tags`` is a hint: on the paginated path the tags are sent as
-        a server-side filter, elsewhere they are ignored. Callers must still
-        check them on the records they get back.
         """
         query_filters = kwargs.pop("query_filters", None) or {}
         page_size = kwargs.pop("page_size", None)
@@ -626,9 +604,8 @@ class ServiceMetadataProvider(MetadataProvider):
                 % cls._MIN_SERVICE_VERSION_WITH_CURSOR_PAGINATION
             )
 
-        # Server-side filters only exist on the paginated endpoints, so a
-        # filtered listing stays paginated even for subclasses that customise
-        # get_object reads.
+        # Filtered listings ignore read overrides: only paginated endpoints
+        # support filters.
         if (
             not query_filters and cls._overrides_materialized_listing()
         ) or not cls._paginates(sub_type, attempt):
