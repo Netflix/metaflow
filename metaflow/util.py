@@ -570,7 +570,7 @@ def to_pascalcase(obj):
 
 def tar_safe_extract(tar, path=".", members=None, *, numeric_owner=False):
     def is_within_directory(abs_directory, target):
-        prefix = os.path.commonprefix([abs_directory, os.path.abspath(target)])
+        prefix = os.path.commonpath([abs_directory, os.path.abspath(target)])
         return prefix == abs_directory
 
     abs_directory = os.path.abspath(path)

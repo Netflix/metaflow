@@ -1,4 +1,5 @@
 import tarfile
+from metaflow.util import tar_safe_extract
 
 from io import BytesIO
 from typing import Any, IO, List, Optional, Union
@@ -86,7 +87,7 @@ class TarPackagingBackend(PackagingBackend):
         members: Optional[List[Any]] = None,
         dest_dir: str = ".",
     ) -> None:
-        archive.extractall(path=dest_dir, members=members)
+        tar_safe_extract(archive, path=dest_dir, members=members)
 
     @classmethod
     def cls_list_members(
