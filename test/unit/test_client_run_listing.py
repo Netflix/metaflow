@@ -2,8 +2,11 @@ from urllib.parse import parse_qs, urlsplit
 
 import pytest
 
-from metaflow.client.core import Flow, get_namespace, namespace
+from metaflow.client import core as client_core
+from metaflow.client.core import Flow, Run, Task, get_namespace, namespace
 from metaflow.exception import MetaflowException, MetaflowInternalError
+from metaflow.metadata_provider.metadata import MetadataProvider
+from metaflow.plugins.metadata_providers import service as service_module
 from metaflow.plugins.metadata_providers.local import LocalMetadataProvider
 from metaflow.plugins.metadata_providers.service import (
     ServiceException,
@@ -608,7 +611,8 @@ def local_flow(monkeypatch, tmp_path):
                 "system_tags": [],
             }
         if (obj_type, sub_type) == ("flow", "run"):
-            return list(runs)
+            # Like the real local provider, apply the namespace filter here.
+            return MetadataProvider._apply_filter(list(runs), filters)
         return []
 
     monkeypatch.setattr(
@@ -647,12 +651,8 @@ def test_flow_runs_rejects_server_filters_on_local_metadata(local_flow):
 def test_flow_runs_forwards_filters_and_bounds_results(mocker):
     captured = {}
 
-    def fake_iter_children(query_filters=None, page_size=None, required_tags=()):
-        captured.update(
-            query_filters=query_filters,
-            page_size=page_size,
-            required_tags=required_tags,
-        )
+    def fake_iter_children(query_filters=None, required_tags=()):
+        captured.update(query_filters=query_filters, required_tags=required_tags)
         yield from range(4)
 
     flow = mocker.Mock()
@@ -669,9 +669,6 @@ def test_flow_runs_forwards_filters_and_bounds_results(mocker):
     assert runs == [0, 1]
     assert captured == {
         "query_filters": {"status:eq": "failed"},
-        # Page size is a service transport detail read from
-        # METAFLOW_SERVICE_PAGE_SIZE, never a per-call argument.
-        "page_size": None,
         "required_tags": ("prod",),
     }
 
@@ -704,7 +701,7 @@ def test_flow_runs_accepts_mapping_subclasses(mocker):
 
     captured = {}
 
-    def fake_iter_children(query_filters=None, page_size=None, required_tags=()):
+    def fake_iter_children(query_filters=None, required_tags=()):
         captured.update(query_filters=query_filters)
         yield from ()
 
@@ -787,9 +784,9 @@ def test_get_object_internal_mid_page_404_returns_none(monkeypatch):
     assert len(calls) == 2
 
 
-def test_iter_objects_mid_page_404_ends_stream_with_first_page(monkeypatch):
-    """Streaming keeps what was fetched: a mid-pagination 404 just ends the
-    stream after the records already yielded."""
+def test_iter_objects_mid_page_404_raises_after_first_page(monkeypatch):
+    """A mid-listing 404 raises without a 404 http_code, so it is not
+    mistaken for a missing collection."""
     monkeypatch.setattr(
         ServiceMetadataProvider, "_version", classmethod(_paginating_version)
     )
@@ -803,10 +800,17 @@ def test_iter_objects_mid_page_404_ends_stream_with_first_page(monkeypatch):
 
     monkeypatch.setattr(ServiceMetadataProvider, "_request", classmethod(fake_request))
 
-    records = list(
-        ServiceMetadataProvider.iter_objects("flow", "run", None, None, "ExampleFlow")
-    )
-    assert [record["run_number"] for record in records] == [2]
+    yielded = []
+    with pytest.raises(ServiceException, match="listing is incomplete") as excinfo:
+        for record in ServiceMetadataProvider.iter_objects(
+            "flow", "run", None, None, "ExampleFlow"
+        ):
+            yielded.append(record)
+
+    assert [record["run_number"] for record in yielded] == [2]
+    assert excinfo.value.http_code is None
+    assert isinstance(excinfo.value.__cause__, ServiceException)
+    assert excinfo.value.__cause__.http_code == 404
     assert len(calls) == 2
 
 
@@ -855,3 +859,506 @@ def test_service_paginated_iterator_validates_before_any_http(monkeypatch):
     # 'flow' is not slotted below 'run' -> nonsensical; must raise before any call.
     with pytest.raises(MetaflowInternalError, match="not allowed"):
         list(ServiceMetadataProvider.iter_objects("run", "flow", None, None, "F", "1"))
+
+
+# --- MetaflowObject.__iter__ streams through iter_objects ---------------------
+
+_FLOW_RECORD = {
+    "flow_id": "ExampleFlow",
+    "ts_epoch": 0,
+    "tags": [],
+    "system_tags": [],
+}
+_RUN_RECORD = dict(_record(12), tags=[], system_tags=[])
+_TASK_RECORD = {
+    "flow_id": "ExampleFlow",
+    "run_number": 12,
+    "step_name": "start",
+    "task_id": "1",
+    "ts_epoch": 0,
+    "tags": [],
+    "system_tags": [],
+}
+
+
+def _step_record(name, ts):
+    return {
+        "flow_id": "ExampleFlow",
+        "run_number": 12,
+        "step_name": name,
+        "ts_epoch": ts,
+        "tags": [],
+        "system_tags": [],
+    }
+
+
+def _artifact_record(name, ts):
+    return {
+        "flow_id": "ExampleFlow",
+        "run_number": 12,
+        "step_name": "start",
+        "task_id": "1",
+        "name": name,
+        "ts_epoch": ts,
+        "tags": [],
+        "system_tags": [],
+    }
+
+
+class _FakeService(object):
+    """In-memory metadata service.
+
+    Paginated requests are served newest first with an offset cursor and honour
+    ``_tags:all`` (recorded in ``tag_filters``). Bulk GETs, and paginated
+    requests when ``honor_pagination=False``, get the whole collection oldest
+    first with no X-Limit header.
+    """
+
+    def __init__(self, collections, honor_pagination=True):
+        self.collections = collections
+        self.honor_pagination = honor_pagination
+        self.calls = []
+        self.tag_filters = []
+
+    def request(self, cls, monitor, path, method, **kwargs):
+        base, _, query = path.partition("?")
+        records = sorted(
+            self.collections[base], key=lambda r: r["ts_epoch"], reverse=True
+        )
+        if not kwargs.get("return_headers"):
+            self.calls.append((base, None))
+            return list(reversed(records)), None
+        params = parse_qs(query)
+        limit = int(params["_limit"][0])
+        offset = int(params.get("_cursor", ["0"])[0])
+        self.calls.append((base, offset))
+        if not self.honor_pagination:
+            return list(reversed(records)), {}
+        tag_filter = params.get("_tags:all", [None])[0]
+        self.tag_filters.append(tag_filter)
+        if tag_filter:
+            required = set(tag_filter.split(","))
+            records = [
+                r
+                for r in records
+                if required <= set(r.get("tags", []) + r.get("system_tags", []))
+            ]
+        headers = {"X-Limit": str(limit)}
+        if offset + limit < len(records):
+            headers["X-Next-Cursor"] = str(offset + limit)
+        return records[offset : offset + limit], headers
+
+
+@pytest.fixture
+def fake_service(monkeypatch):
+    """Return an installer that backs ServiceMetadataProvider with _FakeService."""
+    monkeypatch.setattr(ServiceMetadataProvider, "_INFO", "http://metadata")
+
+    def install(collections, version=PAGINATING_SERVICE_VERSION, honor_pagination=True):
+        service = _FakeService(collections, honor_pagination=honor_pagination)
+        _use_service_version(monkeypatch, version)
+
+        # Not classmethod(service.request): on Python 3.9/3.10 that drops cls.
+        def fake_request(cls, monitor, path, method, **kwargs):
+            return service.request(cls, monitor, path, method, **kwargs)
+
+        monkeypatch.setattr(
+            ServiceMetadataProvider, "_request", classmethod(fake_request)
+        )
+        # Child objects use the module-level current_metadata.
+        monkeypatch.setattr(client_core, "current_metadata", ServiceMetadataProvider)
+        return service
+
+    return install
+
+
+def _runs_collection():
+    return {
+        "/flows/ExampleFlow/runs": [
+            _record(1, tags=["prod"]),
+            _record(2, tags=["dev"]),
+            _record(3, tags=["prod"]),
+            _record(4, tags=["dev"]),
+            _record(5, tags=["prod"]),
+        ]
+    }
+
+
+def test_flow_iter_uses_iter_objects_not_get_object(fake_service, monkeypatch):
+    """Plain iteration streams pages; peeking fetches only the first."""
+    service = fake_service(_runs_collection())
+    monkeypatch.setattr(service_module, "SERVICE_PAGE_SIZE", 2)
+
+    internal_calls = []
+    original = ServiceMetadataProvider._get_object_internal.__func__
+
+    def spying_get_object_internal(cls, obj_type, obj_order, sub_type, *args):
+        internal_calls.append((obj_type, sub_type))
+        return original(cls, obj_type, obj_order, sub_type, *args)
+
+    monkeypatch.setattr(
+        ServiceMetadataProvider,
+        "_get_object_internal",
+        classmethod(spying_get_object_internal),
+    )
+
+    flow = Flow(_object=dict(_FLOW_RECORD), _namespace_check=False)
+
+    assert next(iter(flow)).id == "5"
+    assert service.calls == [("/flows/ExampleFlow/runs", 0)]
+
+    del service.calls[:]
+    assert flow.latest_run.id == "5"
+    assert service.calls == [("/flows/ExampleFlow/runs", 0)]
+
+    del service.calls[:]
+    assert [run.id for run in flow] == ["5", "4", "3", "2", "1"]
+    assert service.calls == [
+        ("/flows/ExampleFlow/runs", 0),
+        ("/flows/ExampleFlow/runs", 2),
+        ("/flows/ExampleFlow/runs", 4),
+    ]
+    assert ("flow", "run") not in internal_calls
+
+
+@pytest.mark.parametrize("provider", ["paginating", "legacy", "local"])
+def test_flow_iter_order_and_namespace_parity(provider, fake_service, request):
+    """All providers agree on order, namespace and tag filtering."""
+    if provider == "local":
+        # local_flow serves runs 1..3 (prod, dev, prod) oldest-first.
+        local_flow = request.getfixturevalue("local_flow")
+        metadata_str = local_flow._metaflow.metadata.metadata_str()
+        expected_all = ["3", "2", "1"]
+
+        def make_flow(**kwargs):
+            return Flow("ExampleFlow", _current_metadata=metadata_str, **kwargs)
+
+    else:
+        fake_service(
+            _runs_collection(),
+            version=(
+                PAGINATING_SERVICE_VERSION
+                if provider == "paginating"
+                else LEGACY_SERVICE_VERSION
+            ),
+        )
+        expected_all = ["5", "4", "3", "2", "1"]
+
+        def make_flow(**kwargs):
+            return Flow(_object=dict(_FLOW_RECORD), **kwargs)
+
+    # Odd run numbers are tagged "prod".
+    expected_prod = [run_id for run_id in expected_all if int(run_id) % 2 == 1]
+
+    assert [r.id for r in make_flow(_namespace_check=False)] == expected_all
+    assert [r.id for r in make_flow(_current_namespace="prod")] == expected_prod
+
+    unchecked = make_flow(_namespace_check=False)
+    assert [r.id for r in unchecked.runs("prod")] == expected_prod
+    assert [r.id for r in unchecked.runs("prod", max_runs=1)] == expected_prod[:1]
+    # The namespace and the tags must both match.
+    assert list(make_flow(_current_namespace="prod").runs("dev")) == []
+
+
+def test_flow_runs_sends_tags_to_a_paginating_service(fake_service, monkeypatch):
+    """runs(*tags) filters server-side when the service supports it."""
+    service = fake_service(
+        {
+            "/flows/ExampleFlow/runs": [_record(1, tags=["rare"])]
+            + [_record(n) for n in range(2, 7)]
+        }
+    )
+    monkeypatch.setattr(service_module, "SERVICE_PAGE_SIZE", 2)
+    flow = Flow(_object=dict(_FLOW_RECORD), _namespace_check=False)
+
+    # Without the server-side filter this would take three pages of two.
+    assert [run.id for run in flow.runs("rare", max_runs=1)] == ["1"]
+    assert service.calls == [("/flows/ExampleFlow/runs", 0)]
+    assert service.tag_filters == ["rare"]
+
+
+def test_flow_runs_tags_with_commas_are_only_filtered_client_side(fake_service):
+    """Tags containing commas are not sent to the service but still enforced."""
+    service = fake_service(
+        {
+            "/flows/ExampleFlow/runs": [
+                _record(1, tags=["a,b", "prod"]),
+                _record(2, tags=["a", "b", "prod"]),
+            ]
+        }
+    )
+    flow = Flow(_object=dict(_FLOW_RECORD), _namespace_check=False)
+
+    assert [run.id for run in flow.runs("a,b", "prod")] == ["1"]
+    assert service.tag_filters == ["prod"]
+
+
+@pytest.mark.parametrize(
+    "filters, required_tags, query_filters, expected",
+    [
+        (None, (), None, None),
+        ({"any_tags": "user:alice"}, (), None, "user:alice"),
+        ({"any_tags": "user:alice"}, ("prod", "dev"), None, "user:alice,prod,dev"),
+        (None, ("prod",), {"_tags:all": "explicit"}, "explicit,prod"),
+        ({"any_tags": "team,a"}, ("a,b", "prod"), None, "prod"),
+        ({"any_tags": "team,a"}, ("a,b",), None, None),
+    ],
+    ids=[
+        "nothing",
+        "namespace",
+        "namespace-and-tags",
+        "explicit-query-filter-first",
+        "comma-tags-dropped",
+        "only-comma-tags",
+    ],
+)
+def test_listing_query_tag_filter(filters, required_tags, query_filters, expected):
+    query = ServiceMetadataProvider._listing_query(
+        query_filters, filters, 10, None, required_tags
+    )
+    assert query.get("_tags:all") == expected
+
+
+def test_default_provider_iterator_ignores_required_tags_hint(monkeypatch):
+    """The default provider accepts and ignores required_tags."""
+    monkeypatch.setattr(
+        LocalMetadataProvider,
+        "get_object",
+        classmethod(lambda cls, *args: [_record(1), _record(2, tags=["prod"])]),
+    )
+
+    records = LocalMetadataProvider.iter_objects(
+        "flow", "run", None, None, "Flow", required_tags=("prod",)
+    )
+
+    assert [record["run_number"] for record in records] == [2, 1]
+
+
+def test_plain_iteration_passes_no_iterator_options(monkeypatch):
+    """Plain iteration works with iter_objects overrides lacking **kwargs."""
+
+    def narrow_iter_objects(cls, obj_type, sub_type, filters, attempt, *args):
+        return iter([_record(2), _record(1)])
+
+    monkeypatch.setattr(
+        LocalMetadataProvider, "iter_objects", classmethod(narrow_iter_objects)
+    )
+    monkeypatch.setattr(client_core, "current_metadata", LocalMetadataProvider)
+
+    flow = Flow(_object=dict(_FLOW_RECORD), _namespace_check=False)
+
+    assert [run.id for run in flow] == ["2", "1"]
+    assert [run.id for run in flow.runs()] == ["2", "1"]
+
+
+def test_attempt_scoped_task_artifacts_go_through_get_object(fake_service):
+    """Per-attempt artifacts use the bulk GET and are still newest first."""
+    path = "/flows/ExampleFlow/runs/12/steps/start/tasks/1/attempt/0/artifacts"
+    service = fake_service(
+        {
+            path: [
+                _artifact_record("a", 1000),
+                _artifact_record("b", 3000),
+                _artifact_record("c", 2000),
+            ]
+        }
+    )
+    task = Task(
+        "ExampleFlow/12/start/1",
+        _object=dict(_TASK_RECORD),
+        attempt=0,
+        _namespace_check=False,
+    )
+
+    assert [artifact.id for artifact in task] == ["b", "c", "a"]
+    assert service.calls == [(path, None)]
+
+
+def test_run_and_task_iter_hide_private_children_when_streaming(fake_service):
+    steps_path = "/flows/ExampleFlow/runs/12/steps"
+    artifacts_path = "/flows/ExampleFlow/runs/12/steps/start/tasks/1/artifacts"
+    service = fake_service(
+        {
+            steps_path: [
+                _step_record("_parameters", 1000),
+                _step_record("start", 2000),
+                _step_record("end", 3000),
+            ],
+            artifacts_path: [
+                _artifact_record("_foreach_stack", 1000),
+                _artifact_record("name", 2000),
+                _artifact_record("_task_ok", 3000),
+            ],
+        }
+    )
+
+    run = Run("ExampleFlow/12", _object=dict(_RUN_RECORD), _namespace_check=False)
+    task = Task(
+        "ExampleFlow/12/start/1", _object=dict(_TASK_RECORD), _namespace_check=False
+    )
+
+    assert [step.id for step in run] == ["end", "start"]
+    assert [artifact.id for artifact in task] == ["name"]
+    # Both went through the paginated path.
+    assert service.calls == [(steps_path, 0), (artifacts_path, 0)]
+
+
+def test_legacy_service_iteration_is_one_bulk_get(fake_service):
+    """Legacy services use one bulk GET; the client sorts newest first."""
+    service = fake_service(_runs_collection(), version=LEGACY_SERVICE_VERSION)
+
+    flow = Flow(_object=dict(_FLOW_RECORD), _namespace_check=False)
+
+    assert [run.id for run in flow] == ["5", "4", "3", "2", "1"]
+    assert service.calls == [("/flows/ExampleFlow/runs", None)]
+
+
+def test_iteration_stays_newest_first_when_service_stops_paginating(fake_service):
+    """A response without X-Limit falls back to the unordered bulk listing,
+    which the client sorts newest first."""
+    service = fake_service(_runs_collection(), honor_pagination=False)
+    path = "/flows/ExampleFlow/runs"
+
+    flow = Flow(_object=dict(_FLOW_RECORD), _namespace_check=False)
+
+    assert flow.latest_run.id == "5"
+    assert service.calls == [(path, 0), (path, None)]
+    assert [run.id for run in flow] == ["5", "4", "3", "2", "1"]
+
+
+def test_local_task_with_a_single_artifact_yields_it(monkeypatch):
+    """The local provider returns a bare dict for a single artifact."""
+    artifact = _artifact_record("only", 1000)
+    monkeypatch.setattr(
+        LocalMetadataProvider,
+        "get_object",
+        classmethod(lambda cls, *args: dict(artifact)),
+    )
+    monkeypatch.setattr(client_core, "current_metadata", LocalMetadataProvider)
+
+    task = Task(
+        "ExampleFlow/12/start/1", _object=dict(_TASK_RECORD), _namespace_check=False
+    )
+
+    assert [a.id for a in task] == ["only"]
+
+
+# --- Compatibility with subclasses that customise get_object reads -----------
+
+
+def _never_called(cls, *args, **kwargs):
+    raise AssertionError("shape-only override, never called")
+
+
+def _service_subclass(*overrides, bases=(ServiceMetadataProvider,), wrap=classmethod):
+    return type(
+        "CustomProvider", bases, {name: wrap(_never_called) for name in overrides}
+    )
+
+
+_ReadOverrideMixin = type(
+    "_ReadOverrideMixin",
+    (object,),
+    {"_get_object_internal": classmethod(_never_called)},
+)
+
+
+@pytest.mark.parametrize(
+    "provider, expected",
+    [
+        (ServiceMetadataProvider, False),
+        (_service_subclass(), False),
+        (_service_subclass("_get_object_internal"), True),
+        (_service_subclass("get_object"), True),
+        (_service_subclass("get_object", wrap=staticmethod), True),
+        (_service_subclass(bases=(_ReadOverrideMixin, ServiceMetadataProvider)), True),
+        (_service_subclass(bases=(_service_subclass("_get_object_internal"),)), True),
+        (_service_subclass("_get_object_internal", "iter_objects"), False),
+    ],
+    ids=[
+        "service",
+        "no-overrides",
+        "get_object_internal",
+        "get_object",
+        "staticmethod",
+        "mixin",
+        "inherited",
+        "iter_objects-opts-in",
+    ],
+)
+def test_overrides_materialized_listing(provider, expected):
+    assert provider._overrides_materialized_listing() is expected
+
+
+@pytest.fixture
+def recording_provider(monkeypatch):
+    """Factory for subclasses whose overrides pass through and record calls.
+
+    Call after ``fake_service``; it replaces the current metadata provider.
+    """
+
+    def make(*overrides):
+        calls = []
+
+        def passthrough(name):
+            def method(cls, *args, **kwargs):
+                calls.append(name)
+                return getattr(super(provider, cls), name)(*args, **kwargs)
+
+            return classmethod(method)
+
+        provider = type(
+            "RecordingProvider",
+            (ServiceMetadataProvider,),
+            {name: passthrough(name) for name in overrides},
+        )
+        provider.calls = calls
+        monkeypatch.setattr(client_core, "current_metadata", provider)
+        return provider
+
+    return make
+
+
+@pytest.mark.parametrize("override", ["get_object", "_get_object_internal"])
+def test_subclass_customising_reads_keeps_iteration_on_get_object(
+    override, fake_service, recording_provider
+):
+    """Subclasses overriding get_object reads keep plain iteration materialized."""
+    fake_service(_runs_collection())
+    provider = recording_provider(override)
+
+    flow = Flow(_object=dict(_FLOW_RECORD), _namespace_check=False)
+
+    assert [run.id for run in flow] == ["5", "4", "3", "2", "1"]
+    assert provider.calls == [override]
+
+
+def test_subclass_customising_reads_still_paginates_filtered_listings(
+    fake_service, recording_provider
+):
+    """Filtered listings paginate even when a subclass overrides reads."""
+    service = fake_service(_runs_collection())
+    provider = recording_provider("_get_object_internal")
+
+    flow = Flow(_object=dict(_FLOW_RECORD), _namespace_check=False)
+    runs = flow.runs(_filters={"status:eq": "failed"})
+
+    # The fake service ignores the filter itself; only the routing matters.
+    assert [run.id for run in runs] == ["5", "4", "3", "2", "1"]
+    assert provider.calls == []
+    assert service.calls == [("/flows/ExampleFlow/runs", 0)]
+
+
+def test_subclass_overriding_iter_objects_keeps_streaming(
+    fake_service, recording_provider, monkeypatch
+):
+    """Overriding iter_objects opts a subclass back in to streaming."""
+    service = fake_service(_runs_collection())
+    monkeypatch.setattr(service_module, "SERVICE_PAGE_SIZE", 2)
+    provider = recording_provider("_get_object_internal", "iter_objects")
+
+    flow = Flow(_object=dict(_FLOW_RECORD), _namespace_check=False)
+
+    assert next(iter(flow)).id == "5"
+    assert provider.calls == ["iter_objects"]
+    assert service.calls == [("/flows/ExampleFlow/runs", 0)]

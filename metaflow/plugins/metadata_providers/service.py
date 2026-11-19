@@ -320,7 +320,40 @@ class ServiceMetadataProvider(MetadataProvider):
         return sub_type != "self" and attempt is None
 
     @classmethod
-    def _listing_query(cls, query_filters, filters, page_size, cursor):
+    def _paginates(cls, sub_type, attempt):
+        """Whether this collection is listed with cursor pagination.
+
+        The endpoint check runs first so it can skip the version ping.
+        """
+        return (
+            cls._can_paginate_collection(sub_type, attempt)
+            and cls._service_supports_cursor_pagination()
+        )
+
+    @classmethod
+    def _overrides_materialized_listing(cls):
+        """Whether a subclass overrides get_object reads but not iter_objects.
+
+        Such subclasses (mixins included) predate streaming and expect all
+        listings to go through their override, so they stay materialized.
+        """
+        mro = cls.__mro__
+        service_index = mro.index(ServiceMetadataProvider)
+
+        def overridden(name):
+            for index, klass in enumerate(mro):
+                if name in vars(klass):
+                    return index < service_index
+            return False
+
+        return not overridden("iter_objects") and (
+            overridden("get_object") or overridden("_get_object_internal")
+        )
+
+    @classmethod
+    def _listing_query(
+        cls, query_filters, filters, page_size, cursor, required_tags=()
+    ):
         query = {}
         for key, value in (query_filters or {}).items():
             key = str(key)
@@ -332,12 +365,17 @@ class ServiceMetadataProvider(MetadataProvider):
                 value = str(value)
             query[key] = value
 
+        # Namespace filter and required tags are both sent as _tags:all.
         tag_filters = []
         for value in (filters or {}).values():
             if isinstance(value, (list, tuple, set, frozenset)):
                 tag_filters.extend(str(v) for v in value)
             else:
                 tag_filters.append(str(value))
+        tag_filters.extend(str(tag) for tag in required_tags)
+        # The service splits _tags:all on commas, so skip tags containing one;
+        # they are still checked client-side.
+        tag_filters = [tag for tag in tag_filters if "," not in tag]
         if tag_filters:
             current_tags = query.get("_tags:all")
             if current_tags:
@@ -383,6 +421,7 @@ class ServiceMetadataProvider(MetadataProvider):
         query_filters=None,
         page_size=None,
         raise_on_missing=False,
+        required_tags=(),
     ):
         page_size = SERVICE_PAGE_SIZE if page_size is None else page_size
         if isinstance(page_size, bool) or not isinstance(page_size, int):
@@ -400,9 +439,12 @@ class ServiceMetadataProvider(MetadataProvider):
         # yet), so pages arrive in the service's default order, which is
         # newest-first (descending ts_epoch). MetadataProvider.iter_objects
         # applies the same descending ts_epoch sort for legacy/local providers,
-        # so ordering stays consistent regardless of which path served the records.
+        # and the unpaginated fallback below sorts too, so ordering stays
+        # consistent regardless of which path served the records.
         while True:
-            page_query = cls._listing_query(query_filters, filters, page_size, cursor)
+            page_query = cls._listing_query(
+                query_filters, filters, page_size, cursor, required_tags
+            )
             page_path = "%s?%s" % (path, urlencode(page_query, doseq=True))
             try:
                 records, headers = cls._request(
@@ -415,10 +457,16 @@ class ServiceMetadataProvider(MetadataProvider):
                     # re-raise no matter which page 404'd, so the whole listing
                     # resolves to None and keeps legacy's atomic full-result-or-
                     # None contract (never a silently truncated partial list).
-                    # Streaming callers instead just end the stream here.
+                    # Streaming callers get an empty stream on a first-page 404.
                     if raise_on_missing:
                         raise
-                    return
+                    if first_page:
+                        return
+                    # Records were already yielded, so the listing is incomplete.
+                    raise ServiceException(
+                        "Metadata service returned 404 mid-listing for %s; "
+                        "the listing is incomplete." % path
+                    ) from ex
                 raise
             # Every page is checked, not just the first: during a rolling
             # deployment page 2 can land on an older instance that ignores our
@@ -448,7 +496,8 @@ class ServiceMetadataProvider(MetadataProvider):
                     *args,
                     raise_on_missing=raise_on_missing,
                 )
-                for record in legacy or []:
+                # Bulk listings are unordered; sort to keep newest first.
+                for record in MetadataProvider._newest_first(legacy):
                     yield record
                 return
 
@@ -499,24 +548,10 @@ class ServiceMetadataProvider(MetadataProvider):
                     return None
                 raise
 
-        # Newer services can stream collections, but get_object's contract is a
-        # concrete object-or-list, so we materialize the pages here to keep every
-        # existing caller unchanged. That trades some client-side memory for
-        # backward compatibility -- the goal of pagination here is to relieve
-        # server-side pressure, not client-side. Callers that need to stream
-        # large collections without materializing should go through
-        # iter_objects() / _iter_paginated_records (e.g. Flow.runs()), which
-        # yield page by page. Older services stay on the bulk GET.
-        #
-        # Possible follow-up (left for a future contributor): let the generic
-        # get_object / MetaflowObject.__iter__ path stream for new services too,
-        # so plain iteration is also memory-bounded. That requires changing
-        # get_object's object-or-list return contract, so it is intentionally
-        # out of scope here.
-        if (
-            cls._can_paginate_collection(sub_type, attempt)
-            and cls._service_supports_cursor_pagination()
-        ):
+        # get_object returns a concrete object-or-list, so materialize the pages
+        # (atomically: a full listing or None). Client listings stream through
+        # iter_objects() instead. Older services stay on the bulk GET.
+        if cls._paginates(sub_type, attempt):
             try:
                 return list(
                     cls._iter_paginated_records(
@@ -542,11 +577,16 @@ class ServiceMetadataProvider(MetadataProvider):
     def iter_objects(cls, obj_type, sub_type, filters, attempt, *args, **kwargs):
         """Stream collection listings using cursor pagination when the service supports it.
 
+        Unpaginated collections, and unfiltered listings on subclasses that
+        override get_object reads, use the get_object-backed base implementation.
+        ``required_tags`` is only sent to the service on the paginated path.
+
         Like the base implementation, this is a generator: argument validation
         and capability errors surface when iteration starts, not at call time.
         """
         query_filters = kwargs.pop("query_filters", None) or {}
         page_size = kwargs.pop("page_size", None)
+        required_tags = kwargs.pop("required_tags", None) or ()
         if kwargs:
             raise TypeError("Unexpected iterator options: %s" % ", ".join(kwargs))
 
@@ -556,22 +596,20 @@ class ServiceMetadataProvider(MetadataProvider):
         # reject exactly what the materialized get_object path rejects.
         obj_order, _ = cls._validate_object_query(obj_type, sub_type)
 
-        if not cls._service_supports_cursor_pagination():
-            if query_filters:
-                raise ServiceException(
-                    "Filtering requires a metadata service with pagination "
-                    "and filtering support (at least version %s). Please "
-                    "upgrade your service."
-                    % cls._MIN_SERVICE_VERSION_WITH_CURSOR_PAGINATION
-                )
-            for obj in super(ServiceMetadataProvider, cls).iter_objects(
-                obj_type, sub_type, filters, attempt, *args, page_size=page_size
-            ):
-                yield obj
-            return
+        if query_filters and not cls._service_supports_cursor_pagination():
+            raise ServiceException(
+                "Filtering requires a metadata service with pagination "
+                "and filtering support (at least version %s). Please "
+                "upgrade your service."
+                % cls._MIN_SERVICE_VERSION_WITH_CURSOR_PAGINATION
+            )
 
-        if not cls._can_paginate_collection(sub_type, attempt):
-            for obj in super(ServiceMetadataProvider, cls).iter_objects(
+        # Filtered listings ignore read overrides: only paginated endpoints
+        # support filters.
+        if (
+            not query_filters and cls._overrides_materialized_listing()
+        ) or not cls._paginates(sub_type, attempt):
+            records = super(ServiceMetadataProvider, cls).iter_objects(
                 obj_type,
                 sub_type,
                 filters,
@@ -579,20 +617,20 @@ class ServiceMetadataProvider(MetadataProvider):
                 *args,
                 query_filters=query_filters,
                 page_size=page_size,
-            ):
-                yield obj
-            return
-
-        for obj in cls._iter_paginated_records(
-            obj_type,
-            obj_order,
-            sub_type,
-            filters,
-            attempt,
-            *args,
-            query_filters=query_filters,
-            page_size=page_size,
-        ):
+            )
+        else:
+            records = cls._iter_paginated_records(
+                obj_type,
+                obj_order,
+                sub_type,
+                filters,
+                attempt,
+                *args,
+                query_filters=query_filters,
+                page_size=page_size,
+                required_tags=required_tags,
+            )
+        for obj in records:
             yield obj
 
     def _new_run(self, run_id=None, tags=None, sys_tags=None):

@@ -454,16 +454,32 @@ class MetadataProvider(object):
             pre_filter, attempt_int
         )
 
+    @staticmethod
+    def _newest_first(objects):
+        """Sort a get_object listing newest first (descending ts_epoch).
+
+        ``objects`` may be None, a list, or a bare dict (local provider, one record).
+        """
+        if isinstance(objects, dict):
+            objects = [objects]
+        return sorted(
+            objects or [],
+            key=lambda obj: obj.get("ts_epoch") or 0,
+            reverse=True,
+        )
+
     @classmethod
     def iter_objects(cls, obj_type, sub_type, filters, attempt, *args, **kwargs):
-        """Iterate over a collection returned by ``get_object``.
+        """Iterate over a collection returned by ``get_object``, newest first.
 
         Providers can override this method to stream records without materializing the
-        complete collection. ``query_filters`` and ``page_size`` are optional provider
-        hints; the default implementation supports only unfiltered iteration.
+        complete collection. ``query_filters``, ``page_size`` and ``required_tags`` are
+        optional provider hints; the default implementation supports only unfiltered
+        iteration and ignores ``required_tags``, which callers always re-check.
         """
         query_filters = kwargs.pop("query_filters", None)
         page_size = kwargs.pop("page_size", None)
+        kwargs.pop("required_tags", None)
         if kwargs:
             raise TypeError("Unexpected iterator options: %s" % ", ".join(kwargs))
         if query_filters:
@@ -478,19 +494,7 @@ class MetadataProvider(object):
                 raise ValueError("page_size must be positive")
 
         objects = cls.get_object(obj_type, sub_type, filters, attempt, *args)
-        if isinstance(objects, dict):
-            objects = [objects]
-        # Yield newest-first (descending ts_epoch). This mirrors the order the
-        # metadata service returns for paginated listings, so callers see a
-        # consistent order whether records came from the service or a legacy /
-        # local provider. ts_epoch may be missing on some records, so fall back
-        # to 0 to keep the sort total.
-        objects = sorted(
-            objects or [],
-            key=lambda obj: obj.get("ts_epoch") or 0,
-            reverse=True,
-        )
-        for obj in objects:
+        for obj in MetadataProvider._newest_first(objects):
             yield obj
 
     @classmethod

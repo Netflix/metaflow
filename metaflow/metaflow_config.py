@@ -297,7 +297,7 @@ SERVICE_RETRY_COUNT = from_conf("SERVICE_RETRY_COUNT", 5)
 # iterator either way -- so it is configured here instead of per call. The
 # service caps a page at 500 records; larger values are clamped client-side.
 SERVICE_PAGE_SIZE = int(
-    from_conf("SERVICE_PAGE_SIZE", 100, validate_fn=get_validate_positive_int_fn())
+    from_conf("SERVICE_PAGE_SIZE", 500, validate_fn=get_validate_positive_int_fn())
 )
 SERVICE_AUTH_KEY = from_conf("SERVICE_AUTH_KEY")
 SERVICE_HEADERS = from_conf("SERVICE_HEADERS", {})
