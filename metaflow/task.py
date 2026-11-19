@@ -5,6 +5,9 @@ import sys
 import os
 import time
 import traceback
+import signal
+import threading
+from contextlib import contextmanager
 
 from types import MethodType, FunctionType
 
@@ -33,6 +36,37 @@ from metaflow.tuple_util import ForeachFrame
 
 # Maximum number of characters of the foreach path that we store in the metadata.
 MAX_FOREACH_PATH_LENGTH = 256
+
+
+@contextmanager
+def _handle_task_sigterm(flow):
+    finalizing = False
+
+    def begin_finalization():
+        nonlocal finalizing
+        finalizing = True
+
+    if threading.current_thread() is not threading.main_thread():
+        yield begin_finalization
+        return
+    previous = signal.getsignal(signal.SIGTERM)
+    if previous != signal.SIG_DFL:
+        yield begin_finalization
+        return
+
+    def terminate(signum, frame):
+        if not finalizing:
+            begin_finalization()
+            flow._task_ok = False
+            flow._success = False
+            raise SystemExit(128 + signum)
+
+    signal.signal(signal.SIGTERM, terminate)
+    try:
+        yield begin_finalization
+    finally:
+        if signal.getsignal(signal.SIGTERM) is terminate:
+            signal.signal(signal.SIGTERM, previous)
 
 
 class MetaflowTask(object):
@@ -796,7 +830,9 @@ class MetaflowTask(object):
         start = time.time()
         self.metadata.start_task_heartbeat(self.flow.name, run_id, step_name, task_id)
         from_start("MetaflowTask: heartbeat started")
-        with self.monitor.measure("metaflow.task.duration"):
+        with _handle_task_sigterm(
+            self.flow
+        ) as begin_finalization, self.monitor.measure("metaflow.task.duration"):
             try:
                 with self.monitor.count("metaflow.task.start"):
                     _system_logger.log_event(
@@ -985,6 +1021,8 @@ class MetaflowTask(object):
                     raise
 
             finally:
+                # Once the step has ended, preserve its outcome and finish cleanup.
+                begin_finalization()
                 from_start("MetaflowTask: decorators finalized")
                 if self.ubf_context == UBF_CONTROL:
                     self._finalize_control_task()
