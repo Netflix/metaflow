@@ -545,13 +545,10 @@ class CardComponentCollector:
         if len(editable_cards_meta) == 0:
             return
 
-        # Create the `self._card_id_map` lookup table which maps card `id` to `uuid`.
-        # This table has access to all cards with `id`s set to them.
-        card_ids = []
-        for card_meta in all_card_meta:
-            if card_meta["card_id"] is not None:
-                self._card_id_map[card_meta["card_id"]] = card_meta["uuid"]
-                card_ids.append(card_meta["card_id"])
+        # Resolve card IDs before any early returns to avoid duplicate ID issues (#3347).
+        # This ensures both IndexError from non-editable duplicates and silent content loss
+        # are prevented.
+        self._resolve_card_ids(all_card_meta, editable_cards_meta)
 
         # If there is only one editable card then this card becomes `self._default_editable_card`
         if len(editable_cards_meta) == 1:
@@ -566,30 +563,6 @@ class CardComponentCollector:
         if len(none_id_cards) == 1:
             self._default_editable_card = none_id_cards[0]["uuid"]
 
-        # If the size of the set of ids is not equal to total number of cards with ids then warn the user that we cannot disambiguate
-        # so `current.card['my_card_id']` won't work.
-        id_set = set(card_ids)
-        if len(card_ids) != len(id_set):
-            non_unique_ids = [
-                idx
-                for idx in id_set
-                if len(list(filter(lambda x: x["card_id"] == idx, not_none_id_cards)))
-                > 1
-            ]
-            nui = ", ".join(non_unique_ids)
-            # throw a warning that decorators have non-unique Ids
-            self._warning(
-                (
-                    "Multiple `@card` decorator have been annotated with duplicate ids : %s. "
-                    "`current.card['%s']` will not work"
-                )
-                % (nui, non_unique_ids[0])
-            )
-
-            # remove the non unique ids from the `self._card_id_map`
-            for idx in non_unique_ids:
-                del self._card_id_map[idx]
-
         # if a @card has `customize=True` in the arguments then there should only be one @card with `customize=True`. This @card will be the _default_editable_card
         customize_cards = [c for c in editable_cards_meta if c["customize"]]
         if len(customize_cards) > 1:
@@ -603,6 +576,49 @@ class CardComponentCollector:
         elif len(customize_cards) == 1:
             # since `editable_cards_meta` hold only `editable=True` by default we can just set this card here.
             self._default_editable_card = customize_cards[0]["uuid"]
+
+    def _resolve_card_ids(self, all_card_meta, editable_cards_meta):
+        """
+        Resolve card IDs and populate self._card_id_map.
+
+        When duplicate IDs exist:
+        - If exactly one colliding card is editable, resolve the ID to that card
+        - Otherwise, remove the ID from the map and warn
+
+        This fixes issue #3347 where duplicate IDs between editable and non-editable
+        cards caused IndexError or silent content loss.
+        """
+        # Group cards by their ID
+        cards_by_id = {}
+        for card_meta in all_card_meta:
+            card_id = card_meta["card_id"]
+            if card_id is not None:
+                if card_id not in cards_by_id:
+                    cards_by_id[card_id] = []
+                cards_by_id[card_id].append(card_meta)
+
+        # Resolve each ID
+        for card_id, cards_with_id in cards_by_id.items():
+            if len(cards_with_id) == 1:
+                # No collision, simple case
+                self._card_id_map[card_id] = cards_with_id[0]["uuid"]
+            else:
+                # Collision: check if exactly one is editable
+                editable_with_id = [c for c in cards_with_id if c["editable"]]
+                if len(editable_with_id) == 1:
+                    # Exactly one editable card with this ID: prefer it
+                    self._card_id_map[card_id] = editable_with_id[0]["uuid"]
+                else:
+                    # Multiple editable cards or no editable cards with this ID: warn and drop
+                    card_types = ", ".join(c["type"] for c in cards_with_id)
+                    self._warning(
+                        (
+                            "Multiple `@card` decorators have duplicate id '%s' (%s). "
+                            "`current.card['%s']` will not work."
+                        )
+                        % (card_id, card_types, card_id)
+                    )
+                    # Do not add this ID to the map
 
     def __getitem__(self, key):
         """
