@@ -1,7 +1,7 @@
 import pytest
 
 from metaflow.exception import MetaflowException
-from metaflow.plugins.aws.aws_utils import validate_aws_tag
+from metaflow.plugins.aws.aws_utils import parse_aws_tag, validate_aws_tag
 
 
 @pytest.mark.parametrize(
@@ -52,3 +52,19 @@ def test_validate_aws_tag_not_permitted_message(key, value, expected_prefix):
         validate_aws_tag(key, value)
 
     assert str(exc_info.value).startswith(expected_prefix)
+
+
+@pytest.mark.parametrize(
+    "tag_str, expected_key, expected_val",
+    [
+        ("team=ml", "team", "ml"),
+        ("query=env=prod", "query", "env=prod"),
+        ("k=a=b=c", "k", "a=b=c"),
+    ],
+)
+def test_parse_aws_tag(tag_str, expected_key, expected_val):
+    key, val = parse_aws_tag(tag_str)
+    assert key == expected_key
+    assert val == expected_val
+
+

@@ -20,8 +20,7 @@ from metaflow.util import get_username, to_bytes, to_unicode, version_parse
 
 from .production_token import load_token, new_token, store_token
 from .step_functions import StepFunctions
-from metaflow.tagging_util import validate_tags
-from ..aws_utils import validate_aws_tag
+from ..aws_utils import parse_aws_tag, validate_aws_tag
 
 VALID_NAME = re.compile(r"[^a-zA-Z0-9_\-\.]")
 
@@ -378,7 +377,7 @@ def make_flow(
     if aws_batch_tags is not None:
         batch_tags = {}
         for item in list(aws_batch_tags):
-            key, value = item.split("=")
+            key, value = parse_aws_tag(item)
             # These are fresh AWS tags provided by the user through the CLI,
             # so we must validate them.
             validate_aws_tag(key, value)
