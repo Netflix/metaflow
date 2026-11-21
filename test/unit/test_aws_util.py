@@ -1,7 +1,7 @@
 import pytest
 
 from metaflow.exception import MetaflowException
-from metaflow.plugins.aws.aws_utils import validate_aws_tag
+from metaflow.plugins.aws.aws_utils import get_docker_registry, validate_aws_tag
 
 
 @pytest.mark.parametrize(
@@ -52,3 +52,39 @@ def test_validate_aws_tag_not_permitted_message(key, value, expected_prefix):
         validate_aws_tag(key, value)
 
     assert str(exc_info.value).startswith(expected_prefix)
+
+
+@pytest.mark.parametrize(
+    "image_uri, expected_registry",
+    [
+        # Examples from the get_docker_registry docstring.
+        ("image", None),
+        ("example/image", None),
+        ("example/image:tag", None),
+        ("example.domain.com/example/image:tag", "example.domain.com"),
+        ("123.123.123.123:123/example/image:tag", "123.123.123.123:123"),
+        ("example.domain.com/example/image@sha256:45b23dee0", "example.domain.com"),
+        ("python:3.11", None),
+        ("localhost:5000/image:tag", "localhost:5000"),
+        # Only the first path component can be a registry, even when a later
+        # component contains "." or ":".
+        ("myorg/cuda12.1/base:latest", None),
+        ("myorg/team.ml/trainer", None),
+        ("registry.example.com/myorg/cuda12.1/base:latest", "registry.example.com"),
+    ],
+    ids=[
+        "name-only",
+        "namespace",
+        "namespace-tag",
+        "domain",
+        "ip-port",
+        "domain-digest",
+        "official-image-tag",
+        "localhost-port",
+        "dot-in-later-component-tag",
+        "dot-in-later-component",
+        "domain-and-dot-in-later-component",
+    ],
+)
+def test_get_docker_registry(image_uri, expected_registry):
+    assert get_docker_registry(image_uri) == expected_registry
