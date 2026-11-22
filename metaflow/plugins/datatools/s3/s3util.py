@@ -13,7 +13,6 @@ from metaflow.metaflow_config import (
     RETRY_WARNING_THRESHOLD,
 )
 
-
 TEST_S3_RETRY = "TEST_S3_RETRY" in os.environ
 
 TRANSIENT_RETRY_LINE_CONTENT = "<none>"

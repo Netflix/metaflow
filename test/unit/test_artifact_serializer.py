@@ -8,7 +8,6 @@ from metaflow.datastore.artifacts.serializer import (
     SerializerStore,
 )
 
-
 # Snapshot the registry before this module's classes are defined. Module-level
 # test serializers (_HighPrioritySerializer, ...) self-register at class
 # definition time; the module-scoped fixture below removes them at teardown so

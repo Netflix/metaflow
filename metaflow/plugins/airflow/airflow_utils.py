@@ -5,7 +5,6 @@ import platform
 from collections import defaultdict
 from datetime import datetime, timedelta
 
-
 TASK_ID_XCOM_KEY = "metaflow_task_id"
 FOREACH_CARDINALITY_XCOM_KEY = "metaflow_foreach_cardinality"
 FOREACH_XCOM_KEY = "metaflow_foreach_indexes"
