@@ -4,14 +4,13 @@ from metaflow.exception import MetaflowException
 
 
 def parse_s3_full_path(s3_uri):
-    from urllib.parse import urlparse
+    # An S3 key can contain "?" and "#". urlparse would take them for the start of the
+    # query and the fragment and cut the key off at the first of them, so only the scheme
+    # and the bucket are split off here and the rest is the key.
+    scheme, _, rest = s3_uri.partition("://")
+    assert scheme.lower() == "s3"
 
-    #  <scheme>://<netloc>/<path>;<params>?<query>#<fragment>
-    scheme, netloc, path, _, _, _ = urlparse(s3_uri)
-    assert scheme == "s3"
-    assert netloc is not None
-
-    bucket = netloc
+    bucket, _, path = rest.partition("/")
     path = path.lstrip("/").rstrip("/")
     if path == "":
         path = None
