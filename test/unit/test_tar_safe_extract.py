@@ -29,6 +29,15 @@ def _make_tar(entries):
 def mode(request, monkeypatch):
     # Exercise both the extraction-filter path and the pre-filter fallback.
     if request.param == "fallback":
+        # Python 3.14+ resolves extractall()'s default filter to
+        # tarfile.data_filter, so restore the pre-3.14 default (no filtering)
+        # before removing it to model an interpreter without filters.
+        if hasattr(tarfile, "fully_trusted_filter"):
+            monkeypatch.setattr(
+                tarfile.TarFile,
+                "extraction_filter",
+                staticmethod(tarfile.fully_trusted_filter),
+            )
         monkeypatch.delattr(tarfile, "data_filter", raising=False)
     elif not hasattr(tarfile, "data_filter"):
         pytest.skip("tarfile extraction filters not available")
