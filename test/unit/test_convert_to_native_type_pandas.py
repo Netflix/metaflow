@@ -103,3 +103,40 @@ class TestFromDataframeDoesNotMutateInput(unittest.TestCase):
 
     def test_truncate_true_preserves_input(self):
         self._assert_not_mutated(self._build_df(), truncate=True)
+
+
+class TestPandasMultiIndexConversion(unittest.TestCase):
+    """MultiIndex levels must convert even when their names are None or repeated."""
+
+    def _convert(self, names):
+        df = pd.DataFrame(
+            {"value": [10, 20]},
+            index=pd.MultiIndex.from_tuples([("a", 1), ("b", 2)], names=names),
+        )
+        return TaskToDict()._parse_pandas_dataframe(df)
+
+    def test_named_levels(self):
+        self.assertEqual(
+            self._convert(["letter", "number"])["data"],
+            [[("a", 1), 10], [("b", 2), 20]],
+        )
+
+    def test_unnamed_levels(self):
+        self.assertEqual(
+            self._convert([None, None])["data"],
+            [[("a", 1), 10], [("b", 2), 20]],
+        )
+
+    def test_duplicate_named_levels(self):
+        self.assertEqual(
+            self._convert(["x", "x"])["data"],
+            [[("a", 1), 10], [("b", 2), 20]],
+        )
+
+    def test_integer_named_levels(self):
+        for names in ([1, 0], ["x", 0]):
+            with self.subTest(names=names):
+                self.assertEqual(
+                    self._convert(names)["data"],
+                    [[("a", 1), 10], [("b", 2), 20]],
+                )
