@@ -1,7 +1,7 @@
 import pytest
 
 from metaflow.exception import MetaflowException
-from metaflow.plugins.aws.aws_utils import validate_aws_tag
+from metaflow.plugins.aws.aws_utils import parse_s3_full_path, validate_aws_tag
 
 
 @pytest.mark.parametrize(
@@ -52,3 +52,33 @@ def test_validate_aws_tag_not_permitted_message(key, value, expected_prefix):
         validate_aws_tag(key, value)
 
     assert str(exc_info.value).startswith(expected_prefix)
+
+
+@pytest.mark.parametrize(
+    "s3_uri, expected",
+    [
+        ("s3://bucket/key", ("bucket", "key")),
+        ("s3://bucket/a/b/c.txt", ("bucket", "a/b/c.txt")),
+        ("s3://bucket/dir/", ("bucket", "dir")),
+        ("s3://bucket//dir//", ("bucket", "dir")),
+        ("s3://bucket/", ("bucket", None)),
+        ("s3://bucket", ("bucket", None)),
+        ("S3://bucket/key", ("bucket", "key")),
+        ("s3://bucket/a key/b", ("bucket", "a key/b")),
+        # "#" is valid in an S3 key and the S3 tools keep it when they upload (they
+        # parse with allow_fragments=False), so it must not cut the key off here.
+        ("s3://bucket/run#1/data", ("bucket", "run#1/data")),
+        ("s3://bucket/dir#2/", ("bucket", "dir#2")),
+        ("s3://bucket/a#b#c", ("bucket", "a#b#c")),
+    ],
+)
+def test_parse_s3_full_path(s3_uri, expected):
+    assert parse_s3_full_path(s3_uri) == expected
+
+
+@pytest.mark.parametrize(
+    "s3_uri", ["gs://bucket/key", "http://bucket/key", "bucket/key"]
+)
+def test_parse_s3_full_path_requires_s3_scheme(s3_uri):
+    with pytest.raises(AssertionError):
+        parse_s3_full_path(s3_uri)

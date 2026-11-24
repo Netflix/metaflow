@@ -7,7 +7,9 @@ def parse_s3_full_path(s3_uri):
     from urllib.parse import urlparse
 
     #  <scheme>://<netloc>/<path>;<params>?<query>#<fragment>
-    scheme, netloc, path, _, _, _ = urlparse(s3_uri)
+    # Without allow_fragments=False the path of a key with a "#" in it is cut off. The S3
+    # tools parse the URLs they upload to in the same way, so the keys have to match.
+    scheme, netloc, path, _, _, _ = urlparse(s3_uri, allow_fragments=False)
     assert scheme == "s3"
     assert netloc is not None
 
