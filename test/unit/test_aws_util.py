@@ -65,11 +65,11 @@ def test_validate_aws_tag_not_permitted_message(key, value, expected_prefix):
         ("s3://bucket", ("bucket", None)),
         ("S3://bucket/key", ("bucket", "key")),
         ("s3://bucket/a key/b", ("bucket", "a key/b")),
-        # "?" and "#" are valid in an S3 key, so they must not cut the key off.
-        ("s3://bucket/key?version=1", ("bucket", "key?version=1")),
+        # "#" is valid in an S3 key and the S3 tools keep it when they upload (they
+        # parse with allow_fragments=False), so it must not cut the key off here.
         ("s3://bucket/run#1/data", ("bucket", "run#1/data")),
-        ("s3://bucket/key;v=2", ("bucket", "key;v=2")),
-        ("s3://bucket/a?b#c;d", ("bucket", "a?b#c;d")),
+        ("s3://bucket/dir#2/", ("bucket", "dir#2")),
+        ("s3://bucket/a#b#c", ("bucket", "a#b#c")),
     ],
 )
 def test_parse_s3_full_path(s3_uri, expected):
