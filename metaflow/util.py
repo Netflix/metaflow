@@ -2,6 +2,7 @@ import json
 import os
 import shutil
 import sys
+import tarfile
 import tempfile
 import zlib
 import base64
@@ -569,16 +570,30 @@ def to_pascalcase(obj):
 
 
 def tar_safe_extract(tar, path=".", members=None, *, numeric_owner=False):
-    def is_within_directory(abs_directory, target):
-        prefix = os.path.commonprefix([abs_directory, os.path.abspath(target)])
-        return prefix == abs_directory
+    # Python 3.12+ (and security backports to 3.8.17+, 3.9.17+, 3.10.12+,
+    # 3.11.4+) ship extraction filters that also handle links, device files
+    # and unsafe permissions. Prefer them when available.
+    if hasattr(tarfile, "data_filter"):
+        tar.extractall(path, members, numeric_owner=numeric_owner, filter="data")
+        return
 
-    abs_directory = os.path.abspath(path)
-    if any(
-        not is_within_directory(abs_directory, os.path.join(path, member.name))
-        for member in tar.getmembers()
-    ):
-        raise Exception("Attempted path traversal in TAR file")
+    abs_directory = os.path.realpath(path)
+
+    def is_within_directory(target):
+        target = os.path.realpath(target)
+        # commonpath compares whole path components, unlike commonprefix
+        # (which would accept "/tmp/foobar" as being inside "/tmp/foo").
+        return os.path.commonpath([abs_directory, target]) == abs_directory
+
+    members = list(tar.getmembers() if members is None else members)
+    for member in members:
+        if not is_within_directory(os.path.join(abs_directory, member.name)):
+            raise Exception("Attempted path traversal in TAR file")
+        # Without extraction filters we cannot reliably validate link targets
+        # (a chain of links can redirect later members outside `path`), so
+        # links are rejected outright on these older Python versions.
+        if member.issym() or member.islnk():
+            raise Exception("Links are not supported in TAR file")
 
     tar.extractall(path, members, numeric_owner=numeric_owner)
 
