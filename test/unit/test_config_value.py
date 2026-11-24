@@ -1,3 +1,4 @@
+import copy
 import json
 
 import pytest
@@ -93,3 +94,10 @@ def test_dict_like_behavior():
 
     for v in c_value.values():
         assert v in orig_dict.values()
+
+
+@pytest.mark.parametrize("copier", [lambda c: c.copy(), copy.copy])
+def test_copy_json_roundtrip(copier):
+    config = ConfigValue({"batch": {"size": 32}, "enabled": False})
+    copied = copier(config)
+    assert json.loads(json.dumps(copied)) == config.to_dict()

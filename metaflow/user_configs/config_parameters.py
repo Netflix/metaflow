@@ -217,6 +217,8 @@ class ConfigValue(collections.abc.Mapping, dict):
         cls = self.__class__
         result = cls.__new__(cls)
         result.__dict__.update({k: copy.copy(v) for k, v in self.__dict__.items()})
+        # Re-populate the base dict (as __init__ does) so json.dumps sees the items
+        dict.__init__(result, result._data)
         return result
 
     def __repr__(self) -> str:
