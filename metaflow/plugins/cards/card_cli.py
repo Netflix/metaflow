@@ -349,7 +349,12 @@ def card(ctx):
     )
     metadata(setting_metadata)
     # set the card root to the datastore according to the configuration.
-    root_pth = CardDatastore.get_storage_root(ctx.obj.flow_datastore._storage_impl.TYPE)
+    # Pass the already-resolved artifact datastore root so local/spin cards stay
+    # under that root when no explicit CARD_LOCALROOT is configured.
+    root_pth = CardDatastore.get_storage_root(
+        ctx.obj.flow_datastore._storage_impl.TYPE,
+        datastore_root=ctx.obj.flow_datastore.datastore_root,
+    )
     if root_pth is not None:
         ctx.obj.flow_datastore._storage_impl.datastore_root = root_pth
 
