@@ -824,8 +824,10 @@ class FlowSpec(metaclass=FlowSpecMeta):
                     and (var not in INTERNAL_ARTIFACTS_SET)
                 )
             for var, sha in available_vars:
-                _, previous_sha = to_merge.setdefault(var, (inp, sha))
-                if previous_sha != sha:
+                first_inp, previous_sha = to_merge.setdefault(var, (inp, sha))
+                if previous_sha != sha and not self._same_artifact_value(
+                    var, first_inp, inp
+                ):
                     # We have a conflict here
                     unresolved.append(var)
         # Check if everything in include is present in to_merge
@@ -858,6 +860,20 @@ class FlowSpec(metaclass=FlowSpecMeta):
         # If things are resolved, we pass down the variables from the input datastores
         for var, (inp, _) in to_merge.items():
             self._datastore.passdown_partial(inp._datastore, [var])
+
+    @staticmethod
+    def _same_artifact_value(name, first_inp, second_inp):
+        # Different hashes do not always mean different values: a step that only
+        # reads an artifact persists it again, and pickling is not deterministic
+        # (the order of a set of strings depends on the per-process hash seed).
+        # We only get here for what would otherwise be a conflict, so loading the
+        # values does not cost anything on the common path.
+        try:
+            first = first_inp._datastore[name]
+            second = second_inp._datastore[name]
+            return type(first) is type(second) and (first == second) is True
+        except Exception:
+            return False
 
     def _validate_ubf_step(self, step_name):
         join_list = self._graph[step_name].out_funcs
