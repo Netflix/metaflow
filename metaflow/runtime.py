@@ -9,7 +9,6 @@ from __future__ import print_function
 import json
 import os
 import sys
-import fcntl
 import re
 import tempfile
 import time
@@ -64,6 +63,8 @@ import metaflow.tracing as tracing
 MAX_WORKERS = 16
 MAX_NUM_SPLITS = 100
 MAX_LOG_SIZE = 1024 * 1024
+LOG_READ_SIZE = 64 * 1024
+MAX_PARTIAL_LOG_LINE = 1024 * 1024
 POLL_TIMEOUT = 1000  # ms
 PROGRESS_INTERVAL = 300  # s
 # The following is a list of the (data) artifacts used by the runtime while
@@ -2275,6 +2276,13 @@ class Worker(object):
             self._proc.stderr.fileno(): (self._proc.stderr, self._stderr),
             self._proc.stdout.fileno(): (self._proc.stdout, self._stdout),
         }
+        # Bytes read from each stream that are not yet terminated by a newline
+        self._partial_lines = {fd: b"" for fd in self._logs}
+        # The runtime is a single loop serving all workers, so reading from a worker
+        # must never block. The pipes can also stay open after the worker exits since
+        # subprocesses launched by it, e.g. sidecars, inherit them.
+        for fd in self._logs:
+            os.set_blocking(fd, False)
 
         self._encoding = sys.stdout.encoding or "UTF-8"
         self.killed = False  # Killed indicates that the task was forcibly killed
@@ -2335,8 +2343,8 @@ class Worker(object):
         env["PYTHONUNBUFFERED"] = "x"
         env["METAFLOW_RUN_ID"] = str(self.task.run_id)
         tracing.inject_tracing_vars(env)
-        # NOTE bufsize=1 below enables line buffering which is required
-        # by read_logline() below that relies on readline() not blocking
+        # NOTE bufsize=0 below is required since read_logline() reads the file
+        # descriptors directly, so nothing may be left in a Python-level buffer
         # print('running', args)
         cmdline = args.get_args()
         from_start(f"Command line: {' '.join(cmdline)}")
@@ -2344,7 +2352,7 @@ class Worker(object):
         return subprocess.Popen(
             cmdline,
             env=env,
-            bufsize=1,
+            bufsize=0,
             stdin=subprocess.PIPE,
             stderr=subprocess.PIPE,
             stdout=subprocess.PIPE,
@@ -2386,15 +2394,23 @@ class Worker(object):
         )
 
     def read_logline(self, fd):
-        fileobj, buf = self._logs[fd]
-        # readline() below should never block thanks to polling and
-        # line buffering. If it does, things will deadlock
-        line = fileobj.readline()
-        if line:
-            self.emit_log(line, buf)
-            return True
-        else:
+        # Emits all the complete lines available on fd and returns True if there was
+        # anything to read. An incomplete line is kept until the rest of it arrives.
+        _, buf = self._logs[fd]
+        try:
+            data = os.read(fd, LOG_READ_SIZE)
+        except BlockingIOError:
             return False
+        if not data:
+            return False
+        *lines, partial = (self._partial_lines[fd] + data).split(b"\n")
+        for line in lines:
+            self.emit_log(line + b"\n", buf)
+        if len(partial) >= MAX_PARTIAL_LOG_LINE:
+            self.emit_log(partial, buf)
+            partial = b""
+        self._partial_lines[fd] = partial
+        return True
 
     def fds(self):
         return (self._proc.stderr.fileno(), self._proc.stdout.fileno())
@@ -2424,21 +2440,19 @@ class Worker(object):
         returncode = self._proc.wait()
 
         # consume all remaining loglines
-        # we set the file descriptor to be non-blocking, since
         # the pipe may stay active due to subprocesses launched by
         # the worker, e.g. sidecars, so we can't rely on EOF. We try to
         # read just what's available in the pipe buffer
-        for fileobj, buf in self._logs.values():
-            fileno = fileobj.fileno()
-            fcntl.fcntl(fileno, fcntl.F_SETFL, os.O_NONBLOCK)
+        for fileno, (_, buf) in self._logs.items():
             try:
                 while self.read_logline(fileno):
                     pass
             except:
-                # ignore "resource temporarily unavailable" etc. errors
-                # caused due to non-blocking. Draining is done on a
-                # best-effort basis.
+                # Draining is done on a best-effort basis.
                 pass
+            if self._partial_lines[fileno]:
+                self.emit_log(self._partial_lines[fileno], buf)
+                self._partial_lines[fileno] = b""
 
         # Return early if the task is cloned since we don't want to
         # perform any log collection.
