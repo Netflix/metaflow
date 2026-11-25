@@ -409,6 +409,7 @@ class Parameter(object):
             "run-id",
             "task-id",
             "runner-attribute-file",
+            "auto-emit-argo-events",
         ]
         reserved = set(reserved_params)
         # due to the way Click maps cli args to function args we also want to add underscored params to the set
