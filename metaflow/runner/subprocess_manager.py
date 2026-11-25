@@ -18,19 +18,15 @@ def kill_processes_and_descendants(pids: List[str], termination_timeout: float):
     # TODO: there's a race condition that new descendants might
     # spawn b/w the invocations of 'pkill' and 'kill'.
     # Needs to be fixed in future.
-    try:
-        subprocess.check_call(["pkill", "-TERM", "-P", *pids])
-        subprocess.check_call(["kill", "-TERM", *pids])
-    except subprocess.CalledProcessError:
-        pass
+    # pkill exits non-zero if there are no children, and kill does if the process
+    # is already gone. Neither may stop the next command from running.
+    subprocess.call(["pkill", "-TERM", "-P", *pids])
+    subprocess.call(["kill", "-TERM", *pids])
 
     time.sleep(termination_timeout)
 
-    try:
-        subprocess.check_call(["pkill", "-KILL", "-P", *pids])
-        subprocess.check_call(["kill", "-KILL", *pids])
-    except subprocess.CalledProcessError:
-        pass
+    subprocess.call(["pkill", "-KILL", "-P", *pids])
+    subprocess.call(["kill", "-KILL", *pids])
 
 
 async def async_kill_processes_and_descendants(
