@@ -879,6 +879,23 @@ class FlowSpec(metaclass=FlowSpecMeta):
             )
             raise InvalidNextException(msg)
 
+    def _validate_foreach_type(self, foreach_iter, foreach, step):
+        """
+        Validate that the foreach target is an ordered collection.
+        Raises InvalidNextException if it is a set or frozenset.
+        """
+        if isinstance(foreach_iter, (set, frozenset)):
+            msg = (
+                "Foreach variable *self.{var}* in step *{step}* "
+                "is a {typ}, which has no guaranteed iteration order. "
+                "This can cause tasks to run on wrong inputs or some inputs "
+                "to be skipped entirely. "
+                "Wrap it in list() first, e.g.: self.{var} = list(self.{var})".format(
+                    step=step, var=foreach, typ=type(foreach_iter).__name__
+                )
+            )
+            raise InvalidNextException(msg)
+
     def _get_foreach_item_value(self, item: Any):
         """
         Get the unique value for the item in the foreach iterator.  If no suitable value
@@ -1105,6 +1122,7 @@ class FlowSpec(metaclass=FlowSpecMeta):
                     )
                 )
                 raise InvalidNextException(msg)
+            self._validate_foreach_type(foreach_iter, foreach, step)
             self._foreach_values = None
             if issubclass(type(foreach_iter), UnboundedForeachInput):
                 self._unbounded_foreach = True
