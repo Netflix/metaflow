@@ -22,9 +22,9 @@ def test_convert_to_client_error():
     assert client_error.operation_name == "CompleteMultipartUpload"
 
 
-def test_generate_local_path_length_limits():
-    """Test that generate_local_path produces filenames under 255 characters."""
-    test_cases = [
+@pytest.mark.parametrize(
+    "url, range_val, suffix",
+    [
         ("s3://bucket/file.txt", "whole", None),
         ("s3://bucket/日本語ファイル名.txt", "whole", None),
         ("s3://bucket/" + "日本語" * 50 + ".txt", "whole", None),
@@ -33,11 +33,22 @@ def test_generate_local_path_length_limits():
         ("s3://bucket/file.txt", "bytes=0-1000", None),
         ("s3://bucket/file.txt", "whole", "info"),
         ("s3://bucket/" + "x" * 300 + ".txt", "bytes=0-9999", "meta"),
-    ]
-
-    for url, range_val, suffix in test_cases:
-        local_path = generate_local_path(url, range=range_val, suffix=suffix)
-        assert len(local_path) <= 255
+    ],
+    ids=[
+        "standard_url",
+        "japanese_short",
+        "japanese_long",
+        "chinese_long",
+        "ascii_long",
+        "with_byte_range",
+        "with_info_suffix",
+        "long_with_range_and_suffix",
+    ],
+)
+def test_generate_local_path_length_limits(url, range_val, suffix):
+    """Test that generate_local_path produces filenames under 255 characters."""
+    local_path = generate_local_path(url, range=range_val, suffix=suffix)
+    assert len(local_path) <= 255
 
 
 def test_generate_local_path_uniqueness():
@@ -58,12 +69,15 @@ def test_generate_local_path_uniqueness():
     assert len(hashes) == len(set(hashes))
 
 
-def test_generate_local_path_truncation_indicator():
+def test_generate_local_path_adds_indicator_for_long_urls():
     """Test that truncated filenames have '...' indicator."""
     long_url = "s3://bucket/" + "日本語ファイル名" * 30 + ".txt"
     local_path = generate_local_path(long_url)
     assert "..." in local_path
 
+
+def test_generate_local_path_no_indicator_for_short_urls():
+    """Test that short filenames do not get a truncation indicator."""
     short_url = "s3://bucket/short.txt"
     short_local_path = generate_local_path(short_url)
     assert "..." not in short_local_path
@@ -139,20 +153,16 @@ def test_long_filename_download_from_s3():
 
     test_content = b"Test data for long filename handling"
 
-    try:
-        with S3(s3root=s3_prefix) as s3:
-            s3.put(problematic_filename, test_content, overwrite=True)
+    with S3(s3root=s3_prefix) as s3:
+        s3.put(problematic_filename, test_content, overwrite=True)
 
-        with S3(s3root=s3_prefix) as s3:
-            objs = s3.get_many([problematic_filename])
-            assert len(objs) == 1
-            obj = objs[0]
-            assert obj.blob == test_content
-            assert obj.key == problematic_filename
+    with S3(s3root=s3_prefix) as s3:
+        objs = s3.get_many([problematic_filename])
+        assert len(objs) == 1
+        obj = objs[0]
+        assert obj.blob == test_content
+        assert obj.key == problematic_filename
 
-        with S3(s3root=s3_prefix) as s3:
-            obj = s3.get(problematic_filename)
-            assert obj.blob == test_content
-
-    finally:
-        pass
+    with S3(s3root=s3_prefix) as s3:
+        obj = s3.get(problematic_filename)
+        assert obj.blob == test_content

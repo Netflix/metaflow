@@ -9,11 +9,13 @@ if S3ROOT:
         S3ROOT.rstrip("/"),
         S3ROOT if S3ROOT.endswith("/") else S3ROOT + "/",
     ]
+    S3ROOT_IDS = ["no_slash", "with_slash"]
 else:
     S3ROOT_VARIANTS = [None]
+    S3ROOT_IDS = ["no_s3root"]
 
 
-@pytest.fixture(params=S3ROOT_VARIANTS, ids=["no_slash", "with_slash"])
+@pytest.fixture(params=S3ROOT_VARIANTS, ids=S3ROOT_IDS)
 def s3root(request):
     """
     Fixture that provides S3ROOT with and without trailing slash.
@@ -30,9 +32,8 @@ def reset_current_env():
     Fixture to ensure the metaflow current environment is clean between tests.
 
     This prevents test pollution when tests manipulate the global current state.
-    The fixture runs automatically for all tests in this directory.
     """
-    # Setup: Save all private attributes that might be set by current._set_env
+    # Setup: Capture internal state
     saved_state = {
         attr: getattr(current, attr, None)
         for attr in dir(current)
@@ -41,27 +42,29 @@ def reset_current_env():
 
     yield
 
-    # Teardown: Clear all current environment attributes
-    # First, remove any new attributes that were added
-    for attr in dir(current):
-        if (
-            attr.startswith("_")
-            and not attr.startswith("__")
-            and attr not in saved_state
-        ):
+    # Teardown: Restore original attributes and clean up new ones
+    current_attrs = [
+        attr
+        for attr in dir(current)
+        if attr.startswith("_") and not attr.startswith("__")
+    ]
+
+    # 1. Clean up attributes created during the test
+    for attr in current_attrs:
+        if attr not in saved_state:
             try:
                 delattr(current, attr)
             except AttributeError:
-                pass  # Some attributes may be read-only
+                pass
 
-    # Then restore original values
+    # 2. Restore all original attributes (re-creating any that were deleted)
     for attr, value in saved_state.items():
         try:
             if value is None:
-                # Remove attribute if it didn't exist before
+                # Remove if it was strictly None/non-existent before
                 if hasattr(current, attr):
                     delattr(current, attr)
             else:
                 setattr(current, attr, value)
-        except AttributeError:
-            pass  # Some attributes may be read-only
+        except (AttributeError, TypeError):
+            pass
