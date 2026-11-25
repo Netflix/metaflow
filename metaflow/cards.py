@@ -2,6 +2,7 @@ from metaflow.plugins.cards.card_client import get_cards
 from metaflow.plugins.cards.card_modules.card import MetaflowCardComponent, MetaflowCard
 from metaflow.plugins.cards.card_modules.components import (
     Artifact,
+    BokehEmbed,
     Table,
     Image,
     Error,
