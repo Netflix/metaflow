@@ -1274,6 +1274,17 @@ class Task(MetaflowObject):
                 steps.append(node_name)
         return steps
 
+    @classmethod
+    def _is_foreach_join(cls, graph_info, step_name):
+        steps = graph_info["steps"]
+        if steps[step_name]["type"] != "join":
+            return False
+        for split in steps.values():
+            if split.get("matching_join") == step_name:
+                return split["type"] in ("split-foreach", "split-parallel")
+        # Older graph metadata can omit the split's matching join.
+        return len(cls._get_previous_steps(graph_info, step_name)) == 1
+
     @property
     def parent_task_pathspecs(self) -> Iterator[str]:
         """
@@ -1290,12 +1301,12 @@ class Task(MetaflowObject):
 
         # Get the parent steps
         steps = self._get_previous_steps(graph_info, step_name)
-        node_type = graph_info["steps"][step_name]["type"]
+        is_foreach_join = self._is_foreach_join(graph_info, step_name)
         metadata_key = "foreach-execution-path"
         current_path = metadata_dict.get(metadata_key)
 
-        if len(steps) > 1:
-            # Static join - use exact path matching
+        if len(steps) > 1 and not is_foreach_join:
+            # Static joins and conditional merges preserve the foreach path.
             pattern = current_path or ".*"
         else:
             if not steps:
@@ -1307,7 +1318,7 @@ class Task(MetaflowObject):
                 pattern = ".*"
             else:
                 current_depth = len(current_path.split(","))
-                if node_type == "join":
+                if is_foreach_join:
                     # Foreach join
                     # (Current task, "A:10,B:13") and (Parent task, "A:10,B:13,C:21")
                     # Pattern: "A:10,B:13,.*"
@@ -1378,22 +1389,15 @@ class Task(MetaflowObject):
                 else:
                     # Foreach join or linear step
                     # Pattern: "A:10,B:13"
-                    child_step_type = graph_info["steps"][steps[0]]["type"]
-
-                    # We need to know if the child step is a foreach join or a static join
-                    child_step_prev_steps = self._get_previous_steps(
-                        graph_info, steps[0]
-                    )
-                    if len(child_step_prev_steps) > 1:
-                        child_step_type = "static-join"
+                    child_is_foreach_join = self._is_foreach_join(graph_info, steps[0])
                     target_depth = current_depth
-                    if child_step_type == "join" and current_depth == 1:
+                    if child_is_foreach_join and current_depth == 1:
                         # (Current task, "A:10") and (Child task, "")
                         pattern = ".*"
                     else:
                         # (Current task, "A:10,B:13,C:21") and (Child task, "A:10,B:13")
                         # (Current task, "A:10,B:13") and (Child task, "A:10,B:13")
-                        if child_step_type == "join":
+                        if child_is_foreach_join:
                             target_depth = current_depth - 1
                         pattern = ",".join(current_path.split(",")[:target_depth])
 
