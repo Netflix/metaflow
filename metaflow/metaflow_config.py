@@ -291,6 +291,8 @@ GS_STORAGE_WORKLOAD_TYPE = from_conf(
 ###
 SERVICE_URL = from_conf("SERVICE_URL")
 SERVICE_RETRY_COUNT = from_conf("SERVICE_RETRY_COUNT", 5)
+# Seconds to wait for the metadata service to respond to a single request attempt
+SERVICE_REQUEST_TIMEOUT = from_conf("SERVICE_REQUEST_TIMEOUT", 120)
 # Number of records the client asks the metadata service for per page when it
 # streams a collection (for example Flow.runs()). Page size is a transport
 # detail rather than a caller concern -- the client listing APIs hand back an

@@ -15,6 +15,7 @@ from metaflow.metadata_provider.heartbeat import HB_URL_KEY
 from metaflow.metaflow_config import (
     SERVICE_HEADERS,
     SERVICE_PAGE_SIZE,
+    SERVICE_REQUEST_TIMEOUT,
     SERVICE_RETRY_COUNT,
     SERVICE_URL,
 )
@@ -38,13 +39,22 @@ class ServiceException(MetaflowException):
         super(ServiceException, self).__init__(msg)
 
 
+class _TimeoutHTTPAdapter(requests.adapters.HTTPAdapter):
+    # requests has no default timeout, so a service that accepts the connection but
+    # never replies would block the caller forever, without any retry happening.
+    def send(self, request, timeout=None, **kwargs):
+        if timeout is None:
+            timeout = SERVICE_REQUEST_TIMEOUT
+        return super().send(request, timeout=timeout, **kwargs)
+
+
 class ServiceMetadataProvider(MetadataProvider):
     TYPE = "service"
 
     _session = requests.Session()
     _session.mount(
         "http://",
-        requests.adapters.HTTPAdapter(
+        _TimeoutHTTPAdapter(
             pool_connections=20,
             pool_maxsize=20,
             max_retries=0,  # Handle retries explicitly
@@ -53,7 +63,7 @@ class ServiceMetadataProvider(MetadataProvider):
     )
     _session.mount(
         "https://",
-        requests.adapters.HTTPAdapter(
+        _TimeoutHTTPAdapter(
             pool_connections=20, pool_maxsize=20, max_retries=0, pool_block=False
         ),
     )
@@ -96,7 +106,7 @@ class ServiceMetadataProvider(MetadataProvider):
                     os.path.join(v, "ping"), headers=SERVICE_HEADERS.copy()
                 )
                 resp.raise_for_status()
-            except:  # noqa E722
+            except Exception:
                 time.sleep(2 ** (i - 1))
             else:
                 return v
@@ -811,7 +821,7 @@ class ServiceMetadataProvider(MetadataProvider):
                     raise MetaflowInternalError("Unexpected HTTP method %s" % (method,))
             except MetaflowInternalError:
                 raise
-            except:  # noqa E722
+            except Exception:
                 if monitor:
                     with monitor.count("metaflow.service_metadata.failed_request"):
                         if i == SERVICE_RETRY_COUNT - 1:
@@ -876,7 +886,7 @@ class ServiceMetadataProvider(MetadataProvider):
                         resp = cls._session.get(url, headers=SERVICE_HEADERS.copy())
                 else:
                     resp = cls._session.get(url, headers=SERVICE_HEADERS.copy())
-            except:
+            except Exception:
                 if monitor:
                     with monitor.count("metaflow.service_metadata.failed_request"):
                         if i == SERVICE_RETRY_COUNT - 1:
