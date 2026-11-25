@@ -1,0 +1,24 @@
+apiVersion: argoproj.io/v1alpha1
+kind: EventSource
+metadata:
+  name: argo-events-webhook
+  namespace: default
+spec:
+  template:
+    container:
+      resources:
+        requests:
+          cpu: 25m
+          memory: 50Mi
+        limits:
+          cpu: 25m
+          memory: 50Mi
+  service:
+    ports:
+      - port: 12000
+        targetPort: 12000
+  webhook:
+    metaflow-event:
+      port: "12000"
+      endpoint: /metaflow-event
+      method: POST

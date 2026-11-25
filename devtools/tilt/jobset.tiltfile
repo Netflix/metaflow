@@ -1,0 +1,89 @@
+load('./_result.tiltfile', 'new_result')
+
+JOBSET_NAMESPACE = 'jobset-system'
+JOBSET_CHART = 'oci://registry.k8s.io/jobset/charts/jobset'
+JOBSET_IMAGE_REPOSITORY = 'registry.k8s.io/jobset/jobset'
+
+# Content-addressed pins per JobSet version. Helm verifies the chart digest on
+# pull and the kubelet verifies the image digest, so nothing fetched at
+# `tilt up` time can change under us. To add a version, take the digests from:
+#   chart: https://registry.k8s.io/v2/jobset/charts/jobset/tags/list
+#          (tag "<version without v>", e.g. 0.8.2)
+#   image: https://registry.k8s.io/v2/jobset/jobset/tags/list
+#          (tag "<version>", e.g. v0.8.2; use the multi-arch manifest list)
+JOBSET_DIGESTS = {
+    'v0.8.2': struct(
+        chart='sha256:4ce7e93faa6358de8862fd9fc05d714ab7f499e1e905dfb38b5ddff1db7b1053',
+        image='sha256:a25804af6def03d794c218930176c5dac12b5de06a450e38b8a15143a6fd0071',
+    ),
+}
+
+# Kinds rendered by the chart that are not namespaced. Everything else gets
+# JOBSET_NAMESPACE when the chart leaves metadata.namespace unset.
+_CLUSTER_SCOPED_KINDS = [
+    'CustomResourceDefinition',
+    'ClusterRole',
+    'ClusterRoleBinding',
+    'MutatingWebhookConfiguration',
+    'ValidatingWebhookConfiguration',
+    'Namespace',
+]
+
+def _check_helm_version():
+    # Pulling an OCI chart by `@sha256:` digest needs Helm >= v3.17.0.
+    version = str(local("helm version --template '{{.Version}}'", quiet=True)).strip()
+    parts = version.lstrip('v').split('.')
+    major = int(parts[0]) if len(parts) > 0 and parts[0].isdigit() else 0
+    minor = int(parts[1]) if len(parts) > 1 and parts[1].isdigit() else 0
+    if major < 3 or (major == 3 and minor < 17):
+        fail("JobSet requires Helm >= v3.17.0 for digest-pinned OCI charts (found %s)" % version)
+
+def setup_jobset(ctx):
+    version = ctx.versions.jobset
+    pins = JOBSET_DIGESTS.get(version)
+    if pins == None:
+        fail("JobSet %s has no pinned digests; add it to JOBSET_DIGESTS in devtools/tilt/jobset.tiltfile (supported: %s)" % (
+            version, ', '.join(sorted(JOBSET_DIGESTS.keys()))))
+
+    _check_helm_version()
+
+    rendered = local(
+        ' '.join([
+            'helm', 'template', 'jobset', '%s@%s' % (JOBSET_CHART, pins.chart),
+            '--namespace', JOBSET_NAMESPACE,
+            '--include-crds',
+            '--set', 'image.repository=%s' % JOBSET_IMAGE_REPOSITORY,
+            # The chart renders "<repository>:<tag>", so this yields a
+            # digest-pinned "<repository>:<version>@sha256:..." reference.
+            '--set', 'image.tag=%s@%s' % (version, pins.image),
+            '--set', 'image.pullPolicy=IfNotPresent',
+        ]),
+        quiet=True,
+    )
+
+    # `helm template` leaves some namespaced objects (e.g. the webhook
+    # Service) without metadata.namespace and renders no Namespace object.
+    objects = [obj for obj in decode_yaml_stream(rendered) if obj]
+    has_namespace = False
+    for obj in objects:
+        kind = obj.get('kind')
+        if kind == 'Namespace' and obj['metadata'].get('name') == JOBSET_NAMESPACE:
+            has_namespace = True
+        if kind not in _CLUSTER_SCOPED_KINDS and not obj['metadata'].get('namespace'):
+            obj['metadata']['namespace'] = JOBSET_NAMESPACE
+    if not has_namespace:
+        objects.append({
+            'apiVersion': 'v1',
+            'kind': 'Namespace',
+            'metadata': {'name': JOBSET_NAMESPACE},
+        })
+    k8s_yaml(encode_yaml_stream(objects))
+
+    k8s_resource('jobset-controller', labels=['jobset'])
+
+    k8s_yaml(read_file('./tilt/k8s/jobset-rbac.yaml'))
+
+    return new_result(
+        config={"METAFLOW_KUBERNETES_JOBSET_ENABLED": "true"},
+        config_resources=['jobset-controller'],
+    )

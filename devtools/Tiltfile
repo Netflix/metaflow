@@ -14,6 +14,9 @@ allow_k8s_contexts('minikube')
 # ---------------------------------------------------------------------------
 ARGO_WORKFLOWS_HELM_CHART_VERSION = os.getenv("ARGO_WORKFLOWS_HELM_CHART_VERSION", "0.45.8")
 ARGO_WORKFLOWS_IMAGE_TAG = os.getenv("ARGO_WORKFLOWS_IMAGE_TAG", "v3.7.18")
+ARGO_EVENTS_HELM_CHART_VERSION = os.getenv("ARGO_EVENTS_HELM_CHART_VERSION", "2.4.8")
+ARGO_EVENTS_IMAGE_TAG = os.getenv("ARGO_EVENTS_IMAGE_TAG", "v1.9.2")
+JOBSET_VERSION = os.getenv("JOBSET_VERSION", "v0.8.2")
 AIRFLOW_HELM_CHART_VERSION = os.getenv("AIRFLOW_HELM_CHART_VERSION", "1.15.0")
 AIRFLOW_IMAGE_TAG = os.getenv("AIRFLOW_IMAGE_TAG", "2.10.4")
 # Used by both the metadata service and the UI backend. ECR Public has
@@ -43,6 +46,8 @@ components = {
     "ddb-local": [],
     "sfn-local": ["ddb-local"],
     "airflow": ["postgresql"],
+    "argo-events": ["argo-workflows"],
+    "jobset": [],
 }
 
 # ---------------------------------------------------------------------------
@@ -108,6 +113,8 @@ load('./tilt/localbatch.tiltfile', 'setup_localbatch')
 load('./tilt/ddb_local.tiltfile', 'setup_ddb_local')
 load('./tilt/sfn_local.tiltfile', 'setup_sfn_local')
 load('./tilt/airflow.tiltfile', 'setup_airflow')
+load('./tilt/argo_events.tiltfile', 'setup_argo_events')
+load('./tilt/jobset.tiltfile', 'setup_jobset')
 
 _SETUP = {
     "minio": setup_minio,
@@ -119,6 +126,8 @@ _SETUP = {
     "ddb-local": setup_ddb_local,
     "sfn-local": setup_sfn_local,
     "airflow": setup_airflow,
+    "argo-events": setup_argo_events,
+    "jobset": setup_jobset,
 }
 
 # ---------------------------------------------------------------------------
@@ -135,6 +144,9 @@ ctx = struct(
         metaflow_service_repository=METAFLOW_SERVICE_IMAGE_REPOSITORY,
         metaflow_service_image=METAFLOW_SERVICE_IMAGE_TAG,
         metaflow_ui_image=METAFLOW_UI_IMAGE_TAG,
+        argo_events_chart=ARGO_EVENTS_HELM_CHART_VERSION,
+        argo_events_image=ARGO_EVENTS_IMAGE_TAG,
+        jobset=JOBSET_VERSION,
     ),
 )
 
