@@ -1,7 +1,7 @@
 import pytest
 
 from metaflow.exception import MetaflowException
-from metaflow.plugins.aws.aws_utils import validate_aws_tag
+from metaflow.plugins.aws.aws_utils import get_docker_registry, validate_aws_tag
 
 
 @pytest.mark.parametrize(
@@ -52,3 +52,34 @@ def test_validate_aws_tag_not_permitted_message(key, value, expected_prefix):
         validate_aws_tag(key, value)
 
     assert str(exc_info.value).startswith(expected_prefix)
+
+
+@pytest.mark.parametrize(
+    "image_uri, expected_registry",
+    [
+        # Bare image name
+        ("image", None),
+        ("image:latest", None),
+        ("image@sha256:45b23dee0", None),
+        # Single-slash repository without registry host
+        ("example/image", None),
+        ("example/image:tag", None),
+        ("example/image@sha256:45b23dee0", None),
+        # Multi-segment repositories with dots or colons in later path components (#3384)
+        ("myorg/cuda12.1/base:latest", None),
+        ("myorg/team.ml/trainer", None),
+        ("myorg/sub/model:v1.0", None),
+        ("myorg/a.b.c/d:1.0", None),
+        # Domain-based registry hosts
+        ("example.domain.com/example/image:tag", "example.domain.com"),
+        ("example.domain.com/example/image@sha256:45b23dee0", "example.domain.com"),
+        ("registry.hub.docker.com/myorg/cuda12.1/base:latest", "registry.hub.docker.com"),
+        ("docker.io/library/ubuntu:20.04", "docker.io"),
+        # IP and port-based registry hosts
+        ("123.123.123.123:123/example/image:tag", "123.123.123.123:123"),
+        ("localhost:5000/myimage:v1", "localhost:5000"),
+        ("10.0.0.1/app:latest", "10.0.0.1"),
+    ],
+)
+def test_get_docker_registry(image_uri, expected_registry):
+    assert get_docker_registry(image_uri) == expected_registry
