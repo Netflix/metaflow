@@ -54,6 +54,27 @@ class NullMonitor(object):
         else:
             yield
 
+    def timer(self, name, value):
+        """Emit a one-shot timer with a precomputed duration (seconds).
+
+        Use when the measured duration is computed externally (e.g.
+        wall-clock across separate processes/containers) and the
+        contextmanager ``measure()`` shape doesn't fit. Subclasses can
+        override; the base routes through the sidecar like ``measure()``.
+        """
+        if self._sidecar.is_active:
+            # Anchor the serialized start/end to real epoch timestamps so
+            # any consumer that inspects _start/_end (not just .value) sees
+            # meaningful data. _end - _start == value, so .value is the
+            # same as before.
+            now = time.time()
+            timer = Timer(name + "_timer")
+            timer.start(now - value)
+            timer.end(now)
+            payload = {"timer": timer.serialize()}
+            msg = Message(MessageTypes.BEST_EFFORT, payload)
+            self._sidecar.send(msg)
+
     def gauge(self, gauge):
         if self._sidecar.is_active:
             payload = {"gauge": gauge.serialize()}
