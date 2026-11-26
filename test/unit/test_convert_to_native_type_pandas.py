@@ -103,3 +103,21 @@ class TestFromDataframeDoesNotMutateInput(unittest.TestCase):
 
     def test_truncate_true_preserves_input(self):
         self._assert_not_mutated(self._build_df(), truncate=True)
+
+
+class TestLongValueTruncation(unittest.TestCase):
+    """Only cells longer than 30 characters are truncated with "..."."""
+
+    def _column(self, series):
+        df = pd.DataFrame({"col": series})
+        return [row[1] for row in TaskToDict()._parse_pandas_dataframe(df)["data"]]
+
+    def test_short_values_are_not_suffixed(self):
+        long_value = "a" * 40
+        self.assertEqual(
+            self._column(["lr", long_value, None, "b" * 30]),
+            ["lr", "a" * 30 + "...", "null", "b" * 30],
+        )
+
+    def test_column_without_long_values_is_unchanged(self):
+        self.assertEqual(self._column(["lr", "rf"]), ["lr", "rf"])
