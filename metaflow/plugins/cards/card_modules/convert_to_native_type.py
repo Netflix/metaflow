@@ -354,11 +354,14 @@ class TaskToDict:
         # If there is any form of TypeError or ValueError we set the column value to "Unsupported Type"
         # We also set columns which are have null values to "null" strings
         time_format = "%Y-%m-%dT%H:%M:%S%Z"
-        truncate_long_objects = lambda x: (
-            x.astype("string").str.slice(0, 30) + "..."
-            if len(x) > 0 and x.astype("string").str.len().max() > 30
-            else x.astype("string")
-        )
+
+        def truncate_long_objects(x):
+            # Only values longer than 30 characters are truncated and get the
+            # "..." suffix; shorter values in the same column are left as-is.
+            x = x.astype("string")
+            is_long = (x.str.len() > 30).fillna(False).astype(bool)
+            return x.mask(is_long, x.str.slice(0, 30) + "...")
+
         type_parser = {
             "int64": lambda x: x,
             "float64": lambda x: x,
