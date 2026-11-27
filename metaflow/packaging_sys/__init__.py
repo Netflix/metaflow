@@ -540,6 +540,20 @@ class MetaflowCodeContent:
         if os.path.exists(os.path.join(root, MFCONTENT_MARKER)):
             with open(os.path.join(root, MFCONTENT_MARKER), "r", encoding="utf-8") as f:
                 mfcontent_info = json.load(f)
+        elif target_dir == "_local":
+            # When metaflow is loaded from a code package's .mf_code/ subdirectory,
+            # get_metaflow_root() returns dest_dir/.mf_code but the marker is at
+            # dest_dir/. METAFLOW_EXTRACTED_ROOT may also be set to a relative path
+            # (e.g. ".") which resolves incorrectly in subprocesses that change cwd.
+            # Always check the parent of get_metaflow_root() as a reliable fallback.
+            mf_root_parent = os.path.dirname(get_metaflow_root())
+            if os.path.exists(os.path.join(mf_root_parent, MFCONTENT_MARKER)):
+                with open(
+                    os.path.join(mf_root_parent, MFCONTENT_MARKER),
+                    "r",
+                    encoding="utf-8",
+                ) as f:
+                    mfcontent_info = json.load(f)
         cls._cached_mfcontent_info[target_dir] = mfcontent_info
         return mfcontent_info
 

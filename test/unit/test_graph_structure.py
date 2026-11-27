@@ -9,12 +9,14 @@ Verifies that:
 - _graph_info contains start_step/end_step fields
 - Lint validation works with structural inference
 - @step(start=True) / @step(end=True) annotations work correctly
+- StepMutator/config-decorator attributes go through to_pod() in output_steps()
 """
 
 import pytest
 from metaflow import Config, FlowMutator, FlowSpec, step, Parameter, retry, resources
 from metaflow.flowspec import FlowStateItems
 from metaflow.lint import linter, LintWarn
+from metaflow.user_decorators.user_step_decorator import StepMutator
 
 # ---------------------------------------------------------------------------
 # Flow definitions for testing
@@ -648,3 +650,46 @@ def test_malformed_flow_caught_by_lint(flow_factory, match_pattern):
         match_pattern,
         warnings,
     )
+
+
+# ---------------------------------------------------------------------------
+# Tests: StepMutator attribute sanitization (regression test for #3338)
+# ---------------------------------------------------------------------------
+
+
+class _NonPrimitiveArg:
+    """Constructor argument for a StepMutator that has no importable
+    representation of its own, used to prove output_steps() sanitizes it
+    rather than embedding the raw object."""
+
+    def __init__(self, x):
+        self.x = x
+
+
+class _payload_mutator(StepMutator):
+    def init(self, payload=None):
+        self._payload = payload
+
+    def mutate(self, mutable_step):
+        pass
+
+
+class _StepMutatorPayloadFlow(FlowSpec):
+    @_payload_mutator(payload=_NonPrimitiveArg(1))
+    @step(start=True, end=True)
+    def only(self):
+        pass
+
+
+def test_step_mutator_non_primitive_attribute_sanitized_in_output_steps():
+    """StepMutator/config-decorator attributes must go through to_pod() the
+    same way classic decorator attributes already do (see the two branches
+    of node_to_dict() in graph.py). Before the fix, a non-primitive
+    constructor argument (like _NonPrimitiveArg here) was embedded raw in
+    _graph_info, which breaks pickling for any consumer that can't import
+    the argument's class -- e.g. the Metaflow UI backend reading a run's
+    _graph_info artifact for DAG rendering."""
+    steps_info, _ = _StepMutatorPayloadFlow._graph.output_steps()
+    decorators = steps_info["only"]["decorators"]
+    payload_deco = next(d for d in decorators if d["name"].endswith("_payload_mutator"))
+    assert isinstance(payload_deco["attributes"]["payload"], str)

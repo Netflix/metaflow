@@ -153,6 +153,12 @@ def kubernetes():
     multiple=False,
 )
 @click.option(
+    "--extended-resources",
+    default=None,
+    type=JSONTypeClass(),
+    multiple=False,
+)
+@click.option(
     "--security-context",
     default=None,
     type=JSONTypeClass(),
@@ -191,6 +197,7 @@ def step(
     qos=None,
     labels=None,
     annotations=None,
+    extended_resources=None,
     security_context=None,
     **kwargs
 ):
@@ -337,6 +344,7 @@ def step(
                 qos=qos,
                 labels=labels,
                 annotations=annotations,
+                extended_resources=extended_resources,
                 security_context=security_context,
             )
     except Exception:

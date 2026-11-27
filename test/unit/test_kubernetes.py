@@ -80,7 +80,7 @@ def test_kubernetes_decorator_validate_kube_labels_fail(labels):
         (["key=value", "key2=value2"], True, {"key": "value", "key2": "value2"}),
     ],
 )
-def test_kubernetes_parse_keyvalue_list(items, requires_both, expected):
+def test_kubernetes_parse_keyvalue_list_success(items, requires_both, expected):
     ret = parse_kube_keyvalue_list(items, requires_both)
     assert ret == expected
 
@@ -92,6 +92,6 @@ def test_kubernetes_parse_keyvalue_list(items, requires_both, expected):
         (["key"], True),
     ],
 )
-def test_kubernetes_parse_keyvalue_list(items, requires_both):
+def test_kubernetes_parse_keyvalue_list_raises(items, requires_both):
     with pytest.raises(KubernetesException):
         parse_kube_keyvalue_list(items, requires_both)

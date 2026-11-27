@@ -10,6 +10,12 @@ from metaflow.sidecar import Message, MessageTypes
 
 HB_URL_KEY = "hb_url"
 
+# (connect, read) seconds. requests has no default timeout, so without this a
+# metadata service that accepts the connection but never replies blocks the
+# heartbeat thread forever: _heartbeat never raises, so the retry and backoff
+# in _ping never run either.
+HB_REQUEST_TIMEOUT = (3.05, 10)
+
 
 class HeartBeatException(MetaflowException):
     headline = "Metaflow heart beat error"
@@ -60,7 +66,10 @@ class MetadataHeartBeat(object):
         if self.hb_url is not None:
             try:
                 response = requests.post(
-                    url=self.hb_url, data="{}", headers=self.headers.copy()
+                    url=self.hb_url,
+                    data="{}",
+                    headers=self.headers.copy(),
+                    timeout=HB_REQUEST_TIMEOUT,
                 )
             except requests.exceptions.ConnectionError as e:
                 raise HeartBeatException(

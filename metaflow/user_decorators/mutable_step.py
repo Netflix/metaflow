@@ -61,7 +61,7 @@ class MutableStep:
             )
 
     @property
-    def flow(self) -> "metaflow.user_decorator.mutable_flow.MutableFlow":
+    def flow(self) -> "metaflow.user_decorators.mutable_flow.MutableFlow":
         """
         The flow that contains this step
 

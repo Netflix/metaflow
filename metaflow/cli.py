@@ -1,4 +1,3 @@
-import os
 import functools
 import inspect
 import os
@@ -475,8 +474,17 @@ def start(
         # be raised. For resume, since we ignore those options, we ignore the error.
         raise ctx.obj.delayed_config_exception
 
+    # Initialize the phase early so it can be used in the mutators
+    # The phase is determined by which CLI subcommand is being invoked (e.g. "run" → LAUNCH,
+    # "step" → TASK, "batch" → TRAMPOLINE).
+    system_context._update(phase=_phase_from_cli_args(getattr(ctx, "saved_args", None)))
+
     # Process config decorators (this is the pre_mutate phase for both flow mutators and
     # step mutators -- the mutate is called in init_step_decorators)
+
+    # Init all values in the flow mutators and then process them
+    for decorator in ctx.obj.flow._flow_mutators:
+        decorator.external_init()
 
     new_cls = ctx.obj.flow._process_config_decorators(config_options)
     if new_cls:
@@ -561,13 +569,7 @@ def start(
     ctx.obj.monitor.start()
     _system_monitor.init_system_monitor(ctx.obj.flow.name, ctx.obj.monitor)
 
-    # Populate the system context singleton for this process. The phase is
-    # determined by which CLI subcommand is being invoked (e.g. "run" → LAUNCH,
-    # "step" → TASK, "batch" → TRAMPOLINE).
-    saved_args = getattr(ctx, "saved_args", None)
-    phase = _phase_from_cli_args(saved_args)
     system_context._update(
-        phase=phase,
         flow=ctx.obj.flow,
         graph=ctx.obj.graph,
         environment=ctx.obj.environment,
@@ -627,14 +629,12 @@ def start(
             ctx.obj.environment.decospecs() or []
         )
 
-        # We add the default decospecs for everything except init and step since in those
-        # cases, the decospecs will already have been handled by either a run/resume
-        # or a scheduler setting them up in their own way.
-        if ctx.saved_args[0] not in ("step", "init"):
+        # We add the default decospecs for everything except init, step, and
+        # spin-step since those decospecs are handled by run/resume/scheduler
+        # setup or are explicitly forwarded by SpinRuntime.
+        if ctx.saved_args[0] not in ("step", "init", "spin-step"):
             all_decospecs += DEFAULT_DECOSPECS.split()
-        elif ctx.saved_args[0] == "spin-step":
-            # If we are in spin-args, we will not attach any decorators
-            all_decospecs = []
+
         if all_decospecs:
             decorators._attach_decorators(ctx.obj.flow, all_decospecs)
             # Regenerate graph if we attached more decorators

@@ -180,11 +180,18 @@ DEPLOYER_IMPL_PROVIDERS_DESC = [
 ]
 
 TL_PLUGINS_DESC = [
+    ("package_sources", ".package_sources.package_sources"),
     ("yaml_parser", ".parsers.yaml_parser"),
     ("requirements_txt_parser", ".pypi.parsers.requirements_txt_parser"),
     ("namespaced_event_name", ".namespaced_events.namespaced_event_name"),
     ("pyproject_toml_parser", ".pypi.parsers.pyproject_toml_parser"),
     ("conda_environment_yml_parser", ".pypi.parsers.conda_environment_yml_parser"),
+]
+
+# Add artifact serializers here. Ordering is by PRIORITY (lower = tried first).
+# PickleSerializer is the universal fallback (PRIORITY=9999).
+ARTIFACT_SERIALIZERS_DESC = [
+    ("pickle", ".datastores.serializers.pickle_serializer.PickleSerializer"),
 ]
 
 process_plugins(globals())
@@ -281,3 +288,12 @@ def _import_tl_plugins(globals_dict):
 
     for name, p in TL_PLUGINS.items():
         globals_dict[name] = p
+
+
+# Drive every ARTIFACT_SERIALIZERS_DESC entry through the serializer state
+# machine — this is what makes serializer classes reachable via
+# ``SerializerStore.get_ordered_serializers()`` at dispatch time.
+from metaflow.datastore.artifacts.serializer import SerializerStore as _SerializerStore
+
+_SerializerStore.bootstrap()
+del _SerializerStore

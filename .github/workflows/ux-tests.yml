@@ -23,10 +23,15 @@ on:
       - master
   workflow_dispatch:
 
+# On PRs, cancel old runs when new commits are pushed.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event_name == 'push' && github.sha || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
   unit-tests:
     name: "Unit Tests"
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
 
     steps:
       - uses: actions/checkout@v4
@@ -91,6 +96,56 @@ jobs:
           reporter: java-junit
           fail-on-error: false
 
+  spin-tests:
+    name: "Spin Tests"
+    runs-on: ubuntu-24.04
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python 3.10
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+
+      - name: Install tox
+        run: python -m pip install tox
+
+      - name: Run spin tests
+        run: |
+          export CONDA_PKGS_DIRS="$RUNNER_TEMP/metaflow-micromamba-pkgs"
+          export MAMBA_ROOT_PREFIX="$RUNNER_TEMP/metaflow-micromamba-root"
+          export XDG_CACHE_HOME="$RUNNER_TEMP/metaflow-cache"
+          export METAFLOW_TOKEN_HOME="$RUNNER_TEMP/metaflowconfig"
+          tox -e spin -- --junit-xml=junit-spin.xml --cov=metaflow --cov-report=xml:coverage.xml --cov-branch
+      - name: Upload coverage data
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-spin
+          path: |
+            .coverage
+            coverage.xml
+          if-no-files-found: ignore
+          include-hidden-files: true
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: junit-spin
+          path: junit-spin.xml
+          if-no-files-found: ignore
+
+      - name: Publish test results
+        if: always()
+        continue-on-error: true
+        uses: dorny/test-reporter@d61b558e8df85cb60d09ca3e5b09653b4477cea7  # v1
+        with:
+          name: "Test Results — Spin"
+          path: junit-spin.xml
+          reporter: java-junit
+          fail-on-error: false
+
   ux-tests:
     name: "${{ matrix.backend }}"
     strategy:
@@ -118,7 +173,7 @@ jobs:
             memory: 6144
             timeout: 900
 
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
 
     steps:
       - uses: actions/checkout@v4
@@ -189,14 +244,19 @@ jobs:
         uses: actions/cache@v4
         with:
           path: /usr/local/bin/tilt
-          key: tilt-v0.33.11
+          key: tilt-v0.37.8
 
       - name: Install Tilt
         if: steps.tilt-cache.outputs.cache-hit != 'true'
+        env:
+          # Keep in sync with TILT_VERSION in devtools/Makefile.
+          TILT_VERSION: 0.37.8
         run: |
+          # Download the pinned release directly: scripts/install.sh hardcodes
+          # its own VERSION and ignores the environment.
           for attempt in 1 2 3; do
-            curl -fsSL https://raw.githubusercontent.com/tilt-dev/tilt/master/scripts/install.sh \
-              | VERSION=v0.33.11 bash && break
+            curl -fsSL "https://github.com/tilt-dev/tilt/releases/download/v${TILT_VERSION}/tilt.${TILT_VERSION}.linux.x86_64.tar.gz" \
+              | sudo tar -xz -C /usr/local/bin tilt && break
             echo "Tilt install attempt $attempt failed, retrying in 10s..."
             sleep 10
           done
@@ -337,9 +397,9 @@ jobs:
 
   coverage-report:
     name: "Coverage Report"
-    needs: [unit-tests, ux-tests]
+    needs: [unit-tests, spin-tests, ux-tests]
     if: always()
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
 
     steps:
       - uses: actions/checkout@v4

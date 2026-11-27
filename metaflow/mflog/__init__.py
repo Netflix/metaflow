@@ -94,6 +94,7 @@ def export_mflog_env_vars(
     datastore_root=None,
     stdout_path=None,
     stderr_path=None,
+    periodical_uploader_log_path=None,
 ):
     pathspec = "/".join((flow_name, str(run_id), step_name, str(task_id)))
     env_vars = {
@@ -106,6 +107,8 @@ def export_mflog_env_vars(
     }
     if datastore_root is not None:
         env_vars["MF_DATASTORE_ROOT"] = datastore_root
+    if periodical_uploader_log_path is not None:
+        env_vars["PERIODICAL_UPLOADER_LOG_PATH"] = periodical_uploader_log_path
 
     return "export " + " ".join("%s=%s" % kv for kv in env_vars.items())
 

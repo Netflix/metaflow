@@ -37,7 +37,7 @@ export const convertPixelsToRem = (px: number, doc?: Document): number => {
   // adding default to allow for testing where no document exists
   const computedStyle = doc
     ? parseFloat(
-        getComputedStyle(document.documentElement).fontSize.replace("px", "")
+        getComputedStyle(doc.documentElement).fontSize.replace("px", "")
       )
     : 16;
 

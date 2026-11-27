@@ -1,4 +1,3 @@
-import json
 import os
 
 from metaflow import (
@@ -13,43 +12,6 @@ from metaflow import (
 )
 
 default_config = {"a": {"b": "41", "project_name": "config_project"}}
-
-
-def audit(run, parameters, configs, stdout_path):
-    # We should only have one run here
-    if len(run) != 1:
-        raise RuntimeError("Expected only one run; got %d" % len(run))
-    run = run[0]
-
-    # Check successful run
-    if not run.successful:
-        raise RuntimeError("Run was not successful")
-
-    if configs and configs.get("cfg_default_value"):
-        config = configs["cfg_default_value"]
-    else:
-        config = default_config
-
-    expected_token = parameters["trigger_param"]
-
-    # Check that we have the proper project name
-    if f"project:{config['a']['project_name']}" not in run.tags:
-        raise RuntimeError("Project name is incorrect.")
-
-    # Check the value of the artifacts in the end step
-    end_task = run["end"].task
-    assert end_task.data.trigger_param == expected_token
-    if (
-        end_task.data.config_val != 5
-        or end_task.data.config_val_2 != config["a"]["b"]
-        or end_task.data.config_from_env != "5"
-        or end_task.data.config_from_env_2 != config["a"]["b"]
-        or end_task.data.var1 != "1"
-        or end_task.data.var2 != "2"
-    ):
-        raise RuntimeError("Config values are incorrect.")
-
-    return None
 
 
 def trigger_name_func(ctx):

@@ -1,3 +1,4 @@
+import json
 import os
 import shutil
 import sys
@@ -456,6 +457,28 @@ def dict_to_cli_options(params):
                         yield _quote(value)
 
 
+def shell_quote_value(value):
+    """
+    Render a parameter value as a single shell word for an `export` line.
+
+    Strings are quoted as-is so the environment variable holds the value
+    itself rather than its JSON form; any other value is serialized as JSON
+    first. The result is single-quoted, so sourcing it performs no word
+    splitting and no `$(...)`, backtick or `$VAR` expansion.
+
+    Parameters
+    ----------
+    value : Any
+        A decoded parameter value.
+
+    Returns
+    -------
+    str
+        The value, safe to use as the right-hand side of `export NAME=`.
+    """
+    return _quote(value if isinstance(value, str) else json.dumps(value))
+
+
 # This function is imported from https://github.com/cookiecutter/whichcraft
 def which(cmd, mode=os.F_OK | os.X_OK, path=None):
     """Given a command, mode, and a PATH string, return the path which
@@ -610,6 +633,8 @@ def read_artifacts_module(file_path: str) -> Dict[str, Any]:
     """
     import importlib.util
     import os
+
+    from metaflow.exception import MetaflowInternalError
 
     try:
         module_name = os.path.splitext(os.path.basename(file_path))[0]

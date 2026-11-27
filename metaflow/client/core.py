@@ -4,10 +4,11 @@ import json
 import os
 import tarfile
 from collections import namedtuple
+from collections.abc import Mapping
 from datetime import datetime
 from tempfile import TemporaryDirectory
 from io import BytesIO
-from itertools import chain
+from itertools import chain, islice
 from typing import (
     Any,
     Dict,
@@ -401,19 +402,7 @@ class MetaflowObject(object):
         unfiltered_children = unfiltered_children if unfiltered_children else []
         children = filter(
             lambda x: self._iter_filter(x),
-            (
-                _CLASSES[self._CHILD_CLASS](
-                    attempt=self._attempt,
-                    _object=obj,
-                    _parent=self,
-                    _metaflow=self._metaflow,
-                    _namespace_check=self._namespace_check,
-                    _current_namespace=(
-                        self._current_namespace if self._namespace_check else None
-                    ),
-                )
-                for obj in unfiltered_children
-            ),
+            (self._child_from_record(obj) for obj in unfiltered_children),
         )
 
         if children:
@@ -424,6 +413,23 @@ class MetaflowObject(object):
     def _iter_filter(self, x):
         return True
 
+    def _child_from_record(self, obj):
+        """Build a child object from a raw metadata record.
+
+        Shared by __iter__ and _iter_children so the materialized and streaming
+        listing paths cannot drift apart.
+        """
+        return _CLASSES[self._CHILD_CLASS](
+            attempt=self._attempt,
+            _object=obj,
+            _parent=self,
+            _metaflow=self._metaflow,
+            _namespace_check=self._namespace_check,
+            _current_namespace=(
+                self._current_namespace if self._namespace_check else None
+            ),
+        )
+
     def _filtered_children(self, *tags):
         """
         Returns an iterator over all children.
@@ -433,6 +439,28 @@ class MetaflowObject(object):
         """
         for child in self:
             if all(tag in child.tags for tag in tags):
+                yield child
+
+    def _iter_children(self, query_filters=None, page_size=None, required_tags=()):
+        """Stream child records through the active metadata provider."""
+        namespace_filter = {}
+        if self._namespace_check and self._current_namespace:
+            namespace_filter = {"any_tags": self._current_namespace}
+
+        objects = self._metaflow.metadata.iter_objects(
+            self._NAME,
+            _CLASSES[self._CHILD_CLASS]._NAME,
+            namespace_filter,
+            self._attempt,
+            *self.path_components,
+            query_filters=query_filters,
+            page_size=page_size,
+        )
+        for obj in objects:
+            child = self._child_from_record(obj)
+            if self._iter_filter(child) and all(
+                tag in child.tags for tag in required_tags
+            ):
                 yield child
 
     def _ipython_key_completions_(self):
@@ -1142,6 +1170,9 @@ class MetaflowData(object):
     def __contains__(self, var):
         return var in self._artifacts
 
+    def __dir__(self):
+        return list(self._artifacts.keys()) + object.__dir__(self)
+
     def __str__(self):
         return "<MetaflowData: %s>" % ", ".join(self._artifacts)
 
@@ -1731,6 +1762,16 @@ class Task(MetaflowObject):
             attempt = int(self.metadata_dict.get("attempt", 0))
         return attempt
 
+    def _resolve_log_attempt(self, meta_dict: Optional[Dict[str, Any]] = None) -> int:
+        """
+        Resolve the log attempt without re-fetching metadata when meta_dict is known.
+        """
+        if self._attempt is not None:
+            return self._attempt
+        if meta_dict is not None:
+            return int(meta_dict.get("attempt", 0))
+        return self.current_attempt
+
     @cached_property
     def code(self) -> Optional[MetaflowCode]:
         """
@@ -1826,7 +1867,7 @@ class Task(MetaflowObject):
         if filecache is None:
             filecache = FileCache()
 
-        attempt = self.current_attempt
+        attempt = self._resolve_log_attempt(meta_dict)
         logs = filecache.get_logs_stream(
             ds_type, ds_root, stream, attempt, *self.path_components
         )
@@ -1875,7 +1916,7 @@ class Task(MetaflowObject):
             return 0
         if filecache is None:
             filecache = FileCache()
-        attempt = self.current_attempt
+        attempt = self._resolve_log_attempt(meta_dict)
 
         return filecache.get_log_size(
             ds_type, ds_root, stream, attempt, *self.path_components
@@ -2572,7 +2613,12 @@ class Flow(MetaflowObject):
             if run.successful:
                 return run
 
-    def runs(self, *tags: str) -> Iterator[Run]:
+    def runs(
+        self,
+        *tags: str,
+        _filters: Optional[Dict[str, Any]] = None,
+        max_runs: Optional[int] = None,
+    ) -> Iterator[Run]:
         """
         Returns an iterator over all `Run`s of this flow.
 
@@ -2583,14 +2629,49 @@ class Flow(MetaflowObject):
         Parameters
         ----------
         tags : str
-            Tags to match.
+            Tags to match. Applied locally after listing, so this works with
+            local metadata as well as the metadata service.
+        _filters : dict, optional
+            Internal, unstable. Server-side run filters expressed in the metadata
+            service's ``field:operator`` grammar, for example
+            ``{"status:eq": "failed"}``. The grammar is specific to the metadata
+            service and has no meaning for local metadata, so it is deliberately
+            not part of the public interface -- the typed accessors built on top
+            of it are the supported way to filter. Requires a metadata service
+            with pagination and filtering support.
+        max_runs : int, optional
+            Maximum number of runs to yield, newest first. Supported by every
+            metadata provider.
 
         Yields
         ------
         Run
             `Run` objects in this flow.
         """
-        return self._filtered_children(*tags)
+        if _filters is not None and not isinstance(_filters, Mapping):
+            raise TypeError("_filters must be a mapping")
+        if max_runs is not None:
+            # bool is a subclass of int, so isinstance(True, int) is True; without
+            # the explicit bool check runs(max_runs=True) would silently mean 1.
+            if isinstance(max_runs, bool) or not isinstance(max_runs, int):
+                raise TypeError("max_runs must be an integer")
+            if max_runs < 0:
+                raise ValueError("max_runs must be non-negative")
+            if max_runs == 0:
+                return iter(())
+
+        if _filters is None and max_runs is None:
+            return self._filtered_children(*tags)
+
+        # Page size is a metadata-service transport detail, not a caller concern:
+        # this returns an iterator either way. It comes from METAFLOW_SERVICE_PAGE_SIZE.
+        runs = self._iter_children(
+            query_filters=dict(_filters) if _filters else None,
+            required_tags=tags,
+        )
+        if max_runs is None:
+            return runs
+        return islice(runs, max_runs)
 
     def __iter__(self) -> Iterator[Task]:
         """
@@ -2721,6 +2802,9 @@ class Metaflow(object):
             Flow with the given name.
         """
         return Flow(name, _metaflow=self)
+
+    def _ipython_key_completions_(self):
+        return [flow.id for flow in self]
 
 
 def _metadata(ms: str) -> Tuple[Optional["MetadataProvider"], Optional[str]]:

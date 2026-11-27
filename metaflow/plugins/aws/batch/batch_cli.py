@@ -297,7 +297,10 @@ def step(
         "metaflow_version"
     ]
 
-    env = {"METAFLOW_FLOW_FILENAME": os.path.basename(sys.argv[0])}
+    env = {
+        "METAFLOW_FLOW_FILENAME": os.path.basename(sys.argv[0]),
+        "METAFLOW_RUN_ID": kwargs["run_id"],
+    }
 
     if aws_batch_tags is not None:
         # We do not need to validate these again,

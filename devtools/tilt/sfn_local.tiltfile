@@ -9,7 +9,6 @@ def setup_sfn_local(ctx):
             "docker network inspect minikube --format '{{range .IPAM.Config}}{{.Gateway}}{{end}}' 2>/dev/null || echo '192.168.49.1'",
             quiet=True,
         )).strip() or "192.168.49.1"
-        _sfn_host_network = False
         _batch_endpoint = 'http://localbatch-host:8000'
         k8s_yaml(encode_yaml({
             'apiVersion': 'v1', 'kind': 'Endpoints',
@@ -22,7 +21,6 @@ def setup_sfn_local(ctx):
             'spec': {'ports': [{'port': 8000, 'targetPort': 8000}]},
         }))
     else:
-        _sfn_host_network = False
         _batch_endpoint = 'http://host.docker.internal:8000'
 
     k8s_yaml(encode_yaml({
@@ -35,8 +33,8 @@ def setup_sfn_local(ctx):
             'template': {
                 'metadata': {'labels': {'app': 'sfn-local'}},
                 'spec': {
-                    'hostNetwork': _sfn_host_network,
-                    'dnsPolicy': 'ClusterFirstWithHostNet' if _sfn_host_network else 'ClusterFirst',
+                    'hostNetwork': False,
+                    'dnsPolicy': 'ClusterFirst',
                     'containers': [{
                         'name': 'sfn-local',
                         'image': 'amazon/aws-stepfunctions-local:latest',

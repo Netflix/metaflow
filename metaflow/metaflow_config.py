@@ -6,7 +6,11 @@ import datetime
 
 from typing import Dict, List, Union, Tuple as TTuple
 from metaflow.exception import MetaflowException
-from metaflow.metaflow_config_funcs import from_conf, get_validate_choice_fn
+from metaflow.metaflow_config_funcs import (
+    from_conf,
+    get_validate_choice_fn,
+    get_validate_positive_int_fn,
+)
 
 # Recursive type alias for JSON, used by Runner API type mappings
 JSON = Union[Dict[str, "JSON"], List["JSON"], str, int, float, bool, None]
@@ -287,6 +291,14 @@ GS_STORAGE_WORKLOAD_TYPE = from_conf(
 ###
 SERVICE_URL = from_conf("SERVICE_URL")
 SERVICE_RETRY_COUNT = from_conf("SERVICE_RETRY_COUNT", 5)
+# Number of records the client asks the metadata service for per page when it
+# streams a collection (for example Flow.runs()). Page size is a transport
+# detail rather than a caller concern -- the client listing APIs hand back an
+# iterator either way -- so it is configured here instead of per call. The
+# service caps a page at 500 records; larger values are clamped client-side.
+SERVICE_PAGE_SIZE = int(
+    from_conf("SERVICE_PAGE_SIZE", 100, validate_fn=get_validate_positive_int_fn())
+)
 SERVICE_AUTH_KEY = from_conf("SERVICE_AUTH_KEY")
 SERVICE_HEADERS = from_conf("SERVICE_HEADERS", {})
 if SERVICE_AUTH_KEY is not None:
@@ -474,7 +486,12 @@ ARGO_EVENTS_SENSOR_NAMESPACE = from_conf(
 # Prefix for namespaced events (used by @trigger with namespaced=True)
 NAMESPACED_EVENTS_PREFIX = from_conf("NAMESPACED_EVENTS_PREFIX", "mfns")
 
+# Additional argo workflows options
 ARGO_WORKFLOWS_UI_URL = from_conf("ARGO_WORKFLOWS_UI_URL")
+# `schedules` (list) requires Argo Workflows >= 3.6. Default to the legacy
+# singular `schedule` so existing deployments on older Argo are unaffected;
+# opt in by setting METAFLOW_ARGO_WORKFLOWS_USE_SCHEDULES=true.
+ARGO_WORKFLOWS_USE_SCHEDULES = from_conf("ARGO_WORKFLOWS_USE_SCHEDULES", False)
 
 ##
 # Airflow Configuration
@@ -588,6 +605,7 @@ KUBERNETES_SANDBOX_INIT_SCRIPT = from_conf("KUBERNETES_SANDBOX_INIT_SCRIPT")
 OTEL_ENDPOINT = from_conf("OTEL_ENDPOINT")
 ZIPKIN_ENDPOINT = from_conf("ZIPKIN_ENDPOINT")
 CONSOLE_TRACE_ENABLED = from_conf("CONSOLE_TRACE_ENABLED", False)
+OTEL_SERVICE_NAME = from_conf("OTEL_SERVICE_NAME", "metaflow")
 # internal env used for preventing the tracing module from loading during Conda bootstrapping.
 DISABLE_TRACING = bool(os.environ.get("DISABLE_TRACING", False))
 
