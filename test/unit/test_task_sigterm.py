@@ -38,12 +38,29 @@ def test_sigterm_unwinds_finalization_and_marks_attempt_failed(flow):
     assert signal.getsignal(signal.SIGTERM) == signal.SIG_DFL
 
 
-def test_sigterm_during_cleanup_does_not_interrupt_finalization_again(flow):
-    with task_module._handle_task_sigterm(flow):
-        with pytest.raises(SystemExit):
-            os.kill(os.getpid(), signal.SIGTERM)
-        os.kill(os.getpid(), signal.SIGTERM)
-    assert flow._task_ok is False
+def test_second_sigterm_during_cleanup_terminates_process():
+    source = textwrap.dedent(
+        """
+        import os
+        import signal
+        from types import SimpleNamespace
+
+        from metaflow.task import _handle_task_sigterm
+
+        flow = SimpleNamespace(_task_ok=True, _success=True)
+        with _handle_task_sigterm(flow):
+            try:
+                os.kill(os.getpid(), signal.SIGTERM)
+            except SystemExit:
+                print("finalizing", flush=True)
+                os.kill(os.getpid(), signal.SIGTERM)
+        """
+    )
+    result = subprocess.run(
+        [sys.executable, "-c", source], capture_output=True, text=True, timeout=5
+    )
+    assert result.returncode == -signal.SIGTERM
+    assert result.stdout == "finalizing\n"
 
 
 def test_custom_handler_remains_in_control(flow):

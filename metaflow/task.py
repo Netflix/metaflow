@@ -41,6 +41,7 @@ MAX_FOREACH_PATH_LENGTH = 256
 @contextmanager
 def _handle_task_sigterm(flow):
     finalizing = False
+    termination_requested = False
 
     def begin_finalization():
         nonlocal finalizing
@@ -55,6 +56,11 @@ def _handle_task_sigterm(flow):
         return
 
     def terminate(signum, frame):
+        nonlocal termination_requested
+        if termination_requested:
+            signal.signal(signum, previous)
+            os.kill(os.getpid(), signum)
+        termination_requested = True
         if not finalizing:
             begin_finalization()
             flow._task_ok = False
