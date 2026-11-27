@@ -245,6 +245,15 @@ class BatchDecorator(StepDecorator):
                 validate_aws_tag(key, val)
 
     def runtime_init(self, flow, graph, package, run_id):
+        # Tags reach `batch step` as "key=value" strings (see runtime_step_cli),
+        # so a "=" in a key would silently change which tag gets submitted.
+        for key in self.attributes["aws_batch_tags"] or {}:
+            if "=" in key:
+                raise BatchException(
+                    "AWS Batch tag key *%s* cannot contain '=' when the step is "
+                    "launched from a local run." % key
+                )
+
         # Set some more internal state.
         self.flow = flow
         self.graph = graph
